@@ -18,12 +18,12 @@ sunLight.position.set(60, 100, 40);
 sunLight.castShadow = true;
 scene.add(sunLight);
 
-// פונקציית חישוב גובה האדמה (משמשת גם ליצירת השטח וגם להצמדת הרובוט)
+// גובה פני השטח
 function getTerrainHeight(x, z) {
   return Math.sin(x * 0.05) * Math.cos(z * 0.05) * 4 + Math.sin(x * 0.02) * 3;
 }
 
-// יצירת השטח
+// יצירת הקרקע
 const terrainSize = 240;
 const terrainSegments = 70;
 const terrainGeometry = new THREE.PlaneGeometry(terrainSize, terrainSize, terrainSegments, terrainSegments);
@@ -46,7 +46,7 @@ const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
 terrain.receiveShadow = true;
 scene.add(terrain);
 
-// בניית הרובוט
+// בניית מודל הרובוט
 const roverGroup = new THREE.Group();
 
 const bodyGeo = new THREE.BoxGeometry(2.0, 0.7, 3.2);
@@ -84,7 +84,7 @@ wheelPositions.forEach(pos => {
 
 scene.add(roverGroup);
 
-// שליטה
+// ניהול קלט מקשים ומגע
 const keys = {};
 window.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
 window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
@@ -92,19 +92,33 @@ window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
 function setupTouchButton(id, keyName) {
   const btn = document.getElementById(id);
   if (!btn) return;
-  const pressOn = () => keys[keyName] = true;
-  const pressOff = () => keys[keyName] = false;
+  
+  const pressOn = (e) => { if(e) e.preventDefault(); keys[keyName] = true; btn.classList.add('active'); };
+  const pressOff = (e) => { if(e) e.preventDefault(); keys[keyName] = false; btn.classList.remove('active'); };
 
-  btn.addEventListener('touchstart', (e) => { e.preventDefault(); pressOn(); btn.classList.add('active'); });
-  btn.addEventListener('touchend', (e) => { e.preventDefault(); pressOff(); btn.classList.remove('active'); });
-  btn.addEventListener('mousedown', () => { pressOn(); btn.classList.add('active'); });
-  btn.addEventListener('mouseup', () => { pressOff(); btn.classList.remove('active'); });
+  btn.addEventListener('touchstart', pressOn, {passive: false});
+  btn.addEventListener('touchend', pressOff, {passive: false});
+  btn.addEventListener('mousedown', pressOn);
+  btn.addEventListener('mouseup', pressOff);
+  btn.addEventListener('mouseleave', pressOff);
 }
 
 setupTouchButton('btn-up', 'w');
 setupTouchButton('btn-down', 's');
 setupTouchButton('btn-left', 'a');
 setupTouchButton('btn-right', 'd');
+
+// כפתור מסך מלא למובייל
+const fsBtn = document.getElementById('btn-fullscreen');
+if (fsBtn) {
+  fsBtn.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  });
+}
 
 let speed = 0;
 let maxSpeed = 0.22;
@@ -131,7 +145,7 @@ function animate() {
 
   roverGroup.translateZ(speed);
 
-  // הצמדת גובה הרובוט בדיוק לגובה האדמה כדי שלא יטבע
+  // הצמדה מדויקת לאדמה
   const groundY = getTerrainHeight(roverGroup.position.x, roverGroup.position.z);
   roverGroup.position.y = groundY;
 

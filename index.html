@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Advanced Low Poly Rover Explorer</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -11,25 +11,31 @@
 
   <canvas id="gameCanvas"></canvas>
 
+  <!-- ממשק משתמש upper HUD -->
   <div id="ui-container">
+    <div id="top-left-hud">
+      <button id="btn-fullscreen">fullscreen ⛶</button>
+      <div id="stats">
+        <div class="stat-bar">
+          <span>אנרגיה:</span>
+          <div class="bar-outer"><div id="energy-bar" class="bar-inner"></div></div>
+        </div>
+      </div>
+    </div>
+
     <div id="minimap">
       <div id="minimap-rover"></div>
     </div>
-
-    <div id="stats">
-      <div class="stat-bar">
-        <span>אנרגיה:</span>
-        <div class="bar-outer"><div id="energy-bar" class="bar-inner"></div></div>
-      </div>
-    </div>
   </div>
 
-  <!-- כפתורי שליטה מופרדים לשמאל וימין עבור מסך לרוחב -->
+  <!-- כפתורי שליטה הגיוניים למסך לרוחב -->
+  <!-- צד שמאל: פנייה שמאלה / ימינה -->
   <div id="controls-left">
     <button id="btn-left" class="ctrl-btn">⬅️</button>
     <button id="btn-right" class="ctrl-btn">➡️</button>
   </div>
 
+  <!-- צד ימין: קדימה / אחורה -->
   <div id="controls-right">
     <button id="btn-up" class="ctrl-btn">⬆️</button>
     <button id="btn-down" class="ctrl-btn">⬇️</button>
