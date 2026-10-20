@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 
 // ============ הגדרות עולם ============
-const WORLD_SIZE = 300;
+const WORLD_SIZE = 200;
 const HALF = WORLD_SIZE / 2;
 
 // ============ סצנה ============
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.Fog(0x87ceeb, 50, 200);
+// שמיים בצבע שקיעה חמה כמו בוידאו
+scene.background = new THREE.Color(0xd4845a);
+scene.fog = new THREE.Fog(0xd4845a, 40, 130);
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -16,30 +17,30 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.2;
+renderer.toneMappingExposure = 1.3;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
-// ============ תאורה משופרת ============
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+// ============ תאורת שקיעה חמה ============
+const ambientLight = new THREE.AmbientLight(0xffaa77, 0.5);
 scene.add(ambientLight);
 
-const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x3a5a2a, 0.5);
-scene.add(hemiLight);
-
-const sunLight = new THREE.DirectionalLight(0xfff4e0, 1.5);
-sunLight.position.set(60, 100, 40);
+const sunLight = new THREE.DirectionalLight(0xffcc88, 1.8);
+sunLight.position.set(30, 50, 20);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.width = 2048;
 sunLight.shadow.mapSize.height = 2048;
 sunLight.shadow.camera.near = 0.5;
-sunLight.shadow.camera.far = 300;
-sunLight.shadow.camera.left = -120;
-sunLight.shadow.camera.right = 120;
-sunLight.shadow.camera.top = 120;
-sunLight.shadow.camera.bottom = -120;
+sunLight.shadow.camera.far = 200;
+sunLight.shadow.camera.left = -100;
+sunLight.shadow.camera.right = 100;
+sunLight.shadow.camera.top = 100;
+sunLight.shadow.camera.bottom = -100;
 sunLight.shadow.bias = -0.0005;
 scene.add(sunLight);
+
+const hemiLight = new THREE.HemisphereLight(0xffaa66, 0x445522, 0.4);
+scene.add(hemiLight);
 
 // ============ Noise ============
 function noise2D(x, z) {
@@ -55,22 +56,22 @@ function smoothNoise(x, z, scale) {
   const c = noise2D(ix, iz + 1), d = noise2D(ix + 1, iz + 1);
   const ux = fx * fx * (3 - 2 * fx);
   const uz = fz * fz * (3 - 2 * fz);
-  return a * (1-ux)*(1-uz) + b * ux*(1-uz) + c * (1-ux)*uz + d * ux*uz;
+  return a * (1 - ux) * (1 - uz) + b * ux * (1 - uz) + c * (1 - ux) * uz + d * ux * uz;
 }
 
 function fbm(x, z) {
-  return smoothNoise(x, z, 50) * 0.5 + smoothNoise(x, z, 25) * 0.3 + smoothNoise(x, z, 12) * 0.2;
+  return smoothNoise(x, z, 40) * 0.5 + smoothNoise(x, z, 20) * 0.3 + smoothNoise(x, z, 10) * 0.2;
 }
 
-// ============ קרקע עם flatShading ============
-const groundGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, 120, 120);
+// ============ קרקע ============
+const groundGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, 100, 100);
 const pos = groundGeo.attributes.position;
 const colors = new Float32Array(pos.count * 3);
 
 for (let i = 0; i < pos.count; i++) {
   const x = pos.getX(i);
   const y = pos.getY(i);
-  const h = fbm(x, y) * 5 - 2.5;
+  const h = fbm(x, y) * 3 - 1.5;
   pos.setZ(i, h);
 
   const nx = (x + HALF) / WORLD_SIZE;
@@ -79,14 +80,16 @@ for (let i = 0; i < pos.count; i++) {
   const biomeNoise = fbm(x * 0.5, y * 0.5);
   let r, g, b;
 
-  if (dist < 25) { r = 0.32; g = 0.58; b = 0.28; }
-  else if (nx < 0.3 && nz < 0.3) { r = 0.18; g = 0.38; b = 0.22; }
-  else if (nx > 0.7 && nz < 0.3) { r = 0.85; g = 0.73; b = 0.48; }
-  else if (nx < 0.3 && nz > 0.7) { r = 0.88; g = 0.92; b = 0.97; }
-  else if (nx > 0.7 && nz > 0.7) { r = 0.38; g = 0.42; b = 0.28; }
-  else { r = 0.38 + biomeNoise * 0.1; g = 0.58 + biomeNoise * 0.1; b = 0.30; }
+  if (dist < 20) { r = 0.25; g = 0.55; b = 0.20; }
+  else if (nx < 0.3 && nz < 0.3) { r = 0.15; g = 0.35; b = 0.18; }
+  else if (nx > 0.7 && nz < 0.3) { r = 0.82; g = 0.71; b = 0.45; }
+  else if (nx < 0.3 && nz > 0.7) { r = 0.85; g = 0.9; b = 0.95; }
+  else if (nx > 0.7 && nz > 0.7) { r = 0.35; g = 0.4; b = 0.25; }
+  else { r = 0.28 + biomeNoise * 0.08; g = 0.52 + biomeNoise * 0.08; b = 0.22; }
 
-  colors[i*3] = r; colors[i*3+1] = g; colors[i*3+2] = b;
+  colors[i * 3] = r;
+  colors[i * 3 + 1] = g;
+  colors[i * 3 + 2] = b;
 }
 groundGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 groundGeo.computeVertexNormals();
@@ -102,16 +105,63 @@ ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
-function getGroundHeight(x, z) { return fbm(x, z) * 5 - 2.5; }
+function getGroundHeight(x, z) {
+  return fbm(x, z) * 3 - 1.5;
+}
 
-// ============ עצים Low Poly איכותיים ============
+// ============ דשא צפוף (10000 להבים!) ============
+const grassBladeGeo = new THREE.ConeGeometry(0.05, 0.4, 3);
+grassBladeGeo.translate(0, 0.2, 0);
+const grassMat = new THREE.MeshStandardMaterial({
+  color: 0x3a7a2a,
+  flatShading: true,
+  side: THREE.DoubleSide
+});
+const grassCount = 10000;
+const grassMesh = new THREE.InstancedMesh(grassBladeGeo, grassMat, grassCount);
+grassMesh.receiveShadow = true;
+
+const dummy = new THREE.Object3D();
+for (let i = 0; i < grassCount; i++) {
+  const x = (Math.random() - 0.5) * WORLD_SIZE * 0.95;
+  const z = (Math.random() - 0.5) * WORLD_SIZE * 0.95;
+  const h = getGroundHeight(x, z);
+  dummy.position.set(x, h, z);
+  dummy.rotation.set((Math.random() - 0.5) * 0.2, Math.random() * Math.PI, (Math.random() - 0.5) * 0.2);
+  dummy.scale.setScalar(0.8 + Math.random() * 0.6);
+  dummy.updateMatrix();
+  grassMesh.setMatrixAt(i, dummy.matrix);
+}
+grassMesh.instanceMatrix.needsUpdate = true;
+scene.add(grassMesh);
+
+// ============ פירמידות ברקע (כמו בוידאו) ============
+function createPyramid(x, z, size) {
+  const pyr = new THREE.Mesh(
+    new THREE.ConeGeometry(size, size * 1.5, 4),
+    new THREE.MeshStandardMaterial({ color: 0x8b6f47, flatShading: true, roughness: 0.9 })
+  );
+  pyr.position.set(x, size * 0.75, z);
+  pyr.rotation.y = Math.PI / 4;
+  pyr.castShadow = true;
+  pyr.receiveShadow = true;
+  scene.add(pyr);
+}
+
+createPyramid(0, -70, 18);
+createPyramid(-45, -60, 12);
+createPyramid(45, -60, 12);
+createPyramid(-80, -80, 14);
+createPyramid(80, -80, 14);
+
+// ============ עצים Low Poly ============
 function createTree(x, z, type = 'normal') {
   const tree = new THREE.Group();
   const h = getGroundHeight(x, z);
 
-  const trunkH = 1.8 + Math.random() * 1.0;
-  const trunkGeo = new THREE.CylinderGeometry(0.18, 0.32, trunkH, 6);
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4423, flatShading: true });
+  const trunkH = 1.8 + Math.random() * 0.8;
+  const trunkGeo = new THREE.CylinderGeometry(0.18, 0.3, trunkH, 6);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1a, flatShading: true });
   const trunk = new THREE.Mesh(trunkGeo, trunkMat);
   trunk.position.y = trunkH / 2;
   trunk.castShadow = true;
@@ -121,25 +171,25 @@ function createTree(x, z, type = 'normal') {
 
   if (type === 'pine') {
     for (let i = 0; i < 3; i++) {
-      const size = 1.8 - i * 0.4;
-      const coneGeo = new THREE.ConeGeometry(size, 2.0, 7);
+      const size = 1.6 - i * 0.35;
+      const coneGeo = new THREE.ConeGeometry(size, 1.8, 7);
       const coneMat = new THREE.MeshStandardMaterial({ color: leavesColor, flatShading: true });
       const cone = new THREE.Mesh(coneGeo, coneMat);
-      cone.position.y = trunkH + 0.8 + i * 1.2;
+      cone.position.y = trunkH + 0.7 + i * 1.1;
       cone.castShadow = true;
       tree.add(cone);
     }
   } else {
-    const leavesGeo = new THREE.IcosahedronGeometry(1.6, 0);
+    const leavesGeo = new THREE.IcosahedronGeometry(1.4, 0);
     const leavesMat = new THREE.MeshStandardMaterial({ color: leavesColor, flatShading: true });
     const leaves = new THREE.Mesh(leavesGeo, leavesMat);
-    leaves.position.y = trunkH + 1.3;
+    leaves.position.y = trunkH + 1.2;
     leaves.castShadow = true;
     tree.add(leaves);
   }
 
   tree.position.set(x, h, z);
-  tree.scale.setScalar(0.9 + Math.random() * 0.5);
+  tree.scale.setScalar(0.9 + Math.random() * 0.4);
   scene.add(tree);
   return tree;
 }
@@ -149,9 +199,7 @@ function createRock(x, z, scale = 1) {
   const h = getGroundHeight(x, z);
   const rockGeo = new THREE.DodecahedronGeometry(0.8, 0);
   const rockMat = new THREE.MeshStandardMaterial({
-    color: 0x777777,
-    roughness: 0.95,
-    flatShading: true
+    color: 0x777777, roughness: 0.95, flatShading: true
   });
   const rock = new THREE.Mesh(rockGeo, rockMat);
   rock.scale.set(scale, scale * 0.6, scale);
@@ -163,54 +211,11 @@ function createRock(x, z, scale = 1) {
   return rock;
 }
 
-// ============ עשב (InstancedMesh) ============
-const grassBladeGeo = new THREE.ConeGeometry(0.08, 0.5, 4);
-grassBladeGeo.translate(0, 0.25, 0);
-const grassMat = new THREE.MeshStandardMaterial({
-  color: 0x4a7a3a,
-  flatShading: true,
-  side: THREE.DoubleSide
-});
-const grassCount = 5000;
-const grassMesh = new THREE.InstancedMesh(grassBladeGeo, grassMat, grassCount);
-grassMesh.receiveShadow = true;
-
-const dummy = new THREE.Object3D();
-for (let i = 0; i < grassCount; i++) {
-  const x = (Math.random() - 0.5) * WORLD_SIZE * 0.95;
-  const z = (Math.random() - 0.5) * WORLD_SIZE * 0.95;
-  const h = getGroundHeight(x, z);
-  dummy.position.set(x, h, z);
-  dummy.rotation.set((Math.random() - 0.5) * 0.3, Math.random() * Math.PI, (Math.random() - 0.5) * 0.3);
-  dummy.scale.setScalar(0.7 + Math.random() * 0.8);
-  dummy.updateMatrix();
-  grassMesh.setMatrixAt(i, dummy.matrix);
-}
-grassMesh.instanceMatrix.needsUpdate = true;
-scene.add(grassMesh);
-
-// ============ פרחים צבעוניים ============
-const flowerColors = [0xff6699, 0xffcc33, 0xff8844, 0xaa66ff, 0xffffff];
-const flowerGeo = new THREE.SphereGeometry(0.12, 5, 4);
-for (let i = 0; i < 200; i++) {
-  const x = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
-  const z = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
-  const h = getGroundHeight(x, z);
-  const flower = new THREE.Mesh(flowerGeo, new THREE.MeshStandardMaterial({
-    color: flowerColors[Math.floor(Math.random() * flowerColors.length)],
-    emissive: 0x221100,
-    emissiveIntensity: 0.2,
-    flatShading: true
-  }));
-  flower.position.set(x, h + 0.3, z);
-  scene.add(flower);
-}
-
 // ============ פיזור טבע ============
 const trees = [], rocks = [];
-for (let i = 0; i < 150; i++) {
-  const x = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
-  const z = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
+for (let i = 0; i < 100; i++) {
+  const x = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
+  const z = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
   if (Math.sqrt(x * x + z * z) > 8) {
     const nx = (x + HALF) / WORLD_SIZE;
     const nz = (z + HALF) / WORLD_SIZE;
@@ -220,10 +225,10 @@ for (let i = 0; i < 150; i++) {
     trees.push(createTree(x, z, type));
   }
 }
-for (let i = 0; i < 80; i++) {
-  const x = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
-  const z = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
-  rocks.push(createRock(x, z, 0.5 + Math.random() * 1.5));
+for (let i = 0; i < 60; i++) {
+  const x = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
+  const z = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
+  rocks.push(createRock(x, z, 0.5 + Math.random() * 1.2));
 }
 
 // ============ מבנים לגילוי ============
@@ -309,21 +314,21 @@ function createDiscovery(data) {
 }
 discoveryData.forEach(createDiscovery);
 
-// ============ פריטים לאסוף ============
+// ============ גבישים זוהרים ============
 const collectibles = [];
 const crystalGeo = new THREE.OctahedronGeometry(0.3, 0);
-const crystalColors = [0x00ffff, 0xff00ff, 0x00ff88, 0xffaa00, 0xff4444];
+const crystalColors = [0xffd700, 0x00ffff, 0xff00ff, 0x00ff88, 0xff4444];
 for (let i = 0; i < 30; i++) {
   const x = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
   const z = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
   const h = getGroundHeight(x, z);
   const color = crystalColors[Math.floor(Math.random() * crystalColors.length)];
   const crystal = new THREE.Mesh(crystalGeo, new THREE.MeshStandardMaterial({
-    color, emissive: color, emissiveIntensity: 0.6,
-    transparent: true, opacity: 0.85, flatShading: true
+    color, emissive: color, emissiveIntensity: 0.8,
+    transparent: true, opacity: 0.9, flatShading: true
   }));
   crystal.position.set(x, h + 0.8, z);
-  const light = new THREE.PointLight(color, 0.5, 3);
+  const light = new THREE.PointLight(color, 0.6, 3);
   light.position.set(x, h + 0.8, z);
   scene.add(crystal); scene.add(light);
   collectibles.push({ mesh: crystal, light, collected: false, color });
@@ -352,57 +357,47 @@ function createAnimal(x, z, type) {
   scene.add(group);
   animals.push(group);
 }
-for (let i = 0; i < 10; i++) {
+for (let i = 0; i < 8; i++) {
   const x = (Math.random() - 0.5) * WORLD_SIZE * 0.7;
   const z = (Math.random() - 0.5) * WORLD_SIZE * 0.7;
   createAnimal(x, z, Math.random() > 0.5 ? 'bird' : 'fox');
 }
 
-// ============ בניית הרובר (Low Poly מתקדם) ============
+// ============ בניית הרובר (דומה לוידאו) ============
 const rover = new THREE.Group();
 
-// גוף תחתון
-const bodyGeo = new THREE.BoxGeometry(2.2, 0.7, 1.8, 2, 1, 1);
-const bodyMat = new THREE.MeshStandardMaterial({ color: 0x556677, metalness: 0.5, roughness: 0.5, flatShading: true });
+// גוף שחור/אפור כהה
+const bodyGeo = new THREE.BoxGeometry(1.8, 0.5, 1.2, 2, 1, 1);
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: 0.3, roughness: 0.7, flatShading: true });
 const body = new THREE.Mesh(bodyGeo, bodyMat);
-body.position.y = 0.85;
+body.position.y = 0.6;
 body.castShadow = true;
 rover.add(body);
 
-// פאנלים צדדיים
-const panelMat = new THREE.MeshStandardMaterial({ color: 0x445566, metalness: 0.6, roughness: 0.4, flatShading: true });
-const panelL = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.3, 0.1), panelMat);
-panelL.position.set(0, 1.0, 0.95); rover.add(panelL);
-const panelR = panelL.clone(); panelR.position.z = -0.95; rover.add(panelR);
-
-// כיפה שקופה - Icosahedron למראה Low Poly!
-const domeGeo = new THREE.IcosahedronGeometry(0.85, 1);
+// כיפה כחולה בוהקת (כמו בוידאו!)
+const domeGeo = new THREE.SphereGeometry(0.5, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
 const domeMat = new THREE.MeshStandardMaterial({
-  color: 0xaaddff, metalness: 0.2, roughness: 0.3,
-  transparent: true, opacity: 0.75, flatShading: true
+  color: 0x88ddff,
+  metalness: 0.2,
+  roughness: 0.3,
+  emissive: 0x44aacc,
+  emissiveIntensity: 0.4,
+  transparent: true,
+  opacity: 0.85,
+  flatShading: true
 });
 const dome = new THREE.Mesh(domeGeo, domeMat);
-dome.position.y = 1.5;
-dome.scale.y = 0.7;
+dome.position.y = 0.85;
 dome.castShadow = true;
 rover.add(dome);
 
-// מסגרת כיפה
-const domeFrame = new THREE.Mesh(
-  new THREE.TorusGeometry(0.85, 0.05, 4, 8),
-  new THREE.MeshStandardMaterial({ color: 0x334455, metalness: 0.7, flatShading: true })
-);
-domeFrame.position.y = 1.2;
-domeFrame.rotation.x = Math.PI / 2;
-rover.add(domeFrame);
+// גלגלים שחורים גדולים עם חישוקים
+const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 12);
+const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.95, flatShading: true });
+const wheelHubGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.32, 8);
+const wheelHubMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.6, flatShading: true });
 
-// גלגלים גדולים
-const wheelGeo = new THREE.CylinderGeometry(0.6, 0.6, 0.5, 10);
-const wheelMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.95, flatShading: true });
-const wheelHubGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.52, 6);
-const wheelHubMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.6, flatShading: true });
-
-const wheelPositions = [[-1.2, 0.6, 1.0], [1.2, 0.6, 1.0], [-1.2, 0.6, -1.0], [1.2, 0.6, -1.0]];
+const wheelPositions = [[-0.9, 0.4, 0.7], [0.9, 0.4, 0.7], [-0.9, 0.4, -0.7], [0.9, 0.4, -0.7]];
 wheelPositions.forEach(p => {
   const wheel = new THREE.Mesh(wheelGeo, wheelMat);
   wheel.rotation.z = Math.PI / 2;
@@ -414,56 +409,47 @@ wheelPositions.forEach(p => {
   hub.rotation.z = Math.PI / 2;
   hub.position.set(...p);
   rover.add(hub);
+});
 
-  const arm = new THREE.Mesh(
-    new THREE.BoxGeometry(0.15, 0.15, 0.6),
-    new THREE.MeshStandardMaterial({ color: 0x667788, metalness: 0.5, flatShading: true })
-  );
-  arm.position.set(p[0] * 0.7, 0.9, p[2] * 0.5);
+// מתלים
+const armMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.5, flatShading: true });
+const armGeo = new THREE.BoxGeometry(0.1, 0.1, 0.5);
+[[-0.8, 0.6, 0.5], [0.8, 0.6, 0.5], [-0.8, 0.6, -0.5], [0.8, 0.6, -0.5]].forEach(p => {
+  const arm = new THREE.Mesh(armGeo, armMat);
+  arm.position.set(...p);
   arm.rotation.x = 0.3;
   arm.castShadow = true;
   rover.add(arm);
 });
 
-// מצלמות קדמיות
-const camGeo = new THREE.BoxGeometry(0.3, 0.25, 0.25);
-const camMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8, flatShading: true });
-const camL = new THREE.Mesh(camGeo, camMat);
-camL.position.set(-0.5, 1.0, 1.0); rover.add(camL);
-const camR = camL.clone(); camR.position.x = 0.5; rover.add(camR);
+// אנטנות כפולות (כמו בוידאו)
+const antennaGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.4, 6);
+const antennaMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+const ant1 = new THREE.Mesh(antennaGeo, antennaMat);
+ant1.position.set(-0.2, 1.1, 0);
+rover.add(ant1);
+const ant2 = ant1.clone();
+ant2.position.x = 0.2;
+rover.add(ant2);
 
-// עדשות מצלמה זוהרות
-const lensGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.1, 6);
-const lensMat = new THREE.MeshStandardMaterial({ color: 0x00aaff, emissive: 0x0044aa, emissiveIntensity: 0.5, flatShading: true });
-const lensL = new THREE.Mesh(lensGeo, lensMat);
-lensL.rotation.x = Math.PI / 2;
-lensL.position.set(-0.5, 1.0, 1.15); rover.add(lensL);
-const lensR = lensL.clone(); lensR.position.x = 0.5; rover.add(lensR);
+// פנסים קדמיים זוהרים
+const headlightGeo = new THREE.CylinderGeometry(0.08, 0.1, 0.15, 8);
+const headlightMat = new THREE.MeshStandardMaterial({
+  color: 0xffffaa,
+  emissive: 0xffffaa,
+  emissiveIntensity: 0.8,
+  flatShading: true
+});
+const hl1 = new THREE.Mesh(headlightGeo, headlightMat);
+hl1.rotation.x = Math.PI / 2;
+hl1.position.set(-0.5, 0.7, 0.65);
+rover.add(hl1);
+const hl2 = hl1.clone();
+hl2.position.x = 0.5;
+rover.add(hl2);
 
-// אנטנה
-const antennaGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.8, 6);
-const antennaMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.7, flatShading: true });
-const antenna = new THREE.Mesh(antennaGeo, antennaMat);
-antenna.position.set(0, 2.0, 0);
-rover.add(antenna);
-
-const antennaBall = new THREE.Mesh(
-  new THREE.IcosahedronGeometry(0.1, 0),
-  new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.6, flatShading: true })
-);
-antennaBall.position.set(0, 2.4, 0);
-rover.add(antennaBall);
-
-// פנסים קדמיים
-const headlightGeo = new THREE.CylinderGeometry(0.12, 0.15, 0.2, 6);
-const headlightMat = new THREE.MeshStandardMaterial({ color: 0xffffaa, emissive: 0xffffaa, emissiveIntensity: 0.4, flatShading: true });
-const hlL = new THREE.Mesh(headlightGeo, headlightMat);
-hlL.rotation.x = Math.PI / 2;
-hlL.position.set(-0.7, 0.9, 1.0); rover.add(hlL);
-const hlR = hlL.clone(); hlR.position.x = 0.7; rover.add(hlR);
-
-const headLight = new THREE.SpotLight(0xffffaa, 0.8, 15, Math.PI / 6, 0.3);
-headLight.position.set(0, 1.0, 1.2);
+const headLight = new THREE.SpotLight(0xffffaa, 1.0, 12, Math.PI / 6, 0.3);
+headLight.position.set(0, 0.8, 0.7);
 headLight.target.position.set(0, 0, 10);
 rover.add(headLight);
 rover.add(headLight.target);
@@ -558,9 +544,8 @@ const minimapRover = document.getElementById('minimap-rover');
 
 function drawMinimap() {
   const w = minimapCanvas.width, h = minimapCanvas.height;
-  minimapCtx.fillStyle = '#0a1410';
+  minimapCtx.fillStyle = '#1a0f05';
   minimapCtx.fillRect(0, 0, w, h);
-  const scale = w / WORLD_SIZE;
 
   minimapCtx.fillStyle = '#2d5a28';
   minimapCtx.fillRect(0, 0, w, h);
@@ -576,7 +561,7 @@ function drawMinimap() {
   discoveries.forEach(d => {
     const x = ((d.data.pos[0] + HALF) / WORLD_SIZE) * w;
     const y = ((d.data.pos[2] + HALF) / WORLD_SIZE) * h;
-    minimapCtx.fillStyle = d.discovered ? '#00ffaa' : '#ffaa00';
+    minimapCtx.fillStyle = d.discovered ? '#ffd700' : '#ff8844';
     minimapCtx.beginPath();
     minimapCtx.arc(x, y, d.discovered ? 3 : 4, 0, Math.PI * 2);
     minimapCtx.fill();
@@ -586,17 +571,17 @@ function drawMinimap() {
     if (!c.collected) {
       const x = ((c.mesh.position.x + HALF) / WORLD_SIZE) * w;
       const y = ((c.mesh.position.z + HALF) / WORLD_SIZE) * h;
-      minimapCtx.fillStyle = '#00ffff';
+      minimapCtx.fillStyle = '#ffd700';
       minimapCtx.fillRect(x - 1, y - 1, 2, 2);
     }
   });
 
   const rx = ((rover.position.x + HALF) / WORLD_SIZE) * w;
   const ry = ((rover.position.z + HALF) / WORLD_SIZE) * h;
-  const viewRadius = 40 * scale;
+  const viewRadius = 40 * (w / WORLD_SIZE);
   const grad = minimapCtx.createRadialGradient(rx, ry, 0, rx, ry, viewRadius);
-  grad.addColorStop(0, 'rgba(255,255,255,0.15)');
-  grad.addColorStop(1, 'rgba(0,0,0,0.4)');
+  grad.addColorStop(0, 'rgba(255,215,0,0.2)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.5)');
   minimapCtx.fillStyle = grad;
   minimapCtx.fillRect(0, 0, w, h);
 
@@ -606,73 +591,44 @@ function drawMinimap() {
 
 // ============ לולאת משחק ============
 const clock = new THREE.Clock();
-const moveSpeed = 8;
+const moveSpeed = 7;
 const rotSpeed = 2.5;
-let gameTime = 0.35;
+let currentRot = 0;
 
 function getBiomeName(x, z) {
   const nx = (x + HALF) / WORLD_SIZE;
   const nz = (z + HALF) / WORLD_SIZE;
   const dist = Math.sqrt(x * x + z * z);
-  if (dist < 25) return ' שטח ירוק';
+  if (dist < 20) return '🌿 שטח ירוק';
   if (nx < 0.3 && nz < 0.3) return '🌲 יער צפוף';
-  if (nx > 0.7 && nz < 0.3) return '️ מדבר';
+  if (nx > 0.7 && nz < 0.3) return '🏜️ מדבר';
   if (nx < 0.3 && nz > 0.7) return '❄️ אזור מושלג';
-  if (nx > 0.7 && nz > 0.7) return '🌾 ביצה';
+  if (nx > 0.7 && nz > 0.7) return ' ביצה';
   return '🌱 ערבה';
-}
-
-function updateDayNight(dt) {
-  gameTime = (gameTime + dt * 0.01) % 1;
-  const sunAngle = gameTime * Math.PI * 2;
-  const sunHeight = Math.sin(sunAngle);
-  sunLight.position.set(Math.cos(sunAngle) * 80, Math.max(sunHeight * 80, -20), 30);
-
-  const dayFactor = Math.max(0, sunHeight);
-  ambientLight.intensity = 0.3 + dayFactor * 0.4;
-  sunLight.intensity = dayFactor * 1.5;
-
-  const skyColor = new THREE.Color();
-  if (dayFactor > 0.3) skyColor.setRGB(0.53, 0.81, 0.92);
-  else if (dayFactor > 0) skyColor.setRGB(0.9, 0.5, 0.3);
-  else skyColor.setRGB(0.05, 0.05, 0.15);
-  scene.background = skyColor;
-  scene.fog.color = skyColor;
-
-  const hours = Math.floor(gameTime * 24);
-  const mins = Math.floor((gameTime * 24 - hours) * 60);
-  const icon = dayFactor > 0.3 ? '🌞' : dayFactor > 0 ? '🌅' : '🌙';
-  document.getElementById('time-display').textContent = `${icon} ${String(hours).padStart(2,'0')}:${String(mins).padStart(2,'0')}`;
 }
 
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
 
-  // ============ שליטה: ישר/רוורס/ימין/שמאל ============
   let moving = false;
-
   if (keys.forward) {
-    rover.position.x -= Math.sin(rover.rotation.y) * moveSpeed * dt;
-    rover.position.z -= Math.cos(rover.rotation.y) * moveSpeed * dt;
+    rover.position.x -= Math.sin(currentRot) * moveSpeed * dt;
+    rover.position.z -= Math.cos(currentRot) * moveSpeed * dt;
     moving = true;
   }
   if (keys.backward) {
-    rover.position.x += Math.sin(rover.rotation.y) * moveSpeed * dt;
-    rover.position.z += Math.cos(rover.rotation.y) * moveSpeed * dt;
+    rover.position.x += Math.sin(currentRot) * moveSpeed * dt;
+    rover.position.z += Math.cos(currentRot) * moveSpeed * dt;
     moving = true;
   }
-  if (keys.left) {
-    rover.rotation.y += rotSpeed * dt;
-  }
-  if (keys.right) {
-    rover.rotation.y -= rotSpeed * dt;
-  }
+  if (keys.left) { currentRot += rotSpeed * dt; rover.rotation.y = currentRot; }
+  if (keys.right) { currentRot -= rotSpeed * dt; rover.rotation.y = currentRot; }
 
   const gh = getGroundHeight(rover.position.x, rover.position.z);
   rover.position.y += (gh - rover.position.y) * 0.2;
   if (moving) {
-    rover.position.y += Math.abs(Math.sin(clock.elapsedTime * 10)) * 0.03;
+    rover.position.y += Math.abs(Math.sin(clock.elapsedTime * 12)) * 0.04;
   }
 
   const limit = HALF - 5;
@@ -681,13 +637,16 @@ function animate() {
 
   document.getElementById('current-biome').textContent = getBiomeName(rover.position.x, rover.position.z);
 
+  // אנימציות גבישים
   collectibles.forEach((c, i) => {
     if (!c.collected) {
-      c.mesh.rotation.y += dt * 2;
-      c.mesh.position.y = getGroundHeight(c.mesh.position.x, c.mesh.position.z) + 0.8 + Math.sin(clock.elapsedTime * 2 + i) * 0.2;
+      c.mesh.rotation.y += dt * 3;
+      const baseH = getGroundHeight(c.mesh.position.x, c.mesh.position.z);
+      c.mesh.position.y = baseH + 0.8 + Math.sin(clock.elapsedTime * 3 + i) * 0.15;
     }
   });
 
+  // חיות
   animals.forEach(a => {
     a.userData.timer -= dt;
     if (a.userData.timer <= 0) {
@@ -709,6 +668,7 @@ function animate() {
     a.position.z = Math.max(-al, Math.min(al, a.position.z));
   });
 
+  // בדיקת גילויים קרובים
   nearDiscovery = null;
   let closestDist = 6;
   discoveries.forEach(d => {
@@ -728,6 +688,7 @@ function animate() {
     poiMarker.style.display = 'none';
   }
 
+  // איסוף פריטים
   collectibles.forEach((c, i) => {
     if (!c.collected) {
       const dx = rover.position.x - c.mesh.position.x;
@@ -735,22 +696,22 @@ function animate() {
       if (Math.sqrt(dx * dx + dz * dz) < 1.5) {
         c.collected = true;
         scene.remove(c.mesh); scene.remove(c.light);
-        showItemToast(`גביש ${['כחול','סגול','ירוק','זהב','אדום'][i % 5]} נאסף!`);
+        showItemToast(`גביש זוהר נאסף!`);
         updateQuest();
       }
     }
   });
 
+  // מצלמה חלקה
   const camOffset = new THREE.Vector3(
-    Math.sin(rover.rotation.y) * 10,
-    7,
-    Math.cos(rover.rotation.y) * 10
+    Math.sin(currentRot) * 8,
+    5,
+    Math.cos(currentRot) * 8
   );
   const targetPos = rover.position.clone().add(camOffset);
-  camera.position.lerp(targetPos, 0.08);
-  camera.lookAt(rover.position.x, rover.position.y + 1.5, rover.position.z);
+  camera.position.lerp(targetPos, 0.1);
+  camera.lookAt(rover.position.x, rover.position.y + 1, rover.position.z);
 
-  updateDayNight(dt);
   if (Math.floor(clock.elapsedTime * 60) % 10 === 0) drawMinimap();
   renderer.render(scene, camera);
 }
