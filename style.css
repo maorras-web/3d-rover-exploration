@@ -171,7 +171,7 @@ html, body {
 }
 @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 
-/* ===== Toasts ===== */
+/* ===== Toast ===== */
 .toast {
   position: fixed;
   bottom: 150px;
@@ -192,8 +192,6 @@ html, body {
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast-title { font-size: 14px; font-weight: bold; color: #7ef0ff; margin-bottom: 3px; }
 .toast-text { font-size: 12px; }
-.item-toast { background: linear-gradient(135deg, rgba(80,50,0,0.95), rgba(100,80,0,0.95)); border-color: #ffaa00; }
-.item-toast .toast-title { color: #ffcc00; }
 
 /* ===== D-Pad ===== */
 #dpad {
@@ -259,7 +257,7 @@ html, body {
 .action-btn:active { transform: scale(0.9); }
 @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
 
-/* ===== תיקון מסכים נמוכים (רוורס חתוך) ===== */
+/* ===== מסכים נמוכים ===== */
 @media (max-height: 480px) {
   .dpad-btn { width: 52px; height: 52px; font-size: 20px; }
   .dpad-label { font-size: 7px; }
