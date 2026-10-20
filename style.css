@@ -1,938 +1,198 @@
 * {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-    user-select: none;
-    -webkit-user-select: none;
-    touch-action: none;
-    -webkit-tap-highlight-color: transparent;
-    -webkit-touch-callout: none;
-    font-family: 'Rubik', sans-serif;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-body, html {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    overscroll-behavior: none;
-    background-color: #1e1b18;
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #0b0f19;
+  overscroll-behavior: none;
 }
 
-canvas {
-    display: block;
-    width: 100vw;
-    height: 100vh;
-    position: fixed;
-    inset: 0;
-    touch-action: none;
-    -webkit-user-select: none;
-    user-select: none;
+/* ===== אזהרות ===== */
+#desktop-warning, #orientation-warning {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: linear-gradient(135deg, #1a0f05 0%, #2d1810 100%);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #ffd700;
+  text-align: center;
+  padding: 20px;
 }
+#desktop-warning.show, #orientation-warning.show { display: flex; }
+.warning-icon { font-size: 70px; margin-bottom: 16px; animation: rotatePhone 2s ease-in-out infinite; }
+.warning-title { font-size: 26px; font-weight: bold; margin-bottom: 10px; }
+.warning-text { font-size: 16px; opacity: 0.7; }
+.warning-sub { font-size: 14px; opacity: 0.5; margin-top: 6px; }
+@keyframes rotatePhone { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(90deg); } }
 
-/* ==========================================
-   UI עליון במראה זכוכית יוקרתי (Glassmorphism)
-   ========================================== */
+/* ===== HUD ===== */
 #ui-container {
-    position: absolute;
-    top: 15px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 92%;
-    max-width: 480px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 6px;
-    z-index: 10;
-    pointer-events: none;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  padding: calc(8px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right))
+           calc(8px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+  display: flex;
+  justify-content: space-between;
+}
+#top-left-hud, #top-right-hud {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+#minimap {
+  width: 140px;
+  height: 140px;
+  background: rgba(15, 22, 18, 0.88);
+  border: 2px solid rgba(120, 200, 160, 0.7);
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.45);
+}
+#minimap-canvas { width: 100%; height: 100%; }
+#minimap-rover {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background: #7ef0ff;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #7ef0ff;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+#btn-fullscreen {
+  background: rgba(20,10,5,0.85);
+  color: #7ef0ff;
+  border: 1px solid #7ef0ff;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  width: fit-content;
+  pointer-events: auto;
+  outline: none;
+  cursor: pointer;
+}
+#btn-fullscreen:active { background: rgba(126,240,255,0.4); }
+
+#current-biome, #time-display {
+  background: rgba(20,10,5,0.85);
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  text-align: center;
+  width: fit-content;
+  align-self: flex-end;
+}
+#current-biome { border: 1px solid #ff8844; color: #ffcc88; }
+#time-display { border: 1px solid #ffaa00; color: #ffdd44; }
+
+/* ===== הגה - צד שמאל ===== */
+#steer-left {
+  position: absolute;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  left: calc(18px + env(safe-area-inset-left));
+  display: flex;
+  gap: 12px;
+  z-index: 100;
+}
+
+/* ===== דוושות - צד ימין ===== */
+#pedals-right {
+  position: absolute;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  right: calc(18px + env(safe-area-inset-right));
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  z-index: 100;
+}
+
+/* ===== כפתורים עגולים כלליים ===== */
+.ctrl-round {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.55);
+  background: radial-gradient(circle at 32% 30%, rgba(255,255,255,0.35), rgba(120,160,180,0.28));
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  color: #fff;
+  font-size: 26px;
+  cursor: pointer;
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+  transition: transform 0.08s, background 0.08s;
 }
-
-.ui-card {
-    background: rgba(30, 27, 24, 0.55);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 14px;
-    padding: 6px 12px;
-    color: #ffffff;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-    pointer-events: auto;
-    flex: 1;
-}
-
-.ui-title {
-    font-size: 10px;
-    color: #cbd5e1;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-}
-
-.ui-value {
-    font-size: 16px;
-    font-weight: 800;
-    color: #fde047;
-}
-
-/* בר חיים */
-#hp-container {
-    flex: 1.5;
-    align-items: stretch;
-}
-
-.hp-bar-bg {
-    width: 100%;
-    height: 8px;
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: 10px;
-    overflow: hidden;
-    margin-top: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-#hp-bar {
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, #22c55e, #4ade80);
-    border-radius: 10px;
-    transition: width 0.2s ease;
-}
-
-/* ==========================================
-   מסך פתיחה וחלונות קופצים
-   ========================================== */
-.modal-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(15, 13, 11, 0.75);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 100;
-}
-
-.modal-card {
-    background: rgba(30, 27, 24, 0.88);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 24px;
-    padding: 24px 20px;
-    width: 88%;
-    max-width: 360px;
-    max-height: 92vh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    text-align: center;
-    color: #ffffff;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-}
-
-.game-title {
-    font-size: 28px;
-    font-weight: 900;
-    line-height: 1.1;
-    color: #ffffff;
-    margin-bottom: 16px;
-}
-
-.game-title span {
-    color: #facc15;
-}
-
-.stats-box {
-    display: flex;
-    justify-content: space-around;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
-    padding: 10px;
-    margin-bottom: 16px;
-    font-size: 13px;
-    color: #cbd5e1;
-}
-
-.stats-box strong {
-    color: #facc15;
-}
-
-/* כותרות אזורי החנות */
-.shop-section-title {
-    text-align: right;
-    font-size: 12px;
-    font-weight: 900;
-    color: #f8fafc;
-    margin: 4px 2px 8px;
-    letter-spacing: 0.4px;
-}
-
-.maps-title {
-    margin-top: 2px;
-}
-
-/* רשימת שדרוגים בחנות */
-.upgrades-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.upgrade-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 10px 14px;
-    border-radius: 14px;
-    text-align: right;
-}
-
-.upg-name {
-    font-size: 14px;
-    font-weight: 600;
-}
-
-.upg-lvl {
-    font-size: 11px;
-    color: #94a3b8;
-}
-
-.btn-upg {
-    background: linear-gradient(135deg, #eab308, #ca8a04);
-    border: none;
-    color: #0f172a;
-    font-weight: 800;
-    padding: 8px 14px;
-    border-radius: 10px;
-    font-size: 13px;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(234, 179, 8, 0.25);
-    transition: transform 0.1s, opacity 0.2s;
-}
-
-.btn-upg:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.btn-primary {
-    width: 100%;
-    padding: 14px;
-    border: none;
-    border-radius: 16px;
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-    color: #ffffff;
-    font-size: 18px;
-    font-weight: 800;
-    cursor: pointer;
-    box-shadow: 0 6px 20px rgba(34, 197, 94, 0.35);
-    transition: transform 0.1s;
-}
-
-.btn-primary:active,
-.btn-upg:active:not(:disabled) {
-    transform: scale(0.96);
-}
-
-.hidden {
-    display: none !important;
-}
-
-/* ==========================================
-   חנות מפות
-   ========================================== */
-.maps-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 18px;
-}
-
-.map-card {
-    position: relative;
-    min-height: 74px;
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    border-radius: 14px;
-    padding: 10px;
-    background: rgba(255, 255, 255, 0.055);
-    color: #ffffff;
-    text-align: right;
-    cursor: pointer;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    grid-template-rows: auto auto;
-    column-gap: 8px;
-    align-items: center;
-    transition:
-        transform 0.12s ease,
-        border-color 0.2s ease,
-        opacity 0.2s ease,
-        background 0.2s ease;
-}
-
-.map-card:not(:disabled):active {
-    transform: scale(0.97);
-}
-
-.map-card.selected {
-    border-color: rgba(34, 197, 94, 0.75);
-    background: rgba(34, 197, 94, 0.12);
-    box-shadow:
-        inset 0 0 0 1px
-        rgba(34, 197, 94, 0.12);
-}
-
-.map-card:disabled {
-    opacity: 0.52;
-    cursor: not-allowed;
-}
-
-.map-card.owned:not(.selected) {
-    border-color: rgba(250, 204, 21, 0.30);
-}
-
-.map-icon {
-    grid-row: 1 / span 2;
-    font-size: 26px;
-    line-height: 1;
-}
-
-.map-info {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
-
-.map-info strong {
-    font-size: 11px;
-    font-weight: 900;
-    line-height: 1.1;
-}
-
-.map-info small {
-    margin-top: 2px;
-    font-size: 10px;
-    color: #94a3b8;
-}
-
-.map-action {
-    justify-self: end;
-    font-size: 10px;
-    font-weight: 900;
-    color: #fde047;
-}
-
-.map-card.selected .map-action {
-    color: #4ade80;
-}
-
-.map-state {
-    justify-self: end;
-    font-size: 8px;
-    font-weight: 800;
-    color: #64748b;
-    letter-spacing: 0.7px;
-}
-
-.map-card.selected .map-state {
-    color: #4ade80;
-}
-
-@media (max-height: 720px) {
-    .modal-card {
-        padding: 18px 16px;
-    }
-
-    .game-title {
-        font-size: 24px;
-        margin-bottom: 10px;
-    }
-
-    .upgrade-item {
-        padding: 8px 12px;
-    }
-
-    .map-card {
-        min-height: 66px;
-        padding: 8px;
-    }
-}
-
-/* ==========================================
-   MOBILE ONLY - PORTRAIT
-   ========================================== */
-
-html,
-body {
-    width: 100%;
-    height: 100%;
-    min-height: 100%;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    overscroll-behavior: none;
-    background: #1e1b18;
-    touch-action: none;
-}
-
-body {
-    position: fixed;
-    inset: 0;
-    width: 100vw;
-    height: 100dvh;
-}
-
-canvas {
-    width: 100vw !important;
-    height: 100dvh !important;
-    height: 100svh !important;
-    position: fixed !important;
-    inset: 0 !important;
-    touch-action: none !important;
-}
-
-#ui-container {
-    top: max(10px, env(safe-area-inset-top));
-    width: min(94vw, 500px);
-    max-width: 500px;
-}
-
-.ui-card {
-    min-width: 0;
-    padding: 6px 8px;
-}
-
-.ui-title {
-    font-size: clamp(8px, 2.2vw, 10px);
-}
-
-.ui-value {
-    font-size: clamp(14px, 4.2vw, 17px);
-}
-
-.modal-overlay {
-    padding:
-        max(12px, env(safe-area-inset-top))
-        max(12px, env(safe-area-inset-right))
-        max(12px, env(safe-area-inset-bottom))
-        max(12px, env(safe-area-inset-left));
-}
-
-.modal-card {
-    width: min(94vw, 390px);
-    max-width: 390px;
-    max-height: 88dvh;
-    max-height: 88svh;
-    padding: 20px 16px;
-}
-
-.btn-primary {
-    min-height: 52px;
-}
-
-.btn-upg {
-    min-height: 42px;
-}
-
-.map-card {
-    min-height: 76px;
-}
-
-.device-blocker {
-    position: fixed;
-    inset: 0;
-    z-index: 10000;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    background: #11100f;
-    color: #fff;
-    text-align: center;
-}
-
-.device-blocker-card {
-    width: min(88vw, 340px);
-    padding: 26px 20px;
-    border-radius: 24px;
-    background: rgba(35, 31, 27, 0.96);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
-}
-
-.device-blocker-icon {
-    font-size: 46px;
-    margin-bottom: 10px;
-}
-
-.device-blocker h2 {
-    margin: 0 0 8px;
-    font-size: 24px;
-    font-weight: 900;
-}
-
-.device-blocker p {
-    font-size: 14px;
-    line-height: 1.5;
-    color: #e5e7eb;
-    margin: 0 0 8px;
-}
-
-.device-blocker small {
-    color: #9ca3af;
-    font-size: 12px;
-}
-
-@media (min-width: 769px) {
-    #desktop-blocker {
-        display: flex;
-    }
-}
-
-@media (max-width: 768px) and (orientation: landscape) {
-    #landscape-blocker {
-        display: flex;
-    }
-
-    #ui-container,
-    #splash-screen {
-        visibility: hidden;
-    }
-}
-
-@media (max-width: 360px) {
-    #ui-container {
-        gap: 4px;
-    }
-
-    .ui-card {
-        padding: 5px 6px;
-        border-radius: 12px;
-    }
-
-    .modal-card {
-        width: 96vw;
-        padding: 18px 13px;
-    }
-
-    .game-title {
-        font-size: 25px;
-    }
-
-    .upgrade-item {
-        padding: 9px 10px;
-    }
-}
-
-
-/* ==========================================
-   מסך פתיחה - כרטיס אחד מסודר
-   ==========================================
-   מערכת מרווחים אחת לכל המסך: 4 / 8 / 12 (px).
-   מבנה: [שורת נתונים קבועה] + [אזור גלילה: תותח, שדרוגים, מפה] + [כפתור התחלה קבוע].
-   גובה הכרטיס מוגבל ל-54% מהמסך, כך שהלוגו שבתמונת הרקע (עד ~42% מלמעלה) תמיד נשאר גלוי.
-   ========================================== */
-#splash-screen.modal-overlay {
-    background:
-        linear-gradient(to bottom, rgba(0,0,0,0) 35%, rgba(15,10,6,0.55) 100%),
-        url('blast-royale-splash.jpg') center top / cover no-repeat #1e1b18;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    align-items: flex-end;
-    justify-content: center;
-}
-
-#splash-screen .game-title { display: none; }
-
-/* מאפשר גלילה אנכית בתוך הכרטיס (ב-* יש touch-action: none) */
-#splash-screen .modal-card,
-#splash-screen .modal-card * {
-    touch-action: pan-y;
-}
-
-#splash-screen .splash-sheet {
-    --s1: 4px;
-    --s2: 8px;
-    --s3: 12px;
-
-    display: flex;
-    flex-direction: column;
-    gap: var(--s3);
-    width: min(94vw, 400px);
-    max-width: 400px;
-    max-height: min(54svh, 480px);
-    padding: var(--s3);
-    overflow: hidden;                 /* הגלילה היא באזור הפנימי, לא בכרטיס */
-    text-align: right;
-    background: rgba(30, 22, 14, 0.86);
-    border-color: rgba(250, 204, 21, 0.35);
-    border-radius: 22px;
-}
-
-/* ---- שורת נתונים ---- */
-#splash-screen .splash-head {
-    display: flex;
-    gap: var(--s2);
-    flex: none;
-}
-
-#splash-screen .head-stat {
-    flex: 1;
-    min-width: 0;
-    height: 36px;
-    padding: 0 var(--s3);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--s2);
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    border-radius: 12px;
-}
-
-#splash-screen .head-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: #cbd5e1;
-    white-space: nowrap;
-}
-
-#splash-screen .head-stat strong {
-    font-size: 16px;
-    font-weight: 800;
-    color: #fde047;
-}
-
-/* ---- אזור גלילה ---- */
-#splash-screen .splash-scroll {
-    flex: 1 1 auto;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--s3);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-}
-#splash-screen .splash-scroll::-webkit-scrollbar { display: none; }
-
-#splash-screen .splash-section {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    flex: none;
+.ctrl-label { font-size: 9px; font-weight: bold; opacity: 0.95; }
+.ctrl-round:active, .ctrl-round.active {
+  transform: scale(0.88);
+  background: radial-gradient(circle at 32% 30%, rgba(255,255,255,0.6), rgba(140,220,255,0.5));
 }
 
-#splash-screen .shop-section-title {
-    margin: 0;
-    padding: 0 var(--s1);
-    font-size: 12px;
-    line-height: 1.2;
-    font-weight: 900;
-    color: #f8fafc;
+/* הגה - גוון כחלכל */
+.steer-btn {
+  border-color: rgba(140,200,255,0.65);
 }
 
-/* ---- כרטיסי בחירה (תותח / מפה) ---- */
-#splash-screen .cannon-grid,
-#splash-screen .maps-grid {
-    display: grid;
-    gap: var(--s2);
-    margin: 0;
+/* דוושת גז - ירוקה וגדולה */
+.pedal-gas {
+  width: 78px;
+  height: 78px;
+  border-color: rgba(140,255,170,0.75);
+  background: radial-gradient(circle at 32% 30%, rgba(180,255,200,0.45), rgba(60,160,90,0.40));
+  font-size: 30px;
 }
-#splash-screen .cannon-grid { grid-template-columns: 1fr 1fr; }
-#splash-screen .maps-grid   { grid-template-columns: 1fr; }
-
-#splash-screen .map-card {
-    min-height: 56px;
-    padding: var(--s2) var(--s3);
-    column-gap: var(--s2);
-}
-
-/* כרטיס המפה: שורה אחת [אייקון | שם | סטטוס] */
-#splash-screen .maps-grid .map-card {
-    grid-template-columns: auto 1fr auto;
-    grid-template-rows: auto;
-    min-height: 52px;
-}
-#splash-screen .maps-grid .map-icon   { grid-row: 1; }
-#splash-screen .maps-grid .map-action { grid-column: 3; grid-row: 1; align-self: center; }
-
-/* מחירים כמו "250 C" נקראים משמאל לימין גם בתוך עברית; מילה בעברית נשארת מימין לשמאל */
-#splash-screen .map-action,
-#splash-screen .btn-upg {
-    unicode-bidi: plaintext;
-}
-
-/* ---- שדרוגים: שני כרטיסים באותה שורה ---- */
-#splash-screen .upgrades-list {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--s2);
-    margin: 0;
-}
-
-#splash-screen .upgrade-item {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
-    padding: var(--s2) var(--s3);
-    text-align: right;
-}
-
-/* שם השדרוג ורמתו באותה שורה */
-#splash-screen .upgrade-item > div:first-child {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--s2);
-}
-
-#splash-screen .upg-name { font-size: 13px; white-space: nowrap; }
-#splash-screen .upg-lvl  { font-size: 11px; white-space: nowrap; }
-#splash-screen .btn-upg  { width: 100%; min-height: 32px; padding: 5px 12px; }
-
-/* ---- כפתור התחלה: תמיד גלוי בתחתית ---- */
-#splash-screen #start-btn {
-    flex: none;
-    margin: 0;
-    min-height: 52px;
-}
-
-/* מסכים נמוכים (כמו חלון הדפדפן בטלפון, ~710px): מצמצמים גבהים כדי שהכול ייכנס בלי גלילה */
-@media (max-height: 760px) {
-    #splash-screen .splash-sheet { gap: var(--s2); padding: var(--s2) var(--s3) var(--s3); }
-    #splash-screen .splash-scroll { gap: 10px; }
-    #splash-screen .head-stat { height: 32px; }
-    #splash-screen .map-card { min-height: 50px; }
-    #splash-screen .maps-grid .map-card { min-height: 46px; }
-    #splash-screen #start-btn { min-height: 48px; font-size: 17px; }
-}
-
-/* ==========================================
-   תיקון קפיצת התפריט: גובה אחד משותף לכל המסך
-   ==========================================
-   קודם: הרקע והתפריט נמדדו ב-dvh, הקנבס ב-svh והכרטיס ב-svh - שלוש מדידות שונות.
-   כשהדפדפן נכנס/יוצא ממסך מלא הן לא תמיד מסתנכרנות, והתפריט (שצמוד לתחתית) ברח מהמסך.
-   עכשיו main.js מעדכן את --app-h לגובה האמיתי של החלון, וכולם משתמשים בו. */
-body {
-    height: var(--app-h, 100dvh);
-}
-
-canvas {
-    height: var(--app-h, 100dvh) !important;
-}
-
-.modal-card {
-    max-height: calc(var(--app-h, 100svh) * 0.88);
-}
-
-#splash-screen .splash-sheet {
-    max-height: min(calc(var(--app-h, 100svh) * 0.54), 480px);
-}
-
-
-/* ==========================================
-   פתיח: תמונת הפתיחה לבדה, ואז הכרטיס נכנס בהדרגה
-   (המחלקה intro-only מוסרת מ-main.js אחרי ~2 שניות)
-   ========================================== */
-#splash-screen .splash-sheet {
-    transition: opacity 0.6s ease, transform 0.6s ease;
-}
-
-#splash-screen.intro-only .splash-sheet {
-    opacity: 0;
-    transform: translateY(28px);
-    pointer-events: none;
-}
-
-/* ==========================================
-   מסך פתיחה - מראה מעודן ויוקרתי (LTR)
-   נוסף בסוף הקובץ כדי לגבור על הכללים הקודמים.
-   ========================================== */
-#splash-screen .splash-sheet {
-    text-align: left;
-    border-radius: 26px;
-    background:
-        linear-gradient(180deg, rgba(255, 214, 120, 0.08) 0%, rgba(255, 214, 120, 0) 26%),
-        linear-gradient(180deg, rgba(36, 27, 18, 0.93), rgba(17, 12, 8, 0.95));
-    border: 1px solid rgba(250, 204, 21, 0.30);
-    box-shadow:
-        0 24px 60px rgba(0, 0, 0, 0.65),
-        0 0 0 1px rgba(0, 0, 0, 0.55),
-        inset 0 1px 0 rgba(255, 236, 170, 0.24),
-        inset 0 0 44px rgba(250, 204, 21, 0.04);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-}
-
-/* ---- Coins / Best ---- */
-#splash-screen .head-stat {
-    height: 42px;
-    border-radius: 14px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03));
-    border: 1px solid rgba(255, 255, 255, 0.11);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 2px 8px rgba(0, 0, 0, 0.25);
-}
-#splash-screen .head-label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #b9c1cd;
-}
-#splash-screen .head-stat strong {
-    font-size: 18px;
-    font-weight: 900;
-    letter-spacing: 0.02em;
-    font-variant-numeric: tabular-nums;
-    background: linear-gradient(180deg, #fff4b8, #f5b301);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-}
-
-/* ---- כותרות אזורים ---- */
-#splash-screen .shop-section-title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0 var(--s1);
-    text-align: left;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: #ead9a6;
+.pedal-gas:active, .pedal-gas.active {
+  background: radial-gradient(circle at 32% 30%, rgba(220,255,230,0.75), rgba(90,220,120,0.65));
 }
-#splash-screen .shop-section-title::after {
-    content: "";
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(90deg, rgba(250, 204, 21, 0.45), rgba(250, 204, 21, 0));
-}
-
-/* ---- כרטיסי תותח / מפה ---- */
-#splash-screen .map-card {
-    text-align: left;
-    border-radius: 16px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
-    border: 1px solid rgba(255, 255, 255, 0.11);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.28);
-    column-gap: 10px;
-    row-gap: 4px;
-}
-#splash-screen .map-card.owned:not(.selected) {
-    border-color: rgba(250, 204, 21, 0.30);
-}
-#splash-screen .map-card.selected {
-    border-color: rgba(74, 222, 128, 0.70);
-    background: linear-gradient(180deg, rgba(34, 197, 94, 0.22), rgba(34, 197, 94, 0.07));
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.13),
-        0 0 0 1px rgba(74, 222, 128, 0.16),
-        0 0 20px rgba(34, 197, 94, 0.22);
-}
-#splash-screen .map-icon {
-    width: 42px;
-    height: 42px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 13px;
-    font-size: 22px;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-#splash-screen .map-info strong {
-    font-size: 13px;
-    letter-spacing: 0.03em;
-    color: #fff7e0;
-}
-#splash-screen .map-info small {
-    margin-top: 2px;
-    font-size: 11px;
-    color: #a3adbb;
-}
-/* תווית פעולה בצורת כמוסה */
-#splash-screen .map-action {
-    justify-self: start;
-    display: inline-flex;
-    align-items: center;
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: #fde047;
-    background: rgba(250, 204, 21, 0.13);
-    border: 1px solid rgba(250, 204, 21, 0.36);
-}
-#splash-screen .map-card.selected .map-action {
-    color: #4ade80;
-    background: rgba(74, 222, 128, 0.14);
-    border-color: rgba(74, 222, 128, 0.42);
-}
-#splash-screen .maps-grid .map-action {
-    justify-self: end;
-}
 
-/* ---- שדרוגים ---- */
-#splash-screen .upgrade-item {
-    text-align: left;
-    border-radius: 16px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
-    border: 1px solid rgba(255, 255, 255, 0.11);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.28);
-}
-#splash-screen .upg-name {
-    font-size: 13px;
-    font-weight: 700;
-    color: #fff7e0;
-}
-#splash-screen .upg-lvl {
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    color: #cbd5e1;
-    background: rgba(255, 255, 255, 0.09);
+/* דוושת רוורס - כתומה */
+.pedal-reverse {
+  width: 62px;
+  height: 62px;
+  border-color: rgba(255,170,120,0.75);
+  background: radial-gradient(circle at 32% 30%, rgba(255,210,170,0.40), rgba(180,90,40,0.38));
+  font-size: 22px;
 }
-#splash-screen .btn-upg {
-    border-radius: 12px;
-    font-size: 14px;
-    letter-spacing: 0.03em;
-    color: #2b1a02;
-    background: linear-gradient(180deg, #ffd84d, #e0a100);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 4px 12px rgba(224, 161, 0, 0.28);
+.pedal-reverse:active, .pedal-reverse.active {
+  background: radial-gradient(circle at 32% 30%, rgba(255,230,200,0.7), rgba(240,130,60,0.6));
 }
 
-/* ---- Start ---- */
-#splash-screen #start-btn {
-    min-height: 54px;
-    border-radius: 18px;
-    font-size: 18px;
-    font-weight: 900;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-    background: linear-gradient(180deg, #38d871, #16a34a 62%, #118a3d);
-    border: 1px solid rgba(255, 255, 255, 0.20);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.38),
-        0 8px 24px rgba(34, 197, 94, 0.36);
+/* ===== מסכים נמוכים ===== */
+@media (max-height: 480px) {
+  .ctrl-round { width: 56px; height: 56px; font-size: 22px; }
+  .pedal-gas { width: 66px; height: 66px; font-size: 26px; }
+  .pedal-reverse { width: 52px; height: 52px; font-size: 18px; }
+  .ctrl-label { font-size: 7px; }
+  #steer-left, #pedals-right { gap: 8px; bottom: calc(10px + env(safe-area-inset-bottom)); }
+  #minimap { width: 110px; height: 110px; }
 }
 
-@media (max-height: 760px) {
-    #splash-screen .head-stat { height: 36px; }
-    #splash-screen .map-icon { width: 36px; height: 36px; font-size: 19px; }
-    #splash-screen #start-btn { min-height: 50px; font-size: 17px; }
+@media screen and (orientation: landscape) {
+  #orientation-warning { display: none !important; }
 }
