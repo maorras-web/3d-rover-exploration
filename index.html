@@ -4,40 +4,44 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="screen-orientation" content="landscape">
-<meta name="x5-orientation" content="landscape">
-<title>רובר מגלה - עולם פתוח</title>
+<title>רובר מגלה</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+<div id="desktop-warning">
+  <div class="warning-icon">📱</div>
+  <div class="warning-title">המשחק מיועד לפלאפונים בלבד</div>
+  <div class="warning-text">This game is designed for mobile devices only</div>
+</div>
+
 <div id="orientation-warning">
   <div class="warning-icon">📱</div>
   <div class="warning-text">אנא סובב את המכשיר למצב רוחב</div>
-  <div class="warning-sub">Rotate your device to landscape</div>
+  <div class="warning-sub">Rotate to landscape</div>
 </div>
 
 <div id="ui-container">
   <div id="top-left-hud">
-    <div id="stats">
-      <div class="stat-bar"><span>❤️</span><div class="bar-outer"><div class="bar-inner" id="hp-bar" style="width:100%"></div></div></div>
-      <div class="stat-bar"><span>⚡</span><div class="bar-outer"><div class="bar-inner energy" id="energy-bar" style="width:100%"></div></div></div>
-      <div class="stat-bar"><span>🔋</span><div class="bar-outer"><div class="bar-inner battery" id="battery-bar" style="width:100%"></div></div></div>
-    </div>
     <div id="minimap">
-      <canvas id="minimap-canvas" width="120" height="120"></canvas>
+      <canvas id="minimap-canvas" width="140" height="140"></canvas>
       <div id="minimap-rover"></div>
     </div>
     <div id="discovered-count">🔍 <span id="disc-num">0</span>/<span id="disc-total">0</span></div>
   </div>
-  
   <div id="top-right-hud">
     <div id="current-biome">🌿 שטח ירוק</div>
-    <div id="time-display"> 12:00</div>
+    <div id="time-display">🌞 12:00</div>
     <div id="quest-box">
       <div class="quest-title">📋 משימה</div>
       <div id="quest-text">חקור את העולם וגלה מקומות חדשים</div>
+    </div>
+  </div>
+  <div id="bottom-right-hud">
+    <div id="stats">
+      <div class="stat-bar"><span>❤️</span><div class="bar-outer"><div class="bar-inner hp" id="hp-bar" style="width:100%"></div></div></div>
+      <div class="stat-bar"><span>⚡</span><div class="bar-outer"><div class="bar-inner energy" id="energy-bar" style="width:100%"></div></div></div>
     </div>
   </div>
 </div>
@@ -56,27 +60,22 @@
   <div class="toast-text" id="item-text"></div>
 </div>
 
-<div id="controls">
-  <div id="ctrl-up">
-    <button class="ctrl-btn" data-key="forward">▲<span class="ctrl-label">ישר</span></button>
+<div id="dpad">
+  <div class="dpad-row"><button class="dpad-btn" data-key="forward">▲<span class="dpad-label">ישר</span></button></div>
+  <div class="dpad-row">
+    <button class="dpad-btn" data-key="left">◀<span class="dpad-label">שמאל</span></button>
+    <button class="dpad-btn" data-key="right">▶<span class="dpad-label">ימין</span></button>
   </div>
-  <div id="ctrl-mid">
-    <button class="ctrl-btn" data-key="left">◀<span class="ctrl-label">שמאל</span></button>
-    <button class="ctrl-btn" data-key="right">▶<span class="ctrl-label">ימין</span></button>
-  </div>
-  <div id="ctrl-down">
-    <button class="ctrl-btn" data-key="backward">▼<span class="ctrl-label">רוורס</span></button>
-  </div>
+  <div class="dpad-row"><button class="dpad-btn" data-key="backward">▼<span class="dpad-label">רוורס</span></button></div>
 </div>
 
-<button id="btn-interact" class="interact-btn">🔍<br>חקור</button>
-
-<button id="btn-fullscreen" class="fullscreen-btn">️ מסך מלא</button>
+<button id="btn-interact" class="action-btn">🔍<br>חקור</button>
 
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
   }
 }
 </script>
