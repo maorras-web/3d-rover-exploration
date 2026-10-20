@@ -12,7 +12,7 @@
     <button id="btn-fullscreen">🖥️ מסך מלא</button>
     <div id="stats">
       <div class="stat-bar"><span>❤️</span><div class="bar-outer"><div class="bar-inner" id="hp-bar"></div></div></div>
-      <div class="stat-bar"><span>⚡</span><div class="bar-outer"><div class="bar-inner energy" id="energy-bar"></div></div></div>
+      <div class="stat-bar"><span></span><div class="bar-outer"><div class="bar-inner energy" id="energy-bar"></div></div></div>
       <div class="stat-bar"><span>🔋</span><div class="bar-outer"><div class="bar-inner battery" id="battery-bar"></div></div></div>
     </div>
     <div id="minimap">
@@ -45,14 +45,19 @@
   <div class="toast-text" id="item-text"></div>
 </div>
 
-<div id="controls-left">
-  <button class="ctrl-btn" data-key="left">◀</button>
-  <button class="ctrl-btn" data-key="right">▶</button>
+<div id="controls">
+  <div id="ctrl-up">
+    <button class="ctrl-btn" data-key="forward" title="ישר">▲<span class="ctrl-label">ישר</span></button>
+  </div>
+  <div id="ctrl-mid">
+    <button class="ctrl-btn" data-key="left" title="שמאלה">◀<span class="ctrl-label">שמאלה</span></button>
+    <button class="ctrl-btn" data-key="right" title="ימינה">▶<span class="ctrl-label">ימינה</span></button>
+  </div>
+  <div id="ctrl-down">
+    <button class="ctrl-btn" data-key="backward" title="רוורס">▼<span class="ctrl-label">רוורס</span></button>
+  </div>
 </div>
-<div id="controls-right">
-  <button class="ctrl-btn" data-key="forward">▲</button>
-  <button class="ctrl-btn" data-key="backward">▼</button>
-</div>
+
 <button id="btn-interact" class="interact-btn"><br>חקור</button>
 
 <script type="importmap">

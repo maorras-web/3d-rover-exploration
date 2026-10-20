@@ -77,7 +77,7 @@ body, html {
 }
 
 .toast {
-  position: fixed; bottom: 120px; left: 50%;
+  position: fixed; bottom: 180px; left: 50%;
   transform: translateX(-50%) translateY(100px);
   background: linear-gradient(135deg, rgba(0, 50, 80, 0.95), rgba(0, 100, 100, 0.95));
   border: 2px solid #00ffff; border-radius: 12px; padding: 12px 20px;
@@ -94,23 +94,73 @@ body, html {
 }
 .item-toast .toast-title { color: #ffcc00; }
 
-#controls-left { position: absolute; bottom: 20px; left: 20px; display: flex; gap: 15px; z-index: 100; }
-#controls-right { position: absolute; bottom: 20px; right: 20px; display: flex; gap: 15px; z-index: 100; }
-.ctrl-btn {
-  width: 62px; height: 62px; background: rgba(0, 191, 255, 0.35);
-  border: 2px solid #00ffff; color: white; font-size: 22px; border-radius: 50%;
-  backdrop-filter: blur(4px); outline: none; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.4); touch-action: manipulation; transition: all 0.15s;
+#controls {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 100;
+  pointer-events: none;
 }
-.ctrl-btn:active, .ctrl-btn.active { background: rgba(0, 255, 170, 0.75); transform: scale(0.92); }
+#ctrl-up, #ctrl-down, #ctrl-mid {
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+.ctrl-btn {
+  width: 70px;
+  height: 70px;
+  background: rgba(0, 191, 255, 0.35);
+  border: 2px solid #00ffff;
+  color: white;
+  font-size: 28px;
+  border-radius: 50%;
+  backdrop-filter: blur(4px);
+  outline: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+  touch-action: manipulation;
+  transition: all 0.15s;
+}
+.ctrl-label {
+  font-size: 9px;
+  margin-top: 2px;
+  font-weight: bold;
+  color: #00ffff;
+}
+.ctrl-btn:active, .ctrl-btn.active {
+  background: rgba(0, 255, 170, 0.75);
+  transform: scale(0.92);
+}
 .interact-btn {
-  position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
-  width: 80px; height: 80px; background: rgba(255, 170, 0, 0.4);
-  border: 2px solid #ffaa00; color: white; font-size: 14px; border-radius: 50%;
-  backdrop-filter: blur(4px); outline: none; cursor: pointer; display: none;
-  flex-direction: column; align-items: center; justify-content: center;
-  box-shadow: 0 4px 15px rgba(255, 170, 0, 0.5); z-index: 100;
+  position: absolute;
+  bottom: 220px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 80px;
+  background: rgba(255, 170, 0, 0.4);
+  border: 2px solid #ffaa00;
+  color: white;
+  font-size: 14px;
+  border-radius: 50%;
+  backdrop-filter: blur(4px);
+  outline: none;
+  cursor: pointer;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 15px rgba(255, 170, 0, 0.5);
+  z-index: 100;
   animation: pulse 1.5s ease-in-out infinite;
 }
 .interact-btn.show { display: flex; }
