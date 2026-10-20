@@ -1,8 +1,49 @@
 import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+// ============ אילוץ מסך מלא ו-landscape ============
+function forceFullscreen() {
+  const doc = window.document;
+  const docEl = doc.documentElement;
+  const requestFullScreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
+  
+  if (requestFullScreen && !doc.fullscreenElement) {
+    requestFullScreen.call(docEl).catch(err => {
+      console.log('Fullscreen request failed:', err);
+    });
+  }
+}
+
+// נסה מסך מלא ב-touch הראשון
+let fullscreenAttempted = false;
+document.addEventListener('touchstart', () => {
+  if (!fullscreenAttempted) {
+    forceFullscreen();
+    fullscreenAttempted = true;
+  }
+}, { once: true });
+
+document.addEventListener('click', () => {
+  if (!fullscreenAttempted) {
+    forceFullscreen();
+    fullscreenAttempted = true;
+  }
+}, { once: true });
+
+// בדיקת orientation
+function checkOrientation() {
+  const warning = document.getElementById('orientation-warning');
+  if (window.innerHeight > window.innerWidth) {
+    warning.classList.add('show');
+  } else {
+    warning.classList.remove('show');
+  }
+}
+
+window.addEventListener('resize', checkOrientation);
+window.addEventListener('orientationchange', () => {
+  setTimeout(checkOrientation, 100);
+});
+checkOrientation();
 
 // ============ הגדרות עולם ============
 const WORLD_SIZE = 200;
@@ -10,127 +51,42 @@ const HALF = WORLD_SIZE / 2;
 
 // ============ סצנה ============
 const scene = new THREE.Scene();
-
-// Sky gradient - שמיים עם gradient כמו בתמונה
-const skyGeo = new THREE.SphereGeometry(400, 32, 15);
-const skyMat = new THREE.ShaderMaterial({
-  uniforms: {
-    topColor: { value: new THREE.Color(0x0077ff) },
-    bottomColor: { value: new THREE.Color(0xffaa66) },
-    offset: { value: 20 },
-    exponent: { value: 0.6 }
-  },
-  vertexShader: `
-    varying vec3 vWorldPosition;
-    void main() {
-      vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-      vWorldPosition = worldPosition.xyz;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
-    uniform vec3 topColor;
-    uniform vec3 bottomColor;
-    uniform float offset;
-    uniform float exponent;
-    varying vec3 vWorldPosition;
-    void main() {
-      float h = normalize(vWorldPosition + offset).y;
-      gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
-    }
-  `,
-  side: THREE.BackSide
-});
-const sky = new THREE.Mesh(skyGeo, skyMat);
-scene.add(sky);
-
+scene.background = new THREE.Color(0xd4845a);
 scene.fog = new THREE.FogExp2(0xffcc88, 0.008);
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ 
+  antialias: true, 
+  powerPreference: 'high-performance',
+  alpha: false
+});
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.4;
+renderer.toneMappingExposure = 1.3;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
-
-// ============ Post-Processing ============
-const composer = new EffectComposer(renderer);
-const renderPass = new RenderPass(scene, camera);
-composer.addPass(renderPass);
-
-// Bloom - לזוהר של גבישים ופנסים
-const bloomPass = new UnrealBloomPass(
-  new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.8,   // strength
-  0.4,   // radius
-  0.85   // threshold
-);
-composer.addPass(bloomPass);
-
-// Color grading shader
-const colorGradingShader = {
-  uniforms: {
-    tDiffuse: { value: null },
-    contrast: { value: 1.15 },
-    saturation: { value: 1.2 },
-    brightness: { value: 1.05 }
-  },
-  vertexShader: `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
-    uniform sampler2D tDiffuse;
-    uniform float contrast;
-    uniform float saturation;
-    uniform float brightness;
-    varying vec2 vUv;
-    void main() {
-      vec4 color = texture2D(tDiffuse, vUv);
-      // Brightness
-      color.rgb *= brightness;
-      // Contrast
-      color.rgb = (color.rgb - 0.5) * contrast + 0.5;
-      // Saturation
-      float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-      color.rgb = mix(vec3(gray), color.rgb, saturation);
-      // Warm tone
-      color.r *= 1.05;
-      color.b *= 0.95;
-      gl_FragColor = color;
-    }
-  `
-};
-const colorGradingPass = new ShaderPass(colorGradingShader);
-composer.addPass(colorGradingPass);
 
 // ============ תאורה דרמטית ============
 const ambientLight = new THREE.AmbientLight(0xffaa77, 0.3);
 scene.add(ambientLight);
 
-// שמש חמה עם god rays simulation
 const sunLight = new THREE.DirectionalLight(0xffcc88, 2.0);
 sunLight.position.set(40, 60, 30);
 sunLight.castShadow = true;
-sunLight.shadow.mapSize.width = 2048;
-sunLight.shadow.mapSize.height = 2048;
+sunLight.shadow.mapSize.width = 1024;
+sunLight.shadow.mapSize.height = 1024;
 sunLight.shadow.camera.near = 0.5;
-sunLight.shadow.camera.far = 200;
-sunLight.shadow.camera.left = -100;
-sunLight.shadow.camera.right = 100;
-sunLight.shadow.camera.top = 100;
-sunLight.shadow.camera.bottom = -100;
+sunLight.shadow.camera.far = 150;
+sunLight.shadow.camera.left = -80;
+sunLight.shadow.camera.right = 80;
+sunLight.shadow.camera.top = 80;
+sunLight.shadow.camera.bottom = -80;
 sunLight.shadow.bias = -0.0005;
 scene.add(sunLight);
 
-// Rim light - תאורה מהצד השני לדרמה
 const rimLight = new THREE.DirectionalLight(0x88aaff, 0.6);
 rimLight.position.set(-40, 40, -30);
 scene.add(rimLight);
@@ -160,7 +116,7 @@ function fbm(x, z) {
 }
 
 // ============ קרקע ============
-const groundGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, 120, 120);
+const groundGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, 80, 80);
 const pos = groundGeo.attributes.position;
 const colors = new Float32Array(pos.count * 3);
 
@@ -205,7 +161,7 @@ function getGroundHeight(x, z) {
   return fbm(x, z) * 3 - 1.5;
 }
 
-// ============ דשא צפוף עם wind animation ============
+// ============ דשא צפוף ============
 const grassBladeGeo = new THREE.ConeGeometry(0.05, 0.4, 3);
 grassBladeGeo.translate(0, 0.2, 0);
 const grassMat = new THREE.MeshStandardMaterial({
@@ -213,24 +169,20 @@ const grassMat = new THREE.MeshStandardMaterial({
   flatShading: true,
   side: THREE.DoubleSide
 });
-const grassCount = 12000;
+const grassCount = 8000;
 const grassMesh = new THREE.InstancedMesh(grassBladeGeo, grassMat, grassCount);
 grassMesh.receiveShadow = true;
 
 const dummy = new THREE.Object3D();
-const grassData = [];
 for (let i = 0; i < grassCount; i++) {
   const x = (Math.random() - 0.5) * WORLD_SIZE * 0.95;
   const z = (Math.random() - 0.5) * WORLD_SIZE * 0.95;
   const h = getGroundHeight(x, z);
-  const scale = 0.8 + Math.random() * 0.6;
-  const rotY = Math.random() * Math.PI;
   dummy.position.set(x, h, z);
-  dummy.rotation.set((Math.random() - 0.5) * 0.2, rotY, (Math.random() - 0.5) * 0.2);
-  dummy.scale.setScalar(scale);
+  dummy.rotation.set((Math.random() - 0.5) * 0.2, Math.random() * Math.PI, (Math.random() - 0.5) * 0.2);
+  dummy.scale.setScalar(0.8 + Math.random() * 0.6);
   dummy.updateMatrix();
   grassMesh.setMatrixAt(i, dummy.matrix);
-  grassData.push({ x, z, baseRotX: (Math.random() - 0.5) * 0.2, baseRotZ: (Math.random() - 0.5) * 0.2, scale });
 }
 grassMesh.instanceMatrix.needsUpdate = true;
 scene.add(grassMesh);
@@ -254,14 +206,14 @@ createPyramid(45, -60, 12);
 createPyramid(-80, -80, 14);
 createPyramid(80, -80, 14);
 
-// ============ עצים Low Poly מפורטים ============
+// ============ עצים ============
 function createTree(x, z, type = 'normal') {
   const tree = new THREE.Group();
   const h = getGroundHeight(x, z);
 
   const trunkH = 1.8 + Math.random() * 0.8;
   const trunkGeo = new THREE.CylinderGeometry(0.18, 0.3, trunkH, 6);
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1a, flatShading: true, roughness: 0.9 });
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1a, flatShading: true });
   const trunk = new THREE.Mesh(trunkGeo, trunkMat);
   trunk.position.y = trunkH / 2;
   trunk.castShadow = true;
@@ -313,7 +265,7 @@ function createRock(x, z, scale = 1) {
 
 // ============ פיזור טבע ============
 const trees = [], rocks = [];
-for (let i = 0; i < 100; i++) {
+for (let i = 0; i < 80; i++) {
   const x = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
   const z = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
   if (Math.sqrt(x * x + z * z) > 8) {
@@ -325,7 +277,7 @@ for (let i = 0; i < 100; i++) {
     trees.push(createTree(x, z, type));
   }
 }
-for (let i = 0; i < 60; i++) {
+for (let i = 0; i < 50; i++) {
   const x = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
   const z = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
   rocks.push(createRock(x, z, 0.5 + Math.random() * 1.2));
@@ -369,8 +321,6 @@ function createDiscovery(data) {
     box.position.y = 1.25; box.castShadow = true; group.add(box);
     const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.5, 6), mat(0xcccccc));
     antenna.position.set(1, 3.2, 0); group.add(antenna);
-    const dish = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 6, 0, Math.PI), mat(0xdddddd, { side: THREE.DoubleSide }));
-    dish.position.set(1, 3.8, 0); dish.rotation.x = Math.PI; group.add(dish);
   } else if (data.type === 'temple') {
     const pyr = new THREE.Mesh(new THREE.ConeGeometry(3, 4, 4), mat(0xccaa66, { roughness: 0.8 }));
     pyr.position.y = 2; pyr.rotation.y = Math.PI / 4; pyr.castShadow = true; group.add(pyr);
@@ -395,7 +345,6 @@ function createDiscovery(data) {
     top.position.y = 6.5; group.add(top);
     const light = new THREE.PointLight(0xffff00, 2.5, 18);
     light.position.y = 6.5; group.add(light);
-    group.userData.light = light;
   } else if (data.type === 'pool') {
     const pool = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 0.2, 16), mat(0x00aaff, { emissive: 0x0066aa, emissiveIntensity: 0.8, transparent: true, opacity: 0.8 }));
     pool.position.y = 0.1; group.add(pool);
@@ -418,7 +367,7 @@ discoveryData.forEach(createDiscovery);
 const collectibles = [];
 const crystalGeo = new THREE.OctahedronGeometry(0.3, 0);
 const crystalColors = [0xffd700, 0x00ffff, 0xff00ff, 0x00ff88, 0xff4444];
-for (let i = 0; i < 30; i++) {
+for (let i = 0; i < 25; i++) {
   const x = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
   const z = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
   const h = getGroundHeight(x, z);
@@ -434,39 +383,9 @@ for (let i = 0; i < 30; i++) {
   collectibles.push({ mesh: crystal, light, collected: false, color });
 }
 
-// ============ חיות בר ============
-const animals = [];
-function createAnimal(x, z, type) {
-  const h = getGroundHeight(x, z);
-  const group = new THREE.Group();
-  if (type === 'bird') {
-    const body = new THREE.Mesh(new THREE.IcosahedronGeometry(0.25, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true }));
-    group.add(body);
-    const wing1 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 0.2), new THREE.MeshStandardMaterial({ color: 0xeeeeee }));
-    wing1.position.set(0, 0, 0.2); group.add(wing1);
-    const wing2 = wing1.clone(); wing2.position.z = -0.2; group.add(wing2);
-    group.position.set(x, h + 8 + Math.random() * 4, z);
-  } else if (type === 'fox') {
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.4, 0.4), new THREE.MeshStandardMaterial({ color: 0xcc6622, flatShading: true }));
-    body.position.y = 0.3; group.add(body);
-    const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.25, 0), new THREE.MeshStandardMaterial({ color: 0xcc6622, flatShading: true }));
-    head.position.set(0.5, 0.4, 0); group.add(head);
-    group.position.set(x, h, z);
-  }
-  group.userData = { type, speed: 0.5 + Math.random() * 0.5, dir: Math.random() * Math.PI * 2, timer: 0 };
-  scene.add(group);
-  animals.push(group);
-}
-for (let i = 0; i < 8; i++) {
-  const x = (Math.random() - 0.5) * WORLD_SIZE * 0.7;
-  const z = (Math.random() - 0.5) * WORLD_SIZE * 0.7;
-  createAnimal(x, z, Math.random() > 0.5 ? 'bird' : 'fox');
-}
-
-// ============ הרובר (מפורט יותר - דומה לתמונה) ============
+// ============ הרובר ============
 const rover = new THREE.Group();
 
-// גוף ראשי - אפור כהה עם מתכת
 const bodyGeo = new THREE.BoxGeometry(2.0, 0.6, 1.4, 2, 1, 1);
 const bodyMat = new THREE.MeshStandardMaterial({ 
   color: 0x3a4a5a, metalness: 0.6, roughness: 0.4, flatShading: true 
@@ -476,13 +395,6 @@ body.position.y = 0.7;
 body.castShadow = true;
 rover.add(body);
 
-// פאנלים צדדיים
-const panelMat = new THREE.MeshStandardMaterial({ color: 0x2a3a4a, metalness: 0.7, roughness: 0.3, flatShading: true });
-const panelL = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.4, 0.1), panelMat);
-panelL.position.set(0, 0.9, 0.75); rover.add(panelL);
-const panelR = panelL.clone(); panelR.position.z = -0.75; rover.add(panelR);
-
-// כיפה כחולה בוהקת (כמו בתמונה!)
 const domeGeo = new THREE.IcosahedronGeometry(0.7, 1);
 const domeMat = new THREE.MeshStandardMaterial({
   color: 0x88ddff,
@@ -500,22 +412,10 @@ dome.scale.y = 0.75;
 dome.castShadow = true;
 rover.add(dome);
 
-// מסגרת כיפה
-const domeFrame = new THREE.Mesh(
-  new THREE.TorusGeometry(0.7, 0.04, 4, 8),
-  new THREE.MeshStandardMaterial({ color: 0x2a3a4a, metalness: 0.8, flatShading: true })
-);
-domeFrame.position.y = 0.85;
-domeFrame.rotation.x = Math.PI / 2;
-rover.add(domeFrame);
-
-// גלגלים גדולים עם חישוקים מפורטים
 const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 12);
 const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.95, flatShading: true });
 const wheelHubGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.37, 8);
 const wheelHubMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.7, flatShading: true });
-const wheelSpokeGeo = new THREE.BoxGeometry(0.04, 0.35, 0.04);
-const wheelSpokeMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.6 });
 
 const wheelPositions = [[-1.0, 0.45, 0.8], [1.0, 0.45, 0.8], [-1.0, 0.45, -0.8], [1.0, 0.45, -0.8]];
 wheelPositions.forEach(p => {
@@ -529,36 +429,18 @@ wheelPositions.forEach(p => {
   hub.rotation.z = Math.PI / 2;
   hub.position.set(...p);
   rover.add(hub);
-
-  // חישוקים
-  for (let i = 0; i < 4; i++) {
-    const spoke = new THREE.Mesh(wheelSpokeGeo, wheelSpokeMat);
-    spoke.rotation.z = (i * Math.PI) / 4;
-    spoke.position.set(p[0], p[1], p[2]);
-    spoke.rotation.x = Math.PI / 2;
-    rover.add(spoke);
-  }
 });
 
-// מתלים מפורטים (כמו בתמונה!)
 const armMat = new THREE.MeshStandardMaterial({ color: 0x556677, metalness: 0.6, flatShading: true });
 const armGeo = new THREE.BoxGeometry(0.12, 0.12, 0.6);
-const jointGeo = new THREE.SphereGeometry(0.1, 6, 5);
-const jointMat = new THREE.MeshStandardMaterial({ color: 0x445566, metalness: 0.7 });
-
 [[-0.9, 0.7, 0.6], [0.9, 0.7, 0.6], [-0.9, 0.7, -0.6], [0.9, 0.7, -0.6]].forEach(p => {
   const arm = new THREE.Mesh(armGeo, armMat);
   arm.position.set(p[0] * 0.8, p[1], p[2] * 0.7);
   arm.rotation.x = 0.3;
   arm.castShadow = true;
   rover.add(arm);
-
-  const joint = new THREE.Mesh(jointGeo, jointMat);
-  joint.position.set(p[0] * 0.8, p[1], p[2] * 0.7);
-  rover.add(joint);
 });
 
-// אנטנות כפולות (כמו בתמונה)
 const antennaGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.5, 6);
 const antennaMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.7 });
 const ant1 = new THREE.Mesh(antennaGeo, antennaMat);
@@ -568,7 +450,6 @@ const ant2 = ant1.clone();
 ant2.position.x = 0.25;
 rover.add(ant2);
 
-// נורת אנטנה אדומה
 const antennaBall = new THREE.Mesh(
   new THREE.IcosahedronGeometry(0.08, 0),
   new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 1.0, flatShading: true })
@@ -576,7 +457,6 @@ const antennaBall = new THREE.Mesh(
 antennaBall.position.set(0, 1.55, 0);
 rover.add(antennaBall);
 
-// פנסים קדמיים זוהרים
 const headlightGeo = new THREE.CylinderGeometry(0.1, 0.12, 0.15, 8);
 const headlightMat = new THREE.MeshStandardMaterial({
   color: 0xffffaa,
@@ -598,71 +478,49 @@ headLight.target.position.set(0, 0, 10);
 rover.add(headLight);
 rover.add(headLight.target);
 
-// חיישנים/מצלמות
-const sensorGeo = new THREE.BoxGeometry(0.25, 0.2, 0.2);
-const sensorMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8, flatShading: true });
-const sensorL = new THREE.Mesh(sensorGeo, sensorMat);
-sensorL.position.set(-0.5, 1.0, 0.7);
-rover.add(sensorL);
-const sensorR = sensorL.clone();
-sensorR.position.x = 0.5;
-rover.add(sensorR);
-
-// עדשות כחולות זוהרות
-const lensGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.08, 6);
-const lensMat = new THREE.MeshStandardMaterial({ 
-  color: 0x00aaff, emissive: 0x0066ff, emissiveIntensity: 0.8, flatShading: true 
-});
-const lensL = new THREE.Mesh(lensGeo, lensMat);
-lensL.rotation.x = Math.PI / 2;
-lensL.position.set(-0.5, 1.0, 0.82);
-rover.add(lensL);
-const lensR = lensL.clone();
-lensR.position.x = 0.5;
-rover.add(lensR);
-
 scene.add(rover);
 rover.position.set(0, 0, 0);
 
-// ============ בקרת מקשים ============
+// ============ בקרת מגע ============
 const keys = { forward: false, backward: false, left: false, right: false };
-window.addEventListener('keydown', (e) => {
-  switch (e.code) {
-    case 'KeyW': case 'ArrowUp': keys.forward = true; break;
-    case 'KeyS': case 'ArrowDown': keys.backward = true; break;
-    case 'KeyA': case 'ArrowLeft': keys.left = true; break;
-    case 'KeyD': case 'ArrowRight': keys.right = true; break;
-    case 'KeyE': case 'Space': interact(); break;
-  }
-});
-window.addEventListener('keyup', (e) => {
-  switch (e.code) {
-    case 'KeyW': case 'ArrowUp': keys.forward = false; break;
-    case 'KeyS': case 'ArrowDown': keys.backward = false; break;
-    case 'KeyA': case 'ArrowLeft': keys.left = false; break;
-    case 'KeyD': case 'ArrowRight': keys.right = false; break;
-  }
-});
 
 document.querySelectorAll('.ctrl-btn').forEach(btn => {
   const key = btn.dataset.key;
-  const start = () => { keys[key] = true; btn.classList.add('active'); };
-  const end = () => { keys[key] = false; btn.classList.remove('active'); };
-  btn.addEventListener('touchstart', (e) => { e.preventDefault(); start(); });
-  btn.addEventListener('touchend', end);
+  const start = (e) => { 
+    if (e) e.preventDefault(); 
+    keys[key] = true; 
+    btn.classList.add('active'); 
+  };
+  const end = (e) => { 
+    if (e) e.preventDefault(); 
+    keys[key] = false; 
+    btn.classList.remove('active'); 
+  };
+  
+  btn.addEventListener('touchstart', start, { passive: false });
+  btn.addEventListener('touchend', end, { passive: false });
+  btn.addEventListener('touchcancel', end, { passive: false });
   btn.addEventListener('mousedown', start);
   btn.addEventListener('mouseup', end);
   btn.addEventListener('mouseleave', end);
 });
 
+// כפתור אינטראקציה
+const interactBtn = document.getElementById('btn-interact');
+interactBtn.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  interact();
+}, { passive: false });
+interactBtn.addEventListener('click', interact);
+
+// כפתור מסך מלא
 document.getElementById('btn-fullscreen').addEventListener('click', () => {
-  if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
-  else document.exitFullscreen();
+  forceFullscreen();
 });
 
 // ============ מערכת אינטראקציה ============
 let nearDiscovery = null;
-const interactBtn = document.getElementById('btn-interact');
+
 function interact() {
   if (nearDiscovery && !nearDiscovery.discovered) {
     nearDiscovery.discovered = true;
@@ -671,18 +529,21 @@ function interact() {
     updateQuest();
   }
 }
+
 function showDiscoveryToast(title, text) {
   const toast = document.getElementById('discovery-toast');
   document.getElementById('toast-text').textContent = `${title} - ${text}`;
   toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 3500);
+  setTimeout(() => toast.classList.remove('show'), 3000);
 }
+
 function showItemToast(text) {
   const toast = document.getElementById('item-toast');
   document.getElementById('item-text').textContent = text;
   toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2500);
+  setTimeout(() => toast.classList.remove('show'), 2000);
 }
+
 function updateDiscoveryCount() {
   const count = discoveries.filter(d => d.discovered).length;
   document.getElementById('disc-num').textContent = count;
@@ -697,6 +558,7 @@ const quests = [
   { text: 'גלה את כל 8 המקומות!', check: () => discoveries.filter(d => d.discovered).length >= 8 }
 ];
 let currentQuest = 0;
+
 function updateQuest() {
   for (let i = quests.length - 1; i >= 0; i--) {
     if (quests[i].check()) { currentQuest = i; break; }
@@ -770,7 +632,7 @@ function getBiomeName(x, z) {
   if (nx < 0.3 && nz < 0.3) return '🌲 יער צפוף';
   if (nx > 0.7 && nz < 0.3) return '🏜️ מדבר';
   if (nx < 0.3 && nz > 0.7) return '❄️ אזור מושלג';
-  if (nx > 0.7 && nz > 0.7) return ' ביצה';
+  if (nx > 0.7 && nz > 0.7) return '🌾 ביצה';
   return '🌱 ערבה';
 }
 
@@ -805,20 +667,6 @@ function animate() {
 
   document.getElementById('current-biome').textContent = getBiomeName(rover.position.x, rover.position.z);
 
-  // עדכון דשא עם wind animation
-  for (let i = 0; i < grassCount; i++) {
-    const data = grassData[i];
-    const windX = Math.sin(time * 2 + data.x * 0.5) * 0.1;
-    const windZ = Math.cos(time * 1.5 + data.z * 0.5) * 0.1;
-    dummy.position.set(data.x, getGroundHeight(data.x, data.z), data.z);
-    dummy.rotation.set(data.baseRotX + windX, 0, data.baseRotZ + windZ);
-    dummy.scale.setScalar(data.scale);
-    dummy.updateMatrix();
-    grassMesh.setMatrixAt(i, dummy.matrix);
-  }
-  grassMesh.instanceMatrix.needsUpdate = true;
-
-  // אנימציות גבישים
   collectibles.forEach((c, i) => {
     if (!c.collected) {
       c.mesh.rotation.y += dt * 3;
@@ -827,29 +675,6 @@ function animate() {
     }
   });
 
-  // חיות
-  animals.forEach(a => {
-    a.userData.timer -= dt;
-    if (a.userData.timer <= 0) {
-      a.userData.dir = Math.random() * Math.PI * 2;
-      a.userData.timer = 2 + Math.random() * 3;
-    }
-    if (a.userData.type === 'bird') {
-      a.position.x += Math.cos(a.userData.dir) * a.userData.speed * dt;
-      a.position.z += Math.sin(a.userData.dir) * a.userData.speed * dt;
-      a.position.y += Math.sin(time * 3) * 0.02;
-    } else {
-      a.position.x += Math.cos(a.userData.dir) * a.userData.speed * dt * 0.5;
-      a.position.z += Math.sin(a.userData.dir) * a.userData.speed * dt * 0.5;
-      a.position.y = getGroundHeight(a.position.x, a.position.z);
-      a.rotation.y = -a.userData.dir;
-    }
-    const al = HALF - 10;
-    a.position.x = Math.max(-al, Math.min(al, a.position.x));
-    a.position.z = Math.max(-al, Math.min(al, a.position.z));
-  });
-
-  // בדיקת גילויים קרובים
   nearDiscovery = null;
   let closestDist = 6;
   discoveries.forEach(d => {
@@ -869,7 +694,6 @@ function animate() {
     poiMarker.style.display = 'none';
   }
 
-  // איסוף פריטים
   collectibles.forEach((c, i) => {
     if (!c.collected) {
       const dx = rover.position.x - c.mesh.position.x;
@@ -883,10 +707,8 @@ function animate() {
     }
   });
 
-  // נורת אנטנה מהבהבת
   antennaBall.material.emissiveIntensity = 0.5 + Math.sin(time * 5) * 0.5;
 
-  // מצלמה חלקה
   const camOffset = new THREE.Vector3(
     Math.sin(currentRot) * 8,
     5,
@@ -897,17 +719,35 @@ function animate() {
   camera.lookAt(rover.position.x, rover.position.y + 1, rover.position.z);
 
   if (Math.floor(time * 60) % 10 === 0) drawMinimap();
-  
-  // שימוש ב-composer במקום renderer ישירות
-  composer.render();
+  renderer.render(scene, camera);
 }
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  composer.setSize(window.innerWidth, window.innerHeight);
+  checkOrientation();
 });
+
+// מניעת zoom ו-scroll במובייל
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+document.addEventListener('gesturechange', (e) => e.preventDefault());
+document.addEventListener('gestureend', (e) => e.preventDefault());
+
+let lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => {
+  const now = Date.now();
+  if (now - lastTouchEnd <= 300) {
+    e.preventDefault();
+  }
+  lastTouchEnd = now;
+}, false);
+
+document.addEventListener('touchmove', (e) => {
+  if (e.touches.length > 1) {
+    e.preventDefault();
+  }
+}, { passive: false });
 
 drawMinimap();
 animate();

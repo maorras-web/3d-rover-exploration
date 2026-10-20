@@ -2,28 +2,39 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="screen-orientation" content="landscape">
+<meta name="x5-orientation" content="landscape">
 <title>רובר מגלה - עולם פתוח</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div id="orientation-warning">
+  <div class="warning-icon">📱</div>
+  <div class="warning-text">אנא סובב את המכשיר למצב רוחב</div>
+  <div class="warning-sub">Rotate your device to landscape</div>
+</div>
+
 <div id="ui-container">
   <div id="top-left-hud">
-    <button id="btn-fullscreen">🖥️ מסך מלא</button>
     <div id="stats">
-      <div class="stat-bar"><span>❤️</span><div class="bar-outer"><div class="bar-inner" id="hp-bar"></div></div></div>
-      <div class="stat-bar"><span>⚡</span><div class="bar-outer"><div class="bar-inner energy" id="energy-bar"></div></div></div>
-      <div class="stat-bar"><span>🔋</span><div class="bar-outer"><div class="bar-inner battery" id="battery-bar"></div></div></div>
+      <div class="stat-bar"><span>❤️</span><div class="bar-outer"><div class="bar-inner" id="hp-bar" style="width:100%"></div></div></div>
+      <div class="stat-bar"><span>⚡</span><div class="bar-outer"><div class="bar-inner energy" id="energy-bar" style="width:100%"></div></div></div>
+      <div class="stat-bar"><span>🔋</span><div class="bar-outer"><div class="bar-inner battery" id="battery-bar" style="width:100%"></div></div></div>
     </div>
     <div id="minimap">
-      <canvas id="minimap-canvas" width="160" height="160"></canvas>
+      <canvas id="minimap-canvas" width="120" height="120"></canvas>
       <div id="minimap-rover"></div>
     </div>
-    <div id="discovered-count">🔍 גילויים: <span id="disc-num">0</span> / <span id="disc-total">0</span></div>
+    <div id="discovered-count">🔍 <span id="disc-num">0</span>/<span id="disc-total">0</span></div>
   </div>
+  
   <div id="top-right-hud">
     <div id="current-biome">🌿 שטח ירוק</div>
-    <div id="time-display">🌅 17:30</div>
+    <div id="time-display"> 12:00</div>
     <div id="quest-box">
       <div class="quest-title">📋 משימה</div>
       <div id="quest-text">חקור את העולם וגלה מקומות חדשים</div>
@@ -47,24 +58,25 @@
 
 <div id="controls">
   <div id="ctrl-up">
-    <button class="ctrl-btn" data-key="forward" title="ישר">▲<span class="ctrl-label">ישר</span></button>
+    <button class="ctrl-btn" data-key="forward">▲<span class="ctrl-label">ישר</span></button>
   </div>
   <div id="ctrl-mid">
-    <button class="ctrl-btn" data-key="left" title="שמאלה">◀<span class="ctrl-label">שמאלה</span></button>
-    <button class="ctrl-btn" data-key="right" title="ימינה">▶<span class="ctrl-label">ימינה</span></button>
+    <button class="ctrl-btn" data-key="left">◀<span class="ctrl-label">שמאל</span></button>
+    <button class="ctrl-btn" data-key="right">▶<span class="ctrl-label">ימין</span></button>
   </div>
   <div id="ctrl-down">
-    <button class="ctrl-btn" data-key="backward" title="רוורס">▼<span class="ctrl-label">רוורס</span></button>
+    <button class="ctrl-btn" data-key="backward">▼<span class="ctrl-label">רוורס</span></button>
   </div>
 </div>
 
 <button id="btn-interact" class="interact-btn">🔍<br>חקור</button>
 
+<button id="btn-fullscreen" class="fullscreen-btn">️ מסך מלא</button>
+
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
   }
 }
 </script>
