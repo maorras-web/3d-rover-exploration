@@ -1,62 +1,136 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="mobile-web-app-capable" content="yes">
-<title>רובר מגלה</title>
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1e1b18">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Blast Royale</title>
+    <link rel="icon" href="data:,">
+    
+    <!-- פונט Rubik מודרני -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@600;800;900&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="style.css?v=7">
+    
+    <!-- ספריית Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
-<div id="desktop-warning">
-  <div class="warning-icon">📱</div>
-  <div class="warning-title">המשחק מיועד לפלאפונים בלבד</div>
-  <div class="warning-text">This game is designed for mobile devices only</div>
-</div>
-
-<div id="orientation-warning">
-  <div class="warning-icon">📱</div>
-  <div class="warning-text">אנא סובב את המכשיר למצב רוחב</div>
-  <div class="warning-sub">Rotate to landscape</div>
-</div>
-
-<div id="ui-container">
-  <div id="top-left-hud">
-    <div id="minimap">
-      <canvas id="minimap-canvas" width="140" height="140"></canvas>
-      <div id="minimap-rover"></div>
+    <!-- שכבת הגבלה: המשחק מיועד לטלפונים בלבד ובמצב אנכי -->
+    <div id="desktop-blocker" class="device-blocker">
+        <div class="device-blocker-card">
+            <div class="device-blocker-icon">📱</div>
+            <h2>Mobile Only</h2>
+            <p>This game is designed for phones in portrait mode.</p>
+            <small>Open the game on your phone to play.</small>
+        </div>
     </div>
-    <button id="btn-fullscreen">⛶ מסך מלא</button>
-  </div>
-  <div id="top-right-hud">
-    <div id="current-biome">🌿 שטח ירוק</div>
-    <div id="time-display">🌞 12:00</div>
-  </div>
-</div>
 
-<!-- הגה: פניות בצד שמאל -->
-<div id="steer-left">
-  <button class="ctrl-round steer-btn" data-key="left">◀<span class="ctrl-label">שמאל</span></button>
-  <button class="ctrl-round steer-btn" data-key="right">▶<span class="ctrl-label">ימין</span></button>
-</div>
+    <div id="landscape-blocker" class="device-blocker">
+        <div class="device-blocker-card">
+            <div class="device-blocker-icon">↕️</div>
+            <h2>Rotate your phone</h2>
+            <p>Switch your phone to portrait mode to play.</p>
+        </div>
+    </div>
 
-<!-- דוושות: גז ורוורס בצד ימין -->
-<div id="pedals-right">
-  <button class="ctrl-round pedal-reverse" data-key="backward">▼<span class="ctrl-label">רוורס</span></button>
-  <button class="ctrl-round pedal-gas" data-key="forward">▲<span class="ctrl-label">גז</span></button>
-</div>
+    <!-- UI עליון בזמן משחק -->
+    <div id="ui-container">
+        <div class="ui-card">
+            <span class="ui-title">SCORE</span>
+            <span id="score-val" class="ui-value">0</span>
+        </div>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
-<script type="module" src="main.js"></script>
+        <div class="ui-card">
+            <span class="ui-title">COINS</span>
+            <span id="coins-val" class="ui-value">0</span>
+        </div>
+
+        <div class="ui-card">
+            <span class="ui-title">LEVEL</span>
+            <span id="level-text" class="ui-value">1</span>
+        </div>
+
+        <div class="ui-card" id="hp-container">
+            <div style="display: flex; justify-content: space-between; font-size: 10px; color: #a1a1aa;">
+                <span>HP</span>
+                <span id="hp-text">100 / 100</span>
+            </div>
+            <div class="hp-bar-bg">
+                <div id="hp-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- מסך פתיחה (Splash / Start) -->
+    <div id="splash-screen" class="modal-overlay intro-only">
+        <div class="modal-card splash-sheet">
+            <h1 class="game-title">BLAST<br><span>ROYALE</span></h1>
+
+            <!-- שורת נתונים קבועה: מטבעות ושיא -->
+            <div class="splash-head">
+                <div class="head-stat">
+                    <span class="head-label">🪙 Coins</span>
+                    <strong id="start-coins">0</strong>
+                </div>
+                <div class="head-stat">
+                    <span class="head-label">🏆 Best</span>
+                    <strong id="start-best-score">0</strong>
+                </div>
+            </div>
+
+            <!-- אזור הגלילה: תותח, שדרוגים, מפה -->
+            <div class="splash-scroll">
+                <section class="splash-section">
+                    <div class="shop-section-title">Upgrades</div>
+                    <div class="upgrades-list">
+                        <div class="upgrade-item">
+                            <div>
+                                <div class="upg-name">Fire Power</div>
+                                <div id="power-lvl-text" class="upg-lvl">Lvl 1</div>
+                            </div>
+                            <button id="buy-power-btn" class="btn-upg">50 C</button>
+                        </div>
+
+                        <div class="upgrade-item">
+                            <div>
+                                <div class="upg-name">Fire Rate</div>
+                                <div id="rate-lvl-text" class="upg-lvl">Lvl 1</div>
+                            </div>
+                            <button id="buy-rate-btn" class="btn-upg">60 C</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="splash-section">
+                    <div class="shop-section-title">Map</div>
+                    <div class="maps-grid">
+                        <button class="map-card selected owned" data-map-id="forest" type="button">
+                            <span class="map-icon">🔺</span>
+                            <span class="map-info"><strong>PYRAMIDS</strong><small>Pyramids</small></span>
+                            <span class="map-action">Selected</span>
+                        </button>
+                        <button class="map-card owned" data-map-id="volcano" type="button">
+                            <span class="map-icon">🌊</span>
+                            <span class="map-info"><strong>SEA</strong><small>Night sea</small></span>
+                            <span class="map-action">Select</span>
+                        </button>
+                    </div>
+                </section>
+            </div>
+
+            <button id="inventory-btn" class="inv-open" type="button"><span>🎒</span>INVENTORY</button>
+
+            <button id="start-btn" class="btn-primary" type="button">Start Game</button>
+        </div>
+    </div>
+
+    <!-- קובץ המשחק הראשי -->
+    <script src="main.js?v=128"></script>
 </body>
 </html>
