@@ -20,7 +20,7 @@ if (!isMobile()) {
 
 function initGame() {
 
-  // ============ מסך מלא + הסתרת הכפתור במצב מלא ============
+  // ============ מסך מלא ============
   let fsOk = false, fsTries = 0, userExited = false;
   const fsBtn = document.getElementById('btn-fullscreen');
   function requestFS() {
@@ -41,7 +41,6 @@ function initGame() {
     const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
     if (fsOk && !on) userExited = true;
     fsOk = on;
-    // תיקון #3: הסתר את הכפתור כשכבר במסך מלא
     fsBtn.style.display = on ? 'none' : '';
     setTimeout(onResize, 60);
   }
@@ -128,7 +127,7 @@ function initGame() {
   // ============ תאורה ============
   const ambientLight = new THREE.AmbientLight(0x8899bb, 0.35);
   scene.add(ambientLight);
-  const hemiLight = new THREE.HemisphereLight(0xbfd8e8, 0x6b7a4a, 0.55);
+  const hemiLight = new THREE.HemisphereLight(0xbfd8e8, 0x6b7a4a, 0.65);
   scene.add(hemiLight);
   const sunLight = new THREE.DirectionalLight(0xffd9a0, 2.4);
   sunLight.position.set(60, 45, 35);
@@ -143,9 +142,30 @@ function initGame() {
   sunLight.shadow.bias = -0.0004;
   sunLight.shadow.radius = 3;
   scene.add(sunLight);
-  const fillLight = new THREE.DirectionalLight(0x99bbee, 0.35);
+  const fillLight = new THREE.DirectionalLight(0x99bbee, 0.45);
   fillLight.position.set(-50, 30, -40);
   scene.add(fillLight);
+
+  // ============ 🌟 Environment Map - השתקפויות למתכת והזכוכית! ============
+  const envCanvas = document.createElement('canvas');
+  envCanvas.width = 256;
+  envCanvas.height = 128;
+  const ectx = envCanvas.getContext('2d');
+  const envGrad = ectx.createLinearGradient(0, 0, 0, 128);
+  envGrad.addColorStop(0, '#7fb2d9');
+  envGrad.addColorStop(0.45, '#f6dcb4');
+  envGrad.addColorStop(0.7, '#d9a86c');
+  envGrad.addColorStop(1, '#5a6640');
+  ectx.fillStyle = envGrad;
+  ectx.fillRect(0, 0, 256, 128);
+  ectx.fillStyle = 'rgba(255,244,210,0.95)';
+  ectx.beginPath(); ectx.arc(70, 56, 13, 0, Math.PI * 2); ectx.fill();
+  ectx.fillStyle = 'rgba(255,244,210,0.35)';
+  ectx.beginPath(); ectx.arc(70, 56, 26, 0, Math.PI * 2); ectx.fill();
+  const envTex = new THREE.CanvasTexture(envCanvas);
+  envTex.mapping = THREE.EquirectangularReflectionMapping;
+  envTex.colorSpace = THREE.SRGBColorSpace;
+  scene.environment = envTex;
 
   // ============ Noise ============
   function noise2D(x, z) {
@@ -505,19 +525,23 @@ function initGame() {
   hillIM.instanceMatrix.needsUpdate = true;
   scene.add(hillIM);
 
-  // ============ התותח - רובר מפורט ============
+  // ============ 🚜 התותח - רובר תלת מימדי ונאה! ============
   const rover = new THREE.Group();
   rover.rotation.order = 'YXZ';
 
+  // חומרים חדשים: מתכת אמיתית עם השתקפויות + צבעים בהירים
   const MATS = {
-    paint: new THREE.MeshStandardMaterial({ color: 0x9fb8cc, metalness: 0.55, roughness: 0.35, flatShading: true }),
-    paintDark: new THREE.MeshStandardMaterial({ color: 0x46586a, metalness: 0.6, roughness: 0.45, flatShading: true }),
-    metal: new THREE.MeshStandardMaterial({ color: 0x9aa7b0, metalness: 0.85, roughness: 0.3, flatShading: true }),
-    metalDark: new THREE.MeshStandardMaterial({ color: 0x2e3438, metalness: 0.7, roughness: 0.5, flatShading: true }),
-    rubber: new THREE.MeshStandardMaterial({ color: 0x1c1a18, roughness: 0.95, flatShading: true }),
-    glass: new THREE.MeshStandardMaterial({ color: 0xbfe6f2, metalness: 0.2, roughness: 0.15, transparent: true, opacity: 0.85, flatShading: true, emissive: 0x2a6a80, emissiveIntensity: 0.25 }),
+    paint: new THREE.MeshStandardMaterial({ color: 0xcfd8e2, metalness: 0.25, roughness: 0.35, flatShading: true, envMapIntensity: 0.9 }),
+    paintDark: new THREE.MeshStandardMaterial({ color: 0x5a6b7c, metalness: 0.35, roughness: 0.5, flatShading: true, envMapIntensity: 0.7 }),
+    accent: new THREE.MeshStandardMaterial({ color: 0xe8763a, metalness: 0.15, roughness: 0.5, flatShading: true }),
+    metal: new THREE.MeshStandardMaterial({ color: 0xb0b8c0, metalness: 0.7, roughness: 0.28, flatShading: true, envMapIntensity: 1.2 }),
+    metalDark: new THREE.MeshStandardMaterial({ color: 0x33383e, metalness: 0.6, roughness: 0.45, flatShading: true, envMapIntensity: 0.8 }),
+    rubber: new THREE.MeshStandardMaterial({ color: 0x23201d, roughness: 0.92, flatShading: true }),
+    glass: new THREE.MeshStandardMaterial({ color: 0x9fd8ea, metalness: 0.1, roughness: 0.12, transparent: true, opacity: 0.8, flatShading: true, emissive: 0x1a4a5a, emissiveIntensity: 0.35, envMapIntensity: 1.5 }),
     black: new THREE.MeshStandardMaterial({ color: 0x0a0c10, roughness: 0.6, flatShading: true }),
     glow: new THREE.MeshStandardMaterial({ color: 0xffffcc, emissive: 0xffeeaa, emissiveIntensity: 1.8, flatShading: true }),
+    tail: new THREE.MeshStandardMaterial({ color: 0xff3322, emissive: 0xff2211, emissiveIntensity: 0.9, flatShading: true }),
+    solar: new THREE.MeshStandardMaterial({ color: 0x16264a, metalness: 0.4, roughness: 0.3, flatShading: true, emissive: 0x0a1a3a, emissiveIntensity: 0.4, envMapIntensity: 1.0 }),
     cable: new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.8 })
   };
 
@@ -535,85 +559,81 @@ function initGame() {
     g.applyMatrix4(matrix);
     (buckets[key] = buckets[key] || []).push(g);
   }
+  function scaleLast(key, sx, sy, sz) {
+    buckets[key][buckets[key].length - 1].scale(sx, sy, sz);
+  }
 
   const B = new THREE.BoxGeometry(1, 1, 1);
   const C = new THREE.CylinderGeometry(1, 1, 1, 10);
   const T = new THREE.TorusGeometry(1, 0.25, 6, 12);
 
-  part(B, place(0, 0.8, 0), 'paint');
-  buckets.paint[buckets.paint.length - 1].scale(2.0, 0.5, 1.3);
-  part(B, place(0, 1.0, -0.15, 0.12, 0, 0), 'paint');
-  buckets.paint[buckets.paint.length - 1].scale(1.7, 0.3, 1.2);
-  part(B, place(0, 0.75, -0.72, -0.3, 0, 0), 'paintDark');
-  buckets.paintDark[buckets.paintDark.length - 1].scale(1.6, 0.35, 0.12);
-  part(B, place(0, 1.05, 0.35), 'paintDark');
-  buckets.paintDark[buckets.paintDark.length - 1].scale(1.6, 0.25, 1.2);
-  part(B, place(0, 0.62, 0.68), 'paintDark');
-  buckets.paintDark[buckets.paintDark.length - 1].scale(2.1, 0.18, 0.1);
-  part(B, place(0, 0.62, -0.68), 'paintDark');
-  buckets.paintDark[buckets.paintDark.length - 1].scale(2.1, 0.18, 0.1);
-  part(B, place(-0.5, 1.32, 0.35, 0, 0.2, 0), 'metalDark');
-  buckets.metalDark[buckets.metalDark.length - 1].scale(0.6, 0.45, 0.5);
-  part(B, place(0, 0.55, -0.8), 'metalDark');
-  buckets.metalDark[buckets.metalDark.length - 1].scale(1.7, 0.12, 0.1);
+  // גוף ראשי בהיר + פרטים
+  part(B, place(0, 0.8, 0), 'paint'); scaleLast('paint', 2.0, 0.5, 1.3);
+  part(B, place(0, 1.0, -0.15, 0.12, 0, 0), 'paint'); scaleLast('paint', 1.7, 0.3, 1.2);
+  part(B, place(0, 0.75, -0.72, -0.3, 0, 0), 'paintDark'); scaleLast('paintDark', 1.6, 0.35, 0.12);
+  part(B, place(0, 1.05, 0.35), 'paintDark'); scaleLast('paintDark', 1.6, 0.25, 1.2);
+  part(B, place(0, 0.62, 0.68), 'paintDark'); scaleLast('paintDark', 2.1, 0.18, 0.1);
+  part(B, place(0, 0.62, -0.68), 'paintDark'); scaleLast('paintDark', 2.1, 0.18, 0.1);
+  part(B, place(-0.5, 1.32, 0.35, 0, 0.2, 0), 'metalDark'); scaleLast('metalDark', 0.6, 0.45, 0.5);
+  part(B, place(0, 0.55, -0.8), 'metalDark'); scaleLast('metalDark', 1.7, 0.12, 0.1);
 
+  // פסי הדגשה כתומים
+  part(B, place(0, 1.17, -0.28, 0.12, 0, 0), 'accent'); scaleLast('accent', 0.45, 0.03, 0.9);
+  part(B, place(0, 0.5, 0.82), 'accent'); scaleLast('accent', 1.7, 0.1, 0.08);
+
+  // כיפה + עיניים + טבעת
   const domeGeo = new THREE.SphereGeometry(0.62, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-  part(domeGeo, place(0, 1.15, 0), 'glass');
-  buckets.glass[buckets.glass.length - 1].scale(1, 0.9, 1);
+  part(domeGeo, place(0, 1.15, 0), 'glass'); scaleLast('glass', 1, 0.9, 1);
   const ringGeo = new THREE.TorusGeometry(0.62, 0.05, 6, 14);
   part(ringGeo, place(0, 1.15, 0, Math.PI / 2, 0, 0), 'metalDark');
-  part(B, place(-0.22, 1.28, -0.52, -0.4, 0, 0), 'black');
-  buckets.black[buckets.black.length - 1].scale(0.26, 0.05, 0.02);
-  part(B, place(0.22, 1.28, -0.52, -0.4, 0, 0), 'black');
-  buckets.black[buckets.black.length - 1].scale(0.26, 0.05, 0.02);
+  part(B, place(-0.22, 1.28, -0.52, -0.4, 0, 0), 'black'); scaleLast('black', 0.26, 0.05, 0.02);
+  part(B, place(0.22, 1.28, -0.52, -0.4, 0, 0), 'black'); scaleLast('black', 0.26, 0.05, 0.02);
 
+  // פאנל סולארי על הגג האחורי
+  part(B, place(0, 1.2, 0.35), 'solar'); scaleLast('solar', 1.3, 0.04, 0.9);
+
+  // פודים צדדיים + מצלמות
   [-1, 1].forEach(side => {
-    part(B, place(0.45, 1.05, side * 0.7), 'metal');
-    buckets.metal[buckets.metal.length - 1].scale(0.35, 0.09, 0.5);
-    part(C, place(0.45, 1.15, side * 0.9), 'metalDark');
-    buckets.metalDark[buckets.metalDark.length - 1].scale(0.15, 0.15, 0.2);
-    part(C, place(0.45, 1.35, side * 0.9), 'paint');
-    buckets.paint[buckets.paint.length - 1].scale(0.16, 0.32, 0.16);
-    part(C, place(0.45, 1.44, side * 0.9), 'black');
-    buckets.black[buckets.black.length - 1].scale(0.17, 0.12, 0.17);
-    part(B, place(0.75, 1.2, side * 0.9), 'paintDark');
-    buckets.paintDark[buckets.paintDark.length - 1].scale(0.24, 0.18, 0.16);
-    part(C, place(0.69, 1.2, side * 0.9 - 0.09, Math.PI / 2, 0, 0), 'black');
-    buckets.black[buckets.black.length - 1].scale(0.05, 0.04, 0.05);
-    part(C, place(0.81, 1.2, side * 0.9 - 0.09, Math.PI / 2, 0, 0), 'black');
-    buckets.black[buckets.black.length - 1].scale(0.05, 0.04, 0.05);
+    part(B, place(0.45, 1.05, side * 0.7), 'metal'); scaleLast('metal', 0.35, 0.09, 0.5);
+    part(C, place(0.45, 1.15, side * 0.9), 'metalDark'); scaleLast('metalDark', 0.15, 0.15, 0.2);
+    part(C, place(0.45, 1.35, side * 0.9), 'paint'); scaleLast('paint', 0.16, 0.32, 0.16);
+    part(C, place(0.45, 1.44, side * 0.9), 'black'); scaleLast('black', 0.17, 0.12, 0.17);
+    part(B, place(0.75, 1.2, side * 0.9), 'paintDark'); scaleLast('paintDark', 0.24, 0.18, 0.16);
+    part(C, place(0.69, 1.2, side * 0.9 - 0.09, Math.PI / 2, 0, 0), 'black'); scaleLast('black', 0.05, 0.04, 0.05);
+    part(C, place(0.81, 1.2, side * 0.9 - 0.09, Math.PI / 2, 0, 0), 'black'); scaleLast('black', 0.05, 0.04, 0.05);
   });
 
+  // מתלים + כנפי מגן כתומות מעל הגלגלים
   const wheelSlots = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
   wheelSlots.forEach(([sx, sz]) => {
     const wx = sx * 1.12, wz = sz * 0.85;
-    part(B, place(sx * 0.75, 0.95, wz * 0.8, 0, 0, -sx * 0.3), 'metal');
-    buckets.metal[buckets.metal.length - 1].scale(0.5, 0.08, 0.08);
-    part(B, place(sx * 0.8, 0.5, wz * 0.85, 0, 0, -sx * 0.15), 'metal');
-    buckets.metal[buckets.metal.length - 1].scale(0.55, 0.08, 0.08);
-    part(B, place(sx * 1.0, 0.62, wz * 0.85), 'metalDark');
-    buckets.metalDark[buckets.metalDark.length - 1].scale(0.08, 0.5, 0.08);
-    part(C, place(sx * 0.7, 0.85, wz * 0.6, 0, 0, -sx * 0.5), 'metalDark');
-    buckets.metalDark[buckets.metalDark.length - 1].scale(0.035, 0.5, 0.035);
+    part(B, place(sx * 0.75, 0.95, wz * 0.8, 0, 0, -sx * 0.3), 'metal'); scaleLast('metal', 0.5, 0.08, 0.08);
+    part(B, place(sx * 0.8, 0.5, wz * 0.85, 0, 0, -sx * 0.15), 'metal'); scaleLast('metal', 0.55, 0.08, 0.08);
+    part(B, place(sx * 1.0, 0.62, wz * 0.85), 'metalDark'); scaleLast('metalDark', 0.08, 0.5, 0.08);
+    part(C, place(sx * 0.7, 0.85, wz * 0.6, 0, 0, -sx * 0.5), 'metalDark'); scaleLast('metalDark', 0.035, 0.5, 0.035);
     for (let k = 0; k < 4; k++) {
       part(T, place(sx * (0.72 - k * 0.06), 0.68 + k * 0.1, wz * 0.6, Math.PI / 2, 0, -sx * 0.5), 'metal');
-      buckets.metal[buckets.metal.length - 1].scale(0.075, 0.075, 0.075);
+      scaleLast('metal', 0.075, 0.075, 0.075);
     }
+    // כנף מגן (fender) כתומה
+    part(B, place(wx, 0.88, wz), 'accent'); scaleLast('accent', 0.62, 0.09, 1.05);
   });
 
-  part(C, place(-0.55, 0.78, -0.78, Math.PI / 2, 0, 0), 'glow');
-  buckets.glow[buckets.glow.length - 1].scale(0.09, 0.1, 0.11);
-  part(C, place(0.55, 0.78, -0.78, Math.PI / 2, 0, 0), 'glow');
-  buckets.glow[buckets.glow.length - 1].scale(0.09, 0.1, 0.11);
-  part(C, place(-0.6, 1.55, 0.4, 0, 0, 0.35), 'metal');
-  buckets.metal[buckets.metal.length - 1].scale(0.025, 0.9, 0.035);
-  part(B, place(-0.78, 2.0, 0.47, 0, 0.3, 0.5), 'paintDark');
-  buckets.paintDark[buckets.paintDark.length - 1].scale(0.3, 0.45, 0.03);
-  part(C, place(-0.25, 1.25, 0.62), 'metalDark');
-  buckets.metalDark[buckets.metalDark.length - 1].scale(0.06, 0.35, 0.06);
-  part(C, place(0.25, 1.25, 0.62), 'metalDark');
-  buckets.metalDark[buckets.metalDark.length - 1].scale(0.06, 0.35, 0.06);
+  // פנסים קדמיים + פנסים אחוריים אדומים
+  part(C, place(-0.55, 0.78, -0.78, Math.PI / 2, 0, 0), 'glow'); scaleLast('glow', 0.09, 0.1, 0.11);
+  part(C, place(0.55, 0.78, -0.78, Math.PI / 2, 0, 0), 'glow'); scaleLast('glow', 0.09, 0.1, 0.11);
+  part(B, place(-0.62, 0.88, 0.71), 'tail'); scaleLast('tail', 0.24, 0.1, 0.05);
+  part(B, place(0.62, 0.88, 0.71), 'tail'); scaleLast('tail', 0.24, 0.1, 0.05);
 
+  // אנטנה + אגזוזים
+  part(C, place(-0.6, 1.55, 0.4, 0, 0, 0.35), 'metal'); scaleLast('metal', 0.025, 0.9, 0.035);
+  part(B, place(-0.78, 2.0, 0.47, 0, 0.3, 0.5), 'paintDark'); scaleLast('paintDark', 0.3, 0.45, 0.03);
+  part(C, place(-0.25, 1.25, 0.62), 'metalDark'); scaleLast('metalDark', 0.06, 0.35, 0.06);
+  part(C, place(0.25, 1.25, 0.62), 'metalDark'); scaleLast('metalDark', 0.06, 0.35, 0.06);
+  part(C, place(-0.25, 1.44, 0.62), 'metal'); scaleLast('metal', 0.07, 0.05, 0.07);
+  part(C, place(0.25, 1.44, 0.62), 'metal'); scaleLast('metal', 0.07, 0.05, 0.07);
+
+  // כבלים
   const cable1 = new THREE.CatmullRomCurve3([
     new THREE.Vector3(-0.5, 1.05, -0.5), new THREE.Vector3(-0.2, 0.92, -0.66),
     new THREE.Vector3(0.2, 0.95, -0.64), new THREE.Vector3(0.5, 1.05, -0.5)
@@ -632,6 +652,7 @@ function initGame() {
     rover.add(mesh);
   });
 
+  // גלגלים
   function buildWheelGeo() {
     const rubberParts = [];
     const rim = new THREE.CylinderGeometry(0.44, 0.44, 0.34, 10);
@@ -667,7 +688,7 @@ function initGame() {
 
   scene.add(rover);
 
-  // ============ שליטה (כפתורים חדשים) ============
+  // ============ שליטה ============
   const keys = { forward: false, backward: false, left: false, right: false };
   document.querySelectorAll('.ctrl-round').forEach(btn => {
     const key = btn.dataset.key;
@@ -753,7 +774,7 @@ function initGame() {
     sunLight.intensity = 0.4 + day * 2.0 + dusk * 0.6;
     sunLight.color.setRGB(1.0, 0.75 + day * 0.15, 0.55 + day * 0.25);
     ambientLight.intensity = 0.18 + day * 0.25;
-    hemiLight.intensity = 0.2 + day * 0.4;
+    hemiLight.intensity = 0.25 + day * 0.4;
 
     const hours = Math.floor(gameTime * 24);
     const mins = Math.floor((gameTime * 24 - hours) * 60);
@@ -838,6 +859,9 @@ function initGame() {
       w.mesh.position.y = w.baseY + Math.sin(t * 13 + w.phase) * 0.02 * speedNorm;
     });
 
+    // פנסים אחוריים: נדלקים חזק ברוורס או בפגיעה
+    MATS.tail.emissiveIntensity = velocity < -0.2 ? 2.4 : 0.9;
+
     let hit = false;
     for (let i = 0; i < colliders.length; i++) {
       const c = colliders[i];
@@ -853,6 +877,7 @@ function initGame() {
         hit = true;
       }
     }
+    if (hit) MATS.tail.emissiveIntensity = 2.8;
     if (hit && spd > 2) velocity *= 0.7;
 
     const rx = rover.position.x, rz = rover.position.z;
