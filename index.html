@@ -7,62 +7,44 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<canvas id="gameCanvas"></canvas>
-
-<!-- HUD עליון -->
 <div id="ui-container">
   <div id="top-left-hud">
-    <button id="btn-fullscreen"> מסך מלא</button>
+    <button id="btn-fullscreen">🖥️ מסך מלא</button>
     <div id="stats">
-      <div class="stat-bar">
-        <span>❤️</span>
-        <div class="bar-outer"><div class="bar-inner hp" id="hp-bar"></div></div>
-      </div>
-      <div class="stat-bar">
-        <span>⚡</span>
-        <div class="bar-outer"><div class="bar-inner energy" id="energy-bar"></div></div>
-      </div>
-      <div class="stat-bar">
-        <span>🔋</span>
-        <div class="bar-outer"><div class="bar-inner battery" id="battery-bar"></div></div>
-      </div>
+      <div class="stat-bar"><span>❤️</span><div class="bar-outer"><div class="bar-inner" id="hp-bar"></div></div></div>
+      <div class="stat-bar"><span>⚡</span><div class="bar-outer"><div class="bar-inner energy" id="energy-bar"></div></div></div>
+      <div class="stat-bar"><span>🔋</span><div class="bar-outer"><div class="bar-inner battery" id="battery-bar"></div></div></div>
     </div>
     <div id="minimap">
       <canvas id="minimap-canvas" width="160" height="160"></canvas>
       <div id="minimap-rover"></div>
     </div>
-    <div id="discovered-count">🔍 גילויים: <span id="disc-num">0</span>/<span id="disc-total">0</span></div>
+    <div id="discovered-count">🔍 גילויים: <span id="disc-num">0</span> / <span id="disc-total">0</span></div>
   </div>
-
   <div id="top-right-hud">
-    <div id="current-biome"> שטח ירוק</div>
+    <div id="current-biome">🌿 שטח ירוק</div>
     <div id="time-display">🌞 12:00</div>
     <div id="quest-box">
-      <div class="quest-title">📋 משימה</div>
+      <div class="quest-title"> משימה</div>
       <div id="quest-text">חקור את העולם וגלה מקומות חדשים</div>
     </div>
   </div>
 </div>
 
-<!-- POI Marker דינמי -->
 <div id="poi-marker" style="display:none;">
   <div class="poi-icon">◇</div>
   <div class="poi-label" id="poi-label">POI</div>
 </div>
 
-<!-- הודעת גילוי -->
 <div id="discovery-toast" class="toast">
   <div class="toast-title">🔍 גילוי חדש!</div>
   <div class="toast-text" id="toast-text"></div>
 </div>
-
-<!-- פריט שנאסף -->
 <div id="item-toast" class="toast item-toast">
   <div class="toast-title">✨ פריט נאסף!</div>
   <div class="toast-text" id="item-text"></div>
 </div>
 
-<!-- כפתורי מגע -->
 <div id="controls-left">
   <button class="ctrl-btn" data-key="left">◀</button>
   <button class="ctrl-btn" data-key="right">▶</button>
@@ -71,7 +53,7 @@
   <button class="ctrl-btn" data-key="forward">▲</button>
   <button class="ctrl-btn" data-key="backward">▼</button>
 </div>
-<button id="btn-interact" class="interact-btn">🔍 חקור</button>
+<button id="btn-interact" class="interact-btn"><br>חקור</button>
 
 <script type="importmap">
 {
