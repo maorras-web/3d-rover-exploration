@@ -147,7 +147,7 @@ function initGame() {
   fillLight.position.set(-50, 30, -40);
   scene.add(fillLight);
 
-  // ============ Environment map (reflections) ============
+  // ============ Environment map ============
   const envCanvas = document.createElement('canvas');
   envCanvas.width = 256;
   envCanvas.height = 128;
@@ -259,7 +259,7 @@ function initGame() {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // ============ 3D grass tufts with wind ============
+  // ============ 3D grass with wind ============
   function makeBladeGeo(h, w, bend) {
     const segs = 4;
     const positions = [], normals = [], uvs = [], vcols = [], indices = [];
@@ -372,7 +372,7 @@ function initGame() {
   // ============ Colliders ============
   const colliders = [];
 
-  // ============ Rocks (instanced) ============
+  // ============ Rocks ============
   const rockPlans = [];
   for (let i = 0; i < 70; i++) {
     const x = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
@@ -406,7 +406,7 @@ function initGame() {
   if (rockIM.instanceColor) rockIM.instanceColor.needsUpdate = true;
   scene.add(rockIM);
 
-  // ============ Trees (instanced) ============
+  // ============ Trees ============
   const treePlans = [];
   for (let i = 0; i < 110; i++) {
     const x = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
@@ -526,30 +526,39 @@ function initGame() {
   hillIM.instanceMatrix.needsUpdate = true;
   scene.add(hillIM);
 
-  // ============ The Rover (detailed, shiny) ============
+  // ============================================================
+  // ============ 🚜 THE ROVER — target-image rebuild ============
+  // ============================================================
   const rover = new THREE.Group();
   rover.rotation.order = 'YXZ';
 
+  // Warm expedition palette (like the target art)
   const MATS = {
-    paint: new THREE.MeshStandardMaterial({ color: 0xcfd8e2, metalness: 0.25, roughness: 0.35, flatShading: true, envMapIntensity: 0.9 }),
-    paintDark: new THREE.MeshStandardMaterial({ color: 0x5a6b7c, metalness: 0.35, roughness: 0.5, flatShading: true, envMapIntensity: 0.7 }),
-    accent: new THREE.MeshStandardMaterial({ color: 0xe8763a, metalness: 0.15, roughness: 0.5, flatShading: true }),
-    metal: new THREE.MeshStandardMaterial({ color: 0xb0b8c0, metalness: 0.7, roughness: 0.28, flatShading: true, envMapIntensity: 1.2 }),
-    metalDark: new THREE.MeshStandardMaterial({ color: 0x33383e, metalness: 0.6, roughness: 0.45, flatShading: true, envMapIntensity: 0.8 }),
-    rubber: new THREE.MeshStandardMaterial({ color: 0x23201d, roughness: 0.92, flatShading: true }),
-    glass: new THREE.MeshStandardMaterial({ color: 0x9fd8ea, metalness: 0.1, roughness: 0.12, transparent: true, opacity: 0.8, flatShading: true, emissive: 0x1a4a5a, emissiveIntensity: 0.35, envMapIntensity: 1.5 }),
-    black: new THREE.MeshStandardMaterial({ color: 0x0a0c10, roughness: 0.6, flatShading: true }),
-    glow: new THREE.MeshStandardMaterial({ color: 0xffffcc, emissive: 0xffeeaa, emissiveIntensity: 1.8, flatShading: true }),
-    tail: new THREE.MeshStandardMaterial({ color: 0xff3322, emissive: 0xff2211, emissiveIntensity: 0.9, flatShading: true }),
-    solar: new THREE.MeshStandardMaterial({ color: 0x16264a, metalness: 0.4, roughness: 0.3, flatShading: true, emissive: 0x0a1a3a, emissiveIntensity: 0.4, envMapIntensity: 1.0 }),
-    cable: new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.8 })
+    light:  new THREE.MeshStandardMaterial({ color: 0xd6d0c2, metalness: 0.20, roughness: 0.55, flatShading: true, envMapIntensity: 0.8 }),
+    mid:    new THREE.MeshStandardMaterial({ color: 0xb2aa96, metalness: 0.30, roughness: 0.50, flatShading: true, envMapIntensity: 0.8 }),
+    arm:    new THREE.MeshStandardMaterial({ color: 0xc9c4b6, metalness: 0.55, roughness: 0.35, flatShading: true, envMapIntensity: 1.1 }),
+    joint:  new THREE.MeshStandardMaterial({ color: 0x6e675c, metalness: 0.60, roughness: 0.45, flatShading: true }),
+    rubber: new THREE.MeshStandardMaterial({ color: 0x6f5b48, roughness: 0.95, flatShading: true }),
+    dome:   new THREE.MeshStandardMaterial({ color: 0xbcd9e6, metalness: 0.05, roughness: 0.35, flatShading: true, envMapIntensity: 1.0 }),
+    black:  new THREE.MeshStandardMaterial({ color: 0x141210, roughness: 0.70, flatShading: true }),
+    copper: new THREE.MeshStandardMaterial({ color: 0x8a5a34, metalness: 0.30, roughness: 0.60, flatShading: true }),
+    crate:  new THREE.MeshStandardMaterial({ color: 0x4c463a, roughness: 0.80, flatShading: true }),
+    glow:   new THREE.MeshStandardMaterial({ color: 0xffffcc, emissive: 0xffeeaa, emissiveIntensity: 1.6, flatShading: true }),
+    tail:   new THREE.MeshStandardMaterial({ color: 0xff3322, emissive: 0xff2211, emissiveIntensity: 0.9, flatShading: true })
   };
 
+  // Merge buckets → one draw call per material
   const buckets = {};
   const _q = new THREE.Quaternion();
   const _e = new THREE.Euler();
   const _v = new THREE.Vector3();
   const _s = new THREE.Vector3();
+  const _va = new THREE.Vector3();
+  const _vb = new THREE.Vector3();
+  const _vd = new THREE.Vector3();
+  const ZAXIS = new THREE.Vector3(0, 0, 1);
+  const YAXIS = new THREE.Vector3(0, 1, 0);
+
   function place(px, py, pz, rx, ry, rz) {
     _q.setFromEuler(_e.set(rx || 0, ry || 0, rz || 0));
     return new THREE.Matrix4().compose(_v.set(px, py, pz), _q, _s.set(1, 1, 1));
@@ -562,88 +571,122 @@ function initGame() {
   function scaleLast(key, sx, sy, sz) {
     buckets[key][buckets[key].length - 1].scale(sx, sy, sz);
   }
+  // Beam between two points (suspension arms, struts)
+  function partBeam(key, fx, fy, fz, tx, ty, tz, t) {
+    _va.set(fx, fy, fz); _vb.set(tx, ty, tz);
+    _vd.subVectors(_vb, _va);
+    const len = _vd.length(); _vd.normalize();
+    _q.setFromUnitVectors(ZAXIS, _vd);
+    const g = new THREE.BoxGeometry(t, t, len);
+    const m = new THREE.Matrix4().compose(
+      _v.copy(_va).addScaledVector(_vd, len / 2), _q, _s.set(1, 1, 1));
+    g.applyMatrix4(m);
+    (buckets[key] = buckets[key] || []).push(g);
+  }
+  // Disc / cylinder along arbitrary axis (pivots, lenses, grilles)
+  function partDisc(key, x, y, z, r, h, ax, ay, az, segs) {
+    _vd.set(ax, ay, az).normalize();
+    _q.setFromUnitVectors(YAXIS, _vd);
+    const g = new THREE.CylinderGeometry(r, r, h, segs || 10);
+    const m = new THREE.Matrix4().compose(_v.set(x, y, z), _q, _s.set(1, 1, 1));
+    g.applyMatrix4(m);
+    (buckets[key] = buckets[key] || []).push(g);
+  }
+  // Coil spring wrapped along a direction
+  function partCoil(key, fx, fy, fz, tx, ty, tz, turns, radius, tube) {
+    _va.set(fx, fy, fz); _vb.set(tx, ty, tz);
+    _vd.subVectors(_vb, _va);
+    const len = _vd.length(); _vd.normalize();
+    _q.setFromUnitVectors(ZAXIS, _vd);
+    for (let i = 0; i < turns; i++) {
+      const tt = (i + 0.5) / turns;
+      const g = new THREE.TorusGeometry(radius, tube, 6, 12);
+      const m = new THREE.Matrix4().compose(
+        _v.copy(_va).addScaledVector(_vd, len * tt), _q, _s.set(1, 1, 1));
+      g.applyMatrix4(m);
+      (buckets[key] = buckets[key] || []).push(g);
+    }
+  }
 
   const B = new THREE.BoxGeometry(1, 1, 1);
-  const C = new THREE.CylinderGeometry(1, 1, 1, 10);
-  const T = new THREE.TorusGeometry(1, 0.25, 6, 12);
 
-  // Body
-  part(B, place(0, 0.8, 0), 'paint'); scaleLast('paint', 2.0, 0.5, 1.3);
-  part(B, place(0, 1.0, -0.15, 0.12, 0, 0), 'paint'); scaleLast('paint', 1.7, 0.3, 1.2);
-  part(B, place(0, 0.75, -0.72, -0.3, 0, 0), 'paintDark'); scaleLast('paintDark', 1.6, 0.35, 0.12);
-  part(B, place(0, 1.05, 0.35), 'paintDark'); scaleLast('paintDark', 1.6, 0.25, 1.2);
-  part(B, place(0, 0.62, 0.68), 'paintDark'); scaleLast('paintDark', 2.1, 0.18, 0.1);
-  part(B, place(0, 0.62, -0.68), 'paintDark'); scaleLast('paintDark', 2.1, 0.18, 0.1);
-  part(B, place(-0.5, 1.32, 0.35, 0, 0.2, 0), 'metalDark'); scaleLast('metalDark', 0.6, 0.45, 0.5);
-  part(B, place(0, 0.55, -0.8), 'metalDark'); scaleLast('metalDark', 1.7, 0.12, 0.1);
+  // ---- Chassis: wide hull + sloped front wedge ----
+  part(B, place(0, 1.0, 0.1), 'light'); scaleLast('light', 2.3, 0.6, 1.9);
+  part(B, place(0, 0.95, -1.05, -0.45, 0, 0), 'light'); scaleLast('light', 2.3, 0.45, 0.8);
+  part(B, place(0, 1.34, 0.15), 'mid'); scaleLast('mid', 1.9, 0.14, 1.5);
+  part(B, place(0, 1.0, 1.05), 'mid'); scaleLast('mid', 2.3, 0.5, 0.15);
 
-  // Orange accent stripes
-  part(B, place(0, 1.17, -0.28, 0.12, 0, 0), 'accent'); scaleLast('accent', 0.45, 0.03, 0.9);
-  part(B, place(0, 0.5, 0.82), 'accent'); scaleLast('accent', 1.7, 0.1, 0.08);
+  // ---- Pale-blue faceted dome + eye slits + emblem ----
+  const domeGeo = new THREE.SphereGeometry(0.85, 9, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+  part(domeGeo, place(0, 1.38, 0), 'dome'); scaleLast('dome', 1, 0.92, 1);
+  const domeRing = new THREE.TorusGeometry(0.84, 0.07, 6, 14);
+  part(domeRing, place(0, 1.4, 0, Math.PI / 2, 0, 0), 'mid');
+  part(B, place(-0.3, 1.52, -0.78, -0.35, 0, 0), 'black'); scaleLast('black', 0.36, 0.07, 0.05);
+  part(B, place(0.3, 1.52, -0.78, -0.35, 0, 0), 'black'); scaleLast('black', 0.36, 0.07, 0.05);
+  partDisc('light', 0, 1.72, -0.6, 0.13, 0.02, 0, 0.55, -1, 10); // emblem disc
 
-  // Dome + eyes + ring
-  const domeGeo = new THREE.SphereGeometry(0.62, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-  part(domeGeo, place(0, 1.15, 0), 'glass'); scaleLast('glass', 1, 0.9, 1);
-  const ringGeo = new THREE.TorusGeometry(0.62, 0.05, 6, 14);
-  part(ringGeo, place(0, 1.15, 0, Math.PI / 2, 0, 0), 'metalDark');
-  part(B, place(-0.22, 1.28, -0.52, -0.4, 0, 0), 'black'); scaleLast('black', 0.26, 0.05, 0.02);
-  part(B, place(0.22, 1.28, -0.52, -0.4, 0, 0), 'black'); scaleLast('black', 0.26, 0.05, 0.02);
-
-  // Solar panel
-  part(B, place(0, 1.2, 0.35), 'solar'); scaleLast('solar', 1.3, 0.04, 0.9);
-
-  // Side pods + cameras
+  // ---- Side sensor pods with grille tops + dual lenses ----
   [-1, 1].forEach(side => {
-    part(B, place(0.45, 1.05, side * 0.7), 'metal'); scaleLast('metal', 0.35, 0.09, 0.5);
-    part(C, place(0.45, 1.15, side * 0.9), 'metalDark'); scaleLast('metalDark', 0.15, 0.15, 0.2);
-    part(C, place(0.45, 1.35, side * 0.9), 'paint'); scaleLast('paint', 0.16, 0.32, 0.16);
-    part(C, place(0.45, 1.44, side * 0.9), 'black'); scaleLast('black', 0.17, 0.12, 0.17);
-    part(B, place(0.75, 1.2, side * 0.9), 'paintDark'); scaleLast('paintDark', 0.24, 0.18, 0.16);
-    part(C, place(0.69, 1.2, side * 0.9 - 0.09, Math.PI / 2, 0, 0), 'black'); scaleLast('black', 0.05, 0.04, 0.05);
-    part(C, place(0.81, 1.2, side * 0.9 - 0.09, Math.PI / 2, 0, 0), 'black'); scaleLast('black', 0.05, 0.04, 0.05);
+    partBeam('mid', side * 0.85, 1.35, -0.25, side * 0.98, 1.6, -0.25, 0.16);
+    partDisc('light', side * 0.98, 1.72, -0.25, 0.27, 0.5, 0, 1, 0, 10);
+    partDisc('black', side * 0.98, 2.0, -0.25, 0.24, 0.16, 0, 1, 0, 10);   // grille top
+    const grilleRim = new THREE.TorusGeometry(0.26, 0.03, 5, 12);
+    part(grilleRim, place(side * 0.98, 1.94, -0.25, Math.PI / 2, 0, 0), 'mid');
+    partDisc('black', side * 0.98 - 0.1, 1.68, -0.52, 0.07, 0.06, 0, 0, 1, 8); // lens L
+    partDisc('black', side * 0.98 + 0.1, 1.68, -0.52, 0.07, 0.06, 0, 0, 1, 8); // lens R
   });
 
-  // Suspension + orange fenders
+  // ---- Suspension: diagonal A-arms + pivots + coil springs ----
   const wheelSlots = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
   wheelSlots.forEach(([sx, sz]) => {
-    const wx = sx * 1.12, wz = sz * 0.85;
-    part(B, place(sx * 0.75, 0.95, wz * 0.8, 0, 0, -sx * 0.3), 'metal'); scaleLast('metal', 0.5, 0.08, 0.08);
-    part(B, place(sx * 0.8, 0.5, wz * 0.85, 0, 0, -sx * 0.15), 'metal'); scaleLast('metal', 0.55, 0.08, 0.08);
-    part(B, place(sx * 1.0, 0.62, wz * 0.85), 'metalDark'); scaleLast('metalDark', 0.08, 0.5, 0.08);
-    part(C, place(sx * 0.7, 0.85, wz * 0.6, 0, 0, -sx * 0.5), 'metalDark'); scaleLast('metalDark', 0.035, 0.5, 0.035);
-    for (let k = 0; k < 4; k++) {
-      part(T, place(sx * (0.72 - k * 0.06), 0.68 + k * 0.1, wz * 0.6, Math.PI / 2, 0, -sx * 0.5), 'metal');
-      scaleLast('metal', 0.075, 0.075, 0.075);
-    }
-    part(B, place(wx, 0.88, wz), 'accent'); scaleLast('accent', 0.62, 0.09, 1.05);
+    const hubX = sx * 1.5, hubY = 0.78, hubZ = sz * 1.0;
+    const upX = sx * 0.85, upY = 1.42, upZ = sz * 0.55;
+    // upper diagonal arm
+    partBeam('arm', upX, upY, upZ, hubX, hubY + 0.1, hubZ, 0.16);
+    // lower arm
+    partBeam('arm', sx * 0.95, 0.72, sz * 0.65, sx * 1.48, 0.6, sz * 0.95, 0.12);
+    // pivot discs (visible round joints)
+    partDisc('joint', upX, upY, upZ, 0.14, 0.16, 1, 0, 0, 10);
+    partDisc('joint', hubX, hubY + 0.1, hubZ, 0.17, 0.18, 1, 0, 0, 10);
+    partDisc('joint', sx * 0.95, 0.72, sz * 0.65, 0.11, 0.14, 1, 0, 0, 8);
+    // coil spring + shock along upper arm
+    const cFx = upX + (hubX - upX) * 0.25, cFy = upY + (hubY + 0.1 - upY) * 0.25, cFz = upZ + (hubZ - upZ) * 0.25;
+    const cTx = upX + (hubX - upX) * 0.72, cTy = upY + (hubY + 0.1 - upY) * 0.72, cTz = upZ + (hubZ - upZ) * 0.72;
+    partCoil('arm', cFx, cFy, cFz, cTx, cTy, cTz, 5, 0.13, 0.035);
+    partBeam('joint', cFx, cFy, cFz, cTx, cTy, cTz, 0.06);
   });
 
-  // Headlights + taillights
-  part(C, place(-0.55, 0.78, -0.78, Math.PI / 2, 0, 0), 'glow'); scaleLast('glow', 0.09, 0.1, 0.11);
-  part(C, place(0.55, 0.78, -0.78, Math.PI / 2, 0, 0), 'glow'); scaleLast('glow', 0.09, 0.1, 0.11);
-  part(B, place(-0.62, 0.88, 0.71), 'tail'); scaleLast('tail', 0.24, 0.1, 0.05);
-  part(B, place(0.62, 0.88, 0.71), 'tail'); scaleLast('tail', 0.24, 0.1, 0.05);
+  // ---- Rear equipment: crates + angled mast panel ----
+  part(B, place(-0.55, 1.62, 0.55, 0, 0.15, 0), 'crate'); scaleLast('crate', 0.75, 0.6, 0.55);
+  part(B, place(0.5, 1.55, 0.6), 'mid'); scaleLast('mid', 0.45, 0.35, 0.4);
+  partDisc('joint', 0.78, 1.55, 0.3, 0.12, 0.35, 0, 1, 0, 8);
+  part(B, place(-0.45, 1.95, 0.62, -0.5, 0, 0.35), 'mid'); scaleLast('mid', 0.55, 0.75, 0.06);
+  partBeam('joint', -0.5, 1.5, 0.55, -0.45, 1.85, 0.62, 0.06);
 
-  // Antenna + exhausts
-  part(C, place(-0.6, 1.55, 0.4, 0, 0, 0.35), 'metal'); scaleLast('metal', 0.025, 0.9, 0.035);
-  part(B, place(-0.78, 2.0, 0.47, 0, 0.3, 0.5), 'paintDark'); scaleLast('paintDark', 0.3, 0.45, 0.03);
-  part(C, place(-0.25, 1.25, 0.62), 'metalDark'); scaleLast('metalDark', 0.06, 0.35, 0.06);
-  part(C, place(0.25, 1.25, 0.62), 'metalDark'); scaleLast('metalDark', 0.06, 0.35, 0.06);
-  part(C, place(-0.25, 1.44, 0.62), 'metal'); scaleLast('metal', 0.07, 0.05, 0.07);
-  part(C, place(0.25, 1.44, 0.62), 'metal'); scaleLast('metal', 0.07, 0.05, 0.07);
-
-  // Cables
+  // ---- Copper cables draped across the front ----
   const cable1 = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-0.5, 1.05, -0.5), new THREE.Vector3(-0.2, 0.92, -0.66),
-    new THREE.Vector3(0.2, 0.95, -0.64), new THREE.Vector3(0.5, 1.05, -0.5)
+    new THREE.Vector3(-0.95, 1.5, -0.35), new THREE.Vector3(-0.4, 1.18, -0.86),
+    new THREE.Vector3(0.4, 1.16, -0.86), new THREE.Vector3(0.95, 1.5, -0.35)
   ]);
-  part(new THREE.TubeGeometry(cable1, 14, 0.022, 5), new THREE.Matrix4(), 'cable');
+  part(new THREE.TubeGeometry(cable1, 16, 0.028, 5), new THREE.Matrix4(), 'copper');
   const cable2 = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-0.6, 0.98, 0.55), new THREE.Vector3(-0.2, 0.85, 0.7),
-    new THREE.Vector3(0.3, 0.88, 0.68), new THREE.Vector3(0.6, 0.98, 0.5)
+    new THREE.Vector3(-0.8, 1.35, -0.6), new THREE.Vector3(0, 1.1, -0.98),
+    new THREE.Vector3(0.8, 1.35, -0.6)
   ]);
-  part(new THREE.TubeGeometry(cable2, 14, 0.02, 5), new THREE.Matrix4(), 'cable');
+  part(new THREE.TubeGeometry(cable2, 16, 0.022, 5), new THREE.Matrix4(), 'copper');
+  const cable3 = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0.3, 1.6, 0.5), new THREE.Vector3(0.5, 1.35, 0.8),
+    new THREE.Vector3(-0.2, 1.4, 0.85)
+  ]);
+  part(new THREE.TubeGeometry(cable3, 12, 0.02, 5), new THREE.Matrix4(), 'copper');
 
+  // ---- Headlights + taillights ----
+  partDisc('glow', -0.8, 0.92, -1.42, 0.1, 0.06, 0, 0.35, -1, 8);
+  partDisc('glow', 0.8, 0.92, -1.42, 0.1, 0.06, 0, 0.35, -1, 8);
+  partDisc('tail', -0.7, 1.02, 1.14, 0.09, 0.05, 0, 0, 1, 8);
+  partDisc('tail', 0.7, 1.02, 1.14, 0.09, 0.05, 0, 0, 1, 8);
+
+  // Merge static buckets
   Object.keys(buckets).forEach(key => {
     const merged = mergeGeometries(buckets[key], false);
     const mesh = new THREE.Mesh(merged, MATS[key]);
@@ -651,37 +694,40 @@ function initGame() {
     rover.add(mesh);
   });
 
-  // Wheels
+  // ---- Massive drum wheels with segmented treads ----
   function buildWheelGeo() {
     const rubberParts = [];
-    const rim = new THREE.CylinderGeometry(0.44, 0.44, 0.34, 10);
+    const rim = new THREE.CylinderGeometry(0.66, 0.66, 0.5, 14);
     rim.rotateZ(Math.PI / 2);
     rubberParts.push(rim);
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * Math.PI * 2;
-      const tread = new THREE.BoxGeometry(0.36, 0.12, 0.14);
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      const tread = new THREE.BoxGeometry(0.54, 0.16, 0.26);
       const m = new THREE.Matrix4().makeRotationX(a);
-      m.setPosition(0, Math.cos(a) * 0.46, Math.sin(a) * 0.46);
+      m.setPosition(0, Math.cos(a) * 0.70, Math.sin(a) * 0.70);
       tread.applyMatrix4(m);
       rubberParts.push(tread);
     }
     const rubberMerged = mergeGeometries(rubberParts, false);
-    const hub = new THREE.CylinderGeometry(0.17, 0.17, 0.37, 8);
+    const hub = new THREE.CylinderGeometry(0.3, 0.3, 0.56, 10);
     hub.rotateZ(Math.PI / 2);
-    return mergeGeometries([rubberMerged, hub], true);
+    const cap = new THREE.CylinderGeometry(0.16, 0.16, 0.62, 8);
+    cap.rotateZ(Math.PI / 2);
+    const metalMerged = mergeGeometries([hub, cap], false);
+    return mergeGeometries([rubberMerged, metalMerged], true);
   }
   const wheelGeo = buildWheelGeo();
   const wheels = [];
   wheelSlots.forEach(([sx, sz]) => {
-    const w = new THREE.Mesh(wheelGeo, [MATS.rubber, MATS.metal]);
-    w.position.set(sx * 1.12, 0.46, sz * 0.85);
+    const w = new THREE.Mesh(wheelGeo, [MATS.rubber, MATS.joint]);
+    w.position.set(sx * 1.5, 0.72, sz * 1.0);
     w.castShadow = true;
     rover.add(w);
-    wheels.push({ mesh: w, baseY: 0.46, phase: Math.random() * 6.28 });
+    wheels.push({ mesh: w, baseY: 0.72, phase: Math.random() * 6.28 });
   });
 
   const headLight = new THREE.SpotLight(0xffeecc, 2.0, 18, Math.PI / 6, 0.35);
-  headLight.position.set(0, 0.9, -0.8);
+  headLight.position.set(0, 1.0, -1.2);
   headLight.target.position.set(0, 0, -12);
   rover.add(headLight); rover.add(headLight.target);
 
@@ -744,7 +790,7 @@ function initGame() {
     mmRover.style.left = rx + 'px'; mmRover.style.top = ry + 'px';
   }
 
-  // ============ Day-night cycle ============
+  // ============ Day-night ============
   let gameTime = 0.32;
   const zenDay = new THREE.Color(0x8fc4e8), horDay = new THREE.Color(0xf6dcb4);
   const zenDusk = new THREE.Color(0x4a3a6a), horDusk = new THREE.Color(0xff9a5a);
@@ -819,7 +865,6 @@ function initGame() {
   const _camPos = new THREE.Vector3();
   const _look = new THREE.Vector3();
 
-  // Biome names - 100% English
   function getBiomeName(x, z) {
     const nx = (x + HALF) / WORLD_SIZE, nz = (z + HALF) / WORLD_SIZE;
     const dist = Math.sqrt(x * x + z * z);
@@ -851,15 +896,14 @@ function initGame() {
     const dirSign = velocity >= 0 ? 1 : -1;
     currentRot += steer * rotSpeed * steerFactor * dirSign * dt;
     rover.rotation.y = currentRot;
-    wheelSpin += (velocity * dt) / 0.46;
+    wheelSpin += (velocity * dt) / 0.7;
 
     const speedNorm = spd / maxSpeed;
     wheels.forEach(w => {
       w.mesh.rotation.x = wheelSpin;
-      w.mesh.position.y = w.baseY + Math.sin(t * 13 + w.phase) * 0.02 * speedNorm;
+      w.mesh.position.y = w.baseY + Math.sin(t * 13 + w.phase) * 0.025 * speedNorm;
     });
 
-    // Taillights glow on reverse
     MATS.tail.emissiveIntensity = velocity < -0.2 ? 2.4 : 0.9;
 
     let hit = false;
@@ -867,7 +911,7 @@ function initGame() {
       const c = colliders[i];
       const dx = rover.position.x - c.x;
       const dz = rover.position.z - c.z;
-      const rr = c.r + 1.0;
+      const rr = c.r + 1.2;
       const d2 = dx * dx + dz * dz;
       if (d2 < rr * rr && d2 > 0.0001) {
         const d = Math.sqrt(d2);
@@ -882,20 +926,20 @@ function initGame() {
 
     const rx = rover.position.x, rz = rover.position.z;
     const hC = getGroundHeight(rx, rz);
-    rover.position.y += (hC + 0.06 - rover.position.y) * 0.25;
+    rover.position.y += (hC + 0.02 - rover.position.y) * 0.25;
     if (spd > 0.5) rover.position.y += Math.abs(Math.sin(t * 11)) * 0.02 * speedNorm;
 
     const sinR = Math.sin(currentRot), cosR = Math.cos(currentRot);
-    const hF = getGroundHeight(rx - sinR * 1.3, rz - cosR * 1.3);
-    const hB = getGroundHeight(rx + sinR * 1.3, rz + cosR * 1.3);
-    const hR = getGroundHeight(rx + cosR * 1.1, rz - sinR * 1.1);
-    const hL = getGroundHeight(rx - cosR * 1.1, rz + sinR * 1.1);
+    const hF = getGroundHeight(rx - sinR * 1.5, rz - cosR * 1.5);
+    const hB = getGroundHeight(rx + sinR * 1.5, rz + cosR * 1.5);
+    const hR = getGroundHeight(rx + cosR * 1.3, rz - sinR * 1.3);
+    const hL = getGroundHeight(rx - cosR * 1.3, rz + sinR * 1.3);
     const accel = (velocity - prevVelocity) / Math.max(dt, 0.0001);
     prevVelocity = velocity;
     pitchAccel = THREE.MathUtils.damp(pitchAccel, THREE.MathUtils.clamp(-accel * 0.02, -0.10, 0.10), 5, dt);
     rollSteer = THREE.MathUtils.damp(rollSteer, -steer * THREE.MathUtils.clamp(spd / maxSpeed, 0, 1) * 0.07, 5, dt);
-    pitch = THREE.MathUtils.damp(pitch, Math.atan2(hF - hB, 2.6) * 0.8 + pitchAccel, 6, dt);
-    roll = THREE.MathUtils.damp(roll, Math.atan2(hR - hL, 2.2) * 0.6 + rollSteer, 6, dt);
+    pitch = THREE.MathUtils.damp(pitch, Math.atan2(hF - hB, 3.0) * 0.8 + pitchAccel, 6, dt);
+    roll = THREE.MathUtils.damp(roll, Math.atan2(hR - hL, 2.6) * 0.6 + rollSteer, 6, dt);
     rover.rotation.x = pitch;
     rover.rotation.z = roll;
 
@@ -909,13 +953,14 @@ function initGame() {
       document.getElementById('current-biome').textContent = biomeTxt;
     }
 
+    // Camera framed for the bigger rover
     sky.position.copy(camera.position);
-    const camDist = 6.8 + spd * 0.14;
-    const camH = 3.4 + spd * 0.06;
+    const camDist = 7.6 + spd * 0.14;
+    const camH = 3.8 + spd * 0.06;
     _camPos.set(rx - fwdX * camDist, rover.position.y + camH, rz - fwdZ * camDist);
     camera.position.lerp(_camPos, 1 - Math.exp(-4.5 * dt));
     const lookAhead = 2.2 + spd * 0.25;
-    _look.set(rx + fwdX * lookAhead, rover.position.y + 1.0, rz + fwdZ * lookAhead);
+    _look.set(rx + fwdX * lookAhead, rover.position.y + 1.3, rz + fwdZ * lookAhead);
     camera.lookAt(_look);
     const targetFov = 58 + spd * 1.1;
     if (Math.abs(camera.fov - targetFov) > 0.05) {
