@@ -1,46 +1,34 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Advanced Low Poly Rover Explorer</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>משחק תותח חדש</title>
+    <style>
+        /* איפוס שוליים כדי שהמשחק תופס את כל המסך בלי פס גלילה */
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #111;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+
+    <!-- טעינת ספריית Three.js ישירות מהרשת באמצעות Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
 </head>
 <body>
 
-  <canvas id="gameCanvas"></canvas>
+    <!-- הפעלת קובץ ה-JavaScript הראשי -->
+    <script type="module" src="main.js"></script>
 
-  <!-- ממשק משתמש upper HUD -->
-  <div id="ui-container">
-    <div id="top-left-hud">
-      <button id="btn-fullscreen">fullscreen ⛶</button>
-      <div id="stats">
-        <div class="stat-bar">
-          <span>אנרגיה:</span>
-          <div class="bar-outer"><div id="energy-bar" class="bar-inner"></div></div>
-        </div>
-      </div>
-    </div>
-
-    <div id="minimap">
-      <div id="minimap-rover"></div>
-    </div>
-  </div>
-
-  <!-- כפתורי שליטה הגיוניים למסך לרוחב -->
-  <!-- צד שמאל: פנייה שמאלה / ימינה -->
-  <div id="controls-left">
-    <button id="btn-left" class="ctrl-btn">⬅️</button>
-    <button id="btn-right" class="ctrl-btn">➡️</button>
-  </div>
-
-  <!-- צד ימין: קדימה / אחורה -->
-  <div id="controls-right">
-    <button id="btn-up" class="ctrl-btn">⬆️</button>
-    <button id="btn-down" class="ctrl-btn">⬇️</button>
-  </div>
-
-  <script src="main.js"></script>
 </body>
 </html>

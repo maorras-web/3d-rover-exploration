@@ -1,167 +1,158 @@
-const canvas = document.getElementById('gameCanvas');
+import * as THREE from 'three';
+
+// 1. הגדרת סצנה, מצלמה ורנדרר
 const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 
-scene.background = new THREE.Color(0x0e1628);
-scene.fog = new THREE.FogExp2(0x0e1628, 0.012);
-
-const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
 
-const ambientLight = new THREE.AmbientLight(0x334466, 0.7);
+// 2. יצירת משטח הדשא והתאורה
+const groundGeo = new THREE.PlaneGeometry(120, 120);
+const groundMat = new THREE.MeshStandardMaterial({ 
+    color: 0x2ecc71, // ירוק דשא
+    roughness: 0.9,
+    metalness: 0.1
+});
+
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2; // שכיבה אופקית
+ground.receiveShadow = true;
+scene.add(ground);
+
+// תאורת סביבה ואור שמש עם צללים
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
 scene.add(ambientLight);
 
-const sunLight = new THREE.DirectionalLight(0xfff5e6, 1.2);
-sunLight.position.set(60, 100, 40);
+const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+sunLight.position.set(20, 40, 20);
 sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 2048;
+sunLight.shadow.mapSize.height = 2048;
 scene.add(sunLight);
 
-// גובה פני השטח
-function getTerrainHeight(x, z) {
-  return Math.sin(x * 0.05) * Math.cos(z * 0.05) * 4 + Math.sin(x * 0.02) * 3;
-}
+// 3. בניית התותח הקלאסי
+const cannonGroup = new THREE.Group();
 
-// יצירת הקרקע
-const terrainSize = 240;
-const terrainSegments = 70;
-const terrainGeometry = new THREE.PlaneGeometry(terrainSize, terrainSize, terrainSegments, terrainSegments);
-terrainGeometry.rotateX(-Math.PI / 2);
-
-const posAttr = terrainGeometry.attributes.position;
-for (let i = 0; i < posAttr.count; i++) {
-  const x = posAttr.getX(i);
-  const z = posAttr.getZ(i);
-  posAttr.setY(i, getTerrainHeight(x, z));
-}
-terrainGeometry.computeVertexNormals();
-
-const terrainMaterial = new THREE.MeshStandardMaterial({
-  color: 0x3b5332,
-  flatShading: true,
-  roughness: 0.9
-});
-const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
-terrain.receiveShadow = true;
-scene.add(terrain);
-
-// בניית מודל הרובוט
-const roverGroup = new THREE.Group();
-
-const bodyGeo = new THREE.BoxGeometry(2.0, 0.7, 3.2);
-const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2b6cb0, flatShading: true });
+// גוף התותח
+const bodyGeo = new THREE.BoxGeometry(1.4, 0.8, 1.8);
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.4 });
 const body = new THREE.Mesh(bodyGeo, bodyMat);
-body.position.y = 0.9;
+body.position.y = 0.5;
 body.castShadow = true;
-roverGroup.add(body);
+body.receiveShadow = true;
+cannonGroup.add(body);
 
-const domeGeo = new THREE.OctahedronGeometry(0.8, 1);
-const domeMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x006666, flatShading: true });
-const dome = new THREE.Mesh(domeGeo, domeMat);
-dome.position.set(0, 1.5, -0.3);
-roverGroup.add(dome);
+// קנה התותח
+const barrelGeo = new THREE.CylinderGeometry(0.3, 0.4, 2.2, 16);
+const barrelMat = new THREE.MeshStandardMaterial({ color: 0x7f8c8d, metalness: 0.7, roughness: 0.3 });
+const barrel = new THREE.Mesh(barrelGeo, barrelMat);
+barrel.rotation.x = Math.PI / 2;
+barrel.position.set(0, 0.9, 0.8);
+barrel.castShadow = true;
+cannonGroup.add(barrel);
 
-const wheels = [];
-const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 10);
-const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, flatShading: true });
+// גלגלים
+const wheelGeo = new THREE.CylinderGeometry(0.6, 0.6, 0.3, 16);
+const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 });
 
-const wheelPositions = [
-  [-1.2, 0.45, 1.1],
-  [1.2, 0.45, 1.1],
-  [-1.2, 0.45, -1.1],
-  [1.2, 0.45, -1.1]
-];
+const leftWheel = new THREE.Mesh(wheelGeo, wheelMat);
+leftWheel.rotation.z = Math.PI / 2;
+leftWheel.position.set(-0.85, 0.6, 0);
+leftWheel.castShadow = true;
+cannonGroup.add(leftWheel);
 
-wheelPositions.forEach(pos => {
-  const wheel = new THREE.Mesh(wheelGeo, wheelMat);
-  wheel.rotation.z = Math.PI / 2;
-  wheel.position.set(...pos);
-  wheel.castShadow = true;
-  roverGroup.add(wheel);
-  wheels.push(wheel);
+const rightWheel = new THREE.Mesh(wheelGeo, wheelMat);
+rightWheel.rotation.z = Math.PI / 2;
+rightWheel.position.set(0.85, 0.6, 0);
+rightWheel.castShadow = true;
+cannonGroup.add(rightWheel);
+
+scene.add(cannonGroup);
+
+// 4. ניהול מקשים לשליטה חופשית (W, A, S, D או חיצים)
+const keys = {
+    forward: false,
+    backward: false,
+    left: false,
+    right: false
+};
+
+window.addEventListener('keydown', (e) => {
+    switch (e.code) {
+        case 'KeyW':
+        case 'ArrowUp':
+            keys.forward = true;
+            break;
+        case 'KeyS':
+        case 'ArrowDown':
+            keys.backward = true;
+            break;
+        case 'KeyA':
+        case 'ArrowLeft':
+            keys.left = true;
+            break;
+        case 'KeyD':
+        case 'ArrowRight':
+            keys.right = true;
+            break;
+    }
 });
 
-scene.add(roverGroup);
-
-// ניהול קלט מקשים ומגע
-const keys = {};
-window.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
-window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
-
-function setupTouchButton(id, keyName) {
-  const btn = document.getElementById(id);
-  if (!btn) return;
-  
-  const pressOn = (e) => { if(e) e.preventDefault(); keys[keyName] = true; btn.classList.add('active'); };
-  const pressOff = (e) => { if(e) e.preventDefault(); keys[keyName] = false; btn.classList.remove('active'); };
-
-  btn.addEventListener('touchstart', pressOn, {passive: false});
-  btn.addEventListener('touchend', pressOff, {passive: false});
-  btn.addEventListener('mousedown', pressOn);
-  btn.addEventListener('mouseup', pressOff);
-  btn.addEventListener('mouseleave', pressOff);
-}
-
-setupTouchButton('btn-up', 'w');
-setupTouchButton('btn-down', 's');
-setupTouchButton('btn-left', 'a');
-setupTouchButton('btn-right', 'd');
-
-// כפתור מסך מלא למובייל
-const fsBtn = document.getElementById('btn-fullscreen');
-if (fsBtn) {
-  fsBtn.addEventListener('click', () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-    } else {
-      document.exitFullscreen().catch(() => {});
+window.addEventListener('keyup', (e) => {
+    switch (e.code) {
+        case 'KeyW':
+        case 'ArrowUp':
+            keys.forward = false;
+            break;
+        case 'KeyS':
+        case 'ArrowDown':
+            keys.backward = false;
+            break;
+        case 'KeyA':
+        case 'ArrowLeft':
+            keys.left = false;
+            break;
+        case 'KeyD':
+        case 'ArrowRight':
+            keys.right = false;
+            break;
     }
-  });
-}
+});
 
-let speed = 0;
-let maxSpeed = 0.22;
-let acceleration = 0.01;
-let friction = 0.95;
-let turnSpeed = 0.035;
+const moveSpeed = 0.15;
 
+// 5. לולאת המשחק (Game Loop)
 function animate() {
-  requestAnimationFrame(animate);
+    requestAnimationFrame(animate);
 
-  if (keys['w'] || keys['arrowup']) {
-    speed = Math.min(speed + acceleration, maxSpeed);
-  } else if (keys['s'] || keys['arrowdown']) {
-    speed = Math.max(speed - acceleration, -maxSpeed * 0.5);
-  } else {
-    speed *= friction;
-  }
+    // תנועת התותח לכל הכיוונים
+    if (keys.forward) cannonGroup.position.z -= moveSpeed;
+    if (keys.backward) cannonGroup.position.z += moveSpeed;
+    if (keys.left) cannonGroup.position.x -= moveSpeed;
+    if (keys.right) cannonGroup.position.x += moveSpeed;
 
-  if (Math.abs(speed) > 0.001) {
-    const dir = speed > 0 ? 1 : -1;
-    if (keys['a'] || keys['arrowleft']) roverGroup.rotation.y += turnSpeed * dir;
-    if (keys['d'] || keys['arrowright']) roverGroup.rotation.y -= turnSpeed * dir;
-  }
+    // שמירה על גבולות הדשא
+    const limit = 55;
+    cannonGroup.position.x = Math.max(-limit, Math.min(limit, cannonGroup.position.x));
+    cannonGroup.position.z = Math.max(-limit, Math.min(limit, cannonGroup.position.z));
 
-  roverGroup.translateZ(speed);
+    // עדכון המצלמה שתעקוב אחרי התותח
+    camera.position.x = cannonGroup.position.x;
+    camera.position.z = cannonGroup.position.z + 10;
+    camera.position.y = cannonGroup.position.y + 7;
+    camera.lookAt(cannonGroup.position);
 
-  // הצמדה מדויקת לאדמה
-  const groundY = getTerrainHeight(roverGroup.position.x, roverGroup.position.z);
-  roverGroup.position.y = groundY;
-
-  wheels.forEach(w => w.rotation.x += speed * 2.5);
-
-  const cameraOffset = new THREE.Vector3(0, 3.8, -7.5).applyAxisAngle(new THREE.Vector3(0, 1, 0), roverGroup.rotation.y);
-  camera.position.copy(roverGroup.position).add(cameraOffset);
-  camera.lookAt(roverGroup.position.x, roverGroup.position.y + 0.8, roverGroup.position.z);
-
-  renderer.render(scene, camera);
+    renderer.render(scene, camera);
 }
 
+// התאמה לשינוי גודל החלון
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
 animate();
