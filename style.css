@@ -42,7 +42,7 @@ html, body {
 .warning-sub { font-size: 14px; opacity: 0.5; margin-top: 6px; }
 @keyframes rotatePhone { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(90deg); } }
 
-/* ===== HUD ===== */
+/* ===== HUD מינימלי ===== */
 #ui-container {
   position: absolute;
   inset: 0;
@@ -81,16 +81,6 @@ html, body {
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
-#discovered-count {
-  background: rgba(20,10,5,0.85);
-  padding: 4px 8px;
-  border-radius: 8px;
-  border: 1px solid #ffaa00;
-  color: #ffcc00;
-  font-size: 11px;
-  text-align: center;
-  width: fit-content;
-}
 #btn-fullscreen {
   background: rgba(20,10,5,0.85);
   color: #7ef0ff;
@@ -116,82 +106,6 @@ html, body {
 }
 #current-biome { border: 1px solid #ff8844; color: #ffcc88; }
 #time-display { border: 1px solid #ffaa00; color: #ffdd44; }
-#quest-box {
-  background: rgba(20,10,5,0.85);
-  padding: 6px 8px;
-  border-radius: 8px;
-  border: 1px solid #ff8844;
-  font-size: 11px;
-  max-width: 170px;
-  align-self: flex-end;
-  color: #ffe0b0;
-}
-.quest-title { color: #ffcc44; font-weight: bold; font-size: 10px; margin-bottom: 3px; }
-
-#bottom-right-hud {
-  position: absolute;
-  right: calc(10px + env(safe-area-inset-right));
-  bottom: calc(90px + env(safe-area-inset-bottom));
-  pointer-events: auto;
-}
-#stats {
-  background: rgba(15,15,20,0.8);
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.15);
-}
-.stat-bar { display: flex; align-items: center; gap: 6px; font-size: 11px; margin-bottom: 4px; }
-.stat-bar:last-child { margin-bottom: 0; }
-.bar-outer { width: 100px; height: 7px; background: rgba(255,255,255,0.12); border-radius: 4px; overflow: hidden; }
-.bar-inner { height: 100%; border-radius: 4px; transition: width 0.3s; }
-.bar-inner.hp { background: linear-gradient(90deg, #58c96b, #8ee89a); }
-.bar-inner.energy { background: linear-gradient(90deg, #4a9fd8, #7cc4ee); }
-
-/* ===== POI ===== */
-#poi-marker {
-  position: absolute;
-  top: 90px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  pointer-events: none;
-  z-index: 20;
-}
-.poi-icon { font-size: 30px; color: #7ef0ff; filter: drop-shadow(0 0 10px #00bfff); animation: float 2s ease-in-out infinite; }
-.poi-label {
-  color: #7ef0ff;
-  font-weight: bold;
-  font-size: 12px;
-  background: rgba(0,0,0,0.55);
-  padding: 2px 8px;
-  border-radius: 8px;
-  margin-top: 2px;
-}
-@keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-
-/* ===== Toast ===== */
-.toast {
-  position: fixed;
-  bottom: 150px;
-  left: 50%;
-  transform: translateX(-50%) translateY(80px);
-  background: linear-gradient(135deg, rgba(20,60,80,0.95), rgba(20,90,90,0.95));
-  border: 2px solid #7ef0ff;
-  border-radius: 12px;
-  padding: 10px 16px;
-  color: #fff;
-  text-align: center;
-  opacity: 0;
-  transition: all 0.4s ease;
-  pointer-events: none;
-  z-index: 100;
-  min-width: 180px;
-}
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-.toast-title { font-size: 14px; font-weight: bold; color: #7ef0ff; margin-bottom: 3px; }
-.toast-text { font-size: 12px; }
 
 /* ===== D-Pad ===== */
 #dpad {
@@ -231,43 +145,13 @@ html, body {
   background: radial-gradient(circle at 32% 30%, rgba(255,255,255,0.6), rgba(140,220,255,0.5));
 }
 
-/* ===== כפתור אינטראקציה ===== */
-.action-btn {
-  position: absolute;
-  bottom: calc(20px + env(safe-area-inset-bottom));
-  right: calc(16px + env(safe-area-inset-right));
-  width: 74px;
-  height: 74px;
-  border-radius: 50%;
-  border: 2px solid #ffcc66;
-  background: radial-gradient(circle at 32% 30%, #ffbb55, #d97a1a);
-  color: #fff;
-  font-size: 13px;
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 16px rgba(255,150,0,0.5);
-  z-index: 100;
-  animation: pulse 1.4s ease-in-out infinite;
-  outline: none;
-  cursor: pointer;
-}
-.action-btn.show { display: flex; }
-.action-btn:active { transform: scale(0.9); }
-@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
-
 /* ===== מסכים נמוכים ===== */
 @media (max-height: 480px) {
   .dpad-btn { width: 52px; height: 52px; font-size: 20px; }
   .dpad-label { font-size: 7px; }
   #dpad { gap: 4px; bottom: calc(8px + env(safe-area-inset-bottom)); }
   .dpad-row { gap: 4px; }
-  .action-btn { width: 62px; height: 62px; font-size: 11px; }
   #minimap { width: 110px; height: 110px; }
-  .toast { bottom: 84px; }
-  #bottom-right-hud { bottom: calc(76px + env(safe-area-inset-bottom)); }
-  #quest-box { max-width: 150px; }
 }
 
 @media screen and (orientation: landscape) {

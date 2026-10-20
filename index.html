@@ -29,33 +29,12 @@
       <canvas id="minimap-canvas" width="140" height="140"></canvas>
       <div id="minimap-rover"></div>
     </div>
-    <div id="discovered-count">🔍 <span id="disc-num">0</span>/<span id="disc-total">0</span></div>
     <button id="btn-fullscreen">⛶ מסך מלא</button>
   </div>
   <div id="top-right-hud">
     <div id="current-biome">🌿 שטח ירוק</div>
     <div id="time-display">🌞 12:00</div>
-    <div id="quest-box">
-      <div class="quest-title">📋 משימה</div>
-      <div id="quest-text">חקור את העולם וגלה מקומות חדשים</div>
-    </div>
   </div>
-  <div id="bottom-right-hud">
-    <div id="stats">
-      <div class="stat-bar"><span>❤️</span><div class="bar-outer"><div class="bar-inner hp" id="hp-bar" style="width:100%"></div></div></div>
-      <div class="stat-bar"><span>⚡</span><div class="bar-outer"><div class="bar-inner energy" id="energy-bar" style="width:100%"></div></div></div>
-    </div>
-  </div>
-</div>
-
-<div id="poi-marker" style="display:none;">
-  <div class="poi-icon">◇</div>
-  <div class="poi-label" id="poi-label">POI</div>
-</div>
-
-<div id="discovery-toast" class="toast">
-  <div class="toast-title">🔍 גילוי חדש!</div>
-  <div class="toast-text" id="toast-text"></div>
 </div>
 
 <div id="dpad">
@@ -66,8 +45,6 @@
   </div>
   <div class="dpad-row"><button class="dpad-btn" data-key="backward">▼<span class="dpad-label">רוורס</span></button></div>
 </div>
-
-<button id="btn-interact" class="action-btn">🔍<br>חקור</button>
 
 <script type="importmap">
 {
