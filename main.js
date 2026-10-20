@@ -4,7 +4,6 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
-// ============ זיהוי מובייל ============
 function isMobile() {
   const ua = navigator.userAgent || '';
   const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i;
@@ -20,7 +19,7 @@ if (!isMobile()) {
 
 function initGame() {
 
-  // ============ מסך מלא (תיקון: ניסיונות חוזרים + iOS) ============
+  // ============ מסך מלא ============
   let fsOk = false, fsTries = 0, userExited = false;
   function requestFS() {
     const el = document.documentElement;
@@ -44,11 +43,13 @@ function initGame() {
     const on = !!document.fullscreenElement;
     if (fsOk && !on) userExited = true;
     fsOk = on;
+    setTimeout(onResize, 60);
   });
   document.addEventListener('webkitfullscreenchange', () => {
     const on = !!document.webkitFullscreenElement;
     if (fsOk && !on) userExited = true;
     fsOk = on;
+    setTimeout(onResize, 60);
   });
   document.getElementById('btn-fullscreen').addEventListener('click', () => {
     if (document.fullscreenElement || document.webkitFullscreenElement) exitFS();
@@ -61,11 +62,8 @@ function initGame() {
   function checkOrientation() {
     document.getElementById('orientation-warning').classList.toggle('show', window.innerHeight > window.innerWidth);
   }
-  window.addEventListener('resize', checkOrientation);
-  window.addEventListener('orientationchange', () => setTimeout(checkOrientation, 150));
-  checkOrientation();
 
-  // ============ סצנה ורנדרר ============
+  // ============ סצנה ============
   const WORLD_SIZE = 220;
   const HALF = WORLD_SIZE / 2;
 
@@ -83,11 +81,12 @@ function initGame() {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   document.body.appendChild(renderer.domElement);
 
-  // ============ Post-processing ============
+  // ============ פוסט-פרוססינג (תיקון #1: צבע נשאר תמיד!) ============
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  composer.addPass(new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.38, 0.7, 0.82));
-  composer.addPass(new ShaderPass({
+  const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.38, 0.7, 0.82);
+  composer.addPass(bloomPass);
+  const gradePass = new ShaderPass({
     uniforms: { tDiffuse: { value: null } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: `
@@ -103,9 +102,10 @@ function initGame() {
         c.rgb *= mix(0.72, 1.0, vig);
         gl_FragColor = c;
       }`
-  }));
+  });
+  composer.addPass(gradePass); // לעולם לא מתבטל!
 
-  // ============ שמיים עם gradient ושמש ============
+  // ============ שמיים ============
   const skyUniforms = {
     zenith: { value: new THREE.Color(0x8fc4e8) },
     horizon: { value: new THREE.Color(0xf6dcb4) },
@@ -177,7 +177,7 @@ function initGame() {
     return 1 - THREE.MathUtils.smoothstep(d, 1.6, 3.4);
   }
 
-  // ============ רשת גבהים אחידה (תיקון בליעה באדמה) ============
+  // ============ רשת גבהים אחידה ============
   const GSEG = 110;
   const GCELL = WORLD_SIZE / GSEG;
   const HGRID = new Float32Array((GSEG + 1) * (GSEG + 1));
@@ -300,6 +300,10 @@ function initGame() {
     scene.add(f);
   }
 
+  // ============ מערכות התנגשות (תיקון #3) ============
+  const colliders = [];
+  const slowZones = [];
+
   // ============ סלעים ============
   function createRock(x, z, s) {
     const geo = new THREE.DodecahedronGeometry(0.8, 0);
@@ -312,9 +316,13 @@ function initGame() {
     m.rotation.set(Math.random() * 0.6, Math.random() * Math.PI * 2, Math.random() * 0.6);
     m.castShadow = true; m.receiveShadow = true;
     scene.add(m);
+    colliders.push({ x: x, z: z, r: 0.7 * s });
   }
   for (let i = 0; i < 70; i++) {
-    createRock((Math.random() - 0.5) * WORLD_SIZE * 0.9, (Math.random() - 0.5) * WORLD_SIZE * 0.9, 0.4 + Math.random() * 1.4);
+    const x = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
+    const z = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
+    if (Math.sqrt(x * x + z * z) < 6) continue;
+    createRock(x, z, 0.4 + Math.random() * 1.4);
   }
   for (let i = 0; i < 50; i++) {
     const z = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
@@ -360,9 +368,11 @@ function initGame() {
         tree.add(blob);
       }
     }
+    const s = 0.85 + Math.random() * 0.6;
     tree.position.set(x, getGroundHeight(x, z) - 0.1, z);
-    tree.scale.setScalar(0.85 + Math.random() * 0.6);
+    tree.scale.setScalar(s);
     scene.add(tree);
+    colliders.push({ x: x, z: z, r: 0.45 * s });
   }
   for (let i = 0; i < 110; i++) {
     const x = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
@@ -410,11 +420,13 @@ function initGame() {
       }
       const base = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.3, 5.4), mat(0x9a9284));
       base.position.y = 0.15; group.add(base);
+      colliders.push({ x: data.pos[0], z: data.pos[1], r: 3.0 });
     } else if (data.type === 'lab') {
       const box = new THREE.Mesh(new THREE.BoxGeometry(4, 2.5, 3), mat(0x556677, { metalness: 0.4 }));
       box.position.y = 1.25; box.castShadow = true; group.add(box);
       const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.6, 6), mat(0xcccccc, { metalness: 0.6 }));
       ant.position.set(1, 3.3, 0); group.add(ant);
+      colliders.push({ x: data.pos[0], z: data.pos[1], r: 2.5 });
     } else if (data.type === 'temple') {
       const pyr = new THREE.Mesh(new THREE.ConeGeometry(3.2, 4.2, 4), mat(0xccaa66));
       pyr.position.y = 2.1; pyr.rotation.y = Math.PI / 4; pyr.castShadow = true; group.add(pyr);
@@ -422,31 +434,38 @@ function initGame() {
         new THREE.MeshStandardMaterial({ color: 0xffcc44, emissive: 0xffaa00, emissiveIntensity: 2.2, flatShading: true }));
       glow.position.y = 4.8; group.add(glow);
       const l = new THREE.PointLight(0xffaa00, 2.5, 14); l.position.y = 4.8; group.add(l);
+      colliders.push({ x: data.pos[0], z: data.pos[1], r: 2.6 });
     } else if (data.type === 'monument') {
       const st = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.9, 5, 7), mat(0x999999, { metalness: 0.3 }));
       st.position.y = 2.5; st.castShadow = true; group.add(st);
       const hd = new THREE.Mesh(new THREE.IcosahedronGeometry(0.75, 0), mat(0xaaaaaa));
       hd.position.y = 5.4; group.add(hd);
+      colliders.push({ x: data.pos[0], z: data.pos[1], r: 1.5 });
     } else if (data.type === 'cave') {
       const r2 = new THREE.Mesh(new THREE.DodecahedronGeometry(2.4, 0), mat(0x555555));
       r2.position.y = 0.6; r2.castShadow = true; group.add(r2);
+      colliders.push({ x: data.pos[0], z: data.pos[1], r: 2.4 });
     } else if (data.type === 'lighthouse') {
       const tw = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.3, 6, 8), mat(0xf2f2f2));
       tw.position.y = 3; tw.castShadow = true; group.add(tw);
       const tp = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 1, 8), mat(0xdd3333));
       tp.position.y = 6.5; group.add(tp);
       const l = new THREE.PointLight(0xffff88, 3, 20); l.position.y = 6.5; group.add(l);
+      colliders.push({ x: data.pos[0], z: data.pos[1], r: 1.6 });
     } else if (data.type === 'pool') {
       const pl = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 0.2, 18),
         new THREE.MeshStandardMaterial({ color: 0x33ccff, emissive: 0x0088cc, emissiveIntensity: 1.2, transparent: true, opacity: 0.85, flatShading: true }));
-      pl.position.y = 0.1; group.add(pl);
+      pl.position.y = 0.05; // תיקון #5: שקוע בקרקע
+      group.add(pl);
       const l = new THREE.PointLight(0x00aaff, 2.5, 14); l.position.y = 1; group.add(l);
+      slowZones.push({ x: data.pos[0], z: data.pos[1], r: 3.4 }); // מים מאטים!
     } else if (data.type === 'tree') {
       const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.3, 4, 8), mat(0x553311));
       tr.position.y = 2; tr.castShadow = true; group.add(tr);
       const lv = new THREE.Mesh(new THREE.IcosahedronGeometry(3.6, 1),
         new THREE.MeshStandardMaterial({ color: 0x33bb55, emissive: 0x116622, emissiveIntensity: 0.5, flatShading: true }));
       lv.position.y = 5.2; lv.castShadow = true; group.add(lv);
+      colliders.push({ x: data.pos[0], z: data.pos[1], r: 1.6 });
     }
     scene.add(group);
     discoveries.push({ group, data, discovered: false });
@@ -458,17 +477,19 @@ function initGame() {
   const crystalGeo = new THREE.OctahedronGeometry(0.3, 0);
   const crystalColors = [0xffd700, 0x00ffff, 0xff00ff, 0x00ff88, 0xff4444];
   for (let i = 0; i < 25; i++) {
-    const x = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
-    const z = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
+    let x = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
+    let z = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
+    if (Math.sqrt(x * x + z * z) < 4) { x += 8; z += 8; }
     const color = crystalColors[i % 5];
-    const crystal = new THREE.Mesh(crystalGeo, new THREE.MeshStandardMaterial({
+    const cMat = new THREE.MeshStandardMaterial({
       color, emissive: color, emissiveIntensity: 1.8, transparent: true, opacity: 0.9, flatShading: true
-    }));
+    });
+    const crystal = new THREE.Mesh(crystalGeo, cMat);
     crystal.position.set(x, getGroundHeight(x, z) + 0.8, z);
     const light = new THREE.PointLight(color, 1.2, 4);
     light.position.copy(crystal.position);
     scene.add(crystal); scene.add(light);
-    collectibles.push({ mesh: crystal, light, collected: false });
+    collectibles.push({ mesh: crystal, light, collected: false, mat: cMat });
   }
 
   // ============ הרובר ============
@@ -684,7 +705,7 @@ function initGame() {
     mmRover.style.left = rx + 'px'; mmRover.style.top = ry + 'px';
   }
 
-  // ============ יום-לילה איטי (תיקון מהירות) ============
+  // ============ יום-לילה איטי ============
   let gameTime = 0.32;
   const zenDay = new THREE.Color(0x8fc4e8), horDay = new THREE.Color(0xf6dcb4);
   const zenDusk = new THREE.Color(0x4a3a6a), horDusk = new THREE.Color(0xff9a5a);
@@ -721,11 +742,34 @@ function initGame() {
       icon + ' ' + String(hours).padStart(2, '0') + ':' + String(mins).padStart(2, '0');
   }
 
+  // ============ ניהול ביצועים (תיקון #1) ============
+  let downgraded = false;
+  function downgradeGraphics() {
+    if (downgraded) return;
+    downgraded = true;
+    bloomPass.enabled = false;          // רק ה-bloom מתבטל!
+    renderer.setPixelRatio(1);
+    composer.setPixelRatio(1);
+    composer.setSize(window.innerWidth, window.innerHeight);
+    collectibles.forEach(c => { c.mat.emissiveIntensity = 2.8; }); // פיצוי זוהר
+  }
+  if ((navigator.hardwareConcurrency || 4) <= 4) downgradeGraphics();
+
+  // ============ resize ============
+  function onResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
+    checkOrientation();
+  }
+  window.addEventListener('resize', onResize);
+
   // ============ לולאה ראשית ============
   const clock = new THREE.Clock();
   const moveSpeed = 7.5, rotSpeed = 2.4;
   let wheelSpin = 0, pitch = 0, roll = 0;
-  let useComposer = true, perfFrames = 0, perfAcc = 0;
+  let perfFrames = 0, perfAcc = 0;
 
   function getBiomeName(x, z) {
     const nx = (x + HALF) / WORLD_SIZE, nz = (z + HALF) / WORLD_SIZE;
@@ -744,9 +788,18 @@ function initGame() {
     const t = clock.elapsedTime;
     uTime.value = t;
 
+    // האטה במים
+    let speedFactor = 1;
+    const px0 = rover.position.x, pz0 = rover.position.z;
+    for (let i = 0; i < slowZones.length; i++) {
+      const zn = slowZones[i];
+      const dx = px0 - zn.x, dz = pz0 - zn.z;
+      if (dx * dx + dz * dz < zn.r * zn.r) { speedFactor = 0.45; break; }
+    }
+
     let moving = false, speed = 0;
-    if (keys.forward) { speed = moveSpeed; moving = true; }
-    else if (keys.backward) { speed = -moveSpeed * 0.6; moving = true; }
+    if (keys.forward) { speed = moveSpeed * speedFactor; moving = true; }
+    else if (keys.backward) { speed = -moveSpeed * 0.6 * speedFactor; moving = true; }
     if (moving) {
       rover.position.x -= Math.sin(currentRot) * speed * dt;
       rover.position.z -= Math.cos(currentRot) * speed * dt;
@@ -757,9 +810,25 @@ function initGame() {
     rover.rotation.y = currentRot;
     wheels.forEach(w => { w.rotation.x = wheelSpin; });
 
+    // התנגשויות
+    for (let i = 0; i < colliders.length; i++) {
+      const c = colliders[i];
+      const dx = rover.position.x - c.x;
+      const dz = rover.position.z - c.z;
+      const rr = c.r + 1.0;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < rr * rr && d2 > 0.0001) {
+        const d = Math.sqrt(d2);
+        const push = (rr - d) / d;
+        rover.position.x += dx * push;
+        rover.position.z += dz * push;
+      }
+    }
+
     const rx = rover.position.x, rz = rover.position.z;
     const hC = getGroundHeight(rx, rz);
-    rover.position.y += (hC + 0.06 - rover.position.y) * 0.25;
+    const waterDip = speedFactor < 1 ? -0.05 : 0;
+    rover.position.y += (hC + 0.06 + waterDip - rover.position.y) * 0.25;
     if (moving) rover.position.y += Math.abs(Math.sin(t * 11)) * 0.03;
 
     const sinR = Math.sin(currentRot), cosR = Math.cos(currentRot);
@@ -819,30 +888,19 @@ function initGame() {
     updateDayNight(dt);
     if (Math.floor(t * 60) % 12 === 0) drawMinimap();
 
-    if (useComposer && composer) composer.render();
-    else renderer.render(scene, camera);
+    composer.render(); // תמיד דרך ה-composer (הצבע נשמר!)
 
     perfFrames++; perfAcc += dt;
-    if (perfFrames === 150) {
-      if (perfAcc / 150 > 0.034) {
-        useComposer = false;
-        renderer.setPixelRatio(1);
-      }
+    if (perfFrames === 180) {
+      if (perfAcc / 180 > 0.040) downgradeGraphics();
       perfFrames = -9999;
     }
   }
 
-  window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    composer.setSize(window.innerWidth, window.innerHeight);
-    checkOrientation();
-  });
-
   document.addEventListener('gesturestart', e => e.preventDefault());
   document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 
+  checkOrientation();
   drawMinimap();
   animate();
 }
