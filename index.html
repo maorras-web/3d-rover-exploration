@@ -1,52 +1,52 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<title>רובר מגלה</title>
+<title>Rover Explorer</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div id="desktop-warning">
   <div class="warning-icon">📱</div>
-  <div class="warning-title">המשחק מיועד לפלאפונים בלבד</div>
-  <div class="warning-text">This game is designed for mobile devices only</div>
+  <div class="warning-title">Mobile Devices Only</div>
+  <div class="warning-text">This game is designed for mobile phones only</div>
 </div>
 
 <div id="orientation-warning">
   <div class="warning-icon">📱</div>
-  <div class="warning-text">אנא סובב את המכשיר למצב רוחב</div>
-  <div class="warning-sub">Rotate to landscape</div>
+  <div class="warning-text">Please rotate your device to landscape</div>
+  <div class="warning-sub">Rotate to landscape mode</div>
 </div>
 
 <div id="ui-container">
-  <div id="top-left-hud">
+  <div id="hud-chips">
+    <div id="current-biome">🌿 Green Field</div>
+    <div id="time-display">🌞 12:00</div>
+  </div>
+  <div id="hud-map">
     <div id="minimap">
       <canvas id="minimap-canvas" width="140" height="140"></canvas>
       <div id="minimap-rover"></div>
     </div>
-    <button id="btn-fullscreen">⛶ מסך מלא</button>
-  </div>
-  <div id="top-right-hud">
-    <div id="current-biome">🌿 שטח ירוק</div>
-    <div id="time-display">🌞 12:00</div>
+    <button id="btn-fullscreen">⛶ Fullscreen</button>
   </div>
 </div>
 
-<!-- הגה: פניות בצד שמאל (שמאל=שמאלה!) -->
+<!-- Steering: LEFT button on the left, RIGHT button on the right -->
 <div id="steer-left">
-  <button class="ctrl-round steer-btn" data-key="left">◀<span class="ctrl-label">שמאל</span></button>
-  <button class="ctrl-round steer-btn" data-key="right">▶<span class="ctrl-label">ימין</span></button>
+  <button class="ctrl-round steer-btn" data-key="left">◀<span class="ctrl-label">LEFT</span></button>
+  <button class="ctrl-round steer-btn" data-key="right">▶<span class="ctrl-label">RIGHT</span></button>
 </div>
 
-<!-- דוושות: גז ורוורס בצד ימין -->
+<!-- Pedals: GAS and REVERSE on the right side -->
 <div id="pedals-right">
-  <button class="ctrl-round pedal-reverse" data-key="backward">▼<span class="ctrl-label">רוורס</span></button>
-  <button class="ctrl-round pedal-gas" data-key="forward">▲<span class="ctrl-label">גז</span></button>
+  <button class="ctrl-round pedal-gas" data-key="forward">▲<span class="ctrl-label">GAS</span></button>
+  <button class="ctrl-round pedal-reverse" data-key="backward">▼<span class="ctrl-label">REVERSE</span></button>
 </div>
 
 <script type="importmap">

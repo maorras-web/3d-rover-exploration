@@ -21,7 +21,7 @@ html, body {
   overscroll-behavior: none;
 }
 
-/* ===== אזהרות ===== */
+/* ===== Warnings ===== */
 #desktop-warning, #orientation-warning {
   display: none;
   position: fixed;
@@ -53,12 +53,14 @@ html, body {
   display: flex;
   justify-content: space-between;
 }
-#top-left-hud, #top-right-hud {
+#hud-chips, #hud-map {
   display: flex;
   flex-direction: column;
   gap: 6px;
   pointer-events: auto;
 }
+#hud-chips { align-items: flex-start; }
+#hud-map { align-items: flex-end; }
 
 #minimap {
   width: 140px;
@@ -102,12 +104,11 @@ html, body {
   font-size: 12px;
   text-align: center;
   width: fit-content;
-  align-self: flex-end;
 }
 #current-biome { border: 1px solid #ff8844; color: #ffcc88; }
 #time-display { border: 1px solid #ffaa00; color: #ffdd44; }
 
-/* ===== הגה - צד שמאל ===== */
+/* ===== Steering - left side (forced LTR order!) ===== */
 #steer-left {
   position: absolute;
   bottom: calc(18px + env(safe-area-inset-bottom));
@@ -115,11 +116,10 @@ html, body {
   display: flex;
   gap: 12px;
   z-index: 100;
-  /* תיקון: שהכפתור השמאלי באמת יהיה שמאלה למרות RTL */
-  direction: ltr;
+  direction: ltr; /* safety: never flip steering buttons */
 }
 
-/* ===== דוושות - צד ימין ===== */
+/* ===== Pedals - right side ===== */
 #pedals-right {
   position: absolute;
   bottom: calc(18px + env(safe-area-inset-bottom));
@@ -128,9 +128,10 @@ html, body {
   gap: 12px;
   align-items: flex-end;
   z-index: 100;
+  direction: ltr; /* safety: never flip pedals */
 }
 
-/* ===== כפתורים עגולים ===== */
+/* ===== Round buttons ===== */
 .ctrl-round {
   width: 68px;
   height: 68px;
@@ -180,7 +181,7 @@ html, body {
   background: radial-gradient(circle at 32% 30%, rgba(255,230,200,0.7), rgba(240,130,60,0.6));
 }
 
-/* ===== מסכים נמוכים ===== */
+/* ===== Short screens ===== */
 @media (max-height: 480px) {
   .ctrl-round { width: 56px; height: 56px; font-size: 22px; }
   .pedal-gas { width: 66px; height: 66px; font-size: 26px; }

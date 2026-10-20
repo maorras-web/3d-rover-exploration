@@ -5,6 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
+// ============ Mobile detection ============
 function isMobile() {
   const ua = navigator.userAgent || '';
   const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i;
@@ -20,7 +21,7 @@ if (!isMobile()) {
 
 function initGame() {
 
-  // ============ מסך מלא ============
+  // ============ Fullscreen ============
   let fsOk = false, fsTries = 0, userExited = false;
   const fsBtn = document.getElementById('btn-fullscreen');
   function requestFS() {
@@ -58,7 +59,7 @@ function initGame() {
     document.getElementById('orientation-warning').classList.toggle('show', window.innerHeight > window.innerWidth);
   }
 
-  // ============ סצנה ============
+  // ============ Scene ============
   const WORLD_SIZE = 220;
   const HALF = WORLD_SIZE / 2;
 
@@ -98,7 +99,7 @@ function initGame() {
       }`
   }));
 
-  // ============ שמיים ============
+  // ============ Sky ============
   const skyUniforms = {
     zenith: { value: new THREE.Color(0x8fc4e8) },
     horizon: { value: new THREE.Color(0xf6dcb4) },
@@ -124,7 +125,7 @@ function initGame() {
   );
   scene.add(sky);
 
-  // ============ תאורה ============
+  // ============ Lights ============
   const ambientLight = new THREE.AmbientLight(0x8899bb, 0.35);
   scene.add(ambientLight);
   const hemiLight = new THREE.HemisphereLight(0xbfd8e8, 0x6b7a4a, 0.65);
@@ -146,7 +147,7 @@ function initGame() {
   fillLight.position.set(-50, 30, -40);
   scene.add(fillLight);
 
-  // ============ 🌟 Environment Map - השתקפויות למתכת והזכוכית! ============
+  // ============ Environment map (reflections) ============
   const envCanvas = document.createElement('canvas');
   envCanvas.width = 256;
   envCanvas.height = 128;
@@ -191,7 +192,7 @@ function initGame() {
     return 1 - THREE.MathUtils.smoothstep(d, 1.6, 3.4);
   }
 
-  // ============ רשת גבהים ============
+  // ============ Unified height grid ============
   const GSEG = 110;
   const GCELL = WORLD_SIZE / GSEG;
   const HGRID = new Float32Array((GSEG + 1) * (GSEG + 1));
@@ -214,7 +215,7 @@ function initGame() {
     return a * (1 - fz) + b * fz;
   }
 
-  // ============ קרקע ============
+  // ============ Ground ============
   const groundGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, GSEG, GSEG);
   const pos = groundGeo.attributes.position;
   const GP1 = GSEG + 1;
@@ -258,7 +259,7 @@ function initGame() {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // ============ דשא תלת מימדי ============
+  // ============ 3D grass tufts with wind ============
   function makeBladeGeo(h, w, bend) {
     const segs = 4;
     const positions = [], normals = [], uvs = [], vcols = [], indices = [];
@@ -343,7 +344,7 @@ function initGame() {
   if (grassMesh.instanceColor) grassMesh.instanceColor.needsUpdate = true;
   scene.add(grassMesh);
 
-  // ============ פרחים ============
+  // ============ Flowers ============
   const flowerPlans = [];
   for (let i = 0; i < 160; i++) {
     const x = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
@@ -368,10 +369,10 @@ function initGame() {
   if (flowerIM.instanceColor) flowerIM.instanceColor.needsUpdate = true;
   scene.add(flowerIM);
 
-  // ============ התנגשויות ============
+  // ============ Colliders ============
   const colliders = [];
 
-  // ============ סלעים ============
+  // ============ Rocks (instanced) ============
   const rockPlans = [];
   for (let i = 0; i < 70; i++) {
     const x = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
@@ -405,7 +406,7 @@ function initGame() {
   if (rockIM.instanceColor) rockIM.instanceColor.needsUpdate = true;
   scene.add(rockIM);
 
-  // ============ עצים ============
+  // ============ Trees (instanced) ============
   const treePlans = [];
   for (let i = 0; i < 110; i++) {
     const x = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
@@ -507,7 +508,7 @@ function initGame() {
     scene.add(im);
   });
 
-  // ============ גבעות רקע ============
+  // ============ Background hills ============
   const hillIM = new THREE.InstancedMesh(
     new THREE.ConeGeometry(1, 1, 6),
     new THREE.MeshStandardMaterial({ color: 0x7a8a5a, roughness: 1, flatShading: true }),
@@ -525,11 +526,10 @@ function initGame() {
   hillIM.instanceMatrix.needsUpdate = true;
   scene.add(hillIM);
 
-  // ============ 🚜 התותח - רובר תלת מימדי ונאה! ============
+  // ============ The Rover (detailed, shiny) ============
   const rover = new THREE.Group();
   rover.rotation.order = 'YXZ';
 
-  // חומרים חדשים: מתכת אמיתית עם השתקפויות + צבעים בהירים
   const MATS = {
     paint: new THREE.MeshStandardMaterial({ color: 0xcfd8e2, metalness: 0.25, roughness: 0.35, flatShading: true, envMapIntensity: 0.9 }),
     paintDark: new THREE.MeshStandardMaterial({ color: 0x5a6b7c, metalness: 0.35, roughness: 0.5, flatShading: true, envMapIntensity: 0.7 }),
@@ -567,7 +567,7 @@ function initGame() {
   const C = new THREE.CylinderGeometry(1, 1, 1, 10);
   const T = new THREE.TorusGeometry(1, 0.25, 6, 12);
 
-  // גוף ראשי בהיר + פרטים
+  // Body
   part(B, place(0, 0.8, 0), 'paint'); scaleLast('paint', 2.0, 0.5, 1.3);
   part(B, place(0, 1.0, -0.15, 0.12, 0, 0), 'paint'); scaleLast('paint', 1.7, 0.3, 1.2);
   part(B, place(0, 0.75, -0.72, -0.3, 0, 0), 'paintDark'); scaleLast('paintDark', 1.6, 0.35, 0.12);
@@ -577,11 +577,11 @@ function initGame() {
   part(B, place(-0.5, 1.32, 0.35, 0, 0.2, 0), 'metalDark'); scaleLast('metalDark', 0.6, 0.45, 0.5);
   part(B, place(0, 0.55, -0.8), 'metalDark'); scaleLast('metalDark', 1.7, 0.12, 0.1);
 
-  // פסי הדגשה כתומים
+  // Orange accent stripes
   part(B, place(0, 1.17, -0.28, 0.12, 0, 0), 'accent'); scaleLast('accent', 0.45, 0.03, 0.9);
   part(B, place(0, 0.5, 0.82), 'accent'); scaleLast('accent', 1.7, 0.1, 0.08);
 
-  // כיפה + עיניים + טבעת
+  // Dome + eyes + ring
   const domeGeo = new THREE.SphereGeometry(0.62, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
   part(domeGeo, place(0, 1.15, 0), 'glass'); scaleLast('glass', 1, 0.9, 1);
   const ringGeo = new THREE.TorusGeometry(0.62, 0.05, 6, 14);
@@ -589,10 +589,10 @@ function initGame() {
   part(B, place(-0.22, 1.28, -0.52, -0.4, 0, 0), 'black'); scaleLast('black', 0.26, 0.05, 0.02);
   part(B, place(0.22, 1.28, -0.52, -0.4, 0, 0), 'black'); scaleLast('black', 0.26, 0.05, 0.02);
 
-  // פאנל סולארי על הגג האחורי
+  // Solar panel
   part(B, place(0, 1.2, 0.35), 'solar'); scaleLast('solar', 1.3, 0.04, 0.9);
 
-  // פודים צדדיים + מצלמות
+  // Side pods + cameras
   [-1, 1].forEach(side => {
     part(B, place(0.45, 1.05, side * 0.7), 'metal'); scaleLast('metal', 0.35, 0.09, 0.5);
     part(C, place(0.45, 1.15, side * 0.9), 'metalDark'); scaleLast('metalDark', 0.15, 0.15, 0.2);
@@ -603,7 +603,7 @@ function initGame() {
     part(C, place(0.81, 1.2, side * 0.9 - 0.09, Math.PI / 2, 0, 0), 'black'); scaleLast('black', 0.05, 0.04, 0.05);
   });
 
-  // מתלים + כנפי מגן כתומות מעל הגלגלים
+  // Suspension + orange fenders
   const wheelSlots = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
   wheelSlots.forEach(([sx, sz]) => {
     const wx = sx * 1.12, wz = sz * 0.85;
@@ -615,17 +615,16 @@ function initGame() {
       part(T, place(sx * (0.72 - k * 0.06), 0.68 + k * 0.1, wz * 0.6, Math.PI / 2, 0, -sx * 0.5), 'metal');
       scaleLast('metal', 0.075, 0.075, 0.075);
     }
-    // כנף מגן (fender) כתומה
     part(B, place(wx, 0.88, wz), 'accent'); scaleLast('accent', 0.62, 0.09, 1.05);
   });
 
-  // פנסים קדמיים + פנסים אחוריים אדומים
+  // Headlights + taillights
   part(C, place(-0.55, 0.78, -0.78, Math.PI / 2, 0, 0), 'glow'); scaleLast('glow', 0.09, 0.1, 0.11);
   part(C, place(0.55, 0.78, -0.78, Math.PI / 2, 0, 0), 'glow'); scaleLast('glow', 0.09, 0.1, 0.11);
   part(B, place(-0.62, 0.88, 0.71), 'tail'); scaleLast('tail', 0.24, 0.1, 0.05);
   part(B, place(0.62, 0.88, 0.71), 'tail'); scaleLast('tail', 0.24, 0.1, 0.05);
 
-  // אנטנה + אגזוזים
+  // Antenna + exhausts
   part(C, place(-0.6, 1.55, 0.4, 0, 0, 0.35), 'metal'); scaleLast('metal', 0.025, 0.9, 0.035);
   part(B, place(-0.78, 2.0, 0.47, 0, 0.3, 0.5), 'paintDark'); scaleLast('paintDark', 0.3, 0.45, 0.03);
   part(C, place(-0.25, 1.25, 0.62), 'metalDark'); scaleLast('metalDark', 0.06, 0.35, 0.06);
@@ -633,7 +632,7 @@ function initGame() {
   part(C, place(-0.25, 1.44, 0.62), 'metal'); scaleLast('metal', 0.07, 0.05, 0.07);
   part(C, place(0.25, 1.44, 0.62), 'metal'); scaleLast('metal', 0.07, 0.05, 0.07);
 
-  // כבלים
+  // Cables
   const cable1 = new THREE.CatmullRomCurve3([
     new THREE.Vector3(-0.5, 1.05, -0.5), new THREE.Vector3(-0.2, 0.92, -0.66),
     new THREE.Vector3(0.2, 0.95, -0.64), new THREE.Vector3(0.5, 1.05, -0.5)
@@ -652,7 +651,7 @@ function initGame() {
     rover.add(mesh);
   });
 
-  // גלגלים
+  // Wheels
   function buildWheelGeo() {
     const rubberParts = [];
     const rim = new THREE.CylinderGeometry(0.44, 0.44, 0.34, 10);
@@ -688,7 +687,7 @@ function initGame() {
 
   scene.add(rover);
 
-  // ============ שליטה ============
+  // ============ Controls ============
   const keys = { forward: false, backward: false, left: false, right: false };
   document.querySelectorAll('.ctrl-round').forEach(btn => {
     const key = btn.dataset.key;
@@ -714,7 +713,7 @@ function initGame() {
     if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
   });
 
-  // ============ מינימפה ============
+  // ============ Minimap ============
   const mmCanvas = document.getElementById('minimap-canvas');
   const mmCtx = mmCanvas.getContext('2d');
   const mmRover = document.getElementById('minimap-rover');
@@ -745,7 +744,7 @@ function initGame() {
     mmRover.style.left = rx + 'px'; mmRover.style.top = ry + 'px';
   }
 
-  // ============ יום-לילה ============
+  // ============ Day-night cycle ============
   let gameTime = 0.32;
   const zenDay = new THREE.Color(0x8fc4e8), horDay = new THREE.Color(0xf6dcb4);
   const zenDusk = new THREE.Color(0x4a3a6a), horDusk = new THREE.Color(0xff9a5a);
@@ -786,7 +785,7 @@ function initGame() {
     }
   }
 
-  // ============ ביצועים ============
+  // ============ Performance guard ============
   let downgraded = false;
   function downgradeGraphics() {
     if (downgraded) return;
@@ -809,7 +808,7 @@ function initGame() {
   }
   window.addEventListener('resize', onResize);
 
-  // ============ לולאה ============
+  // ============ Main loop ============
   const clock = new THREE.Clock();
   const maxSpeed = 9.0;
   const rotSpeed = 2.6;
@@ -820,15 +819,16 @@ function initGame() {
   const _camPos = new THREE.Vector3();
   const _look = new THREE.Vector3();
 
+  // Biome names - 100% English
   function getBiomeName(x, z) {
     const nx = (x + HALF) / WORLD_SIZE, nz = (z + HALF) / WORLD_SIZE;
     const dist = Math.sqrt(x * x + z * z);
-    if (dist < 22) return '🌿 שטח ירוק';
-    if (nx < 0.3 && nz < 0.3) return '🌲 יער צפוף';
-    if (nx > 0.7 && nz < 0.3) return '🏜️ מדבר';
-    if (nx < 0.3 && nz > 0.7) return '❄️ אזור מושלג';
-    if (nx > 0.7 && nz > 0.7) return '🌾 ביצה';
-    return '🌱 ערבה';
+    if (dist < 22) return '🌿 Green Field';
+    if (nx < 0.3 && nz < 0.3) return '🌲 Dense Forest';
+    if (nx > 0.7 && nz < 0.3) return '🏜️ Desert';
+    if (nx < 0.3 && nz > 0.7) return '❄️ Snowy Zone';
+    if (nx > 0.7 && nz > 0.7) return '🌾 Swamp';
+    return '🌱 Grassland';
   }
 
   function animate() {
@@ -859,7 +859,7 @@ function initGame() {
       w.mesh.position.y = w.baseY + Math.sin(t * 13 + w.phase) * 0.02 * speedNorm;
     });
 
-    // פנסים אחוריים: נדלקים חזק ברוורס או בפגיעה
+    // Taillights glow on reverse
     MATS.tail.emissiveIntensity = velocity < -0.2 ? 2.4 : 0.9;
 
     let hit = false;
