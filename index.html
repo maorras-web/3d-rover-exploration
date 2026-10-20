@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rover Explorer 3D - Low Poly</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- טעינת ספריית Three.js מ-CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+  <!-- קנבס המשחק -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- ממשק משתמש (HUD) המולבש מעל המשחק -->
+  <div id="ui-container">
+    <!-- מפה קטנה (Minimap) -->
+    <div id="minimap">
+      <div id="minimap-rover"></div>
+      <div id="minimap-poi"></div>
+    </div>
+
+    <!-- מקרא מקשים -->
+    <div id="controls-info">
+      <p><strong>מקשים:</strong></p>      <p>WASD / חיצים - תנועה</p>
+      <p>עכבר - סיבוב מצלמה</p>
+    </div>
+
+    <!-- מד אנרגיה / חיים -->
+    <div id="stats">
+      <div class="stat-bar">
+        <span>אנרגיה:</span>
+        <div class="bar-outer"><div id="energy-bar" class="bar-inner"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
