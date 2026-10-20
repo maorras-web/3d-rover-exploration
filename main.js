@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
 // ============ הגדרות עולם ============
 const WORLD_SIZE = 200;
@@ -6,9 +10,41 @@ const HALF = WORLD_SIZE / 2;
 
 // ============ סצנה ============
 const scene = new THREE.Scene();
-// שמיים בצבע שקיעה חמה כמו בוידאו
-scene.background = new THREE.Color(0xd4845a);
-scene.fog = new THREE.Fog(0xd4845a, 40, 130);
+
+// Sky gradient - שמיים עם gradient כמו בתמונה
+const skyGeo = new THREE.SphereGeometry(400, 32, 15);
+const skyMat = new THREE.ShaderMaterial({
+  uniforms: {
+    topColor: { value: new THREE.Color(0x0077ff) },
+    bottomColor: { value: new THREE.Color(0xffaa66) },
+    offset: { value: 20 },
+    exponent: { value: 0.6 }
+  },
+  vertexShader: `
+    varying vec3 vWorldPosition;
+    void main() {
+      vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+      vWorldPosition = worldPosition.xyz;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 topColor;
+    uniform vec3 bottomColor;
+    uniform float offset;
+    uniform float exponent;
+    varying vec3 vWorldPosition;
+    void main() {
+      float h = normalize(vWorldPosition + offset).y;
+      gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
+    }
+  `,
+  side: THREE.BackSide
+});
+const sky = new THREE.Mesh(skyGeo, skyMat);
+scene.add(sky);
+
+scene.fog = new THREE.FogExp2(0xffcc88, 0.008);
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -17,16 +53,71 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.3;
+renderer.toneMappingExposure = 1.4;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
-// ============ תאורת שקיעה חמה ============
-const ambientLight = new THREE.AmbientLight(0xffaa77, 0.5);
+// ============ Post-Processing ============
+const composer = new EffectComposer(renderer);
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
+
+// Bloom - לזוהר של גבישים ופנסים
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  0.8,   // strength
+  0.4,   // radius
+  0.85   // threshold
+);
+composer.addPass(bloomPass);
+
+// Color grading shader
+const colorGradingShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    contrast: { value: 1.15 },
+    saturation: { value: 1.2 },
+    brightness: { value: 1.05 }
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float contrast;
+    uniform float saturation;
+    uniform float brightness;
+    varying vec2 vUv;
+    void main() {
+      vec4 color = texture2D(tDiffuse, vUv);
+      // Brightness
+      color.rgb *= brightness;
+      // Contrast
+      color.rgb = (color.rgb - 0.5) * contrast + 0.5;
+      // Saturation
+      float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+      color.rgb = mix(vec3(gray), color.rgb, saturation);
+      // Warm tone
+      color.r *= 1.05;
+      color.b *= 0.95;
+      gl_FragColor = color;
+    }
+  `
+};
+const colorGradingPass = new ShaderPass(colorGradingShader);
+composer.addPass(colorGradingPass);
+
+// ============ תאורה דרמטית ============
+const ambientLight = new THREE.AmbientLight(0xffaa77, 0.3);
 scene.add(ambientLight);
 
-const sunLight = new THREE.DirectionalLight(0xffcc88, 1.8);
-sunLight.position.set(30, 50, 20);
+// שמש חמה עם god rays simulation
+const sunLight = new THREE.DirectionalLight(0xffcc88, 2.0);
+sunLight.position.set(40, 60, 30);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.width = 2048;
 sunLight.shadow.mapSize.height = 2048;
@@ -38,6 +129,11 @@ sunLight.shadow.camera.top = 100;
 sunLight.shadow.camera.bottom = -100;
 sunLight.shadow.bias = -0.0005;
 scene.add(sunLight);
+
+// Rim light - תאורה מהצד השני לדרמה
+const rimLight = new THREE.DirectionalLight(0x88aaff, 0.6);
+rimLight.position.set(-40, 40, -30);
+scene.add(rimLight);
 
 const hemiLight = new THREE.HemisphereLight(0xffaa66, 0x445522, 0.4);
 scene.add(hemiLight);
@@ -64,7 +160,7 @@ function fbm(x, z) {
 }
 
 // ============ קרקע ============
-const groundGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, 100, 100);
+const groundGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, 120, 120);
 const pos = groundGeo.attributes.position;
 const colors = new Float32Array(pos.count * 3);
 
@@ -109,7 +205,7 @@ function getGroundHeight(x, z) {
   return fbm(x, z) * 3 - 1.5;
 }
 
-// ============ דשא צפוף (10000 להבים!) ============
+// ============ דשא צפוף עם wind animation ============
 const grassBladeGeo = new THREE.ConeGeometry(0.05, 0.4, 3);
 grassBladeGeo.translate(0, 0.2, 0);
 const grassMat = new THREE.MeshStandardMaterial({
@@ -117,25 +213,29 @@ const grassMat = new THREE.MeshStandardMaterial({
   flatShading: true,
   side: THREE.DoubleSide
 });
-const grassCount = 10000;
+const grassCount = 12000;
 const grassMesh = new THREE.InstancedMesh(grassBladeGeo, grassMat, grassCount);
 grassMesh.receiveShadow = true;
 
 const dummy = new THREE.Object3D();
+const grassData = [];
 for (let i = 0; i < grassCount; i++) {
   const x = (Math.random() - 0.5) * WORLD_SIZE * 0.95;
   const z = (Math.random() - 0.5) * WORLD_SIZE * 0.95;
   const h = getGroundHeight(x, z);
+  const scale = 0.8 + Math.random() * 0.6;
+  const rotY = Math.random() * Math.PI;
   dummy.position.set(x, h, z);
-  dummy.rotation.set((Math.random() - 0.5) * 0.2, Math.random() * Math.PI, (Math.random() - 0.5) * 0.2);
-  dummy.scale.setScalar(0.8 + Math.random() * 0.6);
+  dummy.rotation.set((Math.random() - 0.5) * 0.2, rotY, (Math.random() - 0.5) * 0.2);
+  dummy.scale.setScalar(scale);
   dummy.updateMatrix();
   grassMesh.setMatrixAt(i, dummy.matrix);
+  grassData.push({ x, z, baseRotX: (Math.random() - 0.5) * 0.2, baseRotZ: (Math.random() - 0.5) * 0.2, scale });
 }
 grassMesh.instanceMatrix.needsUpdate = true;
 scene.add(grassMesh);
 
-// ============ פירמידות ברקע (כמו בוידאו) ============
+// ============ פירמידות ברקע ============
 function createPyramid(x, z, size) {
   const pyr = new THREE.Mesh(
     new THREE.ConeGeometry(size, size * 1.5, 4),
@@ -154,14 +254,14 @@ createPyramid(45, -60, 12);
 createPyramid(-80, -80, 14);
 createPyramid(80, -80, 14);
 
-// ============ עצים Low Poly ============
+// ============ עצים Low Poly מפורטים ============
 function createTree(x, z, type = 'normal') {
   const tree = new THREE.Group();
   const h = getGroundHeight(x, z);
 
   const trunkH = 1.8 + Math.random() * 0.8;
   const trunkGeo = new THREE.CylinderGeometry(0.18, 0.3, trunkH, 6);
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1a, flatShading: true });
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1a, flatShading: true, roughness: 0.9 });
   const trunk = new THREE.Mesh(trunkGeo, trunkMat);
   trunk.position.y = trunkH / 2;
   trunk.castShadow = true;
@@ -194,7 +294,7 @@ function createTree(x, z, type = 'normal') {
   return tree;
 }
 
-// ============ סלעים Low Poly ============
+// ============ סלעים ============
 function createRock(x, z, scale = 1) {
   const h = getGroundHeight(x, z);
   const rockGeo = new THREE.DodecahedronGeometry(0.8, 0);
@@ -274,9 +374,9 @@ function createDiscovery(data) {
   } else if (data.type === 'temple') {
     const pyr = new THREE.Mesh(new THREE.ConeGeometry(3, 4, 4), mat(0xccaa66, { roughness: 0.8 }));
     pyr.position.y = 2; pyr.rotation.y = Math.PI / 4; pyr.castShadow = true; group.add(pyr);
-    const glow = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5, 0), mat(0xffaa00, { emissive: 0xffaa00, emissiveIntensity: 0.8 }));
+    const glow = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5, 0), mat(0xffaa00, { emissive: 0xffaa00, emissiveIntensity: 1.2 }));
     glow.position.y = 4.5; group.add(glow);
-    const light = new THREE.PointLight(0xffaa00, 1.5, 10);
+    const light = new THREE.PointLight(0xffaa00, 2, 12);
     light.position.y = 4.5; group.add(light);
   } else if (data.type === 'monument') {
     const statue = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 5, 6), mat(0x999999, { metalness: 0.3 }));
@@ -293,18 +393,18 @@ function createDiscovery(data) {
     tower.position.y = 3; tower.castShadow = true; group.add(tower);
     const top = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 1, 8), mat(0xff3333));
     top.position.y = 6.5; group.add(top);
-    const light = new THREE.PointLight(0xffff00, 2, 15);
+    const light = new THREE.PointLight(0xffff00, 2.5, 18);
     light.position.y = 6.5; group.add(light);
     group.userData.light = light;
   } else if (data.type === 'pool') {
-    const pool = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 0.2, 16), mat(0x00aaff, { emissive: 0x0066aa, emissiveIntensity: 0.5, transparent: true, opacity: 0.8 }));
+    const pool = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 0.2, 16), mat(0x00aaff, { emissive: 0x0066aa, emissiveIntensity: 0.8, transparent: true, opacity: 0.8 }));
     pool.position.y = 0.1; group.add(pool);
-    const light = new THREE.PointLight(0x00aaff, 1.5, 10);
+    const light = new THREE.PointLight(0x00aaff, 2, 12);
     light.position.y = 1; group.add(light);
   } else if (data.type === 'tree') {
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.2, 4, 8), mat(0x553311));
     trunk.position.y = 2; trunk.castShadow = true; group.add(trunk);
-    const leaves = new THREE.Mesh(new THREE.IcosahedronGeometry(3.5, 1), mat(0x22aa44, { emissive: 0x115522, emissiveIntensity: 0.2 }));
+    const leaves = new THREE.Mesh(new THREE.IcosahedronGeometry(3.5, 1), mat(0x22aa44, { emissive: 0x115522, emissiveIntensity: 0.3 }));
     leaves.position.y = 5; leaves.castShadow = true; group.add(leaves);
   }
 
@@ -324,11 +424,11 @@ for (let i = 0; i < 30; i++) {
   const h = getGroundHeight(x, z);
   const color = crystalColors[Math.floor(Math.random() * crystalColors.length)];
   const crystal = new THREE.Mesh(crystalGeo, new THREE.MeshStandardMaterial({
-    color, emissive: color, emissiveIntensity: 0.8,
+    color, emissive: color, emissiveIntensity: 1.5,
     transparent: true, opacity: 0.9, flatShading: true
   }));
   crystal.position.set(x, h + 0.8, z);
-  const light = new THREE.PointLight(color, 0.6, 3);
+  const light = new THREE.PointLight(color, 1.0, 4);
   light.position.set(x, h + 0.8, z);
   scene.add(crystal); scene.add(light);
   collectibles.push({ mesh: crystal, light, collected: false, color });
@@ -363,41 +463,61 @@ for (let i = 0; i < 8; i++) {
   createAnimal(x, z, Math.random() > 0.5 ? 'bird' : 'fox');
 }
 
-// ============ בניית הרובר (דומה לוידאו) ============
+// ============ הרובר (מפורט יותר - דומה לתמונה) ============
 const rover = new THREE.Group();
 
-// גוף שחור/אפור כהה
-const bodyGeo = new THREE.BoxGeometry(1.8, 0.5, 1.2, 2, 1, 1);
-const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: 0.3, roughness: 0.7, flatShading: true });
+// גוף ראשי - אפור כהה עם מתכת
+const bodyGeo = new THREE.BoxGeometry(2.0, 0.6, 1.4, 2, 1, 1);
+const bodyMat = new THREE.MeshStandardMaterial({ 
+  color: 0x3a4a5a, metalness: 0.6, roughness: 0.4, flatShading: true 
+});
 const body = new THREE.Mesh(bodyGeo, bodyMat);
-body.position.y = 0.6;
+body.position.y = 0.7;
 body.castShadow = true;
 rover.add(body);
 
-// כיפה כחולה בוהקת (כמו בוידאו!)
-const domeGeo = new THREE.SphereGeometry(0.5, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+// פאנלים צדדיים
+const panelMat = new THREE.MeshStandardMaterial({ color: 0x2a3a4a, metalness: 0.7, roughness: 0.3, flatShading: true });
+const panelL = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.4, 0.1), panelMat);
+panelL.position.set(0, 0.9, 0.75); rover.add(panelL);
+const panelR = panelL.clone(); panelR.position.z = -0.75; rover.add(panelR);
+
+// כיפה כחולה בוהקת (כמו בתמונה!)
+const domeGeo = new THREE.IcosahedronGeometry(0.7, 1);
 const domeMat = new THREE.MeshStandardMaterial({
   color: 0x88ddff,
-  metalness: 0.2,
-  roughness: 0.3,
+  metalness: 0.3,
+  roughness: 0.2,
   emissive: 0x44aacc,
-  emissiveIntensity: 0.4,
+  emissiveIntensity: 0.5,
   transparent: true,
   opacity: 0.85,
   flatShading: true
 });
 const dome = new THREE.Mesh(domeGeo, domeMat);
-dome.position.y = 0.85;
+dome.position.y = 1.1;
+dome.scale.y = 0.75;
 dome.castShadow = true;
 rover.add(dome);
 
-// גלגלים שחורים גדולים עם חישוקים
-const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 12);
-const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.95, flatShading: true });
-const wheelHubGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.32, 8);
-const wheelHubMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.6, flatShading: true });
+// מסגרת כיפה
+const domeFrame = new THREE.Mesh(
+  new THREE.TorusGeometry(0.7, 0.04, 4, 8),
+  new THREE.MeshStandardMaterial({ color: 0x2a3a4a, metalness: 0.8, flatShading: true })
+);
+domeFrame.position.y = 0.85;
+domeFrame.rotation.x = Math.PI / 2;
+rover.add(domeFrame);
 
-const wheelPositions = [[-0.9, 0.4, 0.7], [0.9, 0.4, 0.7], [-0.9, 0.4, -0.7], [0.9, 0.4, -0.7]];
+// גלגלים גדולים עם חישוקים מפורטים
+const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 12);
+const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.95, flatShading: true });
+const wheelHubGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.37, 8);
+const wheelHubMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.7, flatShading: true });
+const wheelSpokeGeo = new THREE.BoxGeometry(0.04, 0.35, 0.04);
+const wheelSpokeMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.6 });
+
+const wheelPositions = [[-1.0, 0.45, 0.8], [1.0, 0.45, 0.8], [-1.0, 0.45, -0.8], [1.0, 0.45, -0.8]];
 wheelPositions.forEach(p => {
   const wheel = new THREE.Mesh(wheelGeo, wheelMat);
   wheel.rotation.z = Math.PI / 2;
@@ -409,50 +529,97 @@ wheelPositions.forEach(p => {
   hub.rotation.z = Math.PI / 2;
   hub.position.set(...p);
   rover.add(hub);
+
+  // חישוקים
+  for (let i = 0; i < 4; i++) {
+    const spoke = new THREE.Mesh(wheelSpokeGeo, wheelSpokeMat);
+    spoke.rotation.z = (i * Math.PI) / 4;
+    spoke.position.set(p[0], p[1], p[2]);
+    spoke.rotation.x = Math.PI / 2;
+    rover.add(spoke);
+  }
 });
 
-// מתלים
-const armMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.5, flatShading: true });
-const armGeo = new THREE.BoxGeometry(0.1, 0.1, 0.5);
-[[-0.8, 0.6, 0.5], [0.8, 0.6, 0.5], [-0.8, 0.6, -0.5], [0.8, 0.6, -0.5]].forEach(p => {
+// מתלים מפורטים (כמו בתמונה!)
+const armMat = new THREE.MeshStandardMaterial({ color: 0x556677, metalness: 0.6, flatShading: true });
+const armGeo = new THREE.BoxGeometry(0.12, 0.12, 0.6);
+const jointGeo = new THREE.SphereGeometry(0.1, 6, 5);
+const jointMat = new THREE.MeshStandardMaterial({ color: 0x445566, metalness: 0.7 });
+
+[[-0.9, 0.7, 0.6], [0.9, 0.7, 0.6], [-0.9, 0.7, -0.6], [0.9, 0.7, -0.6]].forEach(p => {
   const arm = new THREE.Mesh(armGeo, armMat);
-  arm.position.set(...p);
+  arm.position.set(p[0] * 0.8, p[1], p[2] * 0.7);
   arm.rotation.x = 0.3;
   arm.castShadow = true;
   rover.add(arm);
+
+  const joint = new THREE.Mesh(jointGeo, jointMat);
+  joint.position.set(p[0] * 0.8, p[1], p[2] * 0.7);
+  rover.add(joint);
 });
 
-// אנטנות כפולות (כמו בוידאו)
-const antennaGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.4, 6);
-const antennaMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+// אנטנות כפולות (כמו בתמונה)
+const antennaGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.5, 6);
+const antennaMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.7 });
 const ant1 = new THREE.Mesh(antennaGeo, antennaMat);
-ant1.position.set(-0.2, 1.1, 0);
+ant1.position.set(-0.25, 1.3, 0);
 rover.add(ant1);
 const ant2 = ant1.clone();
-ant2.position.x = 0.2;
+ant2.position.x = 0.25;
 rover.add(ant2);
 
+// נורת אנטנה אדומה
+const antennaBall = new THREE.Mesh(
+  new THREE.IcosahedronGeometry(0.08, 0),
+  new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 1.0, flatShading: true })
+);
+antennaBall.position.set(0, 1.55, 0);
+rover.add(antennaBall);
+
 // פנסים קדמיים זוהרים
-const headlightGeo = new THREE.CylinderGeometry(0.08, 0.1, 0.15, 8);
+const headlightGeo = new THREE.CylinderGeometry(0.1, 0.12, 0.15, 8);
 const headlightMat = new THREE.MeshStandardMaterial({
   color: 0xffffaa,
   emissive: 0xffffaa,
-  emissiveIntensity: 0.8,
+  emissiveIntensity: 1.2,
   flatShading: true
 });
 const hl1 = new THREE.Mesh(headlightGeo, headlightMat);
 hl1.rotation.x = Math.PI / 2;
-hl1.position.set(-0.5, 0.7, 0.65);
+hl1.position.set(-0.6, 0.8, 0.75);
 rover.add(hl1);
 const hl2 = hl1.clone();
-hl2.position.x = 0.5;
+hl2.position.x = 0.6;
 rover.add(hl2);
 
-const headLight = new THREE.SpotLight(0xffffaa, 1.0, 12, Math.PI / 6, 0.3);
-headLight.position.set(0, 0.8, 0.7);
+const headLight = new THREE.SpotLight(0xffffaa, 1.5, 15, Math.PI / 6, 0.3);
+headLight.position.set(0, 0.9, 0.8);
 headLight.target.position.set(0, 0, 10);
 rover.add(headLight);
 rover.add(headLight.target);
+
+// חיישנים/מצלמות
+const sensorGeo = new THREE.BoxGeometry(0.25, 0.2, 0.2);
+const sensorMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8, flatShading: true });
+const sensorL = new THREE.Mesh(sensorGeo, sensorMat);
+sensorL.position.set(-0.5, 1.0, 0.7);
+rover.add(sensorL);
+const sensorR = sensorL.clone();
+sensorR.position.x = 0.5;
+rover.add(sensorR);
+
+// עדשות כחולות זוהרות
+const lensGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.08, 6);
+const lensMat = new THREE.MeshStandardMaterial({ 
+  color: 0x00aaff, emissive: 0x0066ff, emissiveIntensity: 0.8, flatShading: true 
+});
+const lensL = new THREE.Mesh(lensGeo, lensMat);
+lensL.rotation.x = Math.PI / 2;
+lensL.position.set(-0.5, 1.0, 0.82);
+rover.add(lensL);
+const lensR = lensL.clone();
+lensR.position.x = 0.5;
+rover.add(lensR);
 
 scene.add(rover);
 rover.position.set(0, 0, 0);
@@ -610,6 +777,7 @@ function getBiomeName(x, z) {
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
+  const time = clock.elapsedTime;
 
   let moving = false;
   if (keys.forward) {
@@ -628,7 +796,7 @@ function animate() {
   const gh = getGroundHeight(rover.position.x, rover.position.z);
   rover.position.y += (gh - rover.position.y) * 0.2;
   if (moving) {
-    rover.position.y += Math.abs(Math.sin(clock.elapsedTime * 12)) * 0.04;
+    rover.position.y += Math.abs(Math.sin(time * 12)) * 0.04;
   }
 
   const limit = HALF - 5;
@@ -637,12 +805,25 @@ function animate() {
 
   document.getElementById('current-biome').textContent = getBiomeName(rover.position.x, rover.position.z);
 
+  // עדכון דשא עם wind animation
+  for (let i = 0; i < grassCount; i++) {
+    const data = grassData[i];
+    const windX = Math.sin(time * 2 + data.x * 0.5) * 0.1;
+    const windZ = Math.cos(time * 1.5 + data.z * 0.5) * 0.1;
+    dummy.position.set(data.x, getGroundHeight(data.x, data.z), data.z);
+    dummy.rotation.set(data.baseRotX + windX, 0, data.baseRotZ + windZ);
+    dummy.scale.setScalar(data.scale);
+    dummy.updateMatrix();
+    grassMesh.setMatrixAt(i, dummy.matrix);
+  }
+  grassMesh.instanceMatrix.needsUpdate = true;
+
   // אנימציות גבישים
   collectibles.forEach((c, i) => {
     if (!c.collected) {
       c.mesh.rotation.y += dt * 3;
       const baseH = getGroundHeight(c.mesh.position.x, c.mesh.position.z);
-      c.mesh.position.y = baseH + 0.8 + Math.sin(clock.elapsedTime * 3 + i) * 0.15;
+      c.mesh.position.y = baseH + 0.8 + Math.sin(time * 3 + i) * 0.15;
     }
   });
 
@@ -656,7 +837,7 @@ function animate() {
     if (a.userData.type === 'bird') {
       a.position.x += Math.cos(a.userData.dir) * a.userData.speed * dt;
       a.position.z += Math.sin(a.userData.dir) * a.userData.speed * dt;
-      a.position.y += Math.sin(clock.elapsedTime * 3) * 0.02;
+      a.position.y += Math.sin(time * 3) * 0.02;
     } else {
       a.position.x += Math.cos(a.userData.dir) * a.userData.speed * dt * 0.5;
       a.position.z += Math.sin(a.userData.dir) * a.userData.speed * dt * 0.5;
@@ -702,6 +883,9 @@ function animate() {
     }
   });
 
+  // נורת אנטנה מהבהבת
+  antennaBall.material.emissiveIntensity = 0.5 + Math.sin(time * 5) * 0.5;
+
   // מצלמה חלקה
   const camOffset = new THREE.Vector3(
     Math.sin(currentRot) * 8,
@@ -712,14 +896,17 @@ function animate() {
   camera.position.lerp(targetPos, 0.1);
   camera.lookAt(rover.position.x, rover.position.y + 1, rover.position.z);
 
-  if (Math.floor(clock.elapsedTime * 60) % 10 === 0) drawMinimap();
-  renderer.render(scene, camera);
+  if (Math.floor(time * 60) % 10 === 0) drawMinimap();
+  
+  // שימוש ב-composer במקום renderer ישירות
+  composer.render();
 }
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 });
 
 drawMinimap();
