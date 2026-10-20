@@ -1,109 +1,132 @@
-// --- הגדרות סצנה בסיסיות ---
 const canvas = document.getElementById('gameCanvas');
 const scene = new THREE.Scene();
 
-// הוספת ערפל בסגנון Low Poly
-scene.background = new THREE.Color(0xa0d8ef);
-scene.fog = new THREE.FogExp2(0xa0d8ef, 0.015);
+// אווירה ותאורה מתקדמת
+scene.background = new THREE.Color(0x0e1628);
+scene.fog = new THREE.FogExp2(0x0e1628, 0.012);
 
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-// --- תאורה ---
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+// תאורת סביבה ושמש
+const ambientLight = new THREE.AmbientLight(0x334466, 0.7);
 scene.add(ambientLight);
 
-const sunLight = new THREE.DirectionalLight(0xfffaed, 0.8);
-sunLight.position.set(50, 80, 50);
+const sunLight = new THREE.DirectionalLight(0xfff5e6, 1.2);
+sunLight.position.set(60, 100, 40);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.width = 2048;
 sunLight.shadow.mapSize.height = 2048;
 sunLight.shadow.camera.near = 0.5;
-sunLight.shadow.camera.far = 200;
-const d = 50;
+sunLight.shadow.camera.far = 250;
+const d = 60;
 sunLight.shadow.camera.left = -d;
 sunLight.shadow.camera.right = d;
 sunLight.shadow.camera.top = d;
 sunLight.shadow.camera.bottom = -d;
 scene.add(sunLight);
 
-// --- יצירת השטח (Low Poly Terrain) ---
-const terrainSize = 200;
-const terrainSegments = 60;
+// יצירת שטח עשיר בגבעות
+const terrainSize = 240;
+const terrainSegments = 70;
 const terrainGeometry = new THREE.PlaneGeometry(terrainSize, terrainSize, terrainSegments, terrainSegments);
 terrainGeometry.rotateX(-Math.PI / 2);
 
-// עיוות קודקודים ליצירת גבעות
 const posAttr = terrainGeometry.attributes.position;
 for (let i = 0; i < posAttr.count; i++) {
   const x = posAttr.getX(i);
   const z = posAttr.getZ(i);
-  const y = Math.sin(x * 0.08) * Math.cos(z * 0.08) * 3 + Math.sin(x * 0.03) * 2;
+  const y = Math.sin(x * 0.05) * Math.cos(z * 0.05) * 4 + Math.sin(x * 0.02) * 3;
   posAttr.setY(i, y);
 }
 terrainGeometry.computeVertexNormals();
 
 const terrainMaterial = new THREE.MeshStandardMaterial({
-  color: 0x559944,
-  flatShading: true, // סגנון Low Poly מובהק
-  roughness: 0.8
+  color: 0x3b5332,
+  flatShading: true,
+  roughness: 0.9
 });
 const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
 terrain.receiveShadow = true;
 scene.add(terrain);
 
-// --- הוספת אלמנטים בסביבה (סלעים ועצים Low Poly) ---
-function createLowPolyRock(x, z, scale) {
+// הוספת סלעים וקריסטלים זוהרים בסביבה
+function createRock(x, z, scale) {
   const geo = new THREE.DodecahedronGeometry(scale, 1);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x888888, flatShading: true });
+  const mat = new THREE.MeshStandardMaterial({ color: 0x5a6577, flatShading: true, roughness: 0.8 });
   const rock = new THREE.Mesh(geo, mat);
-  rock.position.set(x, scale * 0.5, z);
+  rock.position.set(x, scale * 0.4, z);
   rock.rotation.set(Math.random(), Math.random(), Math.random());
   rock.castShadow = true;
   rock.receiveShadow = true;
   scene.add(rock);
 }
 
-for (let i = 0; i < 40; i++) {
-  const rx = (Math.random() - 0.5) * 160;
-  const rz = (Math.random() - 0.5) * 160;
-  if (Math.hypot(rx, rz) > 10) {
-    createLowPolyRock(rx, rz, 1 + Math.random() * 2);
+function createCrystal(x, z, color) {
+  const geo = new THREE.ConeGeometry(0.6, 2.5, 5);
+  const mat = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.4, flatShading: true });
+  const crystal = new THREE.Mesh(geo, mat);
+  crystal.position.set(x, 1, z);
+  crystal.rotation.z = (Math.random() - 0.5) * 0.3;
+  crystal.castShadow = true;
+  scene.add(crystal);
+}
+
+for (let i = 0; i < 50; i++) {
+  const rx = (Math.random() - 0.5) * 200;
+  const rz = (Math.random() - 0.5) * 200;
+  if (Math.hypot(rx, rz) > 12) {
+    createRock(rx, rz, 1 + Math.random() * 2.5);
   }
 }
 
-// --- בניית הרובוט (Low Poly Rover) ---
+for (let i = 0; i < 15; i++) {
+  const cx = (Math.random() - 0.5) * 180;
+  const cz = (Math.random() - 0.5) * 180;
+  if (Math.hypot(cx, cz) > 15) {
+    createCrystal(cx, cz, i % 2 === 0 ? 0x00ffcc : 0xffaa00);
+  }
+}
+
+// --- בניית רובוט מפורט (Advanced Rover) ---
 const roverGroup = new THREE.Group();
 
-// גוף הרובוט
-const bodyGeo = new THREE.BoxGeometry(2.2, 0.8, 3);
-const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3377aa, flatShading: true });
+// מרכב ראשי
+const bodyGeo = new THREE.BoxGeometry(2.0, 0.7, 3.2);
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2b6cb0, flatShading: true, metalness: 0.2 });
 const body = new THREE.Mesh(bodyGeo, bodyMat);
-body.position.y = 1;
+body.position.y = 0.9;
 body.castShadow = true;
 roverGroup.add(body);
 
-// כיפה עליונה
-const domeGeo = new THREE.SphereGeometry(0.9, 8, 6);
-const domeMat = new THREE.MeshStandardMaterial({ color: 0x66ccff, flatShading: true });
+// כיפה שקופה / קוביות סוללה
+const domeGeo = new THREE.OctahedronGeometry(0.8, 1);
+const domeMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x006666, flatShading: true, roughness: 0.3 });
 const dome = new THREE.Mesh(domeGeo, domeMat);
-dome.position.set(0, 1.5, -0.2);
+dome.position.set(0, 1.5, -0.3);
 roverGroup.add(dome);
 
-// גלגלים
+// מצלמות וחיישנים קדמיים
+const camGeo = new THREE.BoxGeometry(0.6, 0.4, 0.5);
+const camMat = new THREE.MeshStandardMaterial({ color: 0x111111, flatShading: true });
+const cameraBox = new THREE.Mesh(camGeo, camMat);
+cameraBox.position.set(0, 1.1, 1.5);
+roverGroup.add(cameraBox);
+
+// גלגלים ומתלים
 const wheels = [];
-const wheelGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.4, 8);
-const wheelMat = new THREE.MeshStandardMaterial({ color: 0x222222, flatShading: true });
+const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 10);
+const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, flatShading: true, roughness: 0.9 });
 
 const wheelPositions = [
-  [-1.3, 0.5, 1.1],  // קדמי שמאלי
-  [1.3, 0.5, 1.1],   // קדמי ימני
-  [-1.3, 0.5, -1.1], // אחורי שמאלי
-  [1.3, 0.5, -1.1]   // אחורי ימני
+  [-1.2, 0.45, 1.1],
+  [1.2, 0.45, 1.1],
+  [-1.2, 0.45, -1.1],
+  [1.2, 0.45, -1.1]
 ];
 
 wheelPositions.forEach(pos => {
@@ -117,22 +140,41 @@ wheelPositions.forEach(pos => {
 
 scene.add(roverGroup);
 
-// --- שליטה בתנועה ---
+// --- מערכת שליטה (מקלדת + כפתורי מגע) ---
 const keys = {};
 window.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
 window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
 
-let speed = 0;
-let maxSpeed = 0.25;
-let acceleration = 0.01;
-let friction = 0.96;
-let turnSpeed = 0.03;
+// חיבור כפתורי המגע בפלאפון
+function setupTouchButton(id, keyName) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  
+  const pressOn = () => keys[keyName] = true;
+  const pressOff = () => keys[keyName] = false;
 
-// --- לולאת המשחק (Animation Loop) ---
+  btn.addEventListener('touchstart', (e) => { e.preventDefault(); pressOn(); btn.classList.add('active'); });
+  btn.addEventListener('touchend', (e) => { e.preventDefault(); pressOff(); btn.classList.remove('active'); });
+  btn.addEventListener('mousedown', () => { pressOn(); btn.classList.add('active'); });
+  btn.addEventListener('mouseup', () => { pressOff(); btn.classList.remove('active'); });
+  btn.addEventListener('mouseleave', () => { pressOff(); btn.classList.remove('active'); });
+}
+
+setupTouchButton('btn-up', 'w');
+setupTouchButton('btn-down', 's');
+setupTouchButton('btn-left', 'a');
+setupTouchButton('btn-right', 'd');
+
+let speed = 0;
+let maxSpeed = 0.22;
+let acceleration = 0.01;
+let friction = 0.95;
+let turnSpeed = 0.035;
+
+// לולאת המשחק
 function animate() {
   requestAnimationFrame(animate);
 
-  // חישוב תנועה קדימה / אחורה
   if (keys['w'] || keys['arrowup']) {
     speed = Math.min(speed + acceleration, maxSpeed);
   } else if (keys['s'] || keys['arrowdown']) {
@@ -141,7 +183,6 @@ function animate() {
     speed *= friction;
   }
 
-  // פנייה ימינה / שמאלה
   if (Math.abs(speed) > 0.001) {
     const dir = speed > 0 ? 1 : -1;
     if (keys['a'] || keys['arrowleft']) {
@@ -152,27 +193,30 @@ function animate() {
     }
   }
 
-  // עדכון מיקום הרובוט
   roverGroup.translateZ(speed);
+  wheels.forEach(w => w.rotation.x += speed * 2.5);
 
-  // סיבוב גלגלים לפי התנועה
-  wheels.forEach(w => w.rotation.x += speed * 2);
-
-  // עדכון מיקום מצלמה - מעקב גוף שלישי (Third-person)
-  const cameraOffset = new THREE.Vector3(0, 4, -8).applyAxisAngle(new THREE.Vector3(0, 1, 0), roverGroup.rotation.y);
+  // עדכון מצלמה עוקבת
+  const cameraOffset = new THREE.Vector3(0, 3.8, -7.5).applyAxisAngle(new THREE.Vector3(0, 1, 0), roverGroup.rotation.y);
   camera.position.copy(roverGroup.position).add(cameraOffset);
-  camera.lookAt(roverGroup.position.x, roverGroup.position.y + 1, roverGroup.position.z);
+  camera.lookAt(roverGroup.position.x, roverGroup.position.y + 0.8, roverGroup.position.z);
 
-  // רינדור הסצנה
+  // עדכון מיפוי המפה הקטנה
+  const minimapRover = document.getElementById('minimap-rover');
+  if (minimapRover) {
+    const rx = 50 + (roverGroup.position.x / terrainSize) * 80;
+    const rz = 50 + (roverGroup.position.z / terrainSize) * 80;
+    minimapRover.style.left = `${Math.max(5, Math.min(95, rx))}%`;
+    minimapRover.style.top = `${Math.max(5, Math.min(95, rz))}%`;
+  }
+
   renderer.render(scene, camera);
 }
 
-// התאמת גודל חלון
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// התחלת המשחק
 animate();

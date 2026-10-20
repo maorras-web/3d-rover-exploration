@@ -2,37 +2,38 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rover Explorer 3D - Low Poly</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Advanced Low Poly Rover Explorer</title>
   <link rel="stylesheet" href="style.css">
-  <!-- טעינת ספריית Three.js מ-CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
-  <!-- קנבס המשחק -->
   <canvas id="gameCanvas"></canvas>
 
-  <!-- ממשק משתמש (HUD) המולבש מעל המשחק -->
+  <!-- ממשק משתמש ו-HUD -->
   <div id="ui-container">
-    <!-- מפה קטנה (Minimap) -->
     <div id="minimap">
       <div id="minimap-rover"></div>
-      <div id="minimap-poi"></div>
     </div>
 
-    <!-- מקרא מקשים -->
-    <div id="controls-info">
-      <p><strong>מקשים:</strong></p>      <p>WASD / חיצים - תנועה</p>
-      <p>עכבר - סיבוב מצלמה</p>
-    </div>
-
-    <!-- מד אנרגיה / חיים -->
     <div id="stats">
       <div class="stat-bar">
         <span>אנרגיה:</span>
         <div class="bar-outer"><div id="energy-bar" class="bar-inner"></div></div>
       </div>
+    </div>
+  </div>
+
+  <!-- כפתורי שליטה למסכי מגע (פלאפון) -->
+  <div id="mobile-controls">
+    <div class="control-row">
+      <button id="btn-up" class="ctrl-btn">⬆️</button>
+    </div>
+    <div class="control-row">
+      <button id="btn-left" class="ctrl-btn">⬅️</button>
+      <button id="btn-down" class="ctrl-btn">⬇️</button>
+      <button id="btn-right" class="ctrl-btn">➡️</button>
     </div>
   </div>
 
