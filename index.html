@@ -11,7 +11,6 @@
 
   <canvas id="gameCanvas"></canvas>
 
-  <!-- ממשק משתמש ו-HUD -->
   <div id="ui-container">
     <div id="minimap">
       <div id="minimap-rover"></div>
@@ -25,16 +24,15 @@
     </div>
   </div>
 
-  <!-- כפתורי שליטה למסכי מגע (פלאפון) -->
-  <div id="mobile-controls">
-    <div class="control-row">
-      <button id="btn-up" class="ctrl-btn">⬆️</button>
-    </div>
-    <div class="control-row">
-      <button id="btn-left" class="ctrl-btn">⬅️</button>
-      <button id="btn-down" class="ctrl-btn">⬇️</button>
-      <button id="btn-right" class="ctrl-btn">➡️</button>
-    </div>
+  <!-- כפתורי שליטה מופרדים לשמאל וימין עבור מסך לרוחב -->
+  <div id="controls-left">
+    <button id="btn-left" class="ctrl-btn">⬅️</button>
+    <button id="btn-right" class="ctrl-btn">➡️</button>
+  </div>
+
+  <div id="controls-right">
+    <button id="btn-up" class="ctrl-btn">⬆️</button>
+    <button id="btn-down" class="ctrl-btn">⬇️</button>
   </div>
 
   <script src="main.js"></script>
