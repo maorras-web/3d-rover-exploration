@@ -37,13 +37,16 @@
   </div>
 </div>
 
-<div id="dpad">
-  <div class="dpad-row"><button class="dpad-btn" data-key="forward">▲<span class="dpad-label">ישר</span></button></div>
-  <div class="dpad-row">
-    <button class="dpad-btn" data-key="left">◀<span class="dpad-label">שמאל</span></button>
-    <button class="dpad-btn" data-key="right">▶<span class="dpad-label">ימין</span></button>
-  </div>
-  <div class="dpad-row"><button class="dpad-btn" data-key="backward">▼<span class="dpad-label">רוורס</span></button></div>
+<!-- הגה: פניות בצד שמאל -->
+<div id="steer-left">
+  <button class="ctrl-round steer-btn" data-key="left">◀<span class="ctrl-label">שמאל</span></button>
+  <button class="ctrl-round steer-btn" data-key="right">▶<span class="ctrl-label">ימין</span></button>
+</div>
+
+<!-- דוושות: גז ורוורס בצד ימין -->
+<div id="pedals-right">
+  <button class="ctrl-round pedal-reverse" data-key="backward">▼<span class="ctrl-label">רוורס</span></button>
+  <button class="ctrl-round pedal-gas" data-key="forward">▲<span class="ctrl-label">גז</span></button>
 </div>
 
 <script type="importmap">

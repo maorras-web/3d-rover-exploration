@@ -42,7 +42,7 @@ html, body {
 .warning-sub { font-size: 14px; opacity: 0.5; margin-top: 6px; }
 @keyframes rotatePhone { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(90deg); } }
 
-/* ===== HUD מינימלי ===== */
+/* ===== HUD ===== */
 #ui-container {
   position: absolute;
   inset: 0;
@@ -107,29 +107,38 @@ html, body {
 #current-biome { border: 1px solid #ff8844; color: #ffcc88; }
 #time-display { border: 1px solid #ffaa00; color: #ffdd44; }
 
-/* ===== D-Pad ===== */
-#dpad {
+/* ===== הגה - צד שמאל ===== */
+#steer-left {
   position: absolute;
-  bottom: calc(16px + env(safe-area-inset-bottom));
-  left: calc(16px + env(safe-area-inset-left));
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  left: calc(18px + env(safe-area-inset-left));
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
+  gap: 12px;
   z-index: 100;
-  pointer-events: none;
 }
-.dpad-row { display: flex; gap: 6px; pointer-events: auto; }
-.dpad-btn {
-  width: 62px;
-  height: 62px;
+
+/* ===== דוושות - צד ימין ===== */
+#pedals-right {
+  position: absolute;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  right: calc(18px + env(safe-area-inset-right));
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  z-index: 100;
+}
+
+/* ===== כפתורים עגולים כלליים ===== */
+.ctrl-round {
+  width: 68px;
+  height: 68px;
   border-radius: 50%;
   border: 2px solid rgba(255,255,255,0.55);
   background: radial-gradient(circle at 32% 30%, rgba(255,255,255,0.35), rgba(120,160,180,0.28));
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
   color: #fff;
-  font-size: 24px;
+  font-size: 26px;
   cursor: pointer;
   outline: none;
   display: flex;
@@ -139,18 +148,48 @@ html, body {
   box-shadow: 0 4px 12px rgba(0,0,0,0.45);
   transition: transform 0.08s, background 0.08s;
 }
-.dpad-label { font-size: 8px; font-weight: bold; opacity: 0.9; }
-.dpad-btn:active, .dpad-btn.active {
+.ctrl-label { font-size: 9px; font-weight: bold; opacity: 0.95; }
+.ctrl-round:active, .ctrl-round.active {
   transform: scale(0.88);
   background: radial-gradient(circle at 32% 30%, rgba(255,255,255,0.6), rgba(140,220,255,0.5));
 }
 
+/* הגה - גוון כחלכל */
+.steer-btn {
+  border-color: rgba(140,200,255,0.65);
+}
+
+/* דוושת גז - ירוקה וגדולה */
+.pedal-gas {
+  width: 78px;
+  height: 78px;
+  border-color: rgba(140,255,170,0.75);
+  background: radial-gradient(circle at 32% 30%, rgba(180,255,200,0.45), rgba(60,160,90,0.40));
+  font-size: 30px;
+}
+.pedal-gas:active, .pedal-gas.active {
+  background: radial-gradient(circle at 32% 30%, rgba(220,255,230,0.75), rgba(90,220,120,0.65));
+}
+
+/* דוושת רוורס - כתומה */
+.pedal-reverse {
+  width: 62px;
+  height: 62px;
+  border-color: rgba(255,170,120,0.75);
+  background: radial-gradient(circle at 32% 30%, rgba(255,210,170,0.40), rgba(180,90,40,0.38));
+  font-size: 22px;
+}
+.pedal-reverse:active, .pedal-reverse.active {
+  background: radial-gradient(circle at 32% 30%, rgba(255,230,200,0.7), rgba(240,130,60,0.6));
+}
+
 /* ===== מסכים נמוכים ===== */
 @media (max-height: 480px) {
-  .dpad-btn { width: 52px; height: 52px; font-size: 20px; }
-  .dpad-label { font-size: 7px; }
-  #dpad { gap: 4px; bottom: calc(8px + env(safe-area-inset-bottom)); }
-  .dpad-row { gap: 4px; }
+  .ctrl-round { width: 56px; height: 56px; font-size: 22px; }
+  .pedal-gas { width: 66px; height: 66px; font-size: 26px; }
+  .pedal-reverse { width: 52px; height: 52px; font-size: 18px; }
+  .ctrl-label { font-size: 7px; }
+  #steer-left, #pedals-right { gap: 8px; bottom: calc(10px + env(safe-area-inset-bottom)); }
   #minimap { width: 110px; height: 110px; }
 }
 

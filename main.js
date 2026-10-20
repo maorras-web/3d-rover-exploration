@@ -20,8 +20,9 @@ if (!isMobile()) {
 
 function initGame() {
 
-  // ============ מסך מלא ============
+  // ============ מסך מלא + הסתרת הכפתור במצב מלא ============
   let fsOk = false, fsTries = 0, userExited = false;
+  const fsBtn = document.getElementById('btn-fullscreen');
   function requestFS() {
     const el = document.documentElement;
     const rq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
@@ -40,11 +41,13 @@ function initGame() {
     const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
     if (fsOk && !on) userExited = true;
     fsOk = on;
+    // תיקון #3: הסתר את הכפתור כשכבר במסך מלא
+    fsBtn.style.display = on ? 'none' : '';
     setTimeout(onResize, 60);
   }
   document.addEventListener('fullscreenchange', onFSChange);
   document.addEventListener('webkitfullscreenchange', onFSChange);
-  document.getElementById('btn-fullscreen').addEventListener('click', () => {
+  fsBtn.addEventListener('click', () => {
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       const ex = document.exitFullscreen || document.webkitExitFullscreen;
       if (ex) ex.call(document);
@@ -235,8 +238,7 @@ function initGame() {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // ============ 🌿 דשא תלת מימדי אמיתי! ============
-  // להב מעוקם עם gradient צבע מהבסיס לקצה
+  // ============ דשא תלת מימדי ============
   function makeBladeGeo(h, w, bend) {
     const segs = 4;
     const positions = [], normals = [], uvs = [], vcols = [], indices = [];
@@ -267,7 +269,6 @@ function initGame() {
     return g;
   }
 
-  // קוקו = 5 להבים מאוחדים (draw call אחד לאלפי קוקווים)
   const bladeParts = [];
   for (let k = 0; k < 5; k++) {
     const b = makeBladeGeo(0.42 + Math.random() * 0.38, 0.09 + Math.random() * 0.06, 0.10 + Math.random() * 0.14);
@@ -504,7 +505,7 @@ function initGame() {
   hillIM.instanceMatrix.needsUpdate = true;
   scene.add(hillIM);
 
-  // ============ 🚜 התותח - רובר מפורט ברמה גבוהה! ============
+  // ============ התותח - רובר מפורט ============
   const rover = new THREE.Group();
   rover.rotation.order = 'YXZ';
 
@@ -520,9 +521,7 @@ function initGame() {
     cable: new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.8 })
   };
 
-  // מערכת איחוד חלקים → draw call אחד לכל חומר
   const buckets = {};
-  const _m4 = new THREE.Matrix4();
   const _q = new THREE.Quaternion();
   const _e = new THREE.Euler();
   const _v = new THREE.Vector3();
@@ -541,8 +540,7 @@ function initGame() {
   const C = new THREE.CylinderGeometry(1, 1, 1, 10);
   const T = new THREE.TorusGeometry(1, 0.25, 6, 12);
 
-  // גוף
-  part(B, place(0, 0.8, 0).scale ? place(0, 0.8, 0) : place(0, 0.8, 0), 'paint');
+  part(B, place(0, 0.8, 0), 'paint');
   buckets.paint[buckets.paint.length - 1].scale(2.0, 0.5, 1.3);
   part(B, place(0, 1.0, -0.15, 0.12, 0, 0), 'paint');
   buckets.paint[buckets.paint.length - 1].scale(1.7, 0.3, 1.2);
@@ -559,7 +557,6 @@ function initGame() {
   part(B, place(0, 0.55, -0.8), 'metalDark');
   buckets.metalDark[buckets.metalDark.length - 1].scale(1.7, 0.12, 0.1);
 
-  // כיפה עם עיניים
   const domeGeo = new THREE.SphereGeometry(0.62, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
   part(domeGeo, place(0, 1.15, 0), 'glass');
   buckets.glass[buckets.glass.length - 1].scale(1, 0.9, 1);
@@ -570,7 +567,6 @@ function initGame() {
   part(B, place(0.22, 1.28, -0.52, -0.4, 0, 0), 'black');
   buckets.black[buckets.black.length - 1].scale(0.26, 0.05, 0.02);
 
-  // פודים צדדיים + מצלמות
   [-1, 1].forEach(side => {
     part(B, place(0.45, 1.05, side * 0.7), 'metal');
     buckets.metal[buckets.metal.length - 1].scale(0.35, 0.09, 0.5);
@@ -588,7 +584,6 @@ function initGame() {
     buckets.black[buckets.black.length - 1].scale(0.05, 0.04, 0.05);
   });
 
-  // מתלים + קפיצי סליל לכל גלגל
   const wheelSlots = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
   wheelSlots.forEach(([sx, sz]) => {
     const wx = sx * 1.12, wz = sz * 0.85;
@@ -606,7 +601,6 @@ function initGame() {
     }
   });
 
-  // פנסים + אנטנה + אגזוזים
   part(C, place(-0.55, 0.78, -0.78, Math.PI / 2, 0, 0), 'glow');
   buckets.glow[buckets.glow.length - 1].scale(0.09, 0.1, 0.11);
   part(C, place(0.55, 0.78, -0.78, Math.PI / 2, 0, 0), 'glow');
@@ -620,7 +614,6 @@ function initGame() {
   part(C, place(0.25, 1.25, 0.62), 'metalDark');
   buckets.metalDark[buckets.metalDark.length - 1].scale(0.06, 0.35, 0.06);
 
-  // כבלים
   const cable1 = new THREE.CatmullRomCurve3([
     new THREE.Vector3(-0.5, 1.05, -0.5), new THREE.Vector3(-0.2, 0.92, -0.66),
     new THREE.Vector3(0.2, 0.95, -0.64), new THREE.Vector3(0.5, 1.05, -0.5)
@@ -632,7 +625,6 @@ function initGame() {
   ]);
   part(new THREE.TubeGeometry(cable2, 14, 0.02, 5), new THREE.Matrix4(), 'cable');
 
-  // איחוד כל bucket למESH אחד
   Object.keys(buckets).forEach(key => {
     const merged = mergeGeometries(buckets[key], false);
     const mesh = new THREE.Mesh(merged, MATS[key]);
@@ -640,7 +632,6 @@ function initGame() {
     rover.add(mesh);
   });
 
-  // גלגלים: סוליות + חישוק מאוחדים (מסתובבים)
   function buildWheelGeo() {
     const rubberParts = [];
     const rim = new THREE.CylinderGeometry(0.44, 0.44, 0.34, 10);
@@ -676,9 +667,9 @@ function initGame() {
 
   scene.add(rover);
 
-  // ============ שליטה ============
+  // ============ שליטה (כפתורים חדשים) ============
   const keys = { forward: false, backward: false, left: false, right: false };
-  document.querySelectorAll('.dpad-btn').forEach(btn => {
+  document.querySelectorAll('.ctrl-round').forEach(btn => {
     const key = btn.dataset.key;
     const on = (e) => { if (e) e.preventDefault(); keys[key] = true; btn.classList.add('active'); autoFS(); };
     const off = (e) => { if (e) e.preventDefault(); keys[key] = false; btn.classList.remove('active'); };
@@ -841,14 +832,12 @@ function initGame() {
     rover.rotation.y = currentRot;
     wheelSpin += (velocity * dt) / 0.46;
 
-    // גלגלים מסתובבים + קפיצת מתלה קטנה
     const speedNorm = spd / maxSpeed;
     wheels.forEach(w => {
       w.mesh.rotation.x = wheelSpin;
       w.mesh.position.y = w.baseY + Math.sin(t * 13 + w.phase) * 0.02 * speedNorm;
     });
 
-    // התנגשויות
     let hit = false;
     for (let i = 0; i < colliders.length; i++) {
       const c = colliders[i];
@@ -866,7 +855,6 @@ function initGame() {
     }
     if (hit && spd > 2) velocity *= 0.7;
 
-    // גובה + הטיה
     const rx = rover.position.x, rz = rover.position.z;
     const hC = getGroundHeight(rx, rz);
     rover.position.y += (hC + 0.06 - rover.position.y) * 0.25;
@@ -896,7 +884,6 @@ function initGame() {
       document.getElementById('current-biome').textContent = biomeTxt;
     }
 
-    // מצלמה קולנועית
     sky.position.copy(camera.position);
     const camDist = 6.8 + spd * 0.14;
     const camH = 3.4 + spd * 0.06;
