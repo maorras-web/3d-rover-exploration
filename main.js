@@ -6,7 +6,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
-// ============ Error display (shows crashes on screen) ============
+// ============ Error display ============
 window.addEventListener('error', (e) => {
   const d = document.createElement('div');
   d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:rgba(140,0,0,0.9);color:#fff;font:12px monospace;padding:6px;direction:ltr;';
@@ -224,7 +224,7 @@ function initGame() {
     return a * (1 - fz) + b * fz;
   }
 
-  // ============ Ground + smooth natural dirt path ============
+  // ============ Ground ============
   const groundGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, GSEG, GSEG);
   const pos = groundGeo.attributes.position;
   const GP1 = GSEG + 1;
@@ -255,8 +255,8 @@ function initGame() {
   groundGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   groundGeo.computeVertexNormals();
 
-  // Path texture: smooth linear-filtered dirt, ruts, worn edges, pebbles
-  const TEXN = 640;
+  // ============ Path texture: crisp dirt, clear ruts, NO white litter ============
+  const TEXN = 1024;
   const texData = new Uint8Array(TEXN * TEXN * 4);
   const lin = (b) => Math.round(255 * Math.pow(Math.min(255, b) / 255, 2.2));
   for (let r = 0; r < TEXN; r++) {
@@ -269,20 +269,18 @@ function initGame() {
       const alpha = THREE.MathUtils.smoothstep(pmk, 0.30, 0.72);
       const d = Math.abs(x - pathCenter(z));
 
-      // continuous dirt shade
-      let sh = 0.90 + smoothNoise(x, z, 3) * 0.22 + (n - 0.5) * 0.10;
-      const rut = Math.exp(-Math.pow((d - 0.8) / 0.30, 2));
-      sh *= (1 - 0.32 * rut);
-      sh += 0.07 * Math.exp(-Math.pow(d / 0.5, 2));
+      let sh = 0.92 + smoothNoise(x, z, 3) * 0.20 + (n - 0.5) * 0.16;
+      const rut = Math.exp(-Math.pow((d - 0.8) / 0.26, 2));
+      sh *= (1 - 0.38 * rut);
+      sh += 0.06 * Math.exp(-Math.pow(d / 0.5, 2));
+      if (smoothNoise(x, z, 1.5) > 0.78) sh *= 0.86;
 
       let dr = 158 * sh, dg = 126 * sh, db = 92 * sh;
-      // dry worn grass at the edges
-      const edge = 1 - THREE.MathUtils.smoothstep(alpha, 0.30, 0.75);
-      dr = THREE.MathUtils.lerp(dr, 186, edge * 0.55);
-      dg = THREE.MathUtils.lerp(dg, 164, edge * 0.55);
-      db = THREE.MathUtils.lerp(db, 116, edge * 0.55);
-      // scattered pebbles
-      if (n2 > 0.93) { dr = 198; dg = 190; db = 176; }
+      const edge = 1 - THREE.MathUtils.smoothstep(alpha, 0.35, 0.80);
+      dr = THREE.MathUtils.lerp(dr, 186, edge * 0.5);
+      dg = THREE.MathUtils.lerp(dg, 164, edge * 0.5);
+      db = THREE.MathUtils.lerp(db, 116, edge * 0.5);
+      if (n2 > 0.965) { dr = 148; dg = 138; db = 122; } // rare subtle pebble, not white litter
 
       const o = (r * TEXN + c) * 4;
       texData[o] = lin(dr); texData[o + 1] = lin(dg); texData[o + 2] = lin(db);
@@ -293,7 +291,7 @@ function initGame() {
   groundTex.magFilter = THREE.LinearFilter;
   groundTex.minFilter = THREE.LinearMipmapLinearFilter;
   groundTex.generateMipmaps = true;
-  groundTex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+  groundTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   groundTex.needsUpdate = true;
 
   const groundMat = new THREE.MeshStandardMaterial({
@@ -302,15 +300,14 @@ function initGame() {
   groundMat.onBeforeCompile = (sh) => {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <map_fragment>', '')
-      .replace('#include <color_fragment>',
-        'diffuseColor.rgb = mix(vColor, texture2D(map, vMapUv).rgb, texture2D(map, vMapUv).a);');
+      .replace('#include <color_fragment>', 'diffuseColor.rgb = mix(vColor, texture2D(map, vMapUv).rgb, texture2D(map, vMapUv).a);');
   };
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // ============ 3D grass with wind ============
+  // ============ 🌿 DENSE grass restored (path-biased carpet) ============
   function makeBladeGeo(h, w, bend) {
     const segs = 4;
     const positions = [], normals = [], uvs = [], vcols = [], indices = [];
@@ -362,19 +359,20 @@ function initGame() {
     shader.uniforms.uRover = uRover;
     shader.vertexShader = 'uniform float uTime;\nuniform vec3 uRover;\n' + shader.vertexShader.replace(
       '#include <begin_vertex>',
-      `#include <begin_vertex> vec4 wpos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0); float dR = distance(wpos.xz, uRover.xz); float dC = distance(wpos.xyz, cameraPosition); transformed *= mix(0.2, 1.0, smoothstep(1.8, 4.5, dR)) * mix(0.15, 1.0, smoothstep(1.0, 3.0, dC)); float ph = wpos.x * 0.35 + wpos.z * 0.27; float gust = sin(uTime * 1.6 + ph) * 0.6 + sin(uTime * 3.3 + ph * 1.7) * 0.4; float hf = position.y * position.y * 2.4; transformed.x += gust * 0.17 * hf; transformed.z += cos(uTime * 1.2 + ph) * 0.11 * hf;`
+      `#include <begin_vertex> vec4 wpos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0); float dR = distance(wpos.xz, uRover.xz); float dC = distance(wpos.xyz, cameraPosition); transformed *= mix(0.35, 1.0, smoothstep(1.2, 3.2, dR)) * mix(0.25, 1.0, smoothstep(0.8, 2.2, dC)); float ph = wpos.x * 0.35 + wpos.z * 0.27; float gust = sin(uTime * 1.6 + ph) * 0.6 + sin(uTime * 3.3 + ph * 1.7) * 0.4; float hf = position.y * position.y * 2.4; transformed.x += gust * 0.17 * hf; transformed.z += cos(uTime * 1.2 + ph) * 0.11 * hf;`
     );
   };
 
-  const GRASS = 8500;
+  const GRASS = 10000;
   const grassMesh = new THREE.InstancedMesh(tuftGeo, grassMat, GRASS);
   grassMesh.receiveShadow = true;
   const dummy = new THREE.Object3D();
   const gCol = new THREE.Color();
   let gi = 0;
-  for (let i = 0; i < GRASS * 1.5 && gi < GRASS; i++) {
+  for (let i = 0; i < GRASS * 2.0 && gi < GRASS; i++) {
     const z = (Math.random() - 0.5) * WORLD_SIZE * 0.94;
-    const x = Math.random() < 0.55 ? pathCenter(z) + (Math.random() - 0.5) * 30 : (Math.random() - 0.5) * WORLD_SIZE * 0.94;
+    // 65% of tufts hug the trail corridor => lush carpet where you actually drive
+    const x = Math.random() < 0.65 ? pathCenter(z) + (Math.random() - 0.5) * 26 : (Math.random() - 0.5) * WORLD_SIZE * 0.94;
     if (pathMask(x, z) > 0.5) continue;
     dummy.position.set(x, getGroundHeight(x, z) - 0.04, z);
     dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
@@ -416,7 +414,7 @@ function initGame() {
   if (flowerIM.instanceColor) flowerIM.instanceColor.needsUpdate = true;
   scene.add(flowerIM);
 
-  // ============ Colliders & small-rock bumps ============
+  // ============ Colliders ============
   const colliders = [];
   const smallRocks = [];
   function driveHeight(x, z) {
@@ -633,7 +631,7 @@ function initGame() {
   scene.add(poi);
 
   // ============================================================
-  // ============ 🚜 THE ROVER — cleaner read & better silhouette ============
+  // ============ 🚜 THE ROVER — decluttered & readable ============
   // ============================================================
   const rover = new THREE.Group();
   rover.rotation.order = 'YXZ';
@@ -644,8 +642,8 @@ function initGame() {
     arm:    new THREE.MeshStandardMaterial({ color: 0xc9c4b6, metalness: 0.55, roughness: 0.40, flatShading: true, envMapIntensity: 1.0 }),
     joint:  new THREE.MeshStandardMaterial({ color: 0x5e584d, metalness: 0.60, roughness: 0.50, flatShading: true }),
     under:  new THREE.MeshStandardMaterial({ color: 0x3a352d, metalness: 0.30, roughness: 0.80, flatShading: true }),
-    rubber: new THREE.MeshStandardMaterial({ color: 0x453a30, roughness: 0.92, flatShading: true }),   // lighter: treads read!
-    tread:  new THREE.MeshStandardMaterial({ color: 0x2b241d, roughness: 0.95, flatShading: true }),
+    rubber: new THREE.MeshStandardMaterial({ color: 0x3a332b, roughness: 0.92, flatShading: true }),
+    tread:  new THREE.MeshStandardMaterial({ color: 0x241f1a, roughness: 0.95, flatShading: true }),
     dome:   new THREE.MeshStandardMaterial({ color: 0x9cc4de, metalness: 0.05, roughness: 0.45, flatShading: true, envMapIntensity: 0.7 }),
     black:  new THREE.MeshStandardMaterial({ color: 0x141210, roughness: 0.70, flatShading: true }),
     copper: new THREE.MeshStandardMaterial({ color: 0x8a5a34, metalness: 0.30, roughness: 0.60, flatShading: true }),
@@ -657,8 +655,9 @@ function initGame() {
     amber:  new THREE.MeshStandardMaterial({ color: 0xffa020, emissive: 0xff8a00, emissiveIntensity: 0.5 }),
     hullS:  new THREE.MeshStandardMaterial({ color: 0x8fa1ad, metalness: 0.35, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
     deckS:  new THREE.MeshStandardMaterial({ color: 0xa8b8c2, metalness: 0.30, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
-    tanS:   new THREE.MeshStandardMaterial({ color: 0xb5a488, metalness: 0.15, roughness: 0.60, flatShading: true, side: THREE.DoubleSide }),
-    armS:   new THREE.MeshStandardMaterial({ color: 0x9d9789, metalness: 0.60, roughness: 0.38, envMapIntensity: 1.0, flatShading: true }), // darker metal arms
+    tanS:   new THREE.MeshStandardMaterial({ color: 0xb5a488, metalness: 0.15, roughness: 0.60, flatShading: true }),
+    armS:   new THREE.MeshStandardMaterial({ color: 0xcfcabb, metalness: 0.60, roughness: 0.35, envMapIntensity: 1.2, flatShading: true }),
+    armM:   new THREE.MeshStandardMaterial({ color: 0x79808a, metalness: 0.65, roughness: 0.40, envMapIntensity: 1.0, flatShading: true }),
     darkS:  new THREE.MeshStandardMaterial({ color: 0x2a2723, metalness: 0.30, roughness: 0.65, flatShading: true })
   };
 
@@ -720,11 +719,13 @@ function initGame() {
     part(new RoundedBoxGeometry(w, h, d, 1, r), place(x, y, z, rx, ry, rz), key);
   }
 
-  // ---- Dark cartoon outline (inverted hull) ----
-  const OUTLINE_KEYS = ['hullS', 'deckS', 'tanS', 'armS', 'darkS', 'dome'];
+  const B = new THREE.BoxGeometry(1, 1, 1);
+
+  // ---- Cartoon outline ----
+  const OUTLINE_KEYS = ['hullS', 'deckS', 'tanS', 'armS', 'armM', 'darkS', 'dome'];
   const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: 0x15110d, side: THREE.BackSide });
   OUTLINE_MAT.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed += normalize(normal) * 0.022;');
+    sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed += normalize(normal) * 0.025;');
   };
   function makeOutlineGeo(src) {
     const g = new THREE.BufferGeometry();
@@ -740,20 +741,20 @@ function initGame() {
   partRB('deckS', 0, 1.40, 0.10, 1.75, 0.30, 1.85, 0.12);
   partRB('hullS', 0, 1.02, -1.18, 1.95, 0.50, 0.75, 0.20, -0.38, 0, 0);
   partRB('darkS', 0, 0.62, 0.05, 1.85, 0.22, 2.10, 0.08);
-  partRB('tanS', -1.14, 1.02, 0.05, 0.14, 0.50, 1.50, 0.06);
-  partRB('tanS',  1.14, 1.02, 0.05, 0.14, 0.50, 1.50, 0.06);
+  partRB('tanS', -1.12, 1.02, 0.05, 0.12, 0.46, 1.30, 0.05);
+  partRB('tanS',  1.12, 1.02, 0.05, 0.12, 0.46, 1.30, 0.05);
   partRB('hullS', 0, 1.0, 1.2, 1.95, 0.55, 0.20, 0.08);
-  for (let i = 0; i < 2; i++) partRB('darkS', 0, 0.88 + i * 0.1, 1.31, 1.05, 0.05, 0.03, 0.01); // cleaner rear: 2 slats only
+  for (let i = 0; i < 2; i++) partRB('darkS', 0, 0.9 + i * 0.11, 1.31, 1.05, 0.05, 0.03, 0.01);
 
-  // ---- Dome raised & bigger so it reads from behind ----
+  // ---- Dome (slim blue-grey collar, not a tan scarf) ----
   const domeGeo = new THREE.SphereGeometry(0.85, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2);
-  domeGeo.scale(1.08, 0.98, 1.08);
-  part(domeGeo, place(0, 1.61, 0), 'dome');
-  part(new THREE.TorusGeometry(0.9, 0.08, 8, 16), place(0, 1.62, 0, Math.PI / 2, 0, 0), 'tanS');
-  part(new THREE.BoxGeometry(0.44, 0.08, 0.05), place(-0.32, 1.76, -0.82, -0.2, 0.37, 0), 'black');
-  part(new THREE.BoxGeometry(0.44, 0.08, 0.05), place(0.32, 1.76, -0.82, -0.2, -0.37, 0), 'black');
-  partDisc('joint', 0, 2.13, -0.71, 0.17, 0.03, 0, 0.82, -0.9, 10);
-  partDisc('light', 0, 2.14, -0.73, 0.09, 0.03, 0, 0.82, -0.9, 8);
+  domeGeo.scale(1.06, 0.96, 1.06);
+  part(domeGeo, place(0, 1.58, 0), 'dome');
+  part(new THREE.TorusGeometry(0.88, 0.05, 8, 16), place(0, 1.60, 0, Math.PI / 2, 0, 0), 'hullS');
+  part(new THREE.BoxGeometry(0.42, 0.08, 0.05), place(-0.3, 1.72, -0.80, -0.2, 0.37, 0), 'black');
+  part(new THREE.BoxGeometry(0.42, 0.08, 0.05), place(0.3, 1.72, -0.80, -0.2, -0.37, 0), 'black');
+  partDisc('joint', 0, 2.10, -0.70, 0.17, 0.03, 0, 0.82, -0.9, 10);
+  partDisc('light', 0, 2.11, -0.72, 0.09, 0.03, 0, 0.82, -0.9, 8);
 
   // ---- Side sensor pods ----
   [-1, 1].forEach(side => {
@@ -769,21 +770,19 @@ function initGame() {
     partDisc('armS', px, 1.66, -0.56, 0.06, 0.03, 0, 0, 1, 10);
   });
 
-  // ---- Rear equipment (lower so the dome shows) + SPARE WHEEL ----
-  partRB('darkS', -0.5, 1.72, 0.62, 0.8, 0.36, 0.65, 0.08);
-  partRB('armS', -0.5, 1.92, 0.62, 0.5, 0.04, 0.4, 0.015);
+  // ---- Rear: low case + jerry-can cargo (NO spare-tire donut) ----
+  partRB('darkS', -0.5, 1.68, 0.62, 0.8, 0.34, 0.65, 0.08);
+  partRB('armS', -0.5, 1.87, 0.62, 0.5, 0.04, 0.4, 0.015);
+  partRB('tanS', 0, 1.52, 1.40, 0.5, 0.62, 0.24, 0.05);
+  partRB('darkS', 0, 1.52, 1.53, 0.52, 0.1, 0.03, 0.01);
   partDisc('tanS', 0.38, 1.80, 0.62, 0.17, 0.55, 0, 1, 0, 12);
   partDisc('tanS', 0.72, 1.80, 0.62, 0.17, 0.55, 0, 1, 0, 12);
   partDisc('armS', 0.38, 2.10, 0.62, 0.09, 0.06, 0, 1, 0, 10);
   partDisc('armS', 0.72, 2.10, 0.62, 0.09, 0.06, 0, 1, 0, 10);
-  partBeam('joint', -0.7, 1.98, 0.85, -0.7, 2.85, 0.85, 0.035);
+  partBeam('joint', -0.7, 1.94, 0.85, -0.7, 2.85, 0.85, 0.035);
   partDisc('glow', -0.7, 2.87, 0.85, 0.05, 0.05, 0, 1, 0, 8);
-  // spare tire mounted on the rear plate
-  partDisc('rubber', 0, 1.32, 1.46, 0.44, 0.24, 0, 0, 1, 12);
-  partDisc('tread', 0, 1.32, 1.46, 0.46, 0.16, 0, 0, 1, 12);
-  partDisc('armS', 0, 1.32, 1.60, 0.17, 0.08, 0, 0, 1, 8);
 
-  // ---- Suspension brackets on the hull ----
+  // ---- Suspension brackets ----
   const TRACK = 1.95;
   const CAP_TIP = TRACK - 0.45;
   const wheelSlots = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
@@ -793,12 +792,6 @@ function initGame() {
     partRB('darkS', sx * 1.25, 0.86, sz * 0.5, 0.12, 0.28, 0.38, 0.03);
     partDisc('darkS', sx * 1.29, 0.86, sz * 0.5, 0.15, 0.38, 0, 0, 1, 8);
     partRB('darkS', sx * 1.14, 1.31, sz * 0.40, 0.16, 0.09, 0.22, 0.02);
-    // FENDER: curved mud-guard shell over each wheel (kills the "black blob" look)
-    const f = new THREE.CylinderGeometry(1.0, 1.0, 0.88, 10, 1, true, -Math.PI / 3, 2 * Math.PI / 3);
-    f.rotateZ(Math.PI / 2);
-    part(f, place(sx * TRACK, 0.80, sz * 1.0), 'tanS');
-    partRB('tanS', sx * TRACK, 0.98, sz * 1.0 - 0.44, 0.06, 0.34, 0.86, 0.02); // fender side walls
-    partRB('tanS', sx * TRACK, 0.98, sz * 1.0 + 0.44, 0.06, 0.34, 0.86, 0.02);
   });
 
   // ---- Copper cables ----
@@ -855,29 +848,29 @@ function initGame() {
     rover.add(mesh);
   });
 
-  // ---- Wheels: lighter rubber + narrower treads so details read ----
+  // ---- Wheels: clean sides (bolts & cap stay INSIDE the hub) ----
   function buildWheelGeo() {
-    const carcass = new THREE.CylinderGeometry(0.62, 0.62, 0.64, 14);
+    const carcass = new THREE.CylinderGeometry(0.64, 0.64, 0.70, 14);
     carcass.rotateZ(Math.PI / 2);
     const tp = [];
     const N = 12;
     for (let i = 0; i < N; i++) {
       const a = (i / N) * Math.PI * 2;
-      const tread = new RoundedBoxGeometry(0.70, 0.2, 0.46, 1, 0.05);
+      const tread = new RoundedBoxGeometry(0.76, 0.2, 0.5, 1, 0.05);
       const m = new THREE.Matrix4().makeRotationX(a);
-      m.setPosition(0, Math.cos(a) * 0.70, Math.sin(a) * 0.70);
+      m.setPosition(0, Math.cos(a) * 0.72, Math.sin(a) * 0.72);
       tread.applyMatrix4(m);
       tp.push(tread);
     }
     const treads = mergeGeometries(tp, false);
     const hp = [];
-    const hub = new THREE.CylinderGeometry(0.38, 0.38, 0.74, 8); hub.rotateZ(Math.PI / 2); hp.push(hub);
-    const cap = new THREE.CylinderGeometry(0.2, 0.2, 0.82, 8); cap.rotateZ(Math.PI / 2); hp.push(cap);
+    const hub = new THREE.CylinderGeometry(0.4, 0.4, 0.80, 8); hub.rotateZ(Math.PI / 2); hp.push(hub);
+    const cap = new THREE.CylinderGeometry(0.2, 0.2, 0.78, 8); cap.rotateZ(Math.PI / 2); hp.push(cap);
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
-      const bolt = new THREE.CylinderGeometry(0.04, 0.04, 0.86, 5);
+      const bolt = new THREE.CylinderGeometry(0.035, 0.035, 0.70, 5);
       bolt.rotateZ(Math.PI / 2);
-      bolt.translate(0, Math.cos(a) * 0.29, Math.sin(a) * 0.29);
+      bolt.translate(0, Math.cos(a) * 0.3, Math.sin(a) * 0.3);
       hp.push(bolt);
     }
     return mergeSafe([carcass, treads, mergeGeometries(hp, false)], true);
@@ -894,7 +887,7 @@ function initGame() {
     wheels.push({ mesh: w, baseY: 0.74, y: 0.74, phase: Math.random() * 6.28, lx: sx * TRACK, lz: sz * 1.0 });
   });
 
-  // ---- Dynamic suspension (thinner, darker arms) ----
+  // ---- Dynamic suspension: slim gunmetal arms ----
   const _ZA = new THREE.Vector3(0, 0, 1);
   function unitBeam(w, t, mat, r, outline) {
     const g = new RoundedBoxGeometry(w, t, 1, 1, r);
@@ -914,7 +907,7 @@ function initGame() {
     }
     return mergeSafe(list, false);
   })();
-  const hubJointGeo = new THREE.CylinderGeometry(0.21, 0.21, 0.2, 8);
+  const hubJointGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.14, 8);
   hubJointGeo.rotateZ(Math.PI / 2);
   const rodGeo = new THREE.CylinderGeometry(0.055, 0.055, 1, 6);
   rodGeo.rotateX(Math.PI / 2);
@@ -924,8 +917,8 @@ function initGame() {
     const joint = new THREE.Mesh(hubJointGeo, MATS.darkS); joint.castShadow = true; rover.add(joint);
     return {
       sx, sz, wheel: wheels[i],
-      upper: unitBeam(0.26, 0.16, MATS.armS, 0.045, true),
-      lower: unitBeam(0.22, 0.13, MATS.armS, 0.045, true),
+      upper: unitBeam(0.22, 0.14, MATS.armM, 0.04, true),
+      lower: unitBeam(0.20, 0.12, MATS.armM, 0.04, true),
       rod, spring, joint,
       U: new THREE.Vector3(sx * 0.80, 1.62, sz * 0.74),
       L: new THREE.Vector3(sx * 1.28, 0.86, sz * 0.5),
@@ -1375,7 +1368,6 @@ function initGame() {
       document.getElementById('current-biome').textContent = biomeTxt;
     }
 
-    // ---- Camera (raised a bit so the whole rover reads) ----
     let dAng = currentRot - camYaw;
     dAng = Math.atan2(Math.sin(dAng), Math.cos(dAng));
     camYaw += dAng * (1 - Math.exp(-4.0 * dt));
@@ -1386,7 +1378,7 @@ function initGame() {
       const camH = (2.15 + spd * 0.05) * camZoom;
       _camPos.set(rx - cfX * camDist, rover.position.y + camH, rz - cfZ * camDist);
       const lookAhead = 2.2 + spd * 0.25;
-      _look.set(rx + cfX * lookAhead, rover.position.y + 1.45, rz + cfZ * lookAhead);
+      _look.set(rx + cfX * lookAhead, rover.position.y + 1.4, rz + cfZ * lookAhead);
     } else {
       const camDist = (4.6 + spd * 0.1) * camZoom;
       const camH = 1.2 * camZoom;
