@@ -6,6 +6,14 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
+// ============ Error display (shows crashes on screen) ============
+window.addEventListener('error', (e) => {
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:rgba(140,0,0,0.9);color:#fff;font:12px monospace;padding:6px;direction:ltr;';
+  d.textContent = 'ERROR: ' + e.message + ' (line ' + e.lineno + ')';
+  document.body.appendChild(d);
+});
+
 // ============ Mobile detection ============
 function isMobile() {
   const ua = navigator.userAgent || '';
@@ -817,13 +825,17 @@ function initGame() {
   partDisc('tail', 0.7, 1.05, 1.32, 0.09, 0.05, 0, 0, 1, 10);
 
   Object.keys(buckets).forEach(key => {
-    const merged = mergeGeometries(buckets[key], false);
+    const merged = mergeSafe(buckets[key], false);
+    if (!merged) return;
     const mesh = new THREE.Mesh(merged, MATS[key]);
     mesh.castShadow = true;
     rover.add(mesh);
   });
 
   // ---- Wheels with DEEP treads for strong silhouette ----
+  function mergeSafe(list, groups) {
+    return mergeGeometries(list.map(g => (g.index ? g.toNonIndexed() : g)), groups);
+  }
   function buildWheelGeo() {
     const carcass = new THREE.CylinderGeometry(0.62, 0.62, 0.72, 20);
     carcass.rotateZ(Math.PI / 2);
@@ -848,7 +860,7 @@ function initGame() {
       bolt.translate(0, Math.cos(a) * 0.3, Math.sin(a) * 0.3);
       hp.push(bolt);
     }
-    return mergeGeometries([carcass, treads, mergeGeometries(hp, false)], true);
+    return mergeSafe([carcass, treads, mergeGeometries(hp, false)], true);
   }
   const wheelGeo = buildWheelGeo();
   const wheels = [];
