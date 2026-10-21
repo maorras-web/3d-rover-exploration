@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -646,13 +647,19 @@ function initGame() {
     arm:    new THREE.MeshStandardMaterial({ color: 0xc9c4b6, metalness: 0.55, roughness: 0.40, flatShading: true, envMapIntensity: 1.0 }),
     joint:  new THREE.MeshStandardMaterial({ color: 0x5e584d, metalness: 0.60, roughness: 0.50, flatShading: true }),
     under:  new THREE.MeshStandardMaterial({ color: 0x3a352d, metalness: 0.30, roughness: 0.80, flatShading: true }),
-    rubber: new THREE.MeshStandardMaterial({ color: 0x3a3029, roughness: 0.95, flatShading: true }),
+    rubber: new THREE.MeshStandardMaterial({ color: 0x3f362f, roughness: 0.95, flatShading: true }),
     dome:   new THREE.MeshStandardMaterial({ color: 0xbcd9e6, metalness: 0.05, roughness: 0.35, flatShading: true, envMapIntensity: 1.0 }),
     black:  new THREE.MeshStandardMaterial({ color: 0x141210, roughness: 0.70, flatShading: true }),
     copper: new THREE.MeshStandardMaterial({ color: 0x8a5a34, metalness: 0.30, roughness: 0.60, flatShading: true }),
     crate:  new THREE.MeshStandardMaterial({ color: 0x4c463a, roughness: 0.80, flatShading: true }),
     glow:   new THREE.MeshStandardMaterial({ color: 0xffffcc, emissive: 0xffeeaa, emissiveIntensity: 1.6, flatShading: true }),
-    tail:   new THREE.MeshStandardMaterial({ color: 0xff3322, emissive: 0xff2211, emissiveIntensity: 0.9, flatShading: true })
+    tail:   new THREE.MeshStandardMaterial({ color: 0xff3322, emissive: 0xff2211, emissiveIntensity: 0.9, flatShading: true }),
+    hullS: new THREE.MeshStandardMaterial({ color: 0x8fa1ad, metalness: 0.35, roughness: 0.45, envMapIntensity: 1.1 }),
+    deckS: new THREE.MeshStandardMaterial({ color: 0xa8b8c2, metalness: 0.30, roughness: 0.45, envMapIntensity: 1.1 }),
+    tanS:  new THREE.MeshStandardMaterial({ color: 0xb5a488, metalness: 0.15, roughness: 0.60 }),
+    armS:  new THREE.MeshStandardMaterial({ color: 0xcfcabb, metalness: 0.60, roughness: 0.35, envMapIntensity: 1.2 }),
+    darkS: new THREE.MeshStandardMaterial({ color: 0x2a2723, metalness: 0.30, roughness: 0.65 }),
+    tread: new THREE.MeshStandardMaterial({ color: 0x5b4e42, roughness: 0.95, flatShading: true })
   };
 
   const buckets = {};
@@ -715,89 +722,99 @@ function initGame() {
   function partPiston(fx, fy, fz, tx, ty, tz) {
     const mx = fx + (tx - fx) * 0.55, my = fy + (ty - fy) * 0.55, mz = fz + (tz - fz) * 0.55;
     const l1 = Math.hypot(mx - fx, my - fy, mz - fz), l2 = Math.hypot(tx - mx, ty - my, tz - mz);
-    partDisc('under', (fx + mx) / 2, (fy + my) / 2, (fz + mz) / 2, 0.1, l1, tx - fx, ty - fy, tz - fz, 8);
-    partDisc('arm', (mx + tx) / 2, (my + ty) / 2, (mz + tz) / 2, 0.055, l2, tx - fx, ty - fy, tz - fz, 6);
+    partDisc('darkS', (fx + mx) / 2, (fy + my) / 2, (fz + mz) / 2, 0.12, l1, tx - fx, ty - fy, tz - fz, 8);
+    partDisc('armS', (mx + tx) / 2, (my + ty) / 2, (mz + tz) / 2, 0.07, l2, tx - fx, ty - fy, tz - fz, 6);
+  }
+
+  function partRB(key, x, y, z, w, h, d, r, rx, ry, rz) {
+    part(new RoundedBoxGeometry(w, h, d, 3, r), place(x, y, z, rx, ry, rz), key);
+  }
+  function partPlate(key, fx, fy, fz, tx, ty, tz, w, t) {
+    _va.set(fx, fy, fz); _vb.set(tx, ty, tz);
+    _vd.subVectors(_vb, _va);
+    const len = _vd.length(); _vd.normalize();
+    _q.setFromUnitVectors(ZAXIS, _vd);
+    const g = new RoundedBoxGeometry(w, t, len + 0.1, 2, Math.min(w, t) * 0.35);
+    g.applyMatrix4(new THREE.Matrix4().compose(_v.copy(_va).addScaledVector(_vd, len / 2), _q, _s.set(1, 1, 1)));
+    (buckets[key] = buckets[key] || []).push(g);
   }
 
   const B = new THREE.BoxGeometry(1, 1, 1);
 
-  // ---- Chassis with volume: bright top, mid sides, DARK underside ----
-  part(B, place(0, 1.0, 0.1), 'light'); scaleLast('light', 2.3, 0.6, 1.9);
-  part(B, place(0, 0.95, -1.05, -0.45, 0, 0), 'light'); scaleLast('light', 2.3, 0.45, 0.8);
-  part(B, place(0, 1.34, 0.15), 'mid'); scaleLast('mid', 1.9, 0.14, 1.5);
-  part(B, place(0, 1.0, 1.05), 'mid'); scaleLast('mid', 2.3, 0.5, 0.15);
-  part(B, place(0, 0.62, 0.1), 'under'); scaleLast('under', 2.1, 0.34, 1.7);   // dark belly = depth
-  part(B, place(-1.16, 1.02, 0.1), 'mid'); scaleLast('mid', 0.07, 0.44, 1.6);  // recessed side panels
-  part(B, place(1.16, 1.02, 0.1), 'mid'); scaleLast('mid', 0.07, 0.44, 1.6);
-  part(B, place(0, 0.86, 1.14), 'under'); scaleLast('under', 1.6, 0.3, 0.06);  // rear vent
+  // ---- Body: rounded, layered, solid (no scaleLast: positions are real) ----
+  partRB('hullS', 0, 0.98, 0.05, 2.15, 0.72, 2.25, 0.22);                 // lower hull
+  partRB('deckS', 0, 1.40, 0.10, 1.75, 0.30, 1.85, 0.12);                 // upper deck
+  partRB('hullS', 0, 1.02, -1.18, 1.95, 0.50, 0.75, 0.20, -0.38, 0, 0);   // sloped nose
+  partRB('darkS', 0, 0.62, 0.05, 1.85, 0.22, 2.10, 0.08);                 // skid plate
+  partRB('tanS', -1.14, 1.02, 0.05, 0.14, 0.50, 1.50, 0.06);              // side armor
+  partRB('tanS',  1.14, 1.02, 0.05, 0.14, 0.50, 1.50, 0.06);
+  partRB('hullS', 0, 1.0, 1.2, 1.95, 0.55, 0.20, 0.08);                   // rear plate
+  for (let i = 0; i < 4; i++) partRB('darkS', 0, 0.86 + i * 0.1, 1.31, 1.3, 0.05, 0.03, 0.01); // vent slats
 
   // ---- Dome + eyes + emblem ----
   const domeGeo = new THREE.SphereGeometry(0.85, 9, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-  part(domeGeo, place(0, 1.38, 0), 'dome'); scaleLast('dome', 1, 0.92, 1);
-  const domeRing = new THREE.TorusGeometry(0.84, 0.07, 6, 14);
-  part(domeRing, place(0, 1.4, 0, Math.PI / 2, 0, 0), 'mid');
-  part(B, place(-0.3, 1.52, -0.78, -0.35, 0, 0), 'black'); scaleLast('black', 0.5, 0.08, 0.05);
-  part(B, place(0.3, 1.52, -0.78, -0.35, 0, 0), 'black'); scaleLast('black', 0.5, 0.08, 0.05);
-  partDisc('joint', 0, 1.89, -0.66, 0.17, 0.03, 0, 0.82, -0.9, 10);
-  partDisc('light', 0, 1.9, -0.675, 0.09, 0.03, 0, 0.82, -0.9, 8);
+  domeGeo.scale(1, 0.92, 1);
+  part(domeGeo, place(0, 1.55, 0), 'dome');
+  part(new THREE.TorusGeometry(0.85, 0.08, 8, 16), place(0, 1.56, 0, Math.PI / 2, 0, 0), 'tanS');
+  part(new THREE.BoxGeometry(0.42, 0.08, 0.05), place(-0.3, 1.69, -0.78, -0.2, 0.37, 0), 'black');
+  part(new THREE.BoxGeometry(0.42, 0.08, 0.05), place(0.3, 1.69, -0.78, -0.2, -0.37, 0), 'black');
+  partDisc('joint', 0, 2.06, -0.66, 0.17, 0.03, 0, 0.82, -0.9, 10);
+  partDisc('light', 0, 2.07, -0.675, 0.09, 0.03, 0, 0.82, -0.9, 8);
 
-  // ---- Side sensor pods ----
+  // ---- Side sensor pods (tan housing, grille top, lens) ----
   [-1, 1].forEach(side => {
-    partBeam('mid', side * 0.85, 1.35, -0.25, side * 0.98, 1.6, -0.25, 0.16);
-    partDisc('arm', side * 0.98, 1.72, -0.25, 0.27, 0.5, 0, 1, 0, 10);
-    partDisc('black', side * 0.98, 2.0, -0.25, 0.24, 0.16, 0, 1, 0, 10);
-    const grilleRim = new THREE.TorusGeometry(0.26, 0.03, 5, 12);
-    part(grilleRim, place(side * 0.98, 1.94, -0.25, Math.PI / 2, 0, 0), 'mid');
-    partDisc('black', side * 0.98 - 0.1, 1.68, -0.52, 0.07, 0.06, 0, 0, 1, 8);
-    partDisc('black', side * 0.98 + 0.1, 1.68, -0.52, 0.07, 0.06, 0, 0, 1, 8);
+    const px = side * 1.0;
+    partRB('hullS', side * 0.9, 1.45, -0.25, 0.3, 0.2, 0.4, 0.05);
+    partRB('tanS', px, 1.62, -0.25, 0.5, 0.55, 0.55, 0.1);
+    partDisc('darkS', px, 1.92, -0.25, 0.25, 0.1, 0, 1, 0, 12);
+    for (let j = -2; j <= 2; j++) partRB('armS', px + j * 0.08, 1.975, -0.25, 0.025, 0.02, 0.4, 0.005);
+    partDisc('darkS', px, 1.66, -0.54, 0.12, 0.06, 0, 0, 1, 12);
+    partDisc('armS', px, 1.66, -0.56, 0.06, 0.03, 0, 0, 1, 10);
   });
 
-  // ---- Suspension arms + coils ----
+  // ---- Rear equipment: black case, tan backpack, antenna ----
+  partRB('darkS', -0.5, 1.82, 0.62, 0.85, 0.55, 0.7, 0.1);
+  partRB('tanS', 0.55, 1.8, 0.62, 0.55, 0.5, 0.6, 0.12);
+  partRB('armS', -0.4, 2.5, 0.7, 0.6, 0.7, 0.05, 0.02, -0.15, 0, 0.35);
+  partBeam('joint', -0.45, 2.05, 0.7, -0.4, 2.3, 0.7, 0.05);
+
+  // ---- Suspension: plate arms, joints, coil springs, hydraulic pistons ----
   const wheelSlots = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
   wheelSlots.forEach(([sx, sz]) => {
-    const hubX = sx * 1.5, hubY = 0.8, hubZ = sz * 1.0;
-    const upX = sx * 0.85, upY = 1.42, upZ = sz * 0.55;
-    partBeam('arm', upX, upY, upZ, hubX, hubY + 0.1, hubZ, 0.16);
-    partBeam('arm', sx * 0.95, 0.72, sz * 0.65, sx * 1.48, 0.62, sz * 0.95, 0.12);
-    partDisc('joint', upX, upY, upZ, 0.14, 0.16, 1, 0, 0, 10);
-    partDisc('joint', hubX, hubY + 0.1, hubZ, 0.17, 0.18, 1, 0, 0, 10);
-    partDisc('joint', sx * 0.95, 0.72, sz * 0.65, 0.11, 0.14, 1, 0, 0, 8);
-    const cFx = upX + (hubX - upX) * 0.25, cFy = upY + (hubY + 0.1 - upY) * 0.25, cFz = upZ + (hubZ - upZ) * 0.25;
-    const cTx = upX + (hubX - upX) * 0.72, cTy = upY + (hubY + 0.1 - upY) * 0.72, cTz = upZ + (hubZ - upZ) * 0.72;
-    partCoil('arm', cFx, cFy, cFz, cTx, cTy, cTz, 5, 0.13, 0.035);
-    partBeam('joint', cFx, cFy, cFz, cTx, cTy, cTz, 0.06);
-    partPiston(sx * 1.0, 0.95, sz * 0.45, upX + (hubX - upX) * 0.55, upY + (hubY + 0.1 - upY) * 0.55, upZ + (hubZ - upZ) * 0.55);
+    const hubX = sx * 1.62, hubY = 0.8, hubZ = sz * 1.0;
+    const upX = sx * 0.9, upY = 1.42, upZ = sz * 0.6;
+    partPlate('armS', upX, upY, upZ, hubX, hubY + 0.12, hubZ, 0.2, 0.16);
+    partPlate('armS', sx * 1.0, 0.68, sz * 0.75, sx * 1.6, 0.6, sz * 0.97, 0.18, 0.14);
+    partDisc('darkS', upX, upY, upZ, 0.17, 0.26, 1, 0, 0, 12);
+    partDisc('armS', upX, upY, upZ, 0.09, 0.3, 1, 0, 0, 10);
+    partDisc('darkS', hubX - sx * 0.1, hubY + 0.12, hubZ, 0.2, 0.24, 1, 0, 0, 12);
+    partDisc('darkS', sx * 1.0, 0.68, sz * 0.75, 0.14, 0.22, 1, 0, 0, 10);
+    const dx = hubX - upX, dy = hubY + 0.12 - upY, dz = hubZ - upZ;
+    const off = sz * 0.28;
+    const c1 = [upX + dx * 0.22, upY + dy * 0.22 + 0.05, upZ + dz * 0.22 + off];
+    const c2 = [upX + dx * 0.75, upY + dy * 0.75 + 0.05, upZ + dz * 0.75 + off];
+    partCoil('armS', c1[0], c1[1], c1[2], c2[0], c2[1], c2[2], 7, 0.16, 0.05);
+    partBeam('joint', c1[0], c1[1], c1[2], c2[0], c2[1], c2[2], 0.07);
+    partPiston(sx * 1.0, 0.95, sz * 0.45, upX + dx * 0.55, upY + dy * 0.55, upZ + dz * 0.55);
   });
-
-  // ---- Rear equipment ----
-  part(B, place(-0.55, 1.62, 0.55, 0, 0.15, 0), 'crate'); scaleLast('crate', 0.75, 0.6, 0.55);
-  part(B, place(0.5, 1.55, 0.6), 'mid'); scaleLast('mid', 0.45, 0.35, 0.4);
-  partDisc('joint', 0.78, 1.55, 0.3, 0.12, 0.35, 0, 1, 0, 8);
-  part(B, place(-0.45, 1.95, 0.62, -0.5, 0, 0.35), 'mid'); scaleLast('mid', 0.55, 0.75, 0.06);
-  partBeam('joint', -0.5, 1.5, 0.55, -0.45, 1.85, 0.62, 0.06);
 
   // ---- Copper cables ----
   const cable1 = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-0.95, 1.5, -0.35), new THREE.Vector3(-0.4, 1.18, -0.86),
-    new THREE.Vector3(0.4, 1.16, -0.86), new THREE.Vector3(0.95, 1.5, -0.35)
+    new THREE.Vector3(-0.95, 1.62, -0.35), new THREE.Vector3(-0.4, 1.5, -0.95),
+    new THREE.Vector3(0.4, 1.5, -0.95), new THREE.Vector3(0.95, 1.62, -0.35)
   ]);
-  part(new THREE.TubeGeometry(cable1, 16, 0.028, 5), new THREE.Matrix4(), 'copper');
-  const cable2 = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-0.8, 1.35, -0.6), new THREE.Vector3(0, 1.1, -0.98),
-    new THREE.Vector3(0.8, 1.35, -0.6)
-  ]);
-  part(new THREE.TubeGeometry(cable2, 16, 0.022, 5), new THREE.Matrix4(), 'copper');
+  part(new THREE.TubeGeometry(cable1, 16, 0.03, 5), new THREE.Matrix4(), 'copper');
   const cable3 = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0.3, 1.6, 0.5), new THREE.Vector3(0.5, 1.35, 0.8),
-    new THREE.Vector3(-0.2, 1.4, 0.85)
+    new THREE.Vector3(0.3, 1.6, 0.5), new THREE.Vector3(0.5, 1.5, 1.0),
+    new THREE.Vector3(-0.2, 1.5, 1.05)
   ]);
-  part(new THREE.TubeGeometry(cable3, 12, 0.02, 5), new THREE.Matrix4(), 'copper');
+  part(new THREE.TubeGeometry(cable3, 12, 0.022, 5), new THREE.Matrix4(), 'copper');
 
   // ---- Lights ----
-  partDisc('glow', -0.8, 0.92, -1.42, 0.1, 0.06, 0, 0.35, -1, 8);
-  partDisc('glow', 0.8, 0.92, -1.42, 0.1, 0.06, 0, 0.35, -1, 8);
-  partDisc('tail', -0.7, 1.02, 1.14, 0.09, 0.05, 0, 0, 1, 8);
-  partDisc('tail', 0.7, 1.02, 1.14, 0.09, 0.05, 0, 0, 1, 8);
+  partDisc('glow', -0.7, 0.9, -1.57, 0.11, 0.06, 0, 0.35, -1, 10);
+  partDisc('glow', 0.7, 0.9, -1.57, 0.11, 0.06, 0, 0.35, -1, 10);
+  partDisc('tail', -0.7, 1.05, 1.32, 0.09, 0.05, 0, 0, 1, 10);
+  partDisc('tail', 0.7, 1.05, 1.32, 0.09, 0.05, 0, 0, 1, 10);
 
   Object.keys(buckets).forEach(key => {
     const merged = mergeGeometries(buckets[key], false);
@@ -808,34 +825,39 @@ function initGame() {
 
   // ---- Wheels with DEEP treads for strong silhouette ----
   function buildWheelGeo() {
-    const rubberParts = [];
-    const rim = new THREE.CylinderGeometry(0.62, 0.62, 0.52, 14);
-    rim.rotateZ(Math.PI / 2);
-    rubberParts.push(rim);
-    for (let i = 0; i < 14; i++) {
-      const a = (i / 14) * Math.PI * 2;
-      const tread = new THREE.BoxGeometry(0.56, 0.2, 0.3);
+    const carcass = new THREE.CylinderGeometry(0.62, 0.62, 0.72, 20);
+    carcass.rotateZ(Math.PI / 2);
+    const tp = [];
+    const N = 18;
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2;
+      const tread = new RoundedBoxGeometry(0.76, 0.22, 0.3, 2, 0.05);
       const m = new THREE.Matrix4().makeRotationX(a);
-      m.setPosition(0, Math.cos(a) * 0.68, Math.sin(a) * 0.68);
+      m.setPosition(0, Math.cos(a) * 0.69, Math.sin(a) * 0.69);
       tread.applyMatrix4(m);
-      rubberParts.push(tread);
+      tp.push(tread);
     }
-    const rubberMerged = mergeGeometries(rubberParts, false);
-    const hub = new THREE.CylinderGeometry(0.3, 0.3, 0.58, 10);
-    hub.rotateZ(Math.PI / 2);
-    const cap = new THREE.CylinderGeometry(0.16, 0.16, 0.64, 8);
-    cap.rotateZ(Math.PI / 2);
-    const metalMerged = mergeGeometries([hub, cap], false);
-    return mergeGeometries([rubberMerged, metalMerged], true);
+    const treads = mergeGeometries(tp, false);
+    const hp = [];
+    const hub = new THREE.CylinderGeometry(0.4, 0.4, 0.82, 16); hub.rotateZ(Math.PI / 2); hp.push(hub);
+    const cap = new THREE.CylinderGeometry(0.2, 0.2, 0.9, 12); cap.rotateZ(Math.PI / 2); hp.push(cap);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const bolt = new THREE.CylinderGeometry(0.04, 0.04, 0.88, 6);
+      bolt.rotateZ(Math.PI / 2);
+      bolt.translate(0, Math.cos(a) * 0.3, Math.sin(a) * 0.3);
+      hp.push(bolt);
+    }
+    return mergeGeometries([carcass, treads, mergeGeometries(hp, false)], true);
   }
   const wheelGeo = buildWheelGeo();
   const wheels = [];
   wheelSlots.forEach(([sx, sz]) => {
-    const w = new THREE.Mesh(wheelGeo, [MATS.rubber, MATS.joint]);
-    w.position.set(sx * 1.5, 0.74, sz * 1.0);
+    const w = new THREE.Mesh(wheelGeo, [MATS.rubber, MATS.tread, MATS.armS]);
+    w.position.set(sx * 1.62, 0.74, sz * 1.0);
     w.castShadow = true;
     rover.add(w);
-    wheels.push({ mesh: w, baseY: 0.74, y: 0.74, phase: Math.random() * 6.28, lx: sx * 1.5, lz: sz * 1.0 });
+    wheels.push({ mesh: w, baseY: 0.74, y: 0.74, phase: Math.random() * 6.28, lx: sx * 1.62, lz: sz * 1.0 });
   });
 
   const headLight = new THREE.SpotLight(0xffeecc, 2.0, 18, Math.PI / 6, 0.35);
@@ -1084,7 +1106,7 @@ function initGame() {
     const accel = (velocity - prevVelocity) / Math.max(dt, 0.0001);
     prevVelocity = velocity;
     const pitchTarget = Math.atan2(hF - hB, 2.0) + THREE.MathUtils.clamp(-accel * 0.022, -0.11, 0.11);
-    const rollTarget = Math.atan2(hR - hL, 3.0) - steerSmooth * speedNorm * 0.10;
+    const rollTarget = Math.atan2(hR - hL, 3.24) - steerSmooth * speedNorm * 0.10;
     pitch = THREE.MathUtils.damp(pitch, pitchTarget, 7, dt);
     roll = THREE.MathUtils.damp(roll, rollTarget, 7, dt);
     rover.rotation.x = pitch;
