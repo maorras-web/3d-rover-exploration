@@ -669,6 +669,8 @@ function initGame() {
     dummy.updateMatrix();
     bushIM.setMatrixAt(i, dummy.matrix);
     bushIM.setColorAt(i, gCol.setHSL(0.22 + Math.random() * 0.07, 0.38 + Math.random() * 0.12, 0.26 + Math.random() * 0.10));
+    if (p.s >= 0.7) colliders.push({ x: p.x, z: p.z, r: p.s * 1.0 });
+    else smallRocks.push({ x: p.x, z: p.z, r: p.s * 1.1, h: p.s * 0.5 });
   });
   bushIM.count = bushPlans.length;
   bushIM.instanceMatrix.needsUpdate = true;
@@ -790,7 +792,7 @@ function initGame() {
     arm:    new THREE.MeshStandardMaterial({ color: 0xc9c4b6, metalness: 0.55, roughness: 0.40, flatShading: true, envMapIntensity: 1.0 }),
     joint:  new THREE.MeshStandardMaterial({ color: 0x5e584d, metalness: 0.60, roughness: 0.50, flatShading: true }),
     under:  new THREE.MeshStandardMaterial({ color: 0x3a352d, metalness: 0.30, roughness: 0.80, flatShading: true }),
-    rubber: new THREE.MeshStandardMaterial({ color: 0x4a423a, roughness: 0.9, flatShading: true }),
+    rubber: new THREE.MeshStandardMaterial({ color: 0x24211e, roughness: 0.9, flatShading: true }),
     dome:   new THREE.MeshStandardMaterial({ color: 0xa6c4d8, metalness: 0.05, roughness: 0.5, flatShading: true, envMapIntensity: 0.55 }),
     black:  new THREE.MeshStandardMaterial({ color: 0x141210, roughness: 0.70, flatShading: true }),
     copper: new THREE.MeshStandardMaterial({ color: 0x8a5a34, metalness: 0.30, roughness: 0.60, flatShading: true }),
@@ -805,7 +807,7 @@ function initGame() {
     tanS:  new THREE.MeshStandardMaterial({ color: 0xb5a488, metalness: 0.15, roughness: 0.60, flatShading: true }),
     armS:  new THREE.MeshStandardMaterial({ color: 0xcfcabb, metalness: 0.60, roughness: 0.35, envMapIntensity: 1.2, flatShading: true }),
     darkS: new THREE.MeshStandardMaterial({ color: 0x2a2723, metalness: 0.30, roughness: 0.65, flatShading: true }),
-    tread: new THREE.MeshStandardMaterial({ color: 0x625648, roughness: 0.85, flatShading: true })
+    tread: new THREE.MeshStandardMaterial({ color: 0x8c7f6d, roughness: 0.85, flatShading: true })
   };
 
   const buckets = {};
@@ -947,6 +949,7 @@ function initGame() {
 
   // ---- Suspension brackets: mounted ON the outside of the hull (never buried) ----
   // The arms and air springs themselves are dynamic (see updateSuspension) and follow each wheel.
+  const WHEEL_R = 0.84;     // outer radius of the tire incl. teeth
   const TRACK = 1.95;      // wheel centre distance from the body centre line (a bit wider so the suspension is visible)
   const CAP_TIP = TRACK - 0.45;   // inner end of each hub cap
   const wheelSlots = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
@@ -1018,22 +1021,42 @@ function initGame() {
     return mergeGeometries(list.map(g => (g.index ? g.toNonIndexed() : g)), groups);
   }
   function buildWheelGeo() {
-    const carcass = new THREE.CylinderGeometry(0.64, 0.64, 0.72, 14);
+    const carcass = new THREE.CylinderGeometry(0.62, 0.62, 0.74, 18);
     carcass.rotateZ(Math.PI / 2);
+    // Grip teeth: two staggered rows of angled (herringbone) lugs + knobs on both sidewalls
     const tp = [];
-    const N = 12;
+    const N = 14;
     for (let i = 0; i < N; i++) {
-      const a = (i / N) * Math.PI * 2;
-      const tread = new RoundedBoxGeometry(0.78, 0.2, 0.5, 1, 0.05);
-      const m = new THREE.Matrix4().makeRotationX(a);
-      m.setPosition(0, Math.cos(a) * 0.72, Math.sin(a) * 0.72);
-      tread.applyMatrix4(m);
-      tp.push(tread);
+      for (let row = 0; row < 2; row++) {
+        const a = ((i + row * 0.5) / N) * Math.PI * 2;
+        const sgn = row === 0 ? 1 : -1;
+        const lug = new RoundedBoxGeometry(0.34, 0.28, 0.3, 1, 0.04);
+        lug.rotateY(sgn * 0.45);
+        lug.translate(sgn * 0.19, 0.72, 0);
+        lug.applyMatrix4(new THREE.Matrix4().makeRotationX(a));
+        tp.push(lug);
+      }
+    }
+    for (let i = 0; i < 10; i++) {
+      for (let s = 0; s < 2; s++) {
+        const sgn = s === 0 ? 1 : -1;
+        const a = ((i + s * 0.5) / 10) * Math.PI * 2;
+        const knob = new RoundedBoxGeometry(0.09, 0.24, 0.22, 1, 0.03);
+        knob.translate(sgn * 0.385, 0.5, 0);
+        knob.applyMatrix4(new THREE.Matrix4().makeRotationX(a));
+        tp.push(knob);
+      }
     }
     const treads = mergeGeometries(tp, false);
     const hp = [];
-    const hub = new THREE.CylinderGeometry(0.4, 0.4, 0.82, 8); hub.rotateZ(Math.PI / 2); hp.push(hub);
+    const hub = new THREE.CylinderGeometry(0.4, 0.4, 0.82, 10); hub.rotateZ(Math.PI / 2); hp.push(hub);
     const cap = new THREE.CylinderGeometry(0.2, 0.2, 0.9, 8); cap.rotateZ(Math.PI / 2); hp.push(cap);
+    for (let s = 0; s < 2; s++) {
+      const ring = new THREE.TorusGeometry(0.47, 0.045, 6, 18);
+      ring.rotateY(Math.PI / 2);
+      ring.translate((s === 0 ? 1 : -1) * 0.385, 0, 0);
+      hp.push(ring);
+    }
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
       const bolt = new THREE.CylinderGeometry(0.04, 0.04, 0.88, 5);
@@ -1608,7 +1631,14 @@ function initGame() {
       const w = wheels[i];
       const wx = rx + w.lx * cosR + w.lz * sinR;
       const wz = rz - w.lx * sinR + w.lz * cosR;
-      hw[i] = driveHeight(wx, wz);
+      // a wheel is a circle: it rests on the highest point of its rim, so it never sinks on slopes
+      let top = -Infinity;
+      for (let k = -2; k <= 2; k++) {
+        const d = k * 0.3;
+        const gh = driveHeight(wx - sinR * d, wz - cosR * d) + Math.sqrt(WHEEL_R * WHEEL_R - d * d);
+        if (gh > top) top = gh;
+      }
+      hw[i] = top - WHEEL_R;
       if (w.lz < 0) hF += hw[i]; else hB += hw[i];
       if (w.lx > 0) hR += hw[i]; else hL += hw[i];
     }
@@ -1616,14 +1646,14 @@ function initGame() {
     const bodyH = (hF + hB) * 0.5;
 
     // Body height follows average of wheels (smoothed)
-    rover.position.y += (bodyH + 0.04 - rover.position.y) * 0.25;
+    rover.position.y = THREE.MathUtils.damp(rover.position.y, bodyH + 0.04, 16, dt);
     if (spd > 0.5) rover.position.y += Math.abs(Math.sin(t * 11)) * 0.015 * speedNorm;
 
     // Body attitude from the 4 contact points + accel pitch + turn bank
     const accel = (velocity - prevVelocity) / Math.max(dt, 0.0001);
     prevVelocity = velocity;
     const pitchTarget = Math.atan2(hF - hB, 2.0) + THREE.MathUtils.clamp(-accel * 0.022, -0.11, 0.11);
-    const rollTarget = Math.atan2(hR - hL, 3.24) - steerSmooth * speedNorm * 0.10;
+    const rollTarget = Math.atan2(hR - hL, 2 * TRACK) - steerSmooth * speedNorm * 0.10;
     pitch = THREE.MathUtils.damp(pitch, pitchTarget, 7, dt);
     roll = THREE.MathUtils.damp(roll, rollTarget, 7, dt);
     rover.rotation.x = pitch;
@@ -1647,7 +1677,7 @@ function initGame() {
     // Each wheel travels independently (visible suspension compression)
     for (let i = 0; i < 4; i++) {
       const w = wheels[i];
-      const wantY = THREE.MathUtils.clamp(hw[i] + 0.74 - rover.position.y, 0.74 - 0.22, 0.74 + 0.22);
+      const wantY = THREE.MathUtils.clamp(hw[i] + WHEEL_R - rover.position.y, 0.62, 1.06);
       w.y = THREE.MathUtils.damp(w.y, wantY, 12, dt);
       w.mesh.rotation.x = wheelSpin;
       if (w.lz < 0) {            // front wheels visibly steer
