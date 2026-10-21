@@ -73,7 +73,7 @@ function initGame() {
   const HALF = WORLD_SIZE / 2;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0xe9c9a2, 0.0065);
+  scene.fog = new THREE.FogExp2(0xe9c9a2, 0.0050);
 
   const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 600);
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -98,12 +98,12 @@ function initGame() {
       void main(){
         vec4 c = texture2D(tDiffuse, vUv);
         float g = dot(c.rgb, vec3(0.299,0.587,0.114));
-        c.rgb = mix(vec3(g), c.rgb, 0.90);
-        c.rgb = (c.rgb - 0.5) * 1.05 + 0.5;
-        c.r *= 1.04; c.g *= 1.01; c.b *= 0.96;
+        c.rgb = mix(vec3(g), c.rgb, 1.14);
+        c.rgb = (c.rgb - 0.5) * 1.08 + 0.5;
+        c.r *= 1.05; c.g *= 1.02; c.b *= 0.95;
         vec2 q = vUv - 0.5;
         float vig = smoothstep(0.9, 0.3, length(q) * 1.35);
-        c.rgb *= mix(0.80, 1.0, vig);
+        c.rgb *= mix(0.87, 1.0, vig);
         gl_FragColor = c;
       }`
   }));
@@ -113,7 +113,10 @@ function initGame() {
     zenith: { value: new THREE.Color(0x8fc4e8) },
     horizon: { value: new THREE.Color(0xf6dcb4) },
     sunDir: { value: new THREE.Vector3(0.4, 0.5, 0.3).normalize() },
-    sunColor: { value: new THREE.Color(0xffd9a0) }
+    sunColor: { value: new THREE.Color(0xffd9a0) },
+    cloudCol: { value: new THREE.Color(0xffffff) },
+    cloudAmt: { value: 1.0 },
+    uT: { value: 0 }
   };
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(400, 24, 12),
@@ -122,12 +125,23 @@ function initGame() {
       vertexShader: 'varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
       fragmentShader: `
         uniform vec3 zenith; uniform vec3 horizon; uniform vec3 sunDir; uniform vec3 sunColor;
+        uniform vec3 cloudCol; uniform float cloudAmt; uniform float uT;
+        float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y); }
+        float fbm2(vec2 p){ float s = 0.0; float a = 0.5; for (int i = 0; i < 4; i++) { s += a * vn(p); p *= 2.03; a *= 0.5; } return s; }
         varying vec3 vDir;
         void main(){
           vec3 d = normalize(vDir);
           vec3 col = mix(horizon, zenith, pow(clamp(d.y, 0.0, 1.0), 0.55));
           float s = max(dot(d, normalize(sunDir)), 0.0);
           col += sunColor * (pow(s, 240.0) * 1.4 + pow(s, 10.0) * 0.45);
+          vec2 cuv = d.xz / (d.y + 0.25) * 1.3 + vec2(uT * 0.008, 0.0);
+          float cl = smoothstep(0.50, 0.74, fbm2(cuv));
+          cl = floor(cl * 3.0 + 0.5) / 3.0;
+          cl *= smoothstep(0.03, 0.25, d.y) * cloudAmt;
+          vec3 cc = cloudCol + sunColor * pow(s, 5.0) * 0.45;
+          col = mix(col, cc, cl * 0.85);
           gl_FragColor = vec4(col, 1.0);
         }`
     })
@@ -286,9 +300,9 @@ function initGame() {
       let R, G, Bc, A = 0;
       if (pmk > 0.5) {
         const d = Math.abs(x - pathCenter(z));
-        let sh = 0.8 + Math.floor(smoothNoise(x, z, 3) * 4) / 4 * 0.35 + (n - 0.5) * 0.12;
+        let sh = 0.92 + Math.floor(smoothNoise(x, z, 3) * 4) / 4 * 0.22 + (n - 0.5) * 0.10;
         if (Math.abs(d - 0.85) < 0.28) sh *= 0.74;
-        R = lin(158 * sh); G = lin(116 * sh); Bc = lin(72 * sh);
+        R = lin(172 * sh); G = lin(128 * sh); Bc = lin(80 * sh);
         if (n > 0.985) { R = lin(180); G = lin(165); Bc = lin(145); }
         A = 255;
       } else {
@@ -324,8 +338,8 @@ function initGame() {
   function makeBladeGeo(h, w, bend) {
     const segs = 4;
     const positions = [], normals = [], uvs = [], vcols = [], indices = [];
-    const baseCol = new THREE.Color(0x3a5424);
-    const tipCol = new THREE.Color(0x9aae4c);
+    const baseCol = new THREE.Color(0x46682a);
+    const tipCol = new THREE.Color(0xb9cc5c);
     for (let i = 0; i <= segs; i++) {
       const t = i / segs;
       const y = h * t;
@@ -385,7 +399,7 @@ function initGame() {
     );
   };
 
-  const GRASS = 7000;
+  const GRASS = 8500;
   const grassMesh = new THREE.InstancedMesh(tuftGeo, grassMat, GRASS);
   grassMesh.receiveShadow = true;
   const dummy = new THREE.Object3D();
@@ -401,7 +415,7 @@ function initGame() {
     dummy.updateMatrix();
     grassMesh.setMatrixAt(gi, dummy.matrix);
     const t = Math.random();
-    gCol.setRGB(0.80 + t * 0.25, 0.85 + t * 0.20, 0.75 + t * 0.25);
+    if (Math.random() < 0.14) gCol.setRGB(1.18, 1.05, 0.62); else gCol.setRGB(0.84 + t * 0.25, 0.90 + t * 0.20, 0.76 + t * 0.25);
     grassMesh.setColorAt(gi, gCol);
     gi++;
   }
@@ -460,7 +474,7 @@ function initGame() {
     if (Math.sqrt(x * x + z * z) < 6) continue;
     rockPlans.push({ x, z, s: 0.4 + Math.random() * 1.4 });
   }
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 90; i++) {
     const z = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
     const x = pathCenter(z) + (Math.random() > 0.5 ? 1 : -1) * (2.6 + Math.random() * 1.6);
     rockPlans.push({ x, z, s: 0.15 + Math.random() * 0.3 });
@@ -478,7 +492,7 @@ function initGame() {
     dummy.scale.set(p.s, p.s * (0.55 + Math.random() * 0.3), p.s * (0.8 + Math.random() * 0.4));
     dummy.updateMatrix();
     rockIM.setMatrixAt(i, dummy.matrix);
-    const shade = 0.55 + Math.random() * 0.3;
+    const shade = 0.66 + Math.random() * 0.3;
     rockIM.setColorAt(i, gCol.setRGB(shade, shade * 0.97, shade * 0.92));
     if (p.s >= 1.0) colliders.push({ x: p.x, z: p.z, r: 0.7 * p.s });
     else smallRocks.push({ x: p.x, z: p.z, r: p.s * 0.9, h: p.s * 0.55 });
@@ -973,7 +987,7 @@ function initGame() {
   const keys = { forward: false, backward: false, left: false, right: false };
   document.querySelectorAll('.ctrl-round').forEach(btn => {
     const key = btn.dataset.key;
-    const on = (e) => { if (e) e.preventDefault(); keys[key] = true; btn.classList.add('active'); autoFS(); };
+    const on = (e) => { if (e) e.preventDefault(); keys[key] = true; btn.classList.add('active'); autoFS(); initAudio(); };
     const off = (e) => { if (e) e.preventDefault(); keys[key] = false; btn.classList.remove('active'); };
     btn.addEventListener('touchstart', on, { passive: false });
     btn.addEventListener('touchend', off, { passive: false });
@@ -994,6 +1008,166 @@ function initGame() {
     if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
     if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
   });
+
+  // ============ Sound (synthesized in the browser, no audio files needed) ============
+  const sunGlowEl = document.getElementById('sun-glow');
+  let actx = null, master = null, soundOn = true, noiseBuf = null, eng = null, lastThud = 0;
+  function initAudio() {
+    if (actx) { if (actx.state === 'suspended' && soundOn) actx.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try {
+      actx = new AC();
+      master = actx.createGain();
+      master.gain.value = soundOn ? 0.9 : 0;
+      const comp = actx.createDynamicsCompressor();
+      master.connect(comp); comp.connect(actx.destination);
+
+      const len = Math.floor(actx.sampleRate * 2);
+      noiseBuf = actx.createBuffer(1, len, actx.sampleRate);
+      const nd = noiseBuf.getChannelData(0);
+      for (let i = 0; i < len; i++) nd[i] = Math.random() * 2 - 1;
+
+      // Motor: saw + sub square through a low-pass filter, plus a thin electric whine
+      const bus = actx.createGain(); bus.gain.value = 0.0;
+      const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 400; lp.Q.value = 0.9;
+      const o1 = actx.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = 60;
+      const o2 = actx.createOscillator(); o2.type = 'square'; o2.frequency.value = 30;
+      const g2 = actx.createGain(); g2.gain.value = 0.55;
+      o1.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(bus); bus.connect(master);
+      const o3 = actx.createOscillator(); o3.type = 'triangle'; o3.frequency.value = 240;
+      const whine = actx.createGain(); whine.gain.value = 0;
+      o3.connect(whine); whine.connect(master);
+      // engine "pulse"
+      const lfo = actx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 8;
+      const lfoG = actx.createGain(); lfoG.gain.value = 0.035;
+      lfo.connect(lfoG); lfoG.connect(bus.gain);
+      o1.start(); o2.start(); o3.start(); lfo.start();
+
+      // Wheels on ground (gravel on the trail, swish on grass)
+      const ns = actx.createBufferSource(); ns.buffer = noiseBuf; ns.loop = true;
+      const nf = actx.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 500; nf.Q.value = 0.7;
+      const ng = actx.createGain(); ng.gain.value = 0;
+      ns.connect(nf); nf.connect(ng); ng.connect(master); ns.start();
+
+      // Soft wind ambience
+      const ws = actx.createBufferSource(); ws.buffer = noiseBuf; ws.loop = true; ws.playbackRate.value = 0.6;
+      const wf = actx.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 420;
+      const wg = actx.createGain(); wg.gain.value = 0.05;
+      const wl = actx.createOscillator(); wl.frequency.value = 0.15;
+      const wlg = actx.createGain(); wlg.gain.value = 0.025;
+      wl.connect(wlg); wlg.connect(wg.gain); wl.start();
+      ws.connect(wf); wf.connect(wg); wg.connect(master); ws.start();
+
+      eng = { bus, lp, o1, o2, o3, whine, lfo, nf, ng };
+      if (actx.state === 'suspended') actx.resume();
+    } catch (e) { actx = null; }
+  }
+  ['touchend', 'pointerup', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, initAudio, true));
+  document.addEventListener('visibilitychange', () => {
+    if (!actx) return;
+    if (document.hidden) actx.suspend(); else if (soundOn) actx.resume();
+  });
+  const btnSound = document.getElementById('btn-sound');
+  if (btnSound) btnSound.addEventListener('click', () => {
+    soundOn = !soundOn;
+    btnSound.textContent = soundOn ? '🔊' : '🔇';
+    initAudio();
+    if (master) master.gain.setTargetAtTime(soundOn ? 0.9 : 0, actx.currentTime, 0.05);
+    if (actx && soundOn && actx.state === 'suspended') actx.resume();
+  });
+  function updateAudio(speedNorm, throttle, onPath) {
+    if (!actx || !eng || actx.state !== 'running') return;
+    const t0 = actx.currentTime;
+    const rpm = 0.15 + speedNorm * 0.85 + (throttle ? 0.05 : 0);
+    eng.o1.frequency.setTargetAtTime(55 + rpm * 120, t0, 0.07);
+    eng.o2.frequency.setTargetAtTime(27 + rpm * 60, t0, 0.07);
+    eng.o3.frequency.setTargetAtTime(220 + rpm * 620, t0, 0.07);
+    eng.lp.frequency.setTargetAtTime(330 + rpm * 900 + (throttle ? 150 : 0), t0, 0.1);
+    eng.bus.gain.setTargetAtTime(0.10 + rpm * 0.17 + (throttle ? 0.04 : 0), t0, 0.1);
+    eng.whine.gain.setTargetAtTime(speedNorm * 0.02, t0, 0.1);
+    eng.lfo.frequency.setTargetAtTime(7 + rpm * 26, t0, 0.1);
+    eng.nf.frequency.setTargetAtTime(onPath ? 750 + speedNorm * 900 : 380 + speedNorm * 320, t0, 0.15);
+    eng.ng.gain.setTargetAtTime(speedNorm * (onPath ? 0.22 : 0.11), t0, 0.12);
+  }
+  function thud(strength) {
+    if (!actx || actx.state !== 'running' || !soundOn) return;
+    const now = actx.currentTime;
+    if (now - lastThud < 0.25) return;
+    lastThud = now;
+    const s = actx.createBufferSource(); s.buffer = noiseBuf;
+    const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 220;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.5 * Math.min(1, 0.4 + strength), now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+    s.connect(f); f.connect(g); g.connect(master);
+    s.start(now); s.stop(now + 0.3);
+  }
+
+  // ============ Dust kicked up by the wheels ============
+  const DUST_N = 80;
+  const dustPos = new Float32Array(DUST_N * 3), dustLife = new Float32Array(DUST_N), dustSize = new Float32Array(DUST_N);
+  const dustVel = new Float32Array(DUST_N * 3);
+  const dustGeo = new THREE.BufferGeometry();
+  dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+  dustGeo.setAttribute('aLife', new THREE.BufferAttribute(dustLife, 1));
+  dustGeo.setAttribute('aSize', new THREE.BufferAttribute(dustSize, 1));
+  const dustMat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false,
+    uniforms: { uCol: { value: new THREE.Color(0xc9a678) }, uPR: { value: 1 } },
+    vertexShader: `
+      attribute float aLife; attribute float aSize; uniform float uPR; varying float vA;
+      void main(){
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = aSize * (1.0 + (1.0 - aLife) * 1.8) * (260.0 / max(0.5, -mv.z)) * uPR;
+        vA = aLife;
+      }`,
+    fragmentShader: `
+      uniform vec3 uCol; varying float vA;
+      void main(){
+        float d = length(gl_PointCoord - 0.5);
+        if (d > 0.5) discard;
+        gl_FragColor = vec4(uCol, smoothstep(0.5, 0.05, d) * vA * 0.38);
+      }`
+  });
+  const dust = new THREE.Points(dustGeo, dustMat);
+  dust.frustumCulled = false;
+  scene.add(dust);
+  let dustNext = 0, dustAcc = 0;
+  const dustTrail = new THREE.Color(0xc9a678), dustGrass = new THREE.Color(0x9fb06a);
+  function updateDust(dt, spd, rx, rz, cosR, sinR, onPath) {
+    dustMat.uniforms.uPR.value = renderer.getPixelRatio();
+    dustMat.uniforms.uCol.value.lerp(onPath ? dustTrail : dustGrass, 0.1);
+    if (spd > 1.2) {
+      dustAcc += spd * dt * 5;
+      while (dustAcc >= 1) {
+        dustAcc -= 1;
+        const i = dustNext; dustNext = (dustNext + 1) % DUST_N;
+        const sx = Math.random() < 0.5 ? -1 : 1;
+        const lx = sx * 1.95, lz = 1.0;
+        const wx = rx + lx * cosR + lz * sinR + (Math.random() - 0.5) * 0.4;
+        const wz = rz - lx * sinR + lz * cosR + (Math.random() - 0.5) * 0.4;
+        dustPos[i * 3] = wx; dustPos[i * 3 + 1] = getGroundHeight(wx, wz) + 0.15; dustPos[i * 3 + 2] = wz;
+        dustVel[i * 3] = (Math.random() - 0.5) * 0.6 + sinR * spd * 0.12;
+        dustVel[i * 3 + 1] = 0.5 + Math.random() * 0.7;
+        dustVel[i * 3 + 2] = (Math.random() - 0.5) * 0.6 + cosR * spd * 0.12;
+        dustLife[i] = 1; dustSize[i] = 0.5 + Math.random() * 0.5;
+      }
+    }
+    for (let i = 0; i < DUST_N; i++) {
+      if (dustLife[i] <= 0) continue;
+      dustLife[i] -= dt * 1.1;
+      if (dustLife[i] < 0) dustLife[i] = 0;
+      dustPos[i * 3] += dustVel[i * 3] * dt;
+      dustPos[i * 3 + 1] += dustVel[i * 3 + 1] * dt;
+      dustPos[i * 3 + 2] += dustVel[i * 3 + 2] * dt;
+      dustVel[i * 3 + 1] *= 0.97;
+    }
+    dustGeo.attributes.position.needsUpdate = true;
+    dustGeo.attributes.aLife.needsUpdate = true;
+    dustGeo.attributes.aSize.needsUpdate = true;
+  }
 
   // ============ Minimap ============
   const mmCanvas = document.getElementById('minimap-canvas');
@@ -1046,7 +1220,7 @@ function initGame() {
 
   // ============ Day-night ============
   let gameTime = 0.07;
-  const zenDay = new THREE.Color(0x9cc8e4), horDay = new THREE.Color(0xf4dfb8);
+  const zenDay = new THREE.Color(0x6fb2e6), horDay = new THREE.Color(0xf6e2b8);
   const zenDusk = new THREE.Color(0x4a3a6a), horDusk = new THREE.Color(0xff9a5a);
   const zenNight = new THREE.Color(0x070c22), horNight = new THREE.Color(0x141a34);
   const tmpA = new THREE.Color(), tmpB = new THREE.Color();
@@ -1070,6 +1244,9 @@ function initGame() {
     skyUniforms.horizon.value.copy(tmpB);
 
     scene.fog.color.copy(skyUniforms.horizon.value);
+    skyUniforms.cloudAmt.value = 0.15 + day * 0.85;
+    skyUniforms.cloudCol.value.setRGB(0.25 + dusk * 0.55 + day * 0.2, 0.25 + dusk * 0.30 + day * 0.7, 0.35 + dusk * 0.20 + day * 0.65);
+    if (sunGlowEl) sunGlowEl.style.opacity = (day * 0.95).toFixed(2);
     sunLight.intensity = 0.4 + day * 2.2 + dusk * 0.6;
     sunLight.color.setRGB(1.0, 0.75 + day * 0.15, 0.55 + day * 0.25);
     ambientLight.intensity = 0.15 + day * 0.3;
@@ -1141,6 +1318,7 @@ function initGame() {
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
     uTime.value = t;
+    skyUniforms.uT.value = t;
 
     // ---- Throttle ----
     const target = keys.forward ? maxSpeed : (keys.backward ? -maxSpeed * 0.5 : 0);
@@ -1182,7 +1360,7 @@ function initGame() {
         hit = true;
       }
     }
-    if (hit && spd > 2) velocity *= 0.7;
+    if (hit && spd > 2) { velocity *= 0.7; thud(speedNorm); }
 
     // ---- TRUE 3D SUSPENSION: sample ground under EACH wheel ----
     const rx = rover.position.x, rz = rover.position.z;
@@ -1230,6 +1408,9 @@ function initGame() {
     rover.position.z = THREE.MathUtils.clamp(rover.position.z, -limit, limit);
 
     MATS.tail.emissiveIntensity = (velocity < -0.2 || hit) ? 2.6 : 0.9;
+    const onPathNow = pathMask(rx, rz) > 0.35;
+    updateAudio(speedNorm, keys.forward || keys.backward, onPathNow);
+    updateDust(dt, spd, rx, rz, cosR, sinR, onPathNow);
 
     const biomeTxt = getBiomeName(rx, rz);
     if (biomeTxt !== lastBiomeText) {

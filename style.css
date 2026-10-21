@@ -243,3 +243,19 @@ html, body {
   cursor: pointer;
 }
 .cam-btn:active { background: rgba(126,240,255,0.45); transform: scale(0.9); }
+
+/* ===== Warm sun glow + light rays (like the target picture) ===== */
+#sun-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0.9;
+  background:
+    radial-gradient(ellipse 70% 60% at 88% -8%, rgba(255, 226, 150, 0.40), rgba(255, 226, 150, 0) 70%),
+    conic-gradient(from 195deg at 90% -12%,
+      rgba(255,230,170,0) 0deg, rgba(255,232,175,0.12) 5deg, rgba(255,230,170,0) 10deg,
+      rgba(255,230,170,0) 14deg, rgba(255,232,175,0.09) 19deg, rgba(255,230,170,0) 24deg,
+      rgba(255,230,170,0) 30deg, rgba(255,232,175,0.10) 35deg, rgba(255,230,170,0) 40deg,
+      rgba(255,230,170,0) 360deg);
+}
