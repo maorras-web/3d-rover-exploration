@@ -192,6 +192,15 @@ function initGame() {
     return 1 - THREE.MathUtils.smoothstep(d, 1.6, 3.4);
   }
 
+  // ============ Standing-stones hill (part of the terrain) ============
+  const POI_X = 10, POI_Z = -72;
+  function moundH(x, z) {
+    const d2 = ((x - POI_X) * (x - POI_X) + (z - POI_Z) * (z - POI_Z)) / (12 * 12);
+    if (d2 >= 1) return 0;
+    const t = 1 - d2;
+    return 3.2 * t * t;
+  }
+
   // ============ Unified height grid ============
   const GSEG = 110;
   const GCELL = WORLD_SIZE / GSEG;
@@ -200,7 +209,7 @@ function initGame() {
     for (let ix = 0; ix <= GSEG; ix++) {
       const x = -HALF + ix * GCELL;
       const z = -HALF + iz * GCELL;
-      HGRID[iz * (GSEG + 1) + ix] = fbm(x, z) * 3.5 - 1.75 - pathMask(x, z) * 0.15;
+      HGRID[iz * (GSEG + 1) + ix] = fbm(x, z) * 3.5 - 1.75 - pathMask(x, z) * 0.15 + moundH(x, z);
     }
   }
   function getGroundHeight(x, z) {
@@ -411,6 +420,20 @@ function initGame() {
 
   // ============ Colliders ============
   const colliders = [];
+  const smallRocks = [];
+  function driveHeight(x, z) {
+    let bump = 0;
+    for (let i = 0; i < smallRocks.length; i++) {
+      const s = smallRocks[i];
+      const dx = x - s.x, dz = z - s.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < s.r * s.r) {
+        const bmp = s.h * (1 - d2 / (s.r * s.r));
+        if (bmp > bump) bump = bmp;
+      }
+    }
+    return getGroundHeight(x, z) + bump;
+  }
 
   // ============ Rocks ============
   const rockPlans = [];
@@ -440,7 +463,8 @@ function initGame() {
     rockIM.setMatrixAt(i, dummy.matrix);
     const shade = 0.55 + Math.random() * 0.3;
     rockIM.setColorAt(i, gCol.setRGB(shade, shade * 0.97, shade * 0.92));
-    colliders.push({ x: p.x, z: p.z, r: 0.7 * p.s });
+    if (p.s >= 1.0) colliders.push({ x: p.x, z: p.z, r: 0.7 * p.s });
+    else smallRocks.push({ x: p.x, z: p.z, r: p.s * 0.9, h: p.s * 0.55 });
   });
   rockIM.instanceMatrix.needsUpdate = true;
   if (rockIM.instanceColor) rockIM.instanceColor.needsUpdate = true;
@@ -569,30 +593,23 @@ function initGame() {
   addHills(12, 215, 50, 72, 18, 28, 0x86a07a);
 
   // ============ Standing stones (the POI) ============
-  const POI_X = 10, POI_Z = -72;
   const poiGround = getGroundHeight(POI_X, POI_Z);
-  const mound = new THREE.Mesh(new THREE.SphereGeometry(1, 9, 5),
-    new THREE.MeshStandardMaterial({ color: 0x5f8f3a, roughness: 1, flatShading: true }));
-  mound.position.set(POI_X, poiGround - 0.4, POI_Z);
-  mound.scale.set(10, 2.2, 10);
-  mound.receiveShadow = true;
-  scene.add(mound);
   const stoneMat = new THREE.MeshStandardMaterial({ color: 0xb7ae9c, roughness: 0.95, flatShading: true });
   const STONES = 7;
   for (let k = 0; k < STONES; k++) {
     if (k === 3) continue;
     const ang = (k / STONES) * Math.PI * 2;
     const sx = POI_X + Math.cos(ang) * 5, sz = POI_Z + Math.sin(ang) * 5;
-    const sh = 4 + Math.random() * 2.5;
+    const sh = k === 0 ? 5 : 4 + Math.random() * 2.5;
     const stone = new THREE.Mesh(new THREE.BoxGeometry(1.2, sh, 0.8), stoneMat);
-    stone.position.set(sx, poiGround + 1.3 + sh / 2, sz);
+    stone.position.set(sx, getGroundHeight(sx, sz) - 0.3 + sh / 2, sz);
     stone.rotation.set((Math.random() - 0.5) * 0.12, -ang + Math.PI / 2, (Math.random() - 0.5) * 0.12);
     stone.castShadow = true;
     scene.add(stone);
     colliders.push({ x: sx, z: sz, r: 0.8 });
   }
   const lintel = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.8, 1.0), stoneMat);
-  lintel.position.set(POI_X + 5, poiGround + 1.3 + 5.4, POI_Z);
+  lintel.position.set(POI_X + 5, getGroundHeight(POI_X + 5, POI_Z) - 0.3 + 5.4, POI_Z);
   lintel.rotation.y = Math.PI / 2;
   lintel.castShadow = true;
   scene.add(lintel);
@@ -975,6 +992,11 @@ function initGame() {
   let camYaw = 0;               // independent smoothed camera yaw
   let wheelSpin = 0, pitch = 0, roll = 0;
   let perfFrames = 0, perfAcc = 0;
+  let camMode = 0, camZoom = 1;   // 0 = behind the rover, 1 = front (like the picture)
+  const btnCamView = document.getElementById('cam-view');
+  btnCamView.addEventListener('click', () => { camMode = 1 - camMode; btnCamView.textContent = camMode ? '🚗' : '🎥'; });
+  document.getElementById('cam-in').addEventListener('click', () => { camZoom = Math.max(0.55, camZoom / 1.2); });
+  document.getElementById('cam-out').addEventListener('click', () => { camZoom = Math.min(2.4, camZoom * 1.2); });
 
   const _camPos = new THREE.Vector3();
   const _look = new THREE.Vector3();
@@ -1047,7 +1069,7 @@ function initGame() {
       const w = wheels[i];
       const wx = rx + w.lx * cosR + w.lz * sinR;
       const wz = rz - w.lx * sinR + w.lz * cosR;
-      hw[i] = getGroundHeight(wx, wz);
+      hw[i] = driveHeight(wx, wz);
       if (w.lz < 0) hF += hw[i]; else hB += hw[i];
       if (w.lx > 0) hR += hw[i]; else hL += hw[i];
     }
@@ -1096,12 +1118,21 @@ function initGame() {
     const cfX = -Math.sin(camYaw), cfZ = -Math.cos(camYaw);
 
     sky.position.copy(camera.position);
-    const camDist = 7.0 + spd * 0.14;
-    const camH = 3.2 + spd * 0.06;
-    _camPos.set(rx - cfX * camDist, rover.position.y + camH, rz - cfZ * camDist);
+    if (camMode === 0) {
+      const camDist = (5.6 + spd * 0.14) * camZoom;
+      const camH = (2.4 + spd * 0.05) * camZoom;
+      _camPos.set(rx - cfX * camDist, rover.position.y + camH, rz - cfZ * camDist);
+      const lookAhead = 2.2 + spd * 0.25;
+      _look.set(rx + cfX * lookAhead, rover.position.y + 1.3, rz + cfZ * lookAhead);
+    } else {
+      const camDist = (5.8 + spd * 0.1) * camZoom;
+      const camH = 1.5 * camZoom;
+      _camPos.set(rx + cfX * camDist, rover.position.y + camH, rz + cfZ * camDist);
+      _look.set(rx, rover.position.y + 1.2, rz);
+    }
     camera.position.lerp(_camPos, 1 - Math.exp(-4.5 * dt));
-    const lookAhead = 2.2 + spd * 0.25;
-    _look.set(rx + cfX * lookAhead, rover.position.y + 1.3, rz + cfZ * lookAhead);
+    const camGround = getGroundHeight(camera.position.x, camera.position.z) + 0.7;
+    if (camera.position.y < camGround) camera.position.y = camGround;
     camera.lookAt(_look);
     const targetFov = 58 + spd * 1.1;
     if (Math.abs(camera.fov - targetFov) > 0.05) {
