@@ -784,8 +784,8 @@ function initGame() {
   part(new THREE.TorusGeometry(0.85, 0.08, 8, 16), place(0, 1.56, 0, Math.PI / 2, 0, 0), 'tanS');
   part(new THREE.BoxGeometry(0.42, 0.08, 0.05), place(-0.3, 1.69, -0.78, -0.2, 0.37, 0), 'black');
   part(new THREE.BoxGeometry(0.42, 0.08, 0.05), place(0.3, 1.69, -0.78, -0.2, -0.37, 0), 'black');
-  partDisc('joint', 0, 2.06, -0.66, 0.17, 0.03, 0, 0.82, -0.9, 10);
-  partDisc('light', 0, 2.07, -0.675, 0.09, 0.03, 0, 0.82, -0.9, 8);
+  partDisc('joint', 0, 2.07, -0.675, 0.17, 0.03, 0, 0.82, -0.9, 10);
+  partDisc('light', 0, 2.08, -0.69, 0.09, 0.03, 0, 0.82, -0.9, 8);
 
   // ---- Side sensor pods (tan housing, grille top, lens) ----
   [-1, 1].forEach(side => {
@@ -810,24 +810,15 @@ function initGame() {
   partBeam('joint', -0.35, 2.04, 0.5, -0.35, 2.25, 0.5, 0.05);
   partDisc('armS', -0.35, 2.3, 0.5, 0.26, 0.04, 0.2, 1, -0.5, 14);
 
-  // ---- Suspension: plate arms, joints, coil springs, hydraulic pistons ----
+  // ---- Suspension brackets: mounted ON the outside of the hull (never buried) ----
+  // The arms and air springs themselves are dynamic (see updateSuspension) and follow each wheel.
+  const TRACK = 1.95;      // wheel centre distance from the body centre line (a bit wider so the suspension is visible)
+  const CAP_TIP = TRACK - 0.45;   // inner end of each hub cap
   const wheelSlots = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
   wheelSlots.forEach(([sx, sz]) => {
-    const hubX = sx * 1.62, hubY = 0.8, hubZ = sz * 1.0;
-    const upX = sx * 0.9, upY = 1.42, upZ = sz * 0.6;
-    partPlate('armS', upX, upY, upZ, hubX, hubY + 0.12, hubZ, 0.2, 0.16);
-    partPlate('armS', sx * 1.0, 0.68, sz * 0.75, sx * 1.6, 0.6, sz * 0.97, 0.18, 0.14);
-    partDisc('darkS', upX, upY, upZ, 0.17, 0.26, 1, 0, 0, 12);
-    partDisc('armS', upX, upY, upZ, 0.09, 0.3, 1, 0, 0, 10);
-    partDisc('darkS', hubX - sx * 0.1, hubY + 0.12, hubZ, 0.2, 0.24, 1, 0, 0, 12);
-    partDisc('darkS', sx * 1.0, 0.68, sz * 0.75, 0.14, 0.22, 1, 0, 0, 10);
-    const dx = hubX - upX, dy = hubY + 0.12 - upY, dz = hubZ - upZ;
-    const off = sz * 0.28;
-    const c1 = [upX + dx * 0.22, upY + dy * 0.22 + 0.05, upZ + dz * 0.22 + off];
-    const c2 = [upX + dx * 0.75, upY + dy * 0.75 + 0.05, upZ + dz * 0.75 + off];
-    partCoil('armS', c1[0], c1[1], c1[2], c2[0], c2[1], c2[2], 7, 0.16, 0.05);
-    partBeam('joint', c1[0], c1[1], c1[2], c2[0], c2[1], c2[2], 0.07);
-    partPiston(sx * 1.0, 0.95, sz * 0.45, upX + dx * 0.55, upY + dy * 0.55, upZ + dz * 0.55);
+    partRB('darkS', sx * 0.80, 1.60, sz * 0.74, 0.30, 0.12, 0.30, 0.03);   // upper mount, sits on top of the deck
+    partRB('darkS', sx * 1.25, 0.86, sz * 0.62, 0.12, 0.26, 0.32, 0.03);   // lower mount, bolted to the side armor
+    partRB('darkS', sx * 1.14, 1.31, sz * 0.50, 0.16, 0.09, 0.22, 0.02);   // air-spring mount, on top of the side armor
   });
 
   // ---- Copper cables ----
@@ -894,11 +885,75 @@ function initGame() {
   wheelSlots.forEach(([sx, sz]) => {
     const w = new THREE.Mesh(wheelGeo, [MATS.rubber, MATS.tread, MATS.armS]);
     w.add(new THREE.Mesh(wheelOutlineGeo, OUTLINE_MAT));
-    w.position.set(sx * 1.62, 0.74, sz * 1.0);
+    w.position.set(sx * TRACK, 0.74, sz * 1.0);
     w.castShadow = true;
     rover.add(w);
-    wheels.push({ mesh: w, baseY: 0.74, y: 0.74, phase: Math.random() * 6.28, lx: sx * 1.62, lz: sz * 1.0 });
+    wheels.push({ mesh: w, baseY: 0.74, y: 0.74, phase: Math.random() * 6.28, lx: sx * TRACK, lz: sz * 1.0 });
   });
+
+  // ---- Dynamic suspension: arms + air springs follow each wheel's travel ----
+  const _ZA = new THREE.Vector3(0, 0, 1);
+  function unitBeam(w, t, mat, r, outline) {
+    const g = new RoundedBoxGeometry(w, t, 1, 1, r);
+    const m = new THREE.Mesh(g, mat);
+    if (outline) m.add(new THREE.Mesh(makeOutlineGeo(g), OUTLINE_MAT));
+    m.castShadow = true;
+    rover.add(m);
+    return m;
+  }
+  const springGeo = (() => {
+    const list = [];
+    const R = 6;
+    for (let i = 0; i < R; i++) {
+      const tr = new THREE.TorusGeometry(0.12, 0.04, 5, 8);
+      tr.translate(0, 0, -0.5 + (i + 0.5) / R);
+      list.push(tr);
+    }
+    return mergeSafe(list, false);
+  })();
+  const hubJointGeo = new THREE.CylinderGeometry(0.17, 0.17, 0.14, 8);
+  hubJointGeo.rotateZ(Math.PI / 2);
+  const rodGeo = new THREE.CylinderGeometry(0.055, 0.055, 1, 6);
+  rodGeo.rotateX(Math.PI / 2);
+
+  const suspension = wheelSlots.map(([sx, sz], i) => {
+    const rod = new THREE.Mesh(rodGeo, MATS.darkS); rod.castShadow = true; rover.add(rod);
+    const spring = new THREE.Mesh(springGeo, MATS.armS); spring.castShadow = true; rover.add(spring);
+    const joint = new THREE.Mesh(hubJointGeo, MATS.darkS); joint.castShadow = true; rover.add(joint);
+    return {
+      sx, sz, wheel: wheels[i],
+      upper: unitBeam(0.2, 0.15, MATS.armS, 0.04, true),
+      lower: unitBeam(0.2, 0.13, MATS.armS, 0.04, true),
+      rod, spring, joint,
+      U: new THREE.Vector3(sx * 0.80, 1.62, sz * 0.74),
+      L: new THREE.Vector3(sx * 1.28, 0.86, sz * 0.62),
+      T: new THREE.Vector3(sx * 1.14, 1.34, sz * 0.50)
+    };
+  });
+  const _sa = new THREE.Vector3(), _sb = new THREE.Vector3(), _sd = new THREE.Vector3();
+  function placeBeam(mesh, a, b) {
+    _sd.subVectors(b, a);
+    const len = Math.max(0.0001, _sd.length());
+    mesh.position.copy(a).addScaledVector(_sd, 0.5);
+    mesh.quaternion.setFromUnitVectors(_ZA, _sd.multiplyScalar(1 / len));
+    mesh.scale.set(1, 1, len);
+  }
+  const _Ht = new THREE.Vector3(), _Hb = new THREE.Vector3(), _Bp = new THREE.Vector3();
+  function updateSuspension() {
+    for (let i = 0; i < suspension.length; i++) {
+      const q = suspension[i];
+      const wy = q.wheel.mesh.position.y;
+      _Ht.set(q.sx * CAP_TIP, wy + 0.12, q.sz * 1.0);
+      _Hb.set(q.sx * CAP_TIP, wy - 0.12, q.sz * 1.0);
+      placeBeam(q.upper, q.U, _Ht);
+      placeBeam(q.lower, q.L, _Hb);
+      _Bp.lerpVectors(q.L, _Hb, 0.5); _Bp.y += 0.1;
+      placeBeam(q.spring, q.T, _Bp);
+      placeBeam(q.rod, q.T, _Bp);
+      q.joint.position.set(q.sx * CAP_TIP, wy, q.sz * 1.0);
+    }
+  }
+  updateSuspension();
 
   const headLight = new THREE.SpotLight(0xffeecc, 2.0, 18, Math.PI / 6, 0.35);
   headLight.position.set(0, 1.0, -1.2);
@@ -1161,6 +1216,7 @@ function initGame() {
       w.mesh.position.y = w.y;
     }
 
+    updateSuspension();
     const limit = HALF - 6;
     rover.position.x = THREE.MathUtils.clamp(rover.position.x, -limit, limit);
     rover.position.z = THREE.MathUtils.clamp(rover.position.z, -limit, limit);
