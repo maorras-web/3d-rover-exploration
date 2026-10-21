@@ -802,6 +802,7 @@ function initGame() {
     tailHot: new THREE.MeshStandardMaterial({ color: 0xffc8bb, emissive: 0xff6a55, emissiveIntensity: 1.4 }),
     revLamp: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xdfeeff, emissiveIntensity: 0.1 }),
     amber:   new THREE.MeshStandardMaterial({ color: 0xffa020, emissive: 0xff8a00, emissiveIntensity: 0.5 }),
+    headHot: new THREE.MeshStandardMaterial({ color: 0xe8fbff, emissive: 0xbfefff, emissiveIntensity: 1.8 }),
     hullS: new THREE.MeshStandardMaterial({ color: 0x8fa1ad, metalness: 0.35, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
     deckS: new THREE.MeshStandardMaterial({ color: 0xa8b8c2, metalness: 0.30, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
     tanS:  new THREE.MeshStandardMaterial({ color: 0xb5a488, metalness: 0.15, roughness: 0.60, flatShading: true }),
@@ -974,8 +975,29 @@ function initGame() {
   part(new THREE.TubeGeometry(cable3, 12, 0.022, 5), new THREE.Matrix4(), 'copper');
 
   // ---- Lights ----
-  partDisc('glow', -0.7, 0.9, -1.57, 0.11, 0.06, 0, 0.35, -1, 10);
-  partDisc('glow', 0.7, 0.9, -1.57, 0.11, 0.06, 0, 0.35, -1, 10);
+  // Angry headlights: slanted LED slits with a brow line, a dark fang and an amber corner light.
+  // (coordinates are on the tilted nose face: lx = across, ox/ov = offset in the face plane, ld = out of the face)
+  const NOSE_TILT = -0.38;
+  function noseLamp(key, lx, ox, ov, ld, w, h, dd, r, roll) {
+    const cr = Math.cos(roll), sr = Math.sin(roll);
+    const wx = lx + ox * cr - ov * sr;
+    const v = ov * cr + ox * sr;
+    const zl = -(0.375 + ld);
+    const wy = 1.02 + v * Math.cos(NOSE_TILT) - zl * Math.sin(NOSE_TILT);
+    const wz = -1.18 + v * Math.sin(NOSE_TILT) + zl * Math.cos(NOSE_TILT);
+    partRB(key, wx, wy, wz, w, h, dd, r, NOSE_TILT, 0, roll);
+  }
+  [-1, 1].forEach(s => {
+    const lx = s * 0.64, roll = s * 0.3;
+    noseLamp('darkS', lx, 0, 0, 0.02, 0.58, 0.25, 0.07, 0.05, roll);                 // housing
+    noseLamp('headHot', lx, 0, -0.01, 0.06, 0.48, 0.06, 0.03, 0.012, roll);            // main LED slit
+    noseLamp('headHot', lx, 0, 0.085, 0.06, 0.40, 0.025, 0.03, 0.008, roll);           // brow line
+    noseLamp('headHot', lx, s * 0.08, -0.085, 0.06, 0.30, 0.025, 0.03, 0.008, roll);   // lower accent
+    noseLamp('darkS', lx, -s * 0.28, -0.12, 0.05, 0.07, 0.2, 0.05, 0.02, s * 0.5);      // fang
+    noseLamp('amber', lx, s * 0.26, 0.02, 0.05, 0.05, 0.12, 0.03, 0.01, roll);          // corner indicator
+    partDisc('headHot', s * 0.75, 0.76, -1.72, 0.07, 0.03, 0, 0, 1, 10);               // bumper fog lamp
+  });
+  partRB('headHot', 0, 0.80, -1.715, 1.1, 0.03, 0.02, 0.01);                          // bumper LED strip
   [-1, 1].forEach(side => {
     const lx = side * 0.8;
     partRB('darkS', lx, 1.04, 1.325, 0.42, 0.28, 0.06, 0.04);          // housing frame
@@ -1002,6 +1024,27 @@ function initGame() {
     }));
     s.position.set(side * 0.8, 1.04, 1.45);
     s.scale.set(0.95, 0.7, 1);
+    rover.add(s);
+    return s;
+  });
+
+  // cool white glow in front of the headlights
+  const fhCv = document.createElement('canvas');
+  fhCv.width = 64; fhCv.height = 64;
+  const fhc = fhCv.getContext('2d');
+  const fhg = fhc.createRadialGradient(32, 32, 2, 32, 32, 32);
+  fhg.addColorStop(0, 'rgba(235,250,255,0.95)');
+  fhg.addColorStop(0.4, 'rgba(150,215,255,0.35)');
+  fhg.addColorStop(1, 'rgba(120,200,255,0)');
+  fhc.fillStyle = fhg; fhc.fillRect(0, 0, 64, 64);
+  const fhTex = new THREE.CanvasTexture(fhCv);
+  fhTex.colorSpace = THREE.SRGBColorSpace;
+  const frontHalos = [-1, 1].map(side => {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: fhTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4, fog: false
+    }));
+    s.position.set(side * 0.64, 0.88, -1.72);
+    s.scale.set(1.0, 0.6, 1);
     rover.add(s);
     return s;
   });
@@ -1142,7 +1185,7 @@ function initGame() {
   }
   updateSuspension();
 
-  const headLight = new THREE.SpotLight(0xffeecc, 2.0, 18, Math.PI / 6, 0.35);
+  const headLight = new THREE.SpotLight(0xe6f4ff, 2.4, 18, Math.PI / 6, 0.35);
   headLight.position.set(0, 1.0, -1.2);
   headLight.target.position.set(0, 0, -12);
   rover.add(headLight); rover.add(headLight.target);
@@ -1552,6 +1595,37 @@ function initGame() {
   let perfFrames = 0, perfAcc = 0;
   let camMode = 0, camZoom = 1;   // 0 = behind the rover, 1 = front (like the picture)
   const btnCamView = document.getElementById('cam-view');
+  // Drag a finger on empty space to slowly orbit the camera 360 degrees around the rover
+  let orbitYaw = 0, orbitPitch = 0, orbitTouch = null, orbitLX = 0, orbitLY = 0, lastOrbitMs = 0;
+  const ORBIT_K = 0.0035;
+  const orbitEl = renderer.domElement;
+  function orbitDrag(x, y) {
+    orbitYaw -= (x - orbitLX) * ORBIT_K;
+    orbitPitch = THREE.MathUtils.clamp(orbitPitch + (y - orbitLY) * ORBIT_K * 1.1, -0.25, 1.1);
+    orbitLX = x; orbitLY = y;
+    lastOrbitMs = performance.now();
+  }
+  orbitEl.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (orbitTouch !== null) return;
+    const t0 = e.changedTouches[0];
+    orbitTouch = t0.identifier; orbitLX = t0.clientX; orbitLY = t0.clientY;
+    lastOrbitMs = performance.now();
+  }, { passive: false });
+  orbitEl.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    for (const t1 of e.changedTouches) if (t1.identifier === orbitTouch) orbitDrag(t1.clientX, t1.clientY);
+  }, { passive: false });
+  const orbitEnd = (e) => {
+    for (const t1 of e.changedTouches) if (t1.identifier === orbitTouch) { orbitTouch = null; lastOrbitMs = performance.now(); }
+  };
+  orbitEl.addEventListener('touchend', orbitEnd, { passive: true });
+  orbitEl.addEventListener('touchcancel', orbitEnd, { passive: true });
+  let orbitMouse = false;
+  orbitEl.addEventListener('mousedown', (e) => { orbitMouse = true; orbitTouch = -1; orbitLX = e.clientX; orbitLY = e.clientY; });
+  window.addEventListener('mousemove', (e) => { if (orbitMouse) orbitDrag(e.clientX, e.clientY); });
+  window.addEventListener('mouseup', () => { if (orbitMouse) { orbitMouse = false; orbitTouch = null; lastOrbitMs = performance.now(); } });
+
   btnCamView.addEventListener('click', () => { camMode = 1 - camMode; btnCamView.classList.toggle('alt', !!camMode); });
   document.getElementById('cam-in').addEventListener('click', () => { camZoom = Math.max(0.55, camZoom / 1.2); });
   document.getElementById('cam-out').addEventListener('click', () => { camZoom = Math.min(2.4, camZoom * 1.2); });
@@ -1698,6 +1772,9 @@ function initGame() {
     MATS.tailHot.emissiveIntensity = braking ? 3.0 : 1.4;
     MATS.revLamp.emissiveIntensity = velocity < -0.2 ? 2.4 : 0.1;
     tailHalos.forEach(s => { s.material.opacity = braking ? 0.95 : 0.4; });
+    const darkness = Math.max(0, 1.6 - sunLight.intensity);
+    MATS.headHot.emissiveIntensity = 1.6 + darkness * 1.5;
+    frontHalos.forEach(s => { s.material.opacity = Math.min(0.9, 0.25 + darkness * 0.45); });
     const onPathNow = pathMask(rx, rz) > 0.35;
     updateAudio(speedNorm, keys.forward || keys.backward, onPathNow);
     updateDust(dt, spd, rx, rz, cosR, sinR, onPathNow);
@@ -1707,6 +1784,16 @@ function initGame() {
     if (biomeTxt !== lastBiomeText) {
       lastBiomeText = biomeTxt;
       document.getElementById('biome-text').textContent = biomeTxt.replace(/^\S+\s+/, '');
+    }
+
+    // ---- Orbit view eases back behind the rover when you drive or let go for a few seconds ----
+    if (orbitTouch === null) {
+      const drivingNow = keys.forward || keys.backward || keys.left || keys.right;
+      if (drivingNow || performance.now() - lastOrbitMs > 4000) {
+        orbitYaw = Math.atan2(Math.sin(orbitYaw), Math.cos(orbitYaw));
+        orbitYaw = THREE.MathUtils.damp(orbitYaw, 0, 1.6, dt);
+        orbitPitch = THREE.MathUtils.damp(orbitPitch, 0, 1.6, dt);
+      }
     }
 
     // ---- Camera with its OWN smoothed yaw (no snap on turns) ----
@@ -1720,13 +1807,20 @@ function initGame() {
       const camDist = (4.4 + spd * 0.14) * camZoom;
       const camH = (1.9 + spd * 0.05) * camZoom;
       _camPos.set(rx - cfX * camDist, rover.position.y + camH, rz - cfZ * camDist);
-      const lookAhead = 2.2 + spd * 0.25;
+      const lookAhead = (2.2 + spd * 0.25) * (1 + Math.cos(orbitYaw)) / 2;
       _look.set(rx + cfX * lookAhead, rover.position.y + 1.3, rz + cfZ * lookAhead);
     } else {
       const camDist = (4.6 + spd * 0.1) * camZoom;
       const camH = 1.2 * camZoom;
       _camPos.set(rx + cfX * camDist, rover.position.y + camH, rz + cfZ * camDist);
       _look.set(rx, rover.position.y + 1.2, rz);
+    }
+    if (orbitYaw !== 0 || orbitPitch !== 0) {
+      const odx = _camPos.x - rx, odz = _camPos.z - rz;
+      const oc = Math.cos(orbitYaw), os = Math.sin(orbitYaw);
+      _camPos.x = rx + odx * oc + odz * os;
+      _camPos.z = rz - odx * os + odz * oc;
+      _camPos.y += orbitPitch * 3.0 * camZoom;
     }
     camera.position.lerp(_camPos, 1 - Math.exp(-4.5 * dt));
     const camGround = getGroundHeight(camera.position.x, camera.position.z) + 0.7;
