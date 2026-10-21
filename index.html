@@ -27,8 +27,8 @@
 
 <div id="ui-container">
   <div id="hud-chips">
-    <div id="current-biome">🌿 Green Field</div>
-    <div id="time-display">🌞 12:00</div>
+    <div id="current-biome"><svg class="ico leaf" viewBox="0 0 24 24"><path fill="currentColor" d="M20 3C10 3 4 8 4 15c0 1.6.5 3 1.3 4.2L3 22l1.8.6 2-2.6C8 20.6 9.4 21 11 21c7 0 10-7 9-18zM9 17c0-4 3-7 8-9-3 2-5 5-6 9z"/></svg><span id="biome-text">Green Field</span></div>
+    <div id="time-display" data-night="0"><svg class="ico sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.6" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></g></svg><svg class="ico moon" viewBox="0 0 24 24"><path fill="currentColor" d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg><span id="time-text">12:00</span></div>
   </div>
   <div id="hud-map">
     <div id="minimap">
@@ -41,34 +41,41 @@
 
 <!-- Steering: LEFT button on the left, RIGHT button on the right -->
 <div id="steer-left">
-  <button class="ctrl-round steer-btn" data-key="left">◀<span class="ctrl-label">LEFT</span></button>
-  <button class="ctrl-round steer-btn" data-key="right">▶<span class="ctrl-label">RIGHT</span></button>
+  <button class="ctrl-round steer-btn" data-key="left"><svg class="tri left" viewBox="0 0 24 24"><path d="M12 5 L21 19 H3 Z"/></svg><span class="ctrl-label">LEFT</span></button>
+  <button class="ctrl-round steer-btn" data-key="right"><svg class="tri right" viewBox="0 0 24 24"><path d="M12 5 L21 19 H3 Z"/></svg><span class="ctrl-label">RIGHT</span></button>
 </div>
 
 <!-- Pedals: GAS and REVERSE on the right side -->
 <div id="pedals-right">
-  <button class="ctrl-round pedal-gas" data-key="forward">▲<span class="ctrl-label">GAS</span></button>
-  <button class="ctrl-round pedal-reverse" data-key="backward">▼<span class="ctrl-label">REVERSE</span></button>
+  <button class="ctrl-round pedal-gas" data-key="forward"><svg class="tri up" viewBox="0 0 24 24"><path d="M12 5 L21 19 H3 Z"/></svg><span class="pad"></span><span class="ctrl-label">GAS</span></button>
+  <button class="ctrl-round pedal-reverse" data-key="backward"><span class="pad"></span><svg class="tri down" viewBox="0 0 24 24"><path d="M12 5 L21 19 H3 Z"/></svg><span class="ctrl-label">REVERSE</span></button>
 </div>
 
 <!-- Camera controls: view toggle, closer, farther -->
 <div id="cam-controls">
-  <button class="cam-btn" id="cam-view">🎥</button>
+  <button class="cam-btn" id="cam-view"><svg class="i-cam" viewBox="0 0 24 24"><path d="M4 7h10a2 2 0 0 1 2 2v1.5l4-2.5v8l-4-2.5V15a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2zM6 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zm6.5 0a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z" transform="translate(0 1.5)"/></svg><svg class="i-car" viewBox="0 0 24 24"><path d="M5 11l1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11a2 2 0 0 1 1.5 1.9V17a1 1 0 0 1-1 1H18a1 1 0 0 1-1-1v-1H7v1a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1v-4.1A2 2 0 0 1 5 11zm2.4-.5h9.2l-1.1-3H8.5zM7 12.6a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4zm10 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z"/></svg></button>
   <button class="cam-btn" id="cam-in">+</button>
   <button class="cam-btn" id="cam-out">−</button>
-  <button class="cam-btn" id="btn-sound">🔊</button>
+  <button class="cam-btn" id="btn-sound"><svg class="i-on" viewBox="0 0 24 24"><path d="M3 9.5h3.5L11 5.5v13l-4.5-4H3z"/><path d="M14 8.5a4.5 4.5 0 0 1 0 7M16.5 6a8 8 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><svg class="i-off" viewBox="0 0 24 24"><path d="M3 9.5h3.5L11 5.5v13l-4.5-4H3z"/><path d="M15 9.5l5 5M20 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
 </div>
 
-<!-- Status bars (visual): health + energy -->
+<!-- Dashboard panel: health + fuel -->
 <div id="status-bars">
-  <div class="bar-row">
-    <svg viewBox="0 0 24 24" style="color:#6ff2b0"><path fill="currentColor" d="M12 21s-7-4.5-9.5-9C1 8.5 3 5 6.5 5c2 0 3.5 1 5.5 3 2-2 3.5-3 5.5-3C21 5 23 8.5 21.5 12 19 16.5 12 21 12 21z"/></svg>
-    <div class="bar"><div class="bar-fill hp" id="bar-health"></div></div>
+  <div class="dash-main">
+    <div class="gauge"><div class="gauge-shape"><i class="gfill health-fill"></i></div><span>HEALTH</span></div>
+    <div class="bars">
+      <div class="bar-row">
+        <svg viewBox="0 0 24 24" style="color:#6ff2b0"><path fill="currentColor" d="M12 21s-7-4.5-9.5-9C1 8.5 3 5 6.5 5c2 0 3.5 1 5.5 3 2-2 3.5-3 5.5-3C21 5 23 8.5 21.5 12 19 16.5 12 21 12 21z"/></svg>
+        <div class="bar"><div class="bar-fill hp" id="bar-health" style="width:78%"></div></div>
+      </div>
+      <div class="bar-row">
+        <svg viewBox="0 0 24 24" style="color:#6fb4ff"><path fill="currentColor" d="M12 2s7 7.5 7 12a7 7 0 0 1-14 0c0-4.5 7-12 7-12z"/></svg>
+        <div class="bar"><div class="bar-fill en" id="bar-energy" style="width:58%"></div></div>
+      </div>
+    </div>
+    <div class="gauge"><div class="gauge-shape"><i class="gfill fuel-fill"></i></div><span>FUEL GAUGE</span></div>
   </div>
-  <div class="bar-row">
-    <svg viewBox="0 0 24 24" style="color:#6fb4ff"><path fill="currentColor" d="M12 2s7 7.5 7 12a7 7 0 0 1-14 0c0-4.5 7-12 7-12z"/></svg>
-    <div class="bar"><div class="bar-fill en" id="bar-energy"></div></div>
-  </div>
+  <div class="dash-title">DASHBOARD PANEL</div>
 </div>
 
 <script type="importmap">
@@ -79,6 +86,6 @@
   }
 }
 </script>
-<script type="module" src="main.js?v=11"></script>
+<script type="module" src="main.js?v=12"></script>
 </body>
 </html>

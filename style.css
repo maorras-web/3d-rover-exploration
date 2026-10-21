@@ -393,3 +393,201 @@ html, body {
 .bar-fill.hp { box-shadow: 0 0 8px rgba(80,230,160,0.7); }
 .bar-fill.en { box-shadow: 0 0 8px rgba(100,170,255,0.7); }
 @media (max-height: 480px) { #status-bars { width: 150px; padding: 6px 9px; } }
+
+/* =====================================================================
+   HUD in the style of the reference picture: metal-rimmed glass UI
+   ===================================================================== */
+:root {
+  --metal: linear-gradient(145deg, #f6f8f9 0%, #9ba3a7 26%, #e4e8ea 48%, #7a8286 72%, #d0d5d7 100%);
+}
+
+/* ---- Top-right chips (biome + time) ---- */
+#current-biome, #time-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 10px;
+  border: 1.5px solid transparent;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(28,42,48,0.80), rgba(10,18,22,0.80)) padding-box,
+    var(--metal) border-box;
+  color: #eef7f5;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1.6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+#time-display { color: #f4ecd6; border-color: transparent; }
+.ico { width: 17px; height: 17px; flex: none; }
+.ico.leaf { color: #7fdc8a; filter: drop-shadow(0 0 4px rgba(127,220,138,0.6)); }
+.ico.sun { color: #ffb43a; filter: drop-shadow(0 0 4px rgba(255,180,58,0.7)); }
+.ico.moon { color: #bcd2ff; display: none; }
+#time-display[data-night="1"] .sun { display: none; }
+#time-display[data-night="1"] .moon { display: block; }
+
+/* ---- Minimap: glass panel ---- */
+#minimap {
+  border: 1.5px solid rgba(214,240,248,0.85);
+  border-radius: 16px / 12px;
+  box-shadow: 0 0 0 1px rgba(126,240,255,0.25), 0 0 16px rgba(126,240,255,0.30),
+              0 4px 14px rgba(0,0,0,0.5), inset 0 0 18px rgba(126,240,255,0.18);
+}
+#minimap::before { display: none; }
+#minimap::after {
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255,255,255,0.16), rgba(255,255,255,0) 38%);
+}
+
+/* ---- Round metal buttons (steering) ---- */
+.ctrl-round {
+  gap: 2px;
+  border: 4px solid transparent;
+  background:
+    radial-gradient(circle at 50% 36%, #5f695c 0%, #3d453a 62%, #262b25 100%) padding-box,
+    var(--metal) border-box;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.55), inset 0 0 12px rgba(0,0,0,0.45);
+  text-shadow: none;
+  color: #fff;
+}
+.ctrl-round .tri { width: 22px; height: 22px; fill: #fff; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.55)); }
+.ctrl-round .tri.left  { transform: rotate(-90deg); }
+.ctrl-round .tri.right { transform: rotate(90deg); }
+.ctrl-round .tri.down  { transform: rotate(180deg); }
+.ctrl-label { font-size: 10px; letter-spacing: 0.8px; opacity: 0.95; }
+.ctrl-round:active, .ctrl-round.active {
+  transform: scale(0.94);
+  background:
+    radial-gradient(circle at 50% 36%, #86a581 0%, #4a5b43 70%, #2d352a 100%) padding-box,
+    var(--metal) border-box;
+  box-shadow: 0 0 14px rgba(150,255,170,0.45), inset 0 0 12px rgba(0,0,0,0.4);
+}
+
+/* ---- Pedals: tall metal pills with a grip pad ---- */
+.pedal-gas, .pedal-reverse {
+  width: 68px;
+  height: 104px;
+  border-radius: 36px;
+  gap: 5px;
+  font-size: 12px;
+  border: 4px solid transparent;
+  border-color: transparent;
+  background:
+    radial-gradient(ellipse at 50% 30%, #626c5f 0%, #3d453a 62%, #262b25 100%) padding-box,
+    var(--metal) border-box;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.55), inset 0 0 14px rgba(0,0,0,0.45);
+  text-shadow: none;
+}
+.pedal-gas:active, .pedal-gas.active, .pedal-reverse:active, .pedal-reverse.active {
+  transform: scale(0.95);
+  background:
+    radial-gradient(ellipse at 50% 30%, #86a581 0%, #4a5b43 70%, #2d352a 100%) padding-box,
+    var(--metal) border-box;
+  box-shadow: 0 0 14px rgba(150,255,170,0.45), inset 0 0 12px rgba(0,0,0,0.4);
+}
+.pedal-gas .tri, .pedal-reverse .tri { width: 20px; height: 18px; }
+.pad {
+  width: 38px;
+  height: 32px;
+  border-radius: 9px;
+  background:
+    radial-gradient(circle, #5b6366 1.3px, transparent 1.9px) 0 0 / 6.4px 6.4px,
+    linear-gradient(180deg, #e3e7e9, #a7aeb2);
+  box-shadow: inset 0 1px 2px rgba(255,255,255,0.75), 0 1px 3px rgba(0,0,0,0.55);
+}
+.ctrl-round:active .pad, .ctrl-round.active .pad { filter: brightness(0.82); }
+
+/* ---- Camera / sound buttons ---- */
+#cam-controls { top: calc(92px + env(safe-area-inset-top)); gap: 7px; }
+.cam-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid transparent;
+  background:
+    linear-gradient(180deg, rgba(42,54,60,0.88), rgba(14,22,26,0.88)) padding-box,
+    var(--metal) border-box;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  color: #f0f3f4;
+  font-size: 24px;
+  font-weight: 300;
+}
+.cam-btn svg { width: 19px; height: 19px; fill: currentColor; }
+#cam-view .i-car, #btn-sound .i-off { display: none; }
+#cam-view.alt .i-cam { display: none; }
+#cam-view.alt .i-car { display: block; }
+#btn-sound.off .i-on { display: none; }
+#btn-sound.off .i-off { display: block; }
+
+/* ---- Bottom dashboard panel ---- */
+#status-bars {
+  width: 312px;
+  bottom: 0;
+  padding: 11px 18px calc(6px + env(safe-area-inset-bottom));
+  gap: 3px;
+  border: 1.5px solid transparent;
+  border-bottom: none;
+  border-radius: 48px 48px 0 0 / 34px 34px 0 0;
+  background:
+    linear-gradient(180deg, rgba(18,30,38,0.80), rgba(8,14,20,0.88)) padding-box,
+    linear-gradient(180deg, #eaf0f2, #7f8a90) border-box;
+  box-shadow: 0 -2px 14px rgba(126,240,255,0.14);
+}
+.dash-main { display: flex; align-items: center; gap: 10px; }
+.bars { flex: 1; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.gauge {
+  width: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: #dfeaee;
+  white-space: nowrap;
+}
+.gauge-shape {
+  position: relative;
+  width: 54px;
+  height: 20px;
+  clip-path: polygon(14% 0, 100% 0, 86% 100%, 0 100%);
+  background: linear-gradient(180deg, #d4dbde, #6e787d);
+}
+.gauge-shape::before {
+  content: '';
+  position: absolute;
+  inset: 1.5px;
+  clip-path: polygon(14% 0, 100% 0, 86% 100%, 0 100%);
+  background: #0b1317;
+}
+.gfill { position: absolute; left: 8%; right: 10%; top: 24%; bottom: 20%; }
+.health-fill { background: linear-gradient(90deg, #3ab2d8, #98ecff); clip-path: polygon(0 100%, 8% 0, 100% 0, 92% 100%); }
+.fuel-fill {
+  background: repeating-linear-gradient(90deg, #ff9a2e 0 5px, transparent 5px 8px);
+  clip-path: polygon(0 100%, 0 78%, 26% 78%, 26% 56%, 52% 56%, 52% 34%, 78% 34%, 78% 8%, 100% 8%, 100% 100%);
+}
+.dash-title {
+  text-align: center;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 1.6px;
+  color: #cfe0e6;
+  opacity: 0.9;
+}
+
+@media (max-height: 480px) {
+  .pedal-gas, .pedal-reverse { width: 60px; height: 92px; gap: 3px; }
+  .pad { width: 34px; height: 28px; }
+  .ctrl-round .tri { width: 19px; height: 19px; }
+  .pedal-gas .tri, .pedal-reverse .tri { width: 17px; height: 15px; }
+  #status-bars { width: 290px; padding: 9px 14px calc(5px + env(safe-area-inset-bottom)); }
+  .cam-btn { width: 34px; height: 34px; }
+  #cam-controls { top: calc(86px + env(safe-area-inset-top)); gap: 6px; }
+}
+
+.pedal-gas .ctrl-label, .pedal-reverse .ctrl-label { font-size: 9px; letter-spacing: 0.2px; }

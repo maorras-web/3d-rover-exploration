@@ -367,7 +367,7 @@ function initGame() {
 
   const bladeParts = [];
   for (let k = 0; k < 5; k++) {
-    const b = makeBladeGeo(0.6 + Math.random() * 0.55, 0.13 + Math.random() * 0.08, 0.12 + Math.random() * 0.16);
+    const b = makeBladeGeo(0.5 + Math.random() * 0.45, 0.13 + Math.random() * 0.08, 0.12 + Math.random() * 0.16);
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler((Math.random() - 0.5) * 0.6, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.6));
     m.compose(new THREE.Vector3((Math.random() - 0.5) * 0.2, 0, (Math.random() - 0.5) * 0.2), q, new THREE.Vector3(1, 1, 1));
@@ -411,7 +411,7 @@ function initGame() {
     if (pathMask(x, z) > 0.5) continue;
     dummy.position.set(x, getGroundHeight(x, z) - 0.04, z);
     dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-    dummy.scale.setScalar(0.7 + Math.random() * 0.9);
+    dummy.scale.setScalar(0.65 + Math.random() * 0.7);
     dummy.updateMatrix();
     grassMesh.setMatrixAt(gi, dummy.matrix);
     const t = Math.random();
@@ -1101,7 +1101,7 @@ function initGame() {
   const btnSound = document.getElementById('btn-sound');
   if (btnSound) btnSound.addEventListener('click', () => {
     soundOn = !soundOn;
-    btnSound.textContent = soundOn ? '🔊' : '🔇';
+    btnSound.classList.toggle('off', !soundOn);
     initAudio();
     if (master) master.gain.setTargetAtTime(soundOn ? 0.9 : 0, actx.currentTime, 0.05);
     if (actx && soundOn && actx.state === 'suspended') actx.resume();
@@ -1300,7 +1300,8 @@ function initGame() {
     const txt = icon + ' ' + String(hours).padStart(2, '0') + ':' + String(mins).padStart(2, '0');
     if (txt !== lastTimeText) {
       lastTimeText = txt;
-      document.getElementById('time-display').textContent = txt;
+      document.getElementById('time-text').textContent = txt.split(' ')[1];
+      document.getElementById('time-display').dataset.night = (icon === '🌙') ? '1' : '0';
     }
   }
 
@@ -1337,7 +1338,7 @@ function initGame() {
   let perfFrames = 0, perfAcc = 0;
   let camMode = 0, camZoom = 1;   // 0 = behind the rover, 1 = front (like the picture)
   const btnCamView = document.getElementById('cam-view');
-  btnCamView.addEventListener('click', () => { camMode = 1 - camMode; btnCamView.textContent = camMode ? '🚗' : '🎥'; });
+  btnCamView.addEventListener('click', () => { camMode = 1 - camMode; btnCamView.classList.toggle('alt', !!camMode); });
   document.getElementById('cam-in').addEventListener('click', () => { camZoom = Math.max(0.55, camZoom / 1.2); });
   document.getElementById('cam-out').addEventListener('click', () => { camZoom = Math.min(2.4, camZoom * 1.2); });
 
@@ -1461,7 +1462,7 @@ function initGame() {
     const biomeTxt = getBiomeName(rx, rz);
     if (biomeTxt !== lastBiomeText) {
       lastBiomeText = biomeTxt;
-      document.getElementById('current-biome').textContent = biomeTxt;
+      document.getElementById('biome-text').textContent = biomeTxt.replace(/^\S+\s+/, '');
     }
 
     // ---- Camera with its OWN smoothed yaw (no snap on turns) ----
