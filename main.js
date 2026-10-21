@@ -88,7 +88,7 @@ function initGame() {
 
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.42, 0.7, 0.8);
+  const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.16, 0.6, 0.92);
   composer.addPass(bloomPass);
   composer.addPass(new ShaderPass({
     uniforms: { tDiffuse: { value: null } },
@@ -98,12 +98,12 @@ function initGame() {
       void main(){
         vec4 c = texture2D(tDiffuse, vUv);
         float g = dot(c.rgb, vec3(0.299,0.587,0.114));
-        c.rgb = mix(vec3(g), c.rgb, 1.18);
-        c.rgb = (c.rgb - 0.5) * 1.10 + 0.5;
-        c.r *= 1.06; c.g *= 1.01; c.b *= 0.94;
+        c.rgb = mix(vec3(g), c.rgb, 0.90);
+        c.rgb = (c.rgb - 0.5) * 1.05 + 0.5;
+        c.r *= 1.04; c.g *= 1.01; c.b *= 0.96;
         vec2 q = vUv - 0.5;
         float vig = smoothstep(0.9, 0.3, length(q) * 1.35);
-        c.rgb *= mix(0.72, 1.0, vig);
+        c.rgb *= mix(0.80, 1.0, vig);
         gl_FragColor = c;
       }`
   }));
@@ -254,12 +254,12 @@ function initGame() {
     const bn = fbm(x * 0.5, z * 0.5);
     const micro = noise2D(x * 3.1, z * 2.7) * 0.06;
 
-    if (dist < 22) col.setRGB(0.30, 0.55, 0.24);
+    if (dist < 22) col.setRGB(0.36, 0.47, 0.21);
     else if (nx < 0.3 && nz < 0.3) col.setRGB(0.16, 0.36, 0.19);
     else if (nx > 0.7 && nz < 0.3) col.setRGB(0.82, 0.71, 0.45);
     else if (nx < 0.3 && nz > 0.7) col.setRGB(0.86, 0.90, 0.95);
     else if (nx > 0.7 && nz > 0.7) col.setRGB(0.36, 0.41, 0.26);
-    else col.setRGB(0.33 + bn * 0.08, 0.54 + bn * 0.09, 0.26);
+    else col.setRGB(0.38 + bn * 0.08, 0.47 + bn * 0.08, 0.23);
 
     col.r += micro; col.g += micro; col.b += micro;
 
@@ -288,7 +288,7 @@ function initGame() {
         const d = Math.abs(x - pathCenter(z));
         let sh = 0.8 + Math.floor(smoothNoise(x, z, 3) * 4) / 4 * 0.35 + (n - 0.5) * 0.12;
         if (Math.abs(d - 0.85) < 0.28) sh *= 0.74;
-        R = lin(150 * sh); G = lin(104 * sh); Bc = lin(62 * sh);
+        R = lin(158 * sh); G = lin(116 * sh); Bc = lin(72 * sh);
         if (n > 0.985) { R = lin(180); G = lin(165); Bc = lin(145); }
         A = 255;
       } else {
@@ -324,8 +324,8 @@ function initGame() {
   function makeBladeGeo(h, w, bend) {
     const segs = 4;
     const positions = [], normals = [], uvs = [], vcols = [], indices = [];
-    const baseCol = new THREE.Color(0x2a5a1a);
-    const tipCol = new THREE.Color(0xa6d63f);
+    const baseCol = new THREE.Color(0x3a5424);
+    const tipCol = new THREE.Color(0x9aae4c);
     for (let i = 0; i <= segs; i++) {
       const t = i / segs;
       const y = h * t;
@@ -396,7 +396,7 @@ function initGame() {
     dummy.updateMatrix();
     grassMesh.setMatrixAt(gi, dummy.matrix);
     const t = Math.random();
-    gCol.setRGB(0.85 + t * 0.3, 0.9 + t * 0.25, 0.8 + t * 0.35);
+    gCol.setRGB(0.80 + t * 0.25, 0.85 + t * 0.20, 0.75 + t * 0.25);
     grassMesh.setColorAt(gi, gCol);
     gi++;
   }
@@ -493,7 +493,7 @@ function initGame() {
     if (nx < 0.3 && nz < 0.3) type = 'pine';
     else if (nx > 0.7 && nz < 0.3) type = 'dead';
     const plan = { x, z, type, s: 1.1 + Math.random() * 0.7, trunkH: 2.2 + Math.random() * 1.6, parts: [] };
-    plan.color = new THREE.Color().setHSL(type === 'pine' ? 0.34 : 0.21 + Math.random() * 0.07, 0.5 + Math.random() * 0.2, type === 'pine' ? 0.2 + Math.random() * 0.08 : 0.34 + Math.random() * 0.12).getHex();
+    plan.color = new THREE.Color().setHSL(type === 'pine' ? 0.34 : 0.22 + Math.random() * 0.06, 0.30 + Math.random() * 0.12, type === 'pine' ? 0.17 + Math.random() * 0.06 : 0.27 + Math.random() * 0.09).getHex();
     if (type === 'pine') {
       for (let k = 0; k < 3; k++) plan.parts.push({ k, size: 1.7 - k * 0.4 });
     } else if (type === 'normal') {
@@ -659,7 +659,7 @@ function initGame() {
     joint:  new THREE.MeshStandardMaterial({ color: 0x5e584d, metalness: 0.60, roughness: 0.50, flatShading: true }),
     under:  new THREE.MeshStandardMaterial({ color: 0x3a352d, metalness: 0.30, roughness: 0.80, flatShading: true }),
     rubber: new THREE.MeshStandardMaterial({ color: 0x4d4238, roughness: 0.95, flatShading: true }),
-    dome:   new THREE.MeshStandardMaterial({ color: 0xbcd9e6, metalness: 0.05, roughness: 0.35, flatShading: true, envMapIntensity: 1.0 }),
+    dome:   new THREE.MeshStandardMaterial({ color: 0xa6c4d8, metalness: 0.05, roughness: 0.5, flatShading: true, envMapIntensity: 0.55 }),
     black:  new THREE.MeshStandardMaterial({ color: 0x141210, roughness: 0.70, flatShading: true }),
     copper: new THREE.MeshStandardMaterial({ color: 0x8a5a34, metalness: 0.30, roughness: 0.60, flatShading: true }),
     crate:  new THREE.MeshStandardMaterial({ color: 0x4c463a, roughness: 0.80, flatShading: true }),
