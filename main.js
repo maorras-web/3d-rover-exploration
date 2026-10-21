@@ -303,11 +303,6 @@ function initGame() {
       col.multiplyScalar(ao);
     }
 
-    const pm = pathMask(x, z);
-    if (pm > 0) {
-      const dirt = 0.85 + noise2D(x * 5.3, z * 4.7) * 0.25;
-      col.lerp(new THREE.Color(0.47 * dirt, 0.35 * dirt, 0.23 * dirt), pm);
-    }
     colors[i * 3] = col.r; colors[i * 3 + 1] = col.g; colors[i * 3 + 2] = col.b;
   }
   groundGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -321,17 +316,9 @@ function initGame() {
       const x = -HALF + (c + 0.5) / TEXN * WORLD_SIZE;
       const z = HALF - (r + 0.5) / TEXN * WORLD_SIZE;
       const n = noise2D(c * 0.73 + 1.3, r * 0.91 + 7.1);
-      const pmk = pathMask(x, z) + (n - 0.5) * 0.5;
       const o = (r * TEXN + c) * 4;
       let R, G, Bc, A = 0;
-      if (pmk > 0.5) {
-        const d = Math.abs(x - pathCenter(z));
-        let sh = 0.92 + Math.floor(smoothNoise(x, z, 3) * 4) / 4 * 0.22 + (n - 0.5) * 0.10;
-        if (Math.abs(d - 0.85) < 0.28) sh *= 0.74;
-        R = lin(172 * sh); G = lin(128 * sh); Bc = lin(80 * sh);
-        if (n > 0.985) { R = lin(180); G = lin(165); Bc = lin(145); }
-        A = 255;
-      } else {
+      {
         const l = Math.min(1, 0.9 + Math.floor(smoothNoise(x, z, 4) * 3) / 3 * 0.08 + n * 0.06);
         R = G = Bc = Math.round(255 * l);
       }
@@ -347,12 +334,45 @@ function initGame() {
   const groundMat = new THREE.MeshStandardMaterial({
     map: groundTex, vertexColors: true, roughness: 0.95, metalness: 0.0, flatShading: true
   });
+  // The dirt trail is drawn per-pixel (fine grain, wheel ruts, pebbles, ragged grassy edges)
+  // instead of from the coarse ground texture, so it looks like a real worn track.
   groundMat.onBeforeCompile = (sh) => {
     sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+        float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+        float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y); }
+        float fb(vec2 p){ return vn(p) * 0.5 + vn(p * 2.1) * 0.3 + vn(p * 4.3) * 0.2; }`)
       .replace('#include <map_fragment>', '')
       .replace('#include <color_fragment>', `
         vec4 gt = texture2D( map, vMapUv );
-        diffuseColor.rgb = mix( diffuseColor.rgb * vColor * gt.rgb, gt.rgb, gt.a );
+        vec3 base = diffuseColor.rgb * vColor * gt.rgb;
+        vec2 wp = vec2( -${HALF.toFixed(1)} + vMapUv.x * ${WORLD_SIZE.toFixed(1)}, ${HALF.toFixed(1)} - vMapUv.y * ${WORLD_SIZE.toFixed(1)} );
+        float cz = sin(wp.y * 0.05) * 6.0 + sin(wp.y * 0.013) * 4.0;
+        float ad = abs(wp.x - cz);
+        float lod = 1.0 - smoothstep(14.0, 45.0, length(vViewPosition));
+        float wHalf = 2.4 + (fb(wp * 1.6) - 0.5) * 1.1 + (vn(wp * 0.3 + 7.0) - 0.5) * 0.9;
+        float pm = 1.0 - smoothstep(wHalf - 0.45, wHalf + 0.1, ad);
+        vec3 pcol = base;
+        if (pm > 0.002) {
+          float large = fb(wp * 0.5);
+          float fine = vn(wp * 9.0) * 0.6 + vn(wp * 22.0) * 0.4;
+          vec3 dirt = mix(vec3(0.52, 0.38, 0.25), vec3(0.67, 0.52, 0.35), large);
+          dirt *= 0.86 + mix(0.5, fine, lod) * 0.28;
+          float rut = 1.0 - smoothstep(0.12, 0.42, abs(ad - 1.9));
+          dirt = mix(dirt, vec3(0.34, 0.25, 0.17), rut * 0.6 * (0.65 + fine * 0.5));
+          float ridge = 1.0 - smoothstep(0.0, 0.5, ad);
+          dirt = mix(dirt, vec3(0.70, 0.56, 0.38), ridge * 0.35);
+          float peb = step(0.955, vn(wp * 13.0));
+          dirt = mix(dirt, vec3(0.64, 0.59, 0.50), peb * 0.85 * lod);
+          float tuft = smoothstep(0.6, 0.78, vn(wp * 5.5 + 40.0)) * (1.0 - rut);
+          float edgeW = 1.0 - smoothstep(0.35, 1.0, pm);
+          dirt = mix(dirt, vec3(0.30, 0.40, 0.17), clamp(tuft * 0.35 + edgeW * step(0.52, vn(wp * 8.0)) * 0.6, 0.0, 0.8));
+          dirt *= mix(0.82, 1.0, smoothstep(0.0, 1.0, pm));
+          dirt = pow(dirt, vec3(2.2));
+          pcol = mix(base, dirt, pm);
+        }
+        diffuseColor.rgb = pcol;
       `);
   };
   const ground = new THREE.Mesh(groundGeo, groundMat);
@@ -393,7 +413,7 @@ function initGame() {
 
   const bladeParts = [];
   for (let k = 0; k < 3; k++) {
-    const b = makeBladeGeo(0.5 + Math.random() * 0.45, 0.13 + Math.random() * 0.08, 0.12 + Math.random() * 0.16);
+    const b = makeBladeGeo(0.2 + Math.random() * 0.18, 0.10 + Math.random() * 0.06, 0.05 + Math.random() * 0.08);
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler((Math.random() - 0.5) * 0.6, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.6));
     m.compose(new THREE.Vector3((Math.random() - 0.5) * 0.2, 0, (Math.random() - 0.5) * 0.2), q, new THREE.Vector3(1, 1, 1));
@@ -419,7 +439,7 @@ function initGame() {
        transformed *= mix(0.2, 1.0, smoothstep(1.8, 4.5, dR)) * mix(0.15, 1.0, smoothstep(1.0, 3.0, dC));
        float ph = wpos.x * 0.35 + wpos.z * 0.27;
        float gust = sin(uTime * 1.6 + ph) * 0.6 + sin(uTime * 3.3 + ph * 1.7) * 0.4;
-       float hf = position.y * position.y * 2.4;
+       float hf = position.y * position.y * 6.0;
        transformed.x += gust * 0.17 * hf;
        transformed.z += cos(uTime * 1.2 + ph) * 0.11 * hf;`
     );
@@ -437,7 +457,7 @@ function initGame() {
     if (pathMask(x, z) > 0.5) continue;
     dummy.position.set(x, getGroundHeight(x, z) - 0.04, z);
     dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-    dummy.scale.setScalar(0.8 + Math.random() * 0.7);
+    dummy.scale.setScalar(0.75 + Math.random() * 0.5);
     dummy.updateMatrix();
     grassMesh.setMatrixAt(gi, dummy.matrix);
     const t = Math.random();
