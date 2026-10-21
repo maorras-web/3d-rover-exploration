@@ -69,13 +69,13 @@ function initGame() {
   }
 
   // ============ Scene ============
-  const WORLD_SIZE = 220;
+  const WORLD_SIZE = 440;
   const HALF = WORLD_SIZE / 2;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0xe9c9a2, 0.0050);
+  scene.fog = new THREE.FogExp2(0xe9c9a2, 0.0035);
 
-  const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 600);
+  const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 750);
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -232,7 +232,7 @@ function initGame() {
   }
 
   // ============ Unified height grid ============
-  const GSEG = 150;
+  const GSEG = 220;
   const GCELL = WORLD_SIZE / GSEG;
   const HGRID = new Float32Array((GSEG + 1) * (GSEG + 1));
   for (let iz = 0; iz <= GSEG; iz++) {
@@ -445,7 +445,7 @@ function initGame() {
     );
   };
 
-  const GRASS = 20000;
+  const GRASS = 36000;
   const grassMesh = new THREE.InstancedMesh(tuftGeo, grassMat, GRASS);
   grassMesh.receiveShadow = true;
   const dummy = new THREE.Object3D();
@@ -472,7 +472,7 @@ function initGame() {
 
   // ============ Flowers ============
   const flowerPlans = [];
-  for (let i = 0; i < 160; i++) {
+  for (let i = 0; i < 320; i++) {
     const x = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
     const z = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
     if (pathMask(x, z) > 0.4) continue;
@@ -527,13 +527,13 @@ function initGame() {
 
   // ============ Rocks ============
   const rockPlans = [];
-  for (let i = 0; i < 70; i++) {
+  for (let i = 0; i < 140; i++) {
     const x = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
     const z = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
     if (Math.sqrt(x * x + z * z) < 6) continue;
     rockPlans.push({ x, z, s: 0.4 + Math.random() * 1.4 });
   }
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 180; i++) {
     const z = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
     const x = pathCenter(z) + (Math.random() > 0.5 ? 1 : -1) * (2.6 + Math.random() * 1.6);
     rockPlans.push({ x, z, s: 0.15 + Math.random() * 0.3 });
@@ -562,7 +562,7 @@ function initGame() {
 
   // ============ Trees ============
   const treePlans = [];
-  for (let i = 0; i < 110; i++) {
+  for (let i = 0; i < 220; i++) {
     const x = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
     const z = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
     if (Math.sqrt(x * x + z * z) < 9 || pathMask(x, z) > 0.5) continue;
@@ -665,7 +665,7 @@ function initGame() {
 
   // ============ Bushes: a middle layer of volume between the grass and the trees ============
   const bushPlans = [];
-  for (let c = 0; c < 60; c++) {
+  for (let c = 0; c < 120; c++) {
     const cx = (Math.random() - 0.5) * WORLD_SIZE * 0.9, cz = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
     if (Math.hypot(cx, cz) < 7 || pathMask(cx, cz) > 0.25) continue;
     const n = 2 + Math.floor(Math.random() * 3);
@@ -753,8 +753,8 @@ function initGame() {
     im.instanceMatrix.needsUpdate = true;
     scene.add(im);
   }
-  addHills(12, 150, 30, 46, 9, 15, 0x6f8f3e);
-  addHills(12, 215, 50, 72, 18, 28, 0x86a07a);
+  addHills(16, 262, 48, 74, 14, 24, 0x6f8f3e);
+  addHills(16, 376, 80, 115, 29, 45, 0x86a07a);
 
   // ============ Standing stones (the POI) ============
   const poiGround = getGroundHeight(POI_X, POI_Z);
@@ -1434,9 +1434,9 @@ function initGame() {
     mmCtx.strokeStyle = 'rgba(255,214,150,0.85)'; mmCtx.lineWidth = 2;
     mmCtx.shadowColor = 'rgba(255,200,120,0.8)'; mmCtx.shadowBlur = 5;
     mmCtx.beginPath();
-    for (let k = 0; k <= 40; k++) {
-      const zz = -HALF + (k / 40) * WORLD_SIZE;
-      const px = ((pathCenter(zz) + HALF) / WORLD_SIZE) * w, py = (k / 40) * h;
+    for (let k = 0; k <= 80; k++) {
+      const zz = -HALF + (k / 80) * WORLD_SIZE;
+      const px = ((pathCenter(zz) + HALF) / WORLD_SIZE) * w, py = (k / 80) * h;
       if (k === 0) mmCtx.moveTo(px, py); else mmCtx.lineTo(px, py);
     }
     mmCtx.stroke();
