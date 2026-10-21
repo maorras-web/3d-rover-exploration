@@ -791,7 +791,7 @@ function initGame() {
 
   // ---- Body: rounded, layered, solid (no scaleLast: positions are real) ----
   partRB('hullS', 0, 0.98, 0.05, 2.15, 0.72, 2.25, 0.22);                 // lower hull
-  partRB('deckS', 0, 1.40, 0.10, 1.75, 0.30, 1.85, 0.12);                 // upper deck
+  partRB('deckS', 0, 1.40, 0.30, 1.75, 0.30, 2.25, 0.12);                 // upper deck
   partRB('hullS', 0, 1.02, -1.18, 1.95, 0.50, 0.75, 0.20, -0.38, 0, 0);   // sloped nose
   partRB('darkS', 0, 0.62, 0.05, 1.85, 0.22, 2.10, 0.08);                 // skid plate
   partRB('tanS', -1.14, 1.02, 0.05, 0.14, 0.50, 1.50, 0.06);              // side armor
@@ -811,24 +811,24 @@ function initGame() {
 
   // ---- Side sensor pods (tan housing, grille top, lens) ----
   [-1, 1].forEach(side => {
-    const px = side * 1.0;
-    partRB('hullS', side * 0.9, 1.45, -0.25, 0.3, 0.2, 0.4, 0.05);
-    partRB('tanS', px, 1.62, -0.25, 0.5, 0.55, 0.55, 0.1);
-    partRB('darkS', px, 1.92, -0.25, 0.46, 0.1, 0.46, 0.02);
-    for (let j = -1.5; j <= 1.5; j++) { partRB('armS', px + j * 0.1, 1.975, -0.25, 0.022, 0.02, 0.44, 0.004); partRB('armS', px, 1.975, -0.25 + j * 0.1, 0.44, 0.02, 0.022, 0.004); }
+    const px = side * 1.08;
+    partRB('hullS', side * 1.05, 1.42, -0.25, 0.56, 0.18, 0.46, 0.05);
+    partRB('tanS', px, 1.62, -0.25, 0.44, 0.55, 0.55, 0.1);
+    partRB('darkS', px, 1.92, -0.25, 0.40, 0.1, 0.46, 0.02);
+    for (let j = -1.5; j <= 1.5; j++) { partRB('armS', px + j * 0.09, 1.975, -0.25, 0.022, 0.02, 0.44, 0.004); partRB('armS', px, 1.975, -0.25 + j * 0.1, 0.38, 0.02, 0.022, 0.004); }
     partDisc('darkS', px, 1.66, -0.54, 0.12, 0.06, 0, 0, 1, 12);
     partDisc('armS', px, 1.66, -0.56, 0.06, 0.03, 0, 0, 1, 10);
   });
 
   // ---- Rear equipment: black case, tan backpack, antenna ----
-  partRB('darkS', -0.5, 1.78, 0.62, 0.8, 0.45, 0.65, 0.08);
-  partRB('armS', -0.5, 2.02, 0.62, 0.5, 0.04, 0.4, 0.015);
-  partDisc('tanS', 0.38, 1.85, 0.62, 0.17, 0.6, 0, 1, 0, 12);
-  partDisc('tanS', 0.72, 1.85, 0.62, 0.17, 0.6, 0, 1, 0, 12);
-  partDisc('armS', 0.38, 2.17, 0.62, 0.09, 0.06, 0, 1, 0, 10);
-  partDisc('armS', 0.72, 2.17, 0.62, 0.09, 0.06, 0, 1, 0, 10);
-  partBeam('joint', -0.7, 2.04, 0.85, -0.7, 2.95, 0.85, 0.035);
-  partDisc('glow', -0.7, 2.97, 0.85, 0.05, 0.05, 0, 1, 0, 8);
+  partRB('darkS', -0.5, 1.775, 1.16, 0.8, 0.45, 0.46, 0.08);
+  partRB('armS', -0.5, 2.02, 1.16, 0.5, 0.04, 0.34, 0.015);
+  partDisc('tanS', 0.34, 1.85, 1.16, 0.17, 0.6, 0, 1, 0, 12);
+  partDisc('tanS', 0.68, 1.85, 1.16, 0.17, 0.6, 0, 1, 0, 12);
+  partDisc('armS', 0.34, 2.17, 1.16, 0.09, 0.06, 0, 1, 0, 10);
+  partDisc('armS', 0.68, 2.17, 1.16, 0.09, 0.06, 0, 1, 0, 10);
+  partBeam('joint', -0.72, 2.0, 1.31, -0.72, 2.95, 1.31, 0.035);
+  partDisc('glow', -0.72, 2.97, 1.31, 0.05, 0.05, 0, 1, 0, 8);
   partBeam('joint', -0.35, 2.04, 0.5, -0.35, 2.25, 0.5, 0.05);
   partDisc('armS', -0.35, 2.3, 0.5, 0.26, 0.04, 0.2, 1, -0.5, 14);
 
@@ -852,8 +852,8 @@ function initGame() {
   ]);
   part(new THREE.TubeGeometry(cable1, 16, 0.03, 5), new THREE.Matrix4(), 'copper');
   const cable3 = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0.3, 1.6, 0.5), new THREE.Vector3(0.5, 1.5, 1.0),
-    new THREE.Vector3(-0.2, 1.5, 1.05)
+    new THREE.Vector3(-0.1, 1.72, 1.16), new THREE.Vector3(0.05, 1.62, 1.16),
+    new THREE.Vector3(0.2, 1.66, 1.16)
   ]);
   part(new THREE.TubeGeometry(cable3, 12, 0.022, 5), new THREE.Matrix4(), 'copper');
 
@@ -1262,6 +1262,7 @@ function initGame() {
 
   // ============ Day-night ============
   let gameTime = 0.07;
+  let dayFactor = 1;
   const zenDay = new THREE.Color(0x6fb2e6), horDay = new THREE.Color(0xf6e2b8);
   const zenDusk = new THREE.Color(0x4a3a6a), horDusk = new THREE.Color(0xff9a5a);
   const zenNight = new THREE.Color(0x070c22), horNight = new THREE.Color(0x141a34);
@@ -1276,6 +1277,7 @@ function initGame() {
     skyUniforms.sunDir.value.copy(sunLight.position).normalize();
 
     const day = THREE.MathUtils.smoothstep(sh, 0.05, 0.3);
+    dayFactor = day;
     const dusk = 1 - THREE.MathUtils.smoothstep(sh, -0.25, 0.05);
 
     tmpA.copy(zenNight).lerp(zenDusk, dusk);
@@ -1328,6 +1330,61 @@ function initGame() {
   }
   window.addEventListener('resize', onResize);
 
+  // ============ Health & fuel (the dashboard bars really work) ============
+  let health = 100, fuel = 100, repairT = 0, dmgCool = 0, msgT = 0;
+  let lowFuelShown = false, emptyShown = false, lastH = -1, lastF = -1;
+  const elMsg = document.getElementById('hud-msg');
+  const elHp = document.getElementById('bar-health');
+  const elEn = document.getElementById('bar-energy');
+  const elHealthFill = document.querySelector('.health-fill');
+  const elFuelFill = document.querySelector('.fuel-fill');
+  const fuelCells = elFuelFill ? Array.from(elFuelFill.children) : [];
+  function showMsg(text, secs) {
+    if (!elMsg) return;
+    elMsg.textContent = text;
+    elMsg.classList.add('show');
+    msgT = secs;
+  }
+  function updateVitals(dt, spd, speedNorm, throttle, hit) {
+    dmgCool = Math.max(0, dmgCool - dt);
+    // crashes damage the rover
+    if (hit && spd > 2 && dmgCool <= 0 && repairT <= 0) {
+      health = Math.max(0, health - (4 + (spd - 2) * 2.2));
+      dmgCool = 0.7;
+      if (health <= 0) { repairT = 3; showMsg('ROVER DAMAGED - REPAIRING...', 3); }
+    }
+    if (repairT > 0) {
+      repairT -= dt;
+      if (repairT <= 0) health = 40;
+    }
+    // fuel: burns while driving, slowly recharges (solar) while parked
+    if (throttle) fuel -= (0.12 + speedNorm * 0.26) * dt;
+    else if (spd < 0.6) {
+      fuel += 0.6 * (0.25 + 0.75 * dayFactor) * dt;
+      if (repairT <= 0 && health < 100) health = Math.min(100, health + 0.3 * dt);
+    }
+    fuel = Math.max(0, Math.min(100, fuel));
+    if (fuel < 20 && fuel > 0 && !lowFuelShown) { lowFuelShown = true; showMsg('LOW FUEL', 2.5); }
+    if (fuel >= 35) { lowFuelShown = false; emptyShown = false; }
+    if (fuel <= 0 && !emptyShown) { emptyShown = true; showMsg('OUT OF FUEL - STOP TO RECHARGE', 3.5); }
+
+    if (msgT > 0) { msgT -= dt; if (msgT <= 0 && elMsg) elMsg.classList.remove('show'); }
+
+    const h = Math.round(health), f = Math.round(fuel);
+    if (h !== lastH) {
+      lastH = h;
+      if (elHp) { elHp.style.width = h + '%'; elHp.classList.toggle('low', h < 25); }
+      if (elHealthFill) { elHealthFill.style.setProperty('--v', (h / 100).toFixed(2)); elHealthFill.classList.toggle('low', h < 25); }
+    }
+    if (f !== lastF) {
+      lastF = f;
+      if (elEn) { elEn.style.width = f + '%'; elEn.classList.toggle('low', f < 20); }
+      const on = f <= 0 ? 0 : Math.ceil(f / 100 * fuelCells.length);
+      fuelCells.forEach((c, i) => c.classList.toggle('on', i < on));
+      if (elFuelFill) elFuelFill.classList.toggle('low', f < 20);
+    }
+  }
+
   // ============ Main loop ============
   const clock = new THREE.Clock();
   const maxSpeed = 9.0;
@@ -1364,7 +1421,9 @@ function initGame() {
     skyUniforms.uT.value = t;
 
     // ---- Throttle ----
-    const target = keys.forward ? maxSpeed : (keys.backward ? -maxSpeed * 0.5 : 0);
+    let target = keys.forward ? maxSpeed : (keys.backward ? -maxSpeed * 0.5 : 0);
+    if (repairT > 0) target = 0;            // rover is being repaired
+    else if (fuel <= 0) target *= 0.25;     // out of fuel: crawl only
     velocity = THREE.MathUtils.damp(velocity, target, 2.2, dt);
     if (target === 0 && Math.abs(velocity) < 0.02) velocity = 0;
 
@@ -1458,6 +1517,7 @@ function initGame() {
     const onPathNow = pathMask(rx, rz) > 0.35;
     updateAudio(speedNorm, keys.forward || keys.backward, onPathNow);
     updateDust(dt, spd, rx, rz, cosR, sinR, onPathNow);
+    updateVitals(dt, spd, speedNorm, keys.forward || keys.backward, hit);
 
     const biomeTxt = getBiomeName(rx, rz);
     if (biomeTxt !== lastBiomeText) {

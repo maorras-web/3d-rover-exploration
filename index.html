@@ -24,6 +24,7 @@
 </div>
 
 <div id="sun-glow"></div>
+<div id="hud-msg"></div>
 
 <div id="ui-container">
   <div id="hud-chips">
@@ -66,14 +67,14 @@
     <div class="bars">
       <div class="bar-row">
         <svg viewBox="0 0 24 24" style="color:#6ff2b0"><path fill="currentColor" d="M12 21s-7-4.5-9.5-9C1 8.5 3 5 6.5 5c2 0 3.5 1 5.5 3 2-2 3.5-3 5.5-3C21 5 23 8.5 21.5 12 19 16.5 12 21 12 21z"/></svg>
-        <div class="bar"><div class="bar-fill hp" id="bar-health" style="width:78%"></div></div>
+        <div class="bar"><div class="bar-fill hp" id="bar-health" style="width:100%"></div></div>
       </div>
       <div class="bar-row">
         <svg viewBox="0 0 24 24" style="color:#6fb4ff"><path fill="currentColor" d="M12 2s7 7.5 7 12a7 7 0 0 1-14 0c0-4.5 7-12 7-12z"/></svg>
-        <div class="bar"><div class="bar-fill en" id="bar-energy" style="width:58%"></div></div>
+        <div class="bar"><div class="bar-fill en" id="bar-energy" style="width:100%"></div></div>
       </div>
     </div>
-    <div class="gauge"><div class="gauge-shape"><i class="gfill fuel-fill"></i></div><span>FUEL GAUGE</span></div>
+    <div class="gauge"><div class="gauge-shape"><i class="gfill fuel-fill"><b></b><b></b><b></b><b></b><b></b><b></b></i></div><span>FUEL GAUGE</span></div>
   </div>
   <div class="dash-title">DASHBOARD PANEL</div>
 </div>
@@ -86,6 +87,6 @@
   }
 }
 </script>
-<script type="module" src="main.js?v=12"></script>
+<script type="module" src="main.js?v=13"></script>
 </body>
 </html>
