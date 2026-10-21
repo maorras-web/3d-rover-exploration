@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -658,19 +658,19 @@ function initGame() {
     arm:    new THREE.MeshStandardMaterial({ color: 0xc9c4b6, metalness: 0.55, roughness: 0.40, flatShading: true, envMapIntensity: 1.0 }),
     joint:  new THREE.MeshStandardMaterial({ color: 0x5e584d, metalness: 0.60, roughness: 0.50, flatShading: true }),
     under:  new THREE.MeshStandardMaterial({ color: 0x3a352d, metalness: 0.30, roughness: 0.80, flatShading: true }),
-    rubber: new THREE.MeshStandardMaterial({ color: 0x4d4238, roughness: 0.95, flatShading: true }),
+    rubber: new THREE.MeshStandardMaterial({ color: 0x3b332c, roughness: 0.95, flatShading: true }),
     dome:   new THREE.MeshStandardMaterial({ color: 0xa6c4d8, metalness: 0.05, roughness: 0.5, flatShading: true, envMapIntensity: 0.55 }),
     black:  new THREE.MeshStandardMaterial({ color: 0x141210, roughness: 0.70, flatShading: true }),
     copper: new THREE.MeshStandardMaterial({ color: 0x8a5a34, metalness: 0.30, roughness: 0.60, flatShading: true }),
     crate:  new THREE.MeshStandardMaterial({ color: 0x4c463a, roughness: 0.80, flatShading: true }),
     glow:   new THREE.MeshStandardMaterial({ color: 0xffffcc, emissive: 0xffeeaa, emissiveIntensity: 1.6, flatShading: true }),
     tail:   new THREE.MeshStandardMaterial({ color: 0xff3322, emissive: 0xff2211, emissiveIntensity: 0.9, flatShading: true }),
-    hullS: new THREE.MeshStandardMaterial({ color: 0x8fa1ad, metalness: 0.35, roughness: 0.45, envMapIntensity: 1.1 }),
-    deckS: new THREE.MeshStandardMaterial({ color: 0xa8b8c2, metalness: 0.30, roughness: 0.45, envMapIntensity: 1.1 }),
-    tanS:  new THREE.MeshStandardMaterial({ color: 0xb5a488, metalness: 0.15, roughness: 0.60 }),
-    armS:  new THREE.MeshStandardMaterial({ color: 0xcfcabb, metalness: 0.60, roughness: 0.35, envMapIntensity: 1.2 }),
-    darkS: new THREE.MeshStandardMaterial({ color: 0x2a2723, metalness: 0.30, roughness: 0.65 }),
-    tread: new THREE.MeshStandardMaterial({ color: 0x7b6c5a, roughness: 0.95, flatShading: true })
+    hullS: new THREE.MeshStandardMaterial({ color: 0x8fa1ad, metalness: 0.35, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
+    deckS: new THREE.MeshStandardMaterial({ color: 0xa8b8c2, metalness: 0.30, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
+    tanS:  new THREE.MeshStandardMaterial({ color: 0xb5a488, metalness: 0.15, roughness: 0.60, flatShading: true }),
+    armS:  new THREE.MeshStandardMaterial({ color: 0xcfcabb, metalness: 0.60, roughness: 0.35, envMapIntensity: 1.2, flatShading: true }),
+    darkS: new THREE.MeshStandardMaterial({ color: 0x2a2723, metalness: 0.30, roughness: 0.65, flatShading: true }),
+    tread: new THREE.MeshStandardMaterial({ color: 0x5e5144, roughness: 0.95, flatShading: true })
   };
 
   const buckets = {};
@@ -738,19 +738,34 @@ function initGame() {
   }
 
   function partRB(key, x, y, z, w, h, d, r, rx, ry, rz) {
-    part(new RoundedBoxGeometry(w, h, d, 3, r), place(x, y, z, rx, ry, rz), key);
+    part(new RoundedBoxGeometry(w, h, d, 1, r), place(x, y, z, rx, ry, rz), key);
   }
   function partPlate(key, fx, fy, fz, tx, ty, tz, w, t) {
     _va.set(fx, fy, fz); _vb.set(tx, ty, tz);
     _vd.subVectors(_vb, _va);
     const len = _vd.length(); _vd.normalize();
     _q.setFromUnitVectors(ZAXIS, _vd);
-    const g = new RoundedBoxGeometry(w, t, len + 0.1, 2, Math.min(w, t) * 0.35);
+    const g = new RoundedBoxGeometry(w, t, len + 0.1, 1, Math.min(w, t) * 0.35);
     g.applyMatrix4(new THREE.Matrix4().compose(_v.copy(_va).addScaledVector(_vd, len / 2), _q, _s.set(1, 1, 1)));
     (buckets[key] = buckets[key] || []).push(g);
   }
 
   const B = new THREE.BoxGeometry(1, 1, 1);
+
+  // ---- Dark cartoon outline (inverted hull) like the target image ----
+  const OUTLINE_KEYS = ['hullS', 'deckS', 'tanS', 'armS', 'darkS', 'dome'];
+  const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: 0x15110d, side: THREE.BackSide });
+  OUTLINE_MAT.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed += normalize(normal) * 0.03;');
+  };
+  function makeOutlineGeo(src) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', src.attributes.position.clone());
+    if (src.index) g.setIndex(src.index.clone());
+    const m = mergeVertices(g, 1e-3);
+    m.computeVertexNormals();
+    return m;
+  }
 
   // ---- Body: rounded, layered, solid (no scaleLast: positions are real) ----
   partRB('hullS', 0, 0.98, 0.05, 2.15, 0.72, 2.25, 0.22);                 // lower hull
@@ -763,7 +778,7 @@ function initGame() {
   for (let i = 0; i < 4; i++) partRB('darkS', 0, 0.86 + i * 0.1, 1.31, 1.3, 0.05, 0.03, 0.01); // vent slats
 
   // ---- Dome + eyes + emblem ----
-  const domeGeo = new THREE.SphereGeometry(0.85, 9, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+  const domeGeo = new THREE.SphereGeometry(0.85, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2);
   domeGeo.scale(1, 0.92, 1);
   part(domeGeo, place(0, 1.55, 0), 'dome');
   part(new THREE.TorusGeometry(0.85, 0.08, 8, 16), place(0, 1.56, 0, Math.PI / 2, 0, 0), 'tanS');
@@ -777,8 +792,8 @@ function initGame() {
     const px = side * 1.0;
     partRB('hullS', side * 0.9, 1.45, -0.25, 0.3, 0.2, 0.4, 0.05);
     partRB('tanS', px, 1.62, -0.25, 0.5, 0.55, 0.55, 0.1);
-    partDisc('darkS', px, 1.92, -0.25, 0.25, 0.1, 0, 1, 0, 12);
-    for (let j = -2; j <= 2; j++) partRB('armS', px + j * 0.08, 1.975, -0.25, 0.025, 0.02, 0.4, 0.005);
+    partRB('darkS', px, 1.92, -0.25, 0.46, 0.1, 0.46, 0.02);
+    for (let j = -1.5; j <= 1.5; j++) { partRB('armS', px + j * 0.1, 1.975, -0.25, 0.022, 0.02, 0.44, 0.004); partRB('armS', px, 1.975, -0.25 + j * 0.1, 0.44, 0.02, 0.022, 0.004); }
     partDisc('darkS', px, 1.66, -0.54, 0.12, 0.06, 0, 0, 1, 12);
     partDisc('armS', px, 1.66, -0.56, 0.06, 0.03, 0, 0, 1, 10);
   });
@@ -838,6 +853,7 @@ function initGame() {
     const merged = mergeSafe(buckets[key], false);
     if (!merged) return;
     const mesh = new THREE.Mesh(merged, MATS[key]);
+    if (OUTLINE_KEYS.includes(key)) rover.add(new THREE.Mesh(makeOutlineGeo(merged), OUTLINE_MAT));
     mesh.castShadow = true;
     rover.add(mesh);
   });
@@ -847,13 +863,13 @@ function initGame() {
     return mergeGeometries(list.map(g => (g.index ? g.toNonIndexed() : g)), groups);
   }
   function buildWheelGeo() {
-    const carcass = new THREE.CylinderGeometry(0.62, 0.62, 0.72, 20);
+    const carcass = new THREE.CylinderGeometry(0.62, 0.62, 0.72, 10);
     carcass.rotateZ(Math.PI / 2);
     const tp = [];
-    const N = 14;
+    const N = 10;
     for (let i = 0; i < N; i++) {
       const a = (i / N) * Math.PI * 2;
-      const tread = new RoundedBoxGeometry(0.76, 0.27, 0.36, 2, 0.06);
+      const tread = new RoundedBoxGeometry(0.76, 0.27, 0.36, 1, 0.06);
       const m = new THREE.Matrix4().makeRotationX(a);
       m.setPosition(0, Math.cos(a) * 0.7, Math.sin(a) * 0.7);
       tread.applyMatrix4(m);
@@ -861,11 +877,11 @@ function initGame() {
     }
     const treads = mergeGeometries(tp, false);
     const hp = [];
-    const hub = new THREE.CylinderGeometry(0.4, 0.4, 0.82, 16); hub.rotateZ(Math.PI / 2); hp.push(hub);
-    const cap = new THREE.CylinderGeometry(0.2, 0.2, 0.9, 12); cap.rotateZ(Math.PI / 2); hp.push(cap);
+    const hub = new THREE.CylinderGeometry(0.4, 0.4, 0.82, 8); hub.rotateZ(Math.PI / 2); hp.push(hub);
+    const cap = new THREE.CylinderGeometry(0.2, 0.2, 0.9, 8); cap.rotateZ(Math.PI / 2); hp.push(cap);
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
-      const bolt = new THREE.CylinderGeometry(0.04, 0.04, 0.88, 6);
+      const bolt = new THREE.CylinderGeometry(0.04, 0.04, 0.88, 5);
       bolt.rotateZ(Math.PI / 2);
       bolt.translate(0, Math.cos(a) * 0.3, Math.sin(a) * 0.3);
       hp.push(bolt);
@@ -873,9 +889,11 @@ function initGame() {
     return mergeSafe([carcass, treads, mergeGeometries(hp, false)], true);
   }
   const wheelGeo = buildWheelGeo();
+  const wheelOutlineGeo = makeOutlineGeo(wheelGeo);
   const wheels = [];
   wheelSlots.forEach(([sx, sz]) => {
     const w = new THREE.Mesh(wheelGeo, [MATS.rubber, MATS.tread, MATS.armS]);
+    w.add(new THREE.Mesh(wheelOutlineGeo, OUTLINE_MAT));
     w.position.set(sx * 1.62, 0.74, sz * 1.0);
     w.castShadow = true;
     rover.add(w);
