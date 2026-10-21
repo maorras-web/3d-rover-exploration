@@ -381,11 +381,11 @@ function initGame() {
   scene.add(ground);
 
   // ============ 3D grass with wind ============
-  function makeBladeGeo(h, w, bend) {
+  function makeBladeGeo(h, w, bend, bc, tc) {
     const segs = 3;
     const positions = [], normals = [], uvs = [], vcols = [], indices = [];
-    const baseCol = new THREE.Color(0x46682a);
-    const tipCol = new THREE.Color(0xb9cc5c);
+    const baseCol = new THREE.Color(bc !== undefined ? bc : 0x46682a);
+    const tipCol = new THREE.Color(tc !== undefined ? tc : 0xb9cc5c);
     for (let i = 0; i <= segs; i++) {
       const t = i / segs;
       const y = h * t;
@@ -436,7 +436,7 @@ function initGame() {
        vec4 wpos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
        float dR = distance(wpos.xz, uRover.xz);
        float dC = distance(wpos.xyz, cameraPosition);
-       transformed *= mix(0.2, 1.0, smoothstep(1.8, 4.5, dR)) * mix(0.15, 1.0, smoothstep(1.0, 3.0, dC));
+       transformed *= smoothstep(11.0, 19.0, dR) * mix(0.15, 1.0, smoothstep(1.0, 3.0, dC));   // far grass hides near the rover (the dense near-grass layer takes over)
        float ph = wpos.x * 0.35 + wpos.z * 0.27;
        float gust = sin(uTime * 1.6 + ph) * 0.6 + sin(uTime * 3.3 + ph * 1.7) * 0.4;
        float hf = position.y * position.y * 6.0;
@@ -445,7 +445,7 @@ function initGame() {
     );
   };
 
-  const GRASS = 36000;
+  const GRASS = 30000;
   const grassMesh = new THREE.InstancedMesh(tuftGeo, grassMat, GRASS);
   grassMesh.receiveShadow = true;
   const dummy = new THREE.Object3D();
@@ -469,6 +469,92 @@ function initGame() {
   grassMesh.instanceMatrix.needsUpdate = true;
   if (grassMesh.instanceColor) grassMesh.instanceColor.needsUpdate = true;
   scene.add(grassMesh);
+
+  // ============ Near-rover grass: dense, high quality, only around the rover ============
+  // A ring of world-anchored cells follows the rover; when it crosses a cell border only the row/column that
+  // wrapped around is rebuilt, so the grass stays put in the world and costs almost nothing per frame.
+  const NG_CELL = 0.75, NG_N = 46, NG_K = 4;
+  const NG_COUNT = NG_N * NG_N * NG_K;
+  const nearParts = [];
+  for (let k = 0; k < 5; k++) {
+    const b = makeBladeGeo(0.18 + Math.random() * 0.24, 0.07 + Math.random() * 0.05, 0.04 + Math.random() * 0.10, 0x2f4a1c, 0xc2d868);
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler((Math.random() - 0.5) * 0.7, (k / 5) * Math.PI * 2 + Math.random() * 0.8, (Math.random() - 0.5) * 0.7));
+    m.compose(new THREE.Vector3((Math.random() - 0.5) * 0.2, 0, (Math.random() - 0.5) * 0.2), q, new THREE.Vector3(1, 1, 1));
+    b.applyMatrix4(m);
+    nearParts.push(b);
+  }
+  const nearGeo = mergeGeometries(nearParts, false);
+  const nearMat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.85, metalness: 0.0 });
+  nearMat.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = uTime;
+    shader.uniforms.uRover = uRover;
+    shader.vertexShader = 'uniform float uTime;\nuniform vec3 uRover;\n' + shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+       vec4 wpos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+       float dR = distance(wpos.xz, uRover.xz);
+       float dC = distance(wpos.xyz, cameraPosition);
+       float fade = (1.0 - smoothstep(12.5, 17.5, dR)) * mix(0.3, 1.0, smoothstep(2.4, 4.4, dR)) * mix(0.1, 1.0, smoothstep(0.8, 2.2, dC));
+       transformed *= fade;
+       float ph = wpos.x * 0.35 + wpos.z * 0.27;
+       float gust = sin(uTime * 1.6 + ph) * 0.6 + sin(uTime * 3.3 + ph * 1.7) * 0.4;
+       float hf = position.y * position.y * 6.0;
+       transformed.x += gust * 0.17 * hf * fade;
+       transformed.z += cos(uTime * 1.2 + ph) * 0.11 * hf * fade;`
+    );
+  };
+  const nearGrass = new THREE.InstancedMesh(nearGeo, nearMat, NG_COUNT);
+  nearGrass.frustumCulled = false;
+  nearGrass.receiveShadow = true;
+  nearGrass.visible = false;      // shown after the first fill
+  const ngDummy = new THREE.Object3D();
+  const ngCol = new THREE.Color();
+  for (let i = 0; i < NG_COUNT; i++) nearGrass.setColorAt(i, ngCol.setRGB(1, 1, 1));
+  const ngCellI = new Int32Array(NG_N * NG_N).fill(-2147483000);
+  const ngCellJ = new Int32Array(NG_N * NG_N).fill(-2147483000);
+  function ngHash(i, j, sd) { const n = Math.sin(i * 127.1 + j * 311.7 + sd * 74.7) * 43758.5453; return n - Math.floor(n); }
+  function updateNearGrass(px, pz) {
+    const cx = Math.floor(px / NG_CELL), cz = Math.floor(pz / NG_CELL);
+    const baseI = cx - (NG_N >> 1), baseJ = cz - (NG_N >> 1);
+    let dirty = false;
+    for (let b = 0; b < NG_N; b++) {
+      const cj = baseJ + ((((b - baseJ) % NG_N) + NG_N) % NG_N);
+      for (let a = 0; a < NG_N; a++) {
+        const ci = baseI + ((((a - baseI) % NG_N) + NG_N) % NG_N);
+        const si = b * NG_N + a;
+        if (ngCellI[si] === ci && ngCellJ[si] === cj) continue;
+        ngCellI[si] = ci; ngCellJ[si] = cj; dirty = true;
+        for (let k = 0; k < NG_K; k++) {
+          const idx = si * NG_K + k;
+          const x = (ci + ngHash(ci, cj, k * 7 + 1)) * NG_CELL;
+          const z = (cj + ngHash(ci, cj, k * 7 + 2)) * NG_CELL;
+          const pm = pathMask(x, z);
+          const keep = Math.abs(x) < HALF - 1 && Math.abs(z) < HALF - 1 && (pm < 0.2 || (pm < 0.5 && ngHash(ci, cj, k * 7 + 3) > 0.5));
+          if (keep) {
+            ngDummy.position.set(x, getGroundHeight(x, z) - 0.03, z);
+            ngDummy.rotation.set(0, ngHash(ci, cj, k * 7 + 4) * Math.PI * 2, 0);
+            ngDummy.scale.setScalar(0.8 + ngHash(ci, cj, k * 7 + 5) * 0.6);
+          } else {
+            ngDummy.position.set(x, -50, z);
+            ngDummy.rotation.set(0, 0, 0);
+            ngDummy.scale.setScalar(0.0001);
+          }
+          ngDummy.updateMatrix();
+          nearGrass.setMatrixAt(idx, ngDummy.matrix);
+          const t = ngHash(ci, cj, k * 7 + 6);
+          if (t < 0.12) ngCol.setRGB(1.12, 1.0, 0.62); else ngCol.setRGB(0.82 + t * 0.3, 0.9 + t * 0.22, 0.74 + t * 0.26);
+          nearGrass.setColorAt(idx, ngCol);
+        }
+      }
+    }
+    if (dirty) {
+      nearGrass.instanceMatrix.needsUpdate = true;
+      nearGrass.instanceColor.needsUpdate = true;
+      nearGrass.visible = true;
+    }
+  }
+  scene.add(nearGrass);
 
   // ============ Flowers ============
   const flowerPlans = [];
@@ -511,6 +597,24 @@ function initGame() {
   // ============ Colliders ============
   const colliders = [];
   const smallRocks = [];
+  // Climbable rocks: every rock keeps the inverse of its real transform, so the drive height matches the
+  // visible mesh (an ellipsoid just inside the dodecahedron) and wheels ride up the rock instead of sinking in.
+  const ROCK_CELL = 6;
+  const rockGrid = new Map();
+  const ROCK_LOCAL_R2 = (0.8 * 0.93) * (0.8 * 0.93);
+  const rockKey = (ix, iz) => (ix + 2000) * 4096 + (iz + 2000);
+  function addClimbRock(matrix, s) {
+    const e = new THREE.Matrix3().setFromMatrix4(matrix).invert().elements.slice();
+    const rad = 0.8 * s * 1.3;
+    const rec = { x: matrix.elements[12], y: matrix.elements[13], z: matrix.elements[14], e, rad2: rad * rad, bb: e[3] * e[3] + e[4] * e[4] + e[5] * e[5] };
+    const i0 = Math.floor((rec.x - rad) / ROCK_CELL), i1 = Math.floor((rec.x + rad) / ROCK_CELL);
+    const j0 = Math.floor((rec.z - rad) / ROCK_CELL), j1 = Math.floor((rec.z + rad) / ROCK_CELL);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      const k = rockKey(i, j);
+      if (!rockGrid.has(k)) rockGrid.set(k, []);
+      rockGrid.get(k).push(rec);
+    }
+  }
   function driveHeight(x, z) {
     let bump = 0;
     for (let i = 0; i < smallRocks.length; i++) {
@@ -522,7 +626,24 @@ function initGame() {
         if (bmp > bump) bump = bmp;
       }
     }
-    return getGroundHeight(x, z) + bump;
+    let h = getGroundHeight(x, z) + bump;
+    const list = rockGrid.get(rockKey(Math.floor(x / ROCK_CELL), Math.floor(z / ROCK_CELL)));
+    if (list) {
+      for (let i = 0; i < list.length; i++) {
+        const r = list[i];
+        const dx = x - r.x, dz = z - r.z;
+        if (dx * dx + dz * dz > r.rad2) continue;
+        const e = r.e;
+        const ax = e[0] * dx + e[6] * dz, ay = e[1] * dx + e[7] * dz, az = e[2] * dx + e[8] * dz;
+        const ab = ax * e[3] + ay * e[4] + az * e[5];
+        const disc = ab * ab - r.bb * (ax * ax + ay * ay + az * az - ROCK_LOCAL_R2);
+        if (disc > 0) {
+          const top = r.y + (-ab + Math.sqrt(disc)) / r.bb;
+          if (top > h) h = top;
+        }
+      }
+    }
+    return h;
   }
 
   // ============ Rocks ============
@@ -537,6 +658,13 @@ function initGame() {
     const z = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
     const x = pathCenter(z) + (Math.random() > 0.5 ? 1 : -1) * (2.6 + Math.random() * 1.6);
     rockPlans.push({ x, z, s: 0.15 + Math.random() * 0.3 });
+  }
+  // wheel-sized rocks along the trail (the rover can drive right over these)
+  for (let i = 0; i < 46; i++) {
+    const z = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
+    const x = pathCenter(z) + (Math.random() > 0.5 ? 1 : -1) * (1.4 + Math.random() * 3.4);
+    if (Math.hypot(x, z) < 8) continue;
+    rockPlans.push({ x, z, s: 0.85 + Math.random() * 0.45 });
   }
   const rockIM = new THREE.InstancedMesh(
     withGradient(new THREE.DodecahedronGeometry(0.8, 0), 0.62, 1.08),
@@ -553,8 +681,8 @@ function initGame() {
     rockIM.setMatrixAt(i, dummy.matrix);
     const shade = 0.66 + Math.random() * 0.3;
     rockIM.setColorAt(i, gCol.setRGB(shade, shade * 0.97, shade * 0.92));
-    if (p.s >= 1.0) colliders.push({ x: p.x, z: p.z, r: 0.7 * p.s });
-    else smallRocks.push({ x: p.x, z: p.z, r: p.s * 0.9, h: p.s * 0.55 });
+    if (p.s > 1.45) colliders.push({ x: p.x, z: p.z, r: 0.7 * p.s });   // only really big boulders block the rover
+    else addClimbRock(dummy.matrix, p.s);                              // everything else can be driven over
   });
   rockIM.instanceMatrix.needsUpdate = true;
   if (rockIM.instanceColor) rockIM.instanceColor.needsUpdate = true;
@@ -809,7 +937,7 @@ function initGame() {
   const MATS = {
     light:  new THREE.MeshStandardMaterial({ color: 0xa9b8c2, metalness: 0.20, roughness: 0.60, flatShading: true, envMapIntensity: 0.6 }),
     mid:    new THREE.MeshStandardMaterial({ color: 0xa89f8a, metalness: 0.30, roughness: 0.55, flatShading: true, envMapIntensity: 0.7 }),
-    arm:    new THREE.MeshStandardMaterial({ color: 0xc9c4b6, metalness: 0.55, roughness: 0.40, flatShading: true, envMapIntensity: 1.0 }),
+    arm:    new THREE.MeshStandardMaterial({ color: 0xb5afa0, metalness: 0.35, roughness: 0.50, flatShading: true, envMapIntensity: 0.6 }),
     joint:  new THREE.MeshStandardMaterial({ color: 0x5e584d, metalness: 0.60, roughness: 0.50, flatShading: true }),
     under:  new THREE.MeshStandardMaterial({ color: 0x3a352d, metalness: 0.30, roughness: 0.80, flatShading: true }),
     rubber: new THREE.MeshStandardMaterial({ color: 0x24211e, roughness: 0.9, flatShading: true }),
@@ -826,9 +954,9 @@ function initGame() {
     hullS: new THREE.MeshStandardMaterial({ color: 0x8fa1ad, metalness: 0.35, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
     deckS: new THREE.MeshStandardMaterial({ color: 0xa8b8c2, metalness: 0.30, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
     tanS:  new THREE.MeshStandardMaterial({ color: 0xb5a488, metalness: 0.15, roughness: 0.60, flatShading: true }),
-    armS:  new THREE.MeshStandardMaterial({ color: 0xcfcabb, metalness: 0.60, roughness: 0.35, envMapIntensity: 1.2, flatShading: true }),
+    armS:  new THREE.MeshStandardMaterial({ color: 0xb8b2a2, metalness: 0.35, roughness: 0.50, envMapIntensity: 0.6, flatShading: true }),
     darkS: new THREE.MeshStandardMaterial({ color: 0x2a2723, metalness: 0.30, roughness: 0.65, flatShading: true }),
-    tread: new THREE.MeshStandardMaterial({ color: 0x8c7f6d, roughness: 0.85, flatShading: true })
+    tread: new THREE.MeshStandardMaterial({ color: 0x5a4e42, roughness: 0.85, flatShading: true })
   };
 
   const buckets = {};
@@ -1727,20 +1855,24 @@ function initGame() {
       const wz = rz - w.lx * sinR + w.lz * cosR;
       // a wheel is a circle: it rests on the highest point of its rim, so it never sinks on slopes
       let top = -Infinity;
-      for (let k = -2; k <= 2; k++) {
-        const d = k * 0.3;
-        const gh = driveHeight(wx - sinR * d, wz - cosR * d) + Math.sqrt(WHEEL_R * WHEEL_R - d * d);
-        if (gh > top) top = gh;
+      for (let k = -4; k <= 4; k++) {
+        const d = k * WHEEL_R / 4;
+        const ch = Math.sqrt(Math.max(0, WHEEL_R * WHEEL_R - d * d));
+        for (let l = -1; l <= 1; l++) {
+          const lat = l * 0.3;
+          const gh = driveHeight(wx - sinR * d + cosR * lat, wz - cosR * d - sinR * lat) + ch;
+          if (gh > top) top = gh;
+        }
       }
       hw[i] = top - WHEEL_R;
       if (w.lz < 0) hF += hw[i]; else hB += hw[i];
       if (w.lx > 0) hR += hw[i]; else hL += hw[i];
     }
     hF *= 0.5; hB *= 0.5; hL *= 0.5; hR *= 0.5;
-    const bodyH = (hF + hB) * 0.5;
+    const bodyH = (hw[0] + hw[1] + hw[2] + hw[3]) * 0.25 * 0.6 + Math.max(hw[0], hw[1], hw[2], hw[3]) * 0.4;
 
     // Body height follows average of wheels (smoothed)
-    rover.position.y = THREE.MathUtils.damp(rover.position.y, bodyH + 0.04, 16, dt);
+    rover.position.y = THREE.MathUtils.damp(rover.position.y, bodyH + 0.04, (bodyH + 0.04 > rover.position.y) ? 26 : 16, dt);
     if (spd > 0.5) rover.position.y += Math.abs(Math.sin(t * 11)) * 0.015 * speedNorm;
 
     // Body attitude from the 4 contact points + accel pitch + turn bank
@@ -1771,8 +1903,9 @@ function initGame() {
     // Each wheel travels independently (visible suspension compression)
     for (let i = 0; i < 4; i++) {
       const w = wheels[i];
-      const wantY = THREE.MathUtils.clamp(hw[i] + WHEEL_R - rover.position.y, 0.62, 1.06);
-      w.y = THREE.MathUtils.damp(w.y, wantY, 12, dt);
+      // wheel centre height in the body's own (pitched/rolled) frame, so a wheel on a rock really sits on top of it
+      const wantY = THREE.MathUtils.clamp((((hw[i] + WHEEL_R - rover.position.y) + w.lz * Math.sin(pitch)) / Math.cos(pitch) - w.lx * Math.sin(roll)) / Math.cos(roll), 0.45, 1.95);
+      w.y = THREE.MathUtils.damp(w.y, wantY, wantY > w.y ? 34 : 12, dt);
       w.mesh.rotation.x = wheelSpin;
       if (w.lz < 0) {            // front wheels visibly steer
         w.mesh.rotation.order = 'YXZ';
@@ -1783,6 +1916,7 @@ function initGame() {
 
     updateSuspension();
     uRover.value.set(rover.position.x, rover.position.y, rover.position.z);
+    updateNearGrass(rover.position.x, rover.position.z);
     const limit = HALF - 6;
     rover.position.x = THREE.MathUtils.clamp(rover.position.x, -limit, limit);
     rover.position.z = THREE.MathUtils.clamp(rover.position.z, -limit, limit);
