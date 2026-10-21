@@ -93,19 +93,7 @@ function initGame() {
   composer.addPass(new ShaderPass({
     uniforms: { tDiffuse: { value: null } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-    fragmentShader: `
-      uniform sampler2D tDiffuse; varying vec2 vUv;
-      void main(){
-        vec4 c = texture2D(tDiffuse, vUv);
-        float g = dot(c.rgb, vec3(0.299,0.587,0.114));
-        c.rgb = mix(vec3(g), c.rgb, 1.14);
-        c.rgb = (c.rgb - 0.5) * 1.08 + 0.5;
-        c.r *= 1.05; c.g *= 1.02; c.b *= 0.95;
-        vec2 q = vUv - 0.5;
-        float vig = smoothstep(0.9, 0.3, length(q) * 1.35);
-        c.rgb *= mix(0.87, 1.0, vig);
-        gl_FragColor = c;
-      }`
+    fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); float g = dot(c.rgb, vec3(0.299,0.587,0.114)); c.rgb = mix(vec3(g), c.rgb, 1.14); c.rgb = (c.rgb - 0.5) * 1.08 + 0.5; c.r *= 1.05; c.g *= 1.02; c.b *= 0.95; vec2 q = vUv - 0.5; float vig = smoothstep(0.9, 0.3, length(q) * 1.35); c.rgb *= mix(0.87, 1.0, vig); gl_FragColor = c; }`
   }));
 
   // ============ Sky ============
@@ -123,27 +111,7 @@ function initGame() {
     new THREE.ShaderMaterial({
       uniforms: skyUniforms, side: THREE.BackSide, depthWrite: false,
       vertexShader: 'varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-      fragmentShader: `
-        uniform vec3 zenith; uniform vec3 horizon; uniform vec3 sunDir; uniform vec3 sunColor;
-        uniform vec3 cloudCol; uniform float cloudAmt; uniform float uT;
-        float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-        float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-          return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y); }
-        float fbm2(vec2 p){ float s = 0.0; float a = 0.5; for (int i = 0; i < 4; i++) { s += a * vn(p); p *= 2.03; a *= 0.5; } return s; }
-        varying vec3 vDir;
-        void main(){
-          vec3 d = normalize(vDir);
-          vec3 col = mix(horizon, zenith, pow(clamp(d.y, 0.0, 1.0), 0.55));
-          float s = max(dot(d, normalize(sunDir)), 0.0);
-          col += sunColor * (pow(s, 240.0) * 1.4 + pow(s, 10.0) * 0.45);
-          vec2 cuv = d.xz / (d.y + 0.25) * 1.3 + vec2(uT * 0.008, 0.0);
-          float cl = smoothstep(0.50, 0.74, fbm2(cuv));
-          cl = floor(cl * 3.0 + 0.5) / 3.0;
-          cl *= smoothstep(0.03, 0.25, d.y) * cloudAmt;
-          vec3 cc = cloudCol + sunColor * pow(s, 5.0) * 0.45;
-          col = mix(col, cc, cl * 0.85);
-          gl_FragColor = vec4(col, 1.0);
-        }`
+      fragmentShader: `uniform vec3 zenith; uniform vec3 horizon; uniform vec3 sunDir; uniform vec3 sunColor; uniform vec3 cloudCol; uniform float cloudAmt; uniform float uT; float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); } float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y); } float fbm2(vec2 p){ float s = 0.0; float a = 0.5; for (int i = 0; i < 4; i++) { s += a * vn(p); p *= 2.03; a *= 0.5; } return s; } varying vec3 vDir; void main(){ vec3 d = normalize(vDir); vec3 col = mix(horizon, zenith, pow(clamp(d.y, 0.0, 1.0), 0.55)); float s = max(dot(d, normalize(sunDir)), 0.0); col += sunColor * (pow(s, 240.0) * 1.4 + pow(s, 10.0) * 0.45); vec2 cuv = d.xz / (d.y + 0.25) * 1.3 + vec2(uT * 0.008, 0.0); float cl = smoothstep(0.50, 0.74, fbm2(cuv)); cl = floor(cl * 3.0 + 0.5) / 3.0; cl *= smoothstep(0.03, 0.25, d.y) * cloudAmt; vec3 cc = cloudCol + sunColor * pow(s, 5.0) * 0.45; col = mix(col, cc, cl * 0.85); gl_FragColor = vec4(col, 1.0); }`
     })
   );
   scene.add(sky);
@@ -218,13 +186,19 @@ function initGame() {
     return 1 - THREE.MathUtils.smoothstep(d, 1.6, 3.4);
   }
 
-  // ============ Standing-stones hill (part of the terrain) ============
+  // ============ Standing-stones hill ============
   const POI_X = 10, POI_Z = -72;
   function moundH(x, z) {
     const d2 = ((x - POI_X) * (x - POI_X) + (z - POI_Z) * (z - POI_Z)) / (12 * 12);
     if (d2 >= 1) return 0;
     const t = 1 - d2;
     return 3.2 * t * t;
+  }
+  function rutDepth(x, z) {
+    const pm = pathMask(x, z);
+    if (pm <= 0.01) return 0;
+    const d = Math.abs(x - pathCenter(z));
+    return 0.09 * Math.exp(-Math.pow((d - 0.8) / 0.35, 2)) * pm;
   }
 
   // ============ Unified height grid ============
@@ -235,7 +209,7 @@ function initGame() {
     for (let ix = 0; ix <= GSEG; ix++) {
       const x = -HALF + ix * GCELL;
       const z = -HALF + iz * GCELL;
-      HGRID[iz * (GSEG + 1) + ix] = fbm(x, z) * 3.5 - 1.75 - pathMask(x, z) * 0.15 + moundH(x, z);
+      HGRID[iz * (GSEG + 1) + ix] = fbm(x, z) * 3.5 - 1.75 - pathMask(x, z) * 0.15 - rutDepth(x, z) + moundH(x, z);
     }
   }
   function getGroundHeight(x, z) {
@@ -250,7 +224,7 @@ function initGame() {
     return a * (1 - fz) + b * fz;
   }
 
-  // ============ Ground ============
+  // ============ Ground + smooth natural dirt path ============
   const groundGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, GSEG, GSEG);
   const pos = groundGeo.attributes.position;
   const GP1 = GSEG + 1;
@@ -276,17 +250,12 @@ function initGame() {
     else col.setRGB(0.38 + bn * 0.08, 0.47 + bn * 0.08, 0.23);
 
     col.r += micro; col.g += micro; col.b += micro;
-
-    const pm = pathMask(x, z);
-    if (pm > 0) {
-      const dirt = 0.85 + noise2D(x * 5.3, z * 4.7) * 0.25;
-      col.lerp(new THREE.Color(0.47 * dirt, 0.35 * dirt, 0.23 * dirt), pm);
-    }
     colors[i * 3] = col.r; colors[i * 3 + 1] = col.g; colors[i * 3 + 2] = col.b;
   }
   groundGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   groundGeo.computeVertexNormals();
 
+  // Path texture: smooth linear-filtered dirt, ruts, worn edges, pebbles
   const TEXN = 640;
   const texData = new Uint8Array(TEXN * TEXN * 4);
   const lin = (b) => Math.round(255 * Math.pow(Math.min(255, b) / 255, 2.2));
@@ -295,39 +264,46 @@ function initGame() {
       const x = -HALF + (c + 0.5) / TEXN * WORLD_SIZE;
       const z = HALF - (r + 0.5) / TEXN * WORLD_SIZE;
       const n = noise2D(c * 0.73 + 1.3, r * 0.91 + 7.1);
-      const pmk = pathMask(x, z) + (n - 0.5) * 0.5;
+      const n2 = noise2D(c * 0.21 + 11.7, r * 0.17 + 3.3);
+      const pmk = pathMask(x, z) + (n - 0.5) * 0.30;
+      const alpha = THREE.MathUtils.smoothstep(pmk, 0.30, 0.72);
+      const d = Math.abs(x - pathCenter(z));
+
+      // continuous dirt shade
+      let sh = 0.90 + smoothNoise(x, z, 3) * 0.22 + (n - 0.5) * 0.10;
+      const rut = Math.exp(-Math.pow((d - 0.8) / 0.30, 2));
+      sh *= (1 - 0.32 * rut);
+      sh += 0.07 * Math.exp(-Math.pow(d / 0.5, 2));
+
+      let dr = 158 * sh, dg = 126 * sh, db = 92 * sh;
+      // dry worn grass at the edges
+      const edge = 1 - THREE.MathUtils.smoothstep(alpha, 0.30, 0.75);
+      dr = THREE.MathUtils.lerp(dr, 186, edge * 0.55);
+      dg = THREE.MathUtils.lerp(dg, 164, edge * 0.55);
+      db = THREE.MathUtils.lerp(db, 116, edge * 0.55);
+      // scattered pebbles
+      if (n2 > 0.93) { dr = 198; dg = 190; db = 176; }
+
       const o = (r * TEXN + c) * 4;
-      let R, G, Bc, A = 0;
-      if (pmk > 0.5) {
-        const d = Math.abs(x - pathCenter(z));
-        let sh = 0.92 + Math.floor(smoothNoise(x, z, 3) * 4) / 4 * 0.22 + (n - 0.5) * 0.10;
-        if (Math.abs(d - 0.85) < 0.28) sh *= 0.74;
-        R = lin(172 * sh); G = lin(128 * sh); Bc = lin(80 * sh);
-        if (n > 0.985) { R = lin(180); G = lin(165); Bc = lin(145); }
-        A = 255;
-      } else {
-        const l = Math.min(1, 0.9 + Math.floor(smoothNoise(x, z, 4) * 3) / 3 * 0.08 + n * 0.06);
-        R = G = Bc = Math.round(255 * l);
-      }
-      texData[o] = R; texData[o + 1] = G; texData[o + 2] = Bc; texData[o + 3] = A;
+      texData[o] = lin(dr); texData[o + 1] = lin(dg); texData[o + 2] = lin(db);
+      texData[o + 3] = Math.round(255 * alpha);
     }
   }
   const groundTex = new THREE.DataTexture(texData, TEXN, TEXN, THREE.RGBAFormat);
-  groundTex.magFilter = THREE.NearestFilter;
+  groundTex.magFilter = THREE.LinearFilter;
   groundTex.minFilter = THREE.LinearMipmapLinearFilter;
   groundTex.generateMipmaps = true;
   groundTex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
   groundTex.needsUpdate = true;
+
   const groundMat = new THREE.MeshStandardMaterial({
     map: groundTex, vertexColors: true, roughness: 0.95, metalness: 0.0, flatShading: true
   });
   groundMat.onBeforeCompile = (sh) => {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <map_fragment>', '')
-      .replace('#include <color_fragment>', `
-        vec4 gt = texture2D( map, vMapUv );
-        diffuseColor.rgb = mix( diffuseColor.rgb * vColor * gt.rgb, gt.rgb, gt.a );
-      `);
+      .replace('#include <color_fragment>',
+        'diffuseColor.rgb = mix(vColor, texture2D(map, vMapUv).rgb, texture2D(map, vMapUv).a);');
   };
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2;
@@ -343,9 +319,9 @@ function initGame() {
     for (let i = 0; i <= segs; i++) {
       const t = i / segs;
       const y = h * t;
-      const z = bend * t * t;
+      const zz = bend * t * t;
       const halfW = w * (1 - t * 0.85) * 0.5;
-      positions.push(-halfW, y, z, halfW, y, z);
+      positions.push(-halfW, y, zz, halfW, y, zz);
       normals.push(0, 0.25, 1, 0, 0.25, 1);
       uvs.push(0, t, 1, t);
       const c = baseCol.clone().lerp(tipCol, t);
@@ -386,16 +362,7 @@ function initGame() {
     shader.uniforms.uRover = uRover;
     shader.vertexShader = 'uniform float uTime;\nuniform vec3 uRover;\n' + shader.vertexShader.replace(
       '#include <begin_vertex>',
-      `#include <begin_vertex>
-       vec4 wpos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
-       float dR = distance(wpos.xz, uRover.xz);
-       float dC = distance(wpos.xyz, cameraPosition);
-       transformed *= mix(0.2, 1.0, smoothstep(1.8, 4.5, dR)) * mix(0.15, 1.0, smoothstep(1.0, 3.0, dC));
-       float ph = wpos.x * 0.35 + wpos.z * 0.27;
-       float gust = sin(uTime * 1.6 + ph) * 0.6 + sin(uTime * 3.3 + ph * 1.7) * 0.4;
-       float hf = position.y * position.y * 2.4;
-       transformed.x += gust * 0.17 * hf;
-       transformed.z += cos(uTime * 1.2 + ph) * 0.11 * hf;`
+      `#include <begin_vertex> vec4 wpos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0); float dR = distance(wpos.xz, uRover.xz); float dC = distance(wpos.xyz, cameraPosition); transformed *= mix(0.2, 1.0, smoothstep(1.8, 4.5, dR)) * mix(0.15, 1.0, smoothstep(1.0, 3.0, dC)); float ph = wpos.x * 0.35 + wpos.z * 0.27; float gust = sin(uTime * 1.6 + ph) * 0.6 + sin(uTime * 3.3 + ph * 1.7) * 0.4; float hf = position.y * position.y * 2.4; transformed.x += gust * 0.17 * hf; transformed.z += cos(uTime * 1.2 + ph) * 0.11 * hf;`
     );
   };
 
@@ -449,7 +416,7 @@ function initGame() {
   if (flowerIM.instanceColor) flowerIM.instanceColor.needsUpdate = true;
   scene.add(flowerIM);
 
-  // ============ Colliders ============
+  // ============ Colliders & small-rock bumps ============
   const colliders = [];
   const smallRocks = [];
   function driveHeight(x, z) {
@@ -603,7 +570,7 @@ function initGame() {
     scene.add(im);
   });
 
-  // ============ Rolling hills (two hazy layers) ============
+  // ============ Rolling hills ============
   function addHills(count, ringR, rMin, rMax, hMin, hMax, color) {
     const im = new THREE.InstancedMesh(
       new THREE.SphereGeometry(1, 8, 5),
@@ -623,7 +590,7 @@ function initGame() {
   addHills(12, 150, 30, 46, 9, 15, 0x6f8f3e);
   addHills(12, 215, 50, 72, 18, 28, 0x86a07a);
 
-  // ============ Standing stones (the POI) ============
+  // ============ Standing stones (POI) ============
   const poiGround = getGroundHeight(POI_X, POI_Z);
   const stoneMat = new THREE.MeshStandardMaterial({ color: 0xb7ae9c, roughness: 0.95, flatShading: true });
   const STONES = 7;
@@ -666,7 +633,7 @@ function initGame() {
   scene.add(poi);
 
   // ============================================================
-  // ============ 🚜 THE ROVER ============
+  // ============ 🚜 THE ROVER — cleaner read & better silhouette ============
   // ============================================================
   const rover = new THREE.Group();
   rover.rotation.order = 'YXZ';
@@ -677,22 +644,22 @@ function initGame() {
     arm:    new THREE.MeshStandardMaterial({ color: 0xc9c4b6, metalness: 0.55, roughness: 0.40, flatShading: true, envMapIntensity: 1.0 }),
     joint:  new THREE.MeshStandardMaterial({ color: 0x5e584d, metalness: 0.60, roughness: 0.50, flatShading: true }),
     under:  new THREE.MeshStandardMaterial({ color: 0x3a352d, metalness: 0.30, roughness: 0.80, flatShading: true }),
-    rubber: new THREE.MeshStandardMaterial({ color: 0x2c2621, roughness: 0.95, flatShading: true }),
-    dome:   new THREE.MeshStandardMaterial({ color: 0xa6c4d8, metalness: 0.05, roughness: 0.5, flatShading: true, envMapIntensity: 0.55 }),
+    rubber: new THREE.MeshStandardMaterial({ color: 0x453a30, roughness: 0.92, flatShading: true }),   // lighter: treads read!
+    tread:  new THREE.MeshStandardMaterial({ color: 0x2b241d, roughness: 0.95, flatShading: true }),
+    dome:   new THREE.MeshStandardMaterial({ color: 0x9cc4de, metalness: 0.05, roughness: 0.45, flatShading: true, envMapIntensity: 0.7 }),
     black:  new THREE.MeshStandardMaterial({ color: 0x141210, roughness: 0.70, flatShading: true }),
     copper: new THREE.MeshStandardMaterial({ color: 0x8a5a34, metalness: 0.30, roughness: 0.60, flatShading: true }),
     crate:  new THREE.MeshStandardMaterial({ color: 0x4c463a, roughness: 0.80, flatShading: true }),
     glow:   new THREE.MeshStandardMaterial({ color: 0xffffcc, emissive: 0xffeeaa, emissiveIntensity: 1.6, flatShading: true }),
     tail:   new THREE.MeshStandardMaterial({ color: 0xff3322, emissive: 0xff2211, emissiveIntensity: 0.9, flatShading: true }),
-    tailHot: new THREE.MeshStandardMaterial({ color: 0xffc8bb, emissive: 0xff6a55, emissiveIntensity: 1.4 }),
-    revLamp: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xdfeeff, emissiveIntensity: 0.1 }),
-    amber:   new THREE.MeshStandardMaterial({ color: 0xffa020, emissive: 0xff8a00, emissiveIntensity: 0.5 }),
-    hullS: new THREE.MeshStandardMaterial({ color: 0x8fa1ad, metalness: 0.35, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
-    deckS: new THREE.MeshStandardMaterial({ color: 0xa8b8c2, metalness: 0.30, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
-    tanS:  new THREE.MeshStandardMaterial({ color: 0xb5a488, metalness: 0.15, roughness: 0.60, flatShading: true }),
-    armS:  new THREE.MeshStandardMaterial({ color: 0xcfcabb, metalness: 0.60, roughness: 0.35, envMapIntensity: 1.2, flatShading: true }),
-    darkS: new THREE.MeshStandardMaterial({ color: 0x2a2723, metalness: 0.30, roughness: 0.65, flatShading: true }),
-    tread: new THREE.MeshStandardMaterial({ color: 0x3a322b, roughness: 0.95, flatShading: true })
+    tailHot:new THREE.MeshStandardMaterial({ color: 0xffc8bb, emissive: 0xff6a55, emissiveIntensity: 1.4 }),
+    revLamp:new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xdfeeff, emissiveIntensity: 0.1 }),
+    amber:  new THREE.MeshStandardMaterial({ color: 0xffa020, emissive: 0xff8a00, emissiveIntensity: 0.5 }),
+    hullS:  new THREE.MeshStandardMaterial({ color: 0x8fa1ad, metalness: 0.35, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
+    deckS:  new THREE.MeshStandardMaterial({ color: 0xa8b8c2, metalness: 0.30, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
+    tanS:   new THREE.MeshStandardMaterial({ color: 0xb5a488, metalness: 0.15, roughness: 0.60, flatShading: true, side: THREE.DoubleSide }),
+    armS:   new THREE.MeshStandardMaterial({ color: 0x9d9789, metalness: 0.60, roughness: 0.38, envMapIntensity: 1.0, flatShading: true }), // darker metal arms
+    darkS:  new THREE.MeshStandardMaterial({ color: 0x2a2723, metalness: 0.30, roughness: 0.65, flatShading: true })
   };
 
   const buckets = {};
@@ -706,6 +673,9 @@ function initGame() {
   const ZAXIS = new THREE.Vector3(0, 0, 1);
   const YAXIS = new THREE.Vector3(0, 1, 0);
 
+  function mergeSafe(list, groups) {
+    return mergeGeometries(list.map(g => (g.index ? g.toNonIndexed() : g)), groups);
+  }
   function place(px, py, pz, rx, ry, rz) {
     _q.setFromEuler(_e.set(rx || 0, ry || 0, rz || 0));
     return new THREE.Matrix4().compose(_v.set(px, py, pz), _q, _s.set(1, 1, 1));
@@ -715,17 +685,13 @@ function initGame() {
     g.applyMatrix4(matrix);
     (buckets[key] = buckets[key] || []).push(g);
   }
-  function scaleLast(key, sx, sy, sz) {
-    buckets[key][buckets[key].length - 1].scale(sx, sy, sz);
-  }
   function partBeam(key, fx, fy, fz, tx, ty, tz, t) {
     _va.set(fx, fy, fz); _vb.set(tx, ty, tz);
     _vd.subVectors(_vb, _va);
     const len = _vd.length(); _vd.normalize();
     _q.setFromUnitVectors(ZAXIS, _vd);
     const g = new THREE.BoxGeometry(t, t, len);
-    const m = new THREE.Matrix4().compose(
-      _v.copy(_va).addScaledVector(_vd, len / 2), _q, _s.set(1, 1, 1));
+    const m = new THREE.Matrix4().compose(_v.copy(_va).addScaledVector(_vd, len / 2), _q, _s.set(1, 1, 1));
     g.applyMatrix4(m);
     (buckets[key] = buckets[key] || []).push(g);
   }
@@ -745,40 +711,20 @@ function initGame() {
     for (let i = 0; i < turns; i++) {
       const tt = (i + 0.5) / turns;
       const g = new THREE.TorusGeometry(radius, tube, 6, 12);
-      const m = new THREE.Matrix4().compose(
-        _v.copy(_va).addScaledVector(_vd, len * tt), _q, _s.set(1, 1, 1));
+      const m = new THREE.Matrix4().compose(_v.copy(_va).addScaledVector(_vd, len * tt), _q, _s.set(1, 1, 1));
       g.applyMatrix4(m);
       (buckets[key] = buckets[key] || []).push(g);
     }
   }
-
-  function partPiston(fx, fy, fz, tx, ty, tz) {
-    const mx = fx + (tx - fx) * 0.55, my = fy + (ty - fy) * 0.55, mz = fz + (tz - fz) * 0.55;
-    const l1 = Math.hypot(mx - fx, my - fy, mz - fz), l2 = Math.hypot(tx - mx, ty - my, tz - mz);
-    partDisc('darkS', (fx + mx) / 2, (fy + my) / 2, (fz + mz) / 2, 0.12, l1, tx - fx, ty - fy, tz - fz, 8);
-    partDisc('armS', (mx + tx) / 2, (my + ty) / 2, (mz + tz) / 2, 0.07, l2, tx - fx, ty - fy, tz - fz, 6);
-  }
-
   function partRB(key, x, y, z, w, h, d, r, rx, ry, rz) {
     part(new RoundedBoxGeometry(w, h, d, 1, r), place(x, y, z, rx, ry, rz), key);
   }
-  function partPlate(key, fx, fy, fz, tx, ty, tz, w, t) {
-    _va.set(fx, fy, fz); _vb.set(tx, ty, tz);
-    _vd.subVectors(_vb, _va);
-    const len = _vd.length(); _vd.normalize();
-    _q.setFromUnitVectors(ZAXIS, _vd);
-    const g = new RoundedBoxGeometry(w, t, len + 0.1, 1, Math.min(w, t) * 0.35);
-    g.applyMatrix4(new THREE.Matrix4().compose(_v.copy(_va).addScaledVector(_vd, len / 2), _q, _s.set(1, 1, 1)));
-    (buckets[key] = buckets[key] || []).push(g);
-  }
 
-  const B = new THREE.BoxGeometry(1, 1, 1);
-
-  // ---- Dark cartoon outline (inverted hull) like the target image ----
+  // ---- Dark cartoon outline (inverted hull) ----
   const OUTLINE_KEYS = ['hullS', 'deckS', 'tanS', 'armS', 'darkS', 'dome'];
   const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: 0x15110d, side: THREE.BackSide });
   OUTLINE_MAT.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed += normalize(normal) * 0.03;');
+    sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed += normalize(normal) * 0.022;');
   };
   function makeOutlineGeo(src) {
     const g = new THREE.BufferGeometry();
@@ -789,60 +735,70 @@ function initGame() {
     return m;
   }
 
-  // ---- Body: rounded, layered, solid (no scaleLast: positions are real) ----
-  partRB('hullS', 0, 0.98, 0.05, 2.15, 0.72, 2.25, 0.22);                 // lower hull
-  partRB('deckS', 0, 1.40, 0.10, 1.75, 0.30, 1.85, 0.12);                 // upper deck
-  partRB('hullS', 0, 1.02, -1.18, 1.95, 0.50, 0.75, 0.20, -0.38, 0, 0);   // sloped nose
-  partRB('darkS', 0, 0.62, 0.05, 1.85, 0.22, 2.10, 0.08);                 // skid plate
-  partRB('tanS', -1.14, 1.02, 0.05, 0.14, 0.50, 1.50, 0.06);              // side armor
+  // ---- Body ----
+  partRB('hullS', 0, 0.98, 0.05, 2.15, 0.72, 2.25, 0.22);
+  partRB('deckS', 0, 1.40, 0.10, 1.75, 0.30, 1.85, 0.12);
+  partRB('hullS', 0, 1.02, -1.18, 1.95, 0.50, 0.75, 0.20, -0.38, 0, 0);
+  partRB('darkS', 0, 0.62, 0.05, 1.85, 0.22, 2.10, 0.08);
+  partRB('tanS', -1.14, 1.02, 0.05, 0.14, 0.50, 1.50, 0.06);
   partRB('tanS',  1.14, 1.02, 0.05, 0.14, 0.50, 1.50, 0.06);
-  partRB('hullS', 0, 1.0, 1.2, 1.95, 0.55, 0.20, 0.08);                   // rear plate
-  for (let i = 0; i < 4; i++) partRB('darkS', 0, 0.86 + i * 0.1, 1.31, 1.05, 0.05, 0.03, 0.01); // vent slats
+  partRB('hullS', 0, 1.0, 1.2, 1.95, 0.55, 0.20, 0.08);
+  for (let i = 0; i < 2; i++) partRB('darkS', 0, 0.88 + i * 0.1, 1.31, 1.05, 0.05, 0.03, 0.01); // cleaner rear: 2 slats only
 
-  // ---- Dome + eyes + emblem ----
+  // ---- Dome raised & bigger so it reads from behind ----
   const domeGeo = new THREE.SphereGeometry(0.85, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2);
-  domeGeo.scale(1, 0.92, 1);
-  part(domeGeo, place(0, 1.55, 0), 'dome');
-  part(new THREE.TorusGeometry(0.85, 0.08, 8, 16), place(0, 1.56, 0, Math.PI / 2, 0, 0), 'tanS');
-  part(new THREE.BoxGeometry(0.42, 0.08, 0.05), place(-0.3, 1.69, -0.78, -0.2, 0.37, 0), 'black');
-  part(new THREE.BoxGeometry(0.42, 0.08, 0.05), place(0.3, 1.69, -0.78, -0.2, -0.37, 0), 'black');
-  partDisc('joint', 0, 2.07, -0.675, 0.17, 0.03, 0, 0.82, -0.9, 10);
-  partDisc('light', 0, 2.08, -0.69, 0.09, 0.03, 0, 0.82, -0.9, 8);
+  domeGeo.scale(1.08, 0.98, 1.08);
+  part(domeGeo, place(0, 1.61, 0), 'dome');
+  part(new THREE.TorusGeometry(0.9, 0.08, 8, 16), place(0, 1.62, 0, Math.PI / 2, 0, 0), 'tanS');
+  part(new THREE.BoxGeometry(0.44, 0.08, 0.05), place(-0.32, 1.76, -0.82, -0.2, 0.37, 0), 'black');
+  part(new THREE.BoxGeometry(0.44, 0.08, 0.05), place(0.32, 1.76, -0.82, -0.2, -0.37, 0), 'black');
+  partDisc('joint', 0, 2.13, -0.71, 0.17, 0.03, 0, 0.82, -0.9, 10);
+  partDisc('light', 0, 2.14, -0.73, 0.09, 0.03, 0, 0.82, -0.9, 8);
 
-  // ---- Side sensor pods (tan housing, grille top, lens) ----
+  // ---- Side sensor pods ----
   [-1, 1].forEach(side => {
     const px = side * 1.0;
     partRB('hullS', side * 0.9, 1.45, -0.25, 0.3, 0.2, 0.4, 0.05);
     partRB('tanS', px, 1.62, -0.25, 0.5, 0.55, 0.55, 0.1);
     partRB('darkS', px, 1.92, -0.25, 0.46, 0.1, 0.46, 0.02);
-    for (let j = -1.5; j <= 1.5; j++) { partRB('armS', px + j * 0.1, 1.975, -0.25, 0.022, 0.02, 0.44, 0.004); partRB('armS', px, 1.975, -0.25 + j * 0.1, 0.44, 0.02, 0.022, 0.004); }
+    for (let j = -1.5; j <= 1.5; j++) {
+      partRB('armS', px + j * 0.1, 1.975, -0.25, 0.022, 0.02, 0.44, 0.004);
+      partRB('armS', px, 1.975, -0.25 + j * 0.1, 0.44, 0.02, 0.022, 0.004);
+    }
     partDisc('darkS', px, 1.66, -0.54, 0.12, 0.06, 0, 0, 1, 12);
     partDisc('armS', px, 1.66, -0.56, 0.06, 0.03, 0, 0, 1, 10);
   });
 
-  // ---- Rear equipment: black case, tan backpack, antenna ----
-  partRB('darkS', -0.5, 1.78, 0.62, 0.8, 0.45, 0.65, 0.08);
-  partRB('armS', -0.5, 2.02, 0.62, 0.5, 0.04, 0.4, 0.015);
-  partDisc('tanS', 0.38, 1.85, 0.62, 0.17, 0.6, 0, 1, 0, 12);
-  partDisc('tanS', 0.72, 1.85, 0.62, 0.17, 0.6, 0, 1, 0, 12);
-  partDisc('armS', 0.38, 2.17, 0.62, 0.09, 0.06, 0, 1, 0, 10);
-  partDisc('armS', 0.72, 2.17, 0.62, 0.09, 0.06, 0, 1, 0, 10);
-  partBeam('joint', -0.7, 2.04, 0.85, -0.7, 2.95, 0.85, 0.035);
-  partDisc('glow', -0.7, 2.97, 0.85, 0.05, 0.05, 0, 1, 0, 8);
-  partBeam('joint', -0.35, 2.04, 0.5, -0.35, 2.25, 0.5, 0.05);
-  partDisc('armS', -0.35, 2.3, 0.5, 0.26, 0.04, 0.2, 1, -0.5, 14);
+  // ---- Rear equipment (lower so the dome shows) + SPARE WHEEL ----
+  partRB('darkS', -0.5, 1.72, 0.62, 0.8, 0.36, 0.65, 0.08);
+  partRB('armS', -0.5, 1.92, 0.62, 0.5, 0.04, 0.4, 0.015);
+  partDisc('tanS', 0.38, 1.80, 0.62, 0.17, 0.55, 0, 1, 0, 12);
+  partDisc('tanS', 0.72, 1.80, 0.62, 0.17, 0.55, 0, 1, 0, 12);
+  partDisc('armS', 0.38, 2.10, 0.62, 0.09, 0.06, 0, 1, 0, 10);
+  partDisc('armS', 0.72, 2.10, 0.62, 0.09, 0.06, 0, 1, 0, 10);
+  partBeam('joint', -0.7, 1.98, 0.85, -0.7, 2.85, 0.85, 0.035);
+  partDisc('glow', -0.7, 2.87, 0.85, 0.05, 0.05, 0, 1, 0, 8);
+  // spare tire mounted on the rear plate
+  partDisc('rubber', 0, 1.32, 1.46, 0.44, 0.24, 0, 0, 1, 12);
+  partDisc('tread', 0, 1.32, 1.46, 0.46, 0.16, 0, 0, 1, 12);
+  partDisc('armS', 0, 1.32, 1.60, 0.17, 0.08, 0, 0, 1, 8);
 
-  // ---- Suspension brackets: mounted ON the outside of the hull (never buried) ----
-  // The arms and air springs themselves are dynamic (see updateSuspension) and follow each wheel.
-  const TRACK = 1.95;      // wheel centre distance from the body centre line (a bit wider so the suspension is visible)
-  const CAP_TIP = TRACK - 0.45;   // inner end of each hub cap
+  // ---- Suspension brackets on the hull ----
+  const TRACK = 1.95;
+  const CAP_TIP = TRACK - 0.45;
   const wheelSlots = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
   wheelSlots.forEach(([sx, sz]) => {
     partRB('darkS', sx * 0.80, 1.60, sz * 0.74, 0.34, 0.12, 0.38, 0.03);
-    partDisc('darkS', sx * 0.80, 1.64, sz * 0.74, 0.17, 0.38, 0, 0, 1, 8);   // hinge knuckle   // upper mount, sits on top of the deck
+    partDisc('darkS', sx * 0.80, 1.64, sz * 0.74, 0.17, 0.38, 0, 0, 1, 8);
     partRB('darkS', sx * 1.25, 0.86, sz * 0.5, 0.12, 0.28, 0.38, 0.03);
-    partDisc('darkS', sx * 1.29, 0.86, sz * 0.5, 0.15, 0.38, 0, 0, 1, 8);   // hinge knuckle   // lower mount, bolted to the side armor
-    partRB('darkS', sx * 1.14, 1.31, sz * 0.40, 0.16, 0.09, 0.22, 0.02);   // air-spring mount, on top of the side armor
+    partDisc('darkS', sx * 1.29, 0.86, sz * 0.5, 0.15, 0.38, 0, 0, 1, 8);
+    partRB('darkS', sx * 1.14, 1.31, sz * 0.40, 0.16, 0.09, 0.22, 0.02);
+    // FENDER: curved mud-guard shell over each wheel (kills the "black blob" look)
+    const f = new THREE.CylinderGeometry(1.0, 1.0, 0.88, 10, 1, true, -Math.PI / 3, 2 * Math.PI / 3);
+    f.rotateZ(Math.PI / 2);
+    part(f, place(sx * TRACK, 0.80, sz * 1.0), 'tanS');
+    partRB('tanS', sx * TRACK, 0.98, sz * 1.0 - 0.44, 0.06, 0.34, 0.86, 0.02); // fender side walls
+    partRB('tanS', sx * TRACK, 0.98, sz * 1.0 + 0.44, 0.06, 0.34, 0.86, 0.02);
   });
 
   // ---- Copper cables ----
@@ -862,13 +818,13 @@ function initGame() {
   partDisc('glow', 0.7, 0.9, -1.57, 0.11, 0.06, 0, 0.35, -1, 10);
   [-1, 1].forEach(side => {
     const lx = side * 0.8;
-    partRB('darkS', lx, 1.04, 1.325, 0.42, 0.28, 0.06, 0.04);          // housing frame
-    partRB('tail', lx, 1.04, 1.36, 0.34, 0.2, 0.04, 0.05);             // red lens
-    for (let j = 0; j < 3; j++) partRB('tailHot', lx, 1.11 - j * 0.07, 1.385, 0.28, 0.025, 0.02, 0.008); // LED strips
-    partRB('amber', lx, 1.225, 1.36, 0.2, 0.04, 0.04, 0.015);          // turn signal
-    partRB('revLamp', lx, 0.885, 1.36, 0.16, 0.06, 0.04, 0.02);        // reverse lamp
+    partRB('darkS', lx, 1.04, 1.325, 0.42, 0.28, 0.06, 0.04);
+    partRB('tail', lx, 1.04, 1.36, 0.34, 0.2, 0.04, 0.05);
+    for (let j = 0; j < 3; j++) partRB('tailHot', lx, 1.11 - j * 0.07, 1.385, 0.28, 0.025, 0.02, 0.008);
+    partRB('amber', lx, 1.225, 1.36, 0.2, 0.04, 0.04, 0.015);
+    partRB('revLamp', lx, 0.885, 1.36, 0.16, 0.06, 0.04, 0.02);
   });
-  partRB('tailHot', 0, 1.22, 1.32, 1.0, 0.03, 0.03, 0.01);              // light bar between the lamps
+  partRB('darkS', 0, 0.78, -1.62, 1.9, 0.2, 0.18, 0.07);
 
   const haloCv = document.createElement('canvas');
   haloCv.width = 64; haloCv.height = 64;
@@ -889,7 +845,6 @@ function initGame() {
     rover.add(s);
     return s;
   });
-  partRB('darkS', 0, 0.78, -1.62, 1.9, 0.2, 0.18, 0.07);
 
   Object.keys(buckets).forEach(key => {
     const merged = mergeSafe(buckets[key], false);
@@ -900,32 +855,29 @@ function initGame() {
     rover.add(mesh);
   });
 
-  // ---- Wheels with DEEP treads for strong silhouette ----
-  function mergeSafe(list, groups) {
-    return mergeGeometries(list.map(g => (g.index ? g.toNonIndexed() : g)), groups);
-  }
+  // ---- Wheels: lighter rubber + narrower treads so details read ----
   function buildWheelGeo() {
-    const carcass = new THREE.CylinderGeometry(0.64, 0.64, 0.72, 14);
+    const carcass = new THREE.CylinderGeometry(0.62, 0.62, 0.64, 14);
     carcass.rotateZ(Math.PI / 2);
     const tp = [];
     const N = 12;
     for (let i = 0; i < N; i++) {
       const a = (i / N) * Math.PI * 2;
-      const tread = new RoundedBoxGeometry(0.78, 0.2, 0.5, 1, 0.05);
+      const tread = new RoundedBoxGeometry(0.70, 0.2, 0.46, 1, 0.05);
       const m = new THREE.Matrix4().makeRotationX(a);
-      m.setPosition(0, Math.cos(a) * 0.72, Math.sin(a) * 0.72);
+      m.setPosition(0, Math.cos(a) * 0.70, Math.sin(a) * 0.70);
       tread.applyMatrix4(m);
       tp.push(tread);
     }
     const treads = mergeGeometries(tp, false);
     const hp = [];
-    const hub = new THREE.CylinderGeometry(0.4, 0.4, 0.82, 8); hub.rotateZ(Math.PI / 2); hp.push(hub);
-    const cap = new THREE.CylinderGeometry(0.2, 0.2, 0.9, 8); cap.rotateZ(Math.PI / 2); hp.push(cap);
+    const hub = new THREE.CylinderGeometry(0.38, 0.38, 0.74, 8); hub.rotateZ(Math.PI / 2); hp.push(hub);
+    const cap = new THREE.CylinderGeometry(0.2, 0.2, 0.82, 8); cap.rotateZ(Math.PI / 2); hp.push(cap);
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
-      const bolt = new THREE.CylinderGeometry(0.04, 0.04, 0.88, 5);
+      const bolt = new THREE.CylinderGeometry(0.04, 0.04, 0.86, 5);
       bolt.rotateZ(Math.PI / 2);
-      bolt.translate(0, Math.cos(a) * 0.3, Math.sin(a) * 0.3);
+      bolt.translate(0, Math.cos(a) * 0.29, Math.sin(a) * 0.29);
       hp.push(bolt);
     }
     return mergeSafe([carcass, treads, mergeGeometries(hp, false)], true);
@@ -942,7 +894,7 @@ function initGame() {
     wheels.push({ mesh: w, baseY: 0.74, y: 0.74, phase: Math.random() * 6.28, lx: sx * TRACK, lz: sz * 1.0 });
   });
 
-  // ---- Dynamic suspension: arms + air springs follow each wheel's travel ----
+  // ---- Dynamic suspension (thinner, darker arms) ----
   const _ZA = new THREE.Vector3(0, 0, 1);
   function unitBeam(w, t, mat, r, outline) {
     const g = new RoundedBoxGeometry(w, t, 1, 1, r);
@@ -966,15 +918,14 @@ function initGame() {
   hubJointGeo.rotateZ(Math.PI / 2);
   const rodGeo = new THREE.CylinderGeometry(0.055, 0.055, 1, 6);
   rodGeo.rotateX(Math.PI / 2);
-
   const suspension = wheelSlots.map(([sx, sz], i) => {
     const rod = new THREE.Mesh(rodGeo, MATS.darkS); rod.castShadow = true; rover.add(rod);
     const spring = new THREE.Mesh(springGeo, MATS.armS); spring.castShadow = true; rover.add(spring);
     const joint = new THREE.Mesh(hubJointGeo, MATS.darkS); joint.castShadow = true; rover.add(joint);
     return {
       sx, sz, wheel: wheels[i],
-      upper: unitBeam(0.34, 0.2, MATS.armS, 0.05, true),
-      lower: unitBeam(0.32, 0.17, MATS.armS, 0.05, true),
+      upper: unitBeam(0.26, 0.16, MATS.armS, 0.045, true),
+      lower: unitBeam(0.22, 0.13, MATS.armS, 0.045, true),
       rod, spring, joint,
       U: new THREE.Vector3(sx * 0.80, 1.62, sz * 0.74),
       L: new THREE.Vector3(sx * 1.28, 0.86, sz * 0.5),
@@ -1039,7 +990,7 @@ function initGame() {
     if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
   });
 
-  // ============ Sound (synthesized in the browser, no audio files needed) ============
+  // ============ Sound ============
   const sunGlowEl = document.getElementById('sun-glow');
   let actx = null, master = null, soundOn = true, noiseBuf = null, eng = null, lastThud = 0;
   function initAudio() {
@@ -1052,13 +1003,10 @@ function initGame() {
       master.gain.value = soundOn ? 0.9 : 0;
       const comp = actx.createDynamicsCompressor();
       master.connect(comp); comp.connect(actx.destination);
-
       const len = Math.floor(actx.sampleRate * 2);
       noiseBuf = actx.createBuffer(1, len, actx.sampleRate);
       const nd = noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) nd[i] = Math.random() * 2 - 1;
-
-      // Motor: saw + sub square through a low-pass filter, plus a thin electric whine
       const bus = actx.createGain(); bus.gain.value = 0.0;
       const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 400; lp.Q.value = 0.9;
       const o1 = actx.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = 60;
@@ -1068,19 +1016,14 @@ function initGame() {
       const o3 = actx.createOscillator(); o3.type = 'triangle'; o3.frequency.value = 240;
       const whine = actx.createGain(); whine.gain.value = 0;
       o3.connect(whine); whine.connect(master);
-      // engine "pulse"
       const lfo = actx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 8;
       const lfoG = actx.createGain(); lfoG.gain.value = 0.035;
       lfo.connect(lfoG); lfoG.connect(bus.gain);
       o1.start(); o2.start(); o3.start(); lfo.start();
-
-      // Wheels on ground (gravel on the trail, swish on grass)
       const ns = actx.createBufferSource(); ns.buffer = noiseBuf; ns.loop = true;
       const nf = actx.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 500; nf.Q.value = 0.7;
       const ng = actx.createGain(); ng.gain.value = 0;
       ns.connect(nf); nf.connect(ng); ng.connect(master); ns.start();
-
-      // Soft wind ambience
       const ws = actx.createBufferSource(); ws.buffer = noiseBuf; ws.loop = true; ws.playbackRate.value = 0.6;
       const wf = actx.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 420;
       const wg = actx.createGain(); wg.gain.value = 0.05;
@@ -1088,7 +1031,6 @@ function initGame() {
       const wlg = actx.createGain(); wlg.gain.value = 0.025;
       wl.connect(wlg); wlg.connect(wg.gain); wl.start();
       ws.connect(wf); wf.connect(wg); wg.connect(master); ws.start();
-
       eng = { bus, lp, o1, o2, o3, whine, lfo, nf, ng };
       if (actx.state === 'suspended') actx.resume();
     } catch (e) { actx = null; }
@@ -1134,7 +1076,7 @@ function initGame() {
     s.start(now); s.stop(now + 0.3);
   }
 
-  // ============ Dust kicked up by the wheels ============
+  // ============ Dust ============
   const DUST_N = 80;
   const dustPos = new Float32Array(DUST_N * 3), dustLife = new Float32Array(DUST_N), dustSize = new Float32Array(DUST_N);
   const dustVel = new Float32Array(DUST_N * 3);
@@ -1145,21 +1087,8 @@ function initGame() {
   const dustMat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false,
     uniforms: { uCol: { value: new THREE.Color(0xc9a678) }, uPR: { value: 1 } },
-    vertexShader: `
-      attribute float aLife; attribute float aSize; uniform float uPR; varying float vA;
-      void main(){
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        gl_Position = projectionMatrix * mv;
-        gl_PointSize = aSize * (1.0 + (1.0 - aLife) * 1.8) * (260.0 / max(0.5, -mv.z)) * uPR;
-        vA = aLife;
-      }`,
-    fragmentShader: `
-      uniform vec3 uCol; varying float vA;
-      void main(){
-        float d = length(gl_PointCoord - 0.5);
-        if (d > 0.5) discard;
-        gl_FragColor = vec4(uCol, smoothstep(0.5, 0.05, d) * vA * 0.38);
-      }`
+    vertexShader: `attribute float aLife; attribute float aSize; uniform float uPR; varying float vA; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = aSize * (1.0 + (1.0 - aLife) * 1.8) * (260.0 / max(0.5, -mv.z)) * uPR; vA = aLife; }`,
+    fragmentShader: `uniform vec3 uCol; varying float vA; void main(){ float d = length(gl_PointCoord - 0.5); if (d > 0.5) discard; gl_FragColor = vec4(uCol, smoothstep(0.5, 0.05, d) * vA * 0.38); }`
   });
   const dust = new THREE.Points(dustGeo, dustMat);
   dust.frustumCulled = false;
@@ -1205,7 +1134,6 @@ function initGame() {
   const mmRover = document.getElementById('minimap-rover');
   let currentRot = 0;
   let mmTimer = 0;
-
   function drawMinimap() {
     const w = mmCanvas.width, h = mmCanvas.height;
     mmCtx.clearRect(0, 0, w, h);
@@ -1214,14 +1142,12 @@ function initGame() {
     mmCtx.fillStyle = 'rgba(170,130,70,0.30)'; mmCtx.fillRect(w * 0.7, 0, w * 0.3, h * 0.3);
     mmCtx.fillStyle = 'rgba(190,220,235,0.26)'; mmCtx.fillRect(0, h * 0.7, w * 0.3, h * 0.3);
     mmCtx.fillStyle = 'rgba(90,110,60,0.34)'; mmCtx.fillRect(w * 0.7, h * 0.7, w * 0.3, h * 0.3);
-
     mmCtx.lineWidth = 1;
     for (let i = 1; i < 8; i++) {
       mmCtx.strokeStyle = i === 4 ? 'rgba(126,240,255,0.30)' : 'rgba(126,240,255,0.12)';
       mmCtx.beginPath(); mmCtx.moveTo(i * w / 8, 0); mmCtx.lineTo(i * w / 8, h); mmCtx.stroke();
       mmCtx.beginPath(); mmCtx.moveTo(0, i * h / 8); mmCtx.lineTo(w, i * h / 8); mmCtx.stroke();
     }
-
     mmCtx.save();
     mmCtx.strokeStyle = 'rgba(255,214,150,0.85)'; mmCtx.lineWidth = 2;
     mmCtx.shadowColor = 'rgba(255,200,120,0.8)'; mmCtx.shadowBlur = 5;
@@ -1233,7 +1159,6 @@ function initGame() {
     }
     mmCtx.stroke();
     mmCtx.restore();
-
     const ppx = ((POI_X + HALF) / WORLD_SIZE) * w, ppy = ((POI_Z + HALF) / WORLD_SIZE) * h;
     mmCtx.save();
     mmCtx.shadowColor = '#7ef0ff'; mmCtx.shadowBlur = 8;
@@ -1242,7 +1167,6 @@ function initGame() {
     mmCtx.fillStyle = 'rgba(126,240,255,0.55)';
     mmCtx.beginPath(); mmCtx.moveTo(ppx, ppy - 3); mmCtx.lineTo(ppx + 3, ppy); mmCtx.lineTo(ppx, ppy + 3); mmCtx.lineTo(ppx - 3, ppy); mmCtx.closePath(); mmCtx.fill();
     mmCtx.restore();
-
     const rx = ((rover.position.x + HALF) / WORLD_SIZE) * w;
     const ry = ((rover.position.z + HALF) / WORLD_SIZE) * h;
     const ang = Math.atan2(-Math.cos(currentRot), -Math.sin(currentRot));
@@ -1267,24 +1191,20 @@ function initGame() {
   const zenNight = new THREE.Color(0x070c22), horNight = new THREE.Color(0x141a34);
   const tmpA = new THREE.Color(), tmpB = new THREE.Color();
   let lastTimeText = '', lastBiomeText = '';
-
   function updateDayNight(dt) {
     gameTime = (gameTime + dt * 0.0004) % 1;
     const ang = gameTime * Math.PI * 2;
     const sh = Math.sin(ang);
     sunLight.position.set(Math.cos(ang) * 80, Math.max(sh * 80, -25), -30);
     skyUniforms.sunDir.value.copy(sunLight.position).normalize();
-
     const day = THREE.MathUtils.smoothstep(sh, 0.05, 0.3);
     const dusk = 1 - THREE.MathUtils.smoothstep(sh, -0.25, 0.05);
-
     tmpA.copy(zenNight).lerp(zenDusk, dusk);
     tmpB.copy(tmpA).lerp(zenDay, day);
     skyUniforms.zenith.value.copy(tmpB);
     tmpA.copy(horNight).lerp(horDusk, dusk);
     tmpB.copy(tmpA).lerp(horDay, day);
     skyUniforms.horizon.value.copy(tmpB);
-
     scene.fog.color.copy(skyUniforms.horizon.value);
     skyUniforms.cloudAmt.value = 0.15 + day * 0.85;
     skyUniforms.cloudCol.value.setRGB(0.25 + dusk * 0.55 + day * 0.2, 0.25 + dusk * 0.30 + day * 0.7, 0.35 + dusk * 0.20 + day * 0.65);
@@ -1293,7 +1213,6 @@ function initGame() {
     sunLight.color.setRGB(1.0, 0.75 + day * 0.15, 0.55 + day * 0.25);
     ambientLight.intensity = 0.15 + day * 0.3;
     hemiLight.intensity = 0.25 + day * 0.5;
-
     const hours = Math.floor(gameTime * 24);
     const mins = Math.floor((gameTime * 24 - hours) * 60);
     const icon = day > 0.5 ? '🌞' : (dusk > 0.5 ? '🌅' : '🌙');
@@ -1331,11 +1250,11 @@ function initGame() {
   const clock = new THREE.Clock();
   const maxSpeed = 9.0;
   let velocity = 0, prevVelocity = 0;
-  let steerSmooth = 0;          // smoothed steering input (-1..1)
-  let camYaw = 0;               // independent smoothed camera yaw
+  let steerSmooth = 0;
+  let camYaw = 0;
   let wheelSpin = 0, pitch = 0, roll = 0;
   let perfFrames = 0, perfAcc = 0;
-  let camMode = 0, camZoom = 1;   // 0 = behind the rover, 1 = front (like the picture)
+  let camMode = 0, camZoom = 1;
   const btnCamView = document.getElementById('cam-view');
   btnCamView.addEventListener('click', () => { camMode = 1 - camMode; btnCamView.textContent = camMode ? '🚗' : '🎥'; });
   document.getElementById('cam-in').addEventListener('click', () => { camZoom = Math.max(0.55, camZoom / 1.2); });
@@ -1362,31 +1281,26 @@ function initGame() {
     uTime.value = t;
     skyUniforms.uT.value = t;
 
-    // ---- Throttle ----
     const target = keys.forward ? maxSpeed : (keys.backward ? -maxSpeed * 0.5 : 0);
     velocity = THREE.MathUtils.damp(velocity, target, 2.2, dt);
     if (target === 0 && Math.abs(velocity) < 0.02) velocity = 0;
-
     const spd = Math.abs(velocity);
     const speedNorm = spd / maxSpeed;
 
-    // ---- SMOOTH steering: damped input + speed-sensitive rate ----
     const steerTarget = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
     steerSmooth = THREE.MathUtils.damp(steerSmooth, steerTarget, 6.0, dt);
     if (steerTarget === 0 && Math.abs(steerSmooth) < 0.01) steerSmooth = 0;
-    const authority = 0.25 + 0.75 * Math.min(1, spd / 5.0);      // less turn when slow
-    const highSpeedTrim = 1.15 - 0.45 * speedNorm;               // less turn when very fast
+    const authority = 0.25 + 0.75 * Math.min(1, spd / 5.0);
+    const highSpeedTrim = 1.15 - 0.45 * speedNorm;
     const dirSign = velocity >= 0 ? 1 : -1;
     currentRot += 1.7 * steerSmooth * authority * highSpeedTrim * dirSign * dt;
     rover.rotation.y = currentRot;
 
-    // ---- Move ----
     const fwdX = -Math.sin(currentRot), fwdZ = -Math.cos(currentRot);
     rover.position.x += fwdX * velocity * dt;
     rover.position.z += fwdZ * velocity * dt;
     wheelSpin += (velocity * dt) / 0.7;
 
-    // ---- Collisions ----
     let hit = false;
     for (let i = 0; i < colliders.length; i++) {
       const c = colliders[i];
@@ -1404,7 +1318,6 @@ function initGame() {
     }
     if (hit && spd > 2) { velocity *= 0.7; thud(speedNorm); }
 
-    // ---- TRUE 3D SUSPENSION: sample ground under EACH wheel ----
     const rx = rover.position.x, rz = rover.position.z;
     const cosR = Math.cos(currentRot), sinR = Math.sin(currentRot);
     const hw = [0, 0, 0, 0];
@@ -1420,11 +1333,9 @@ function initGame() {
     hF *= 0.5; hB *= 0.5; hL *= 0.5; hR *= 0.5;
     const bodyH = (hF + hB) * 0.5;
 
-    // Body height follows average of wheels (smoothed)
     rover.position.y += (bodyH + 0.04 - rover.position.y) * 0.25;
     if (spd > 0.5) rover.position.y += Math.abs(Math.sin(t * 11)) * 0.015 * speedNorm;
 
-    // Body attitude from the 4 contact points + accel pitch + turn bank
     const accel = (velocity - prevVelocity) / Math.max(dt, 0.0001);
     prevVelocity = velocity;
     const pitchTarget = Math.atan2(hF - hB, 2.0) + THREE.MathUtils.clamp(-accel * 0.022, -0.11, 0.11);
@@ -1434,7 +1345,6 @@ function initGame() {
     rover.rotation.x = pitch;
     rover.rotation.z = roll;
 
-    // Each wheel travels independently (visible suspension compression)
     for (let i = 0; i < 4; i++) {
       const w = wheels[i];
       const wantY = THREE.MathUtils.clamp(hw[i] + 0.74 - rover.position.y, 0.74 - 0.22, 0.74 + 0.22);
@@ -1442,9 +1352,9 @@ function initGame() {
       w.mesh.rotation.x = wheelSpin;
       w.mesh.position.y = w.y;
     }
-
     updateSuspension();
     uRover.value.set(rover.position.x, rover.position.y, rover.position.z);
+
     const limit = HALF - 6;
     rover.position.x = THREE.MathUtils.clamp(rover.position.x, -limit, limit);
     rover.position.z = THREE.MathUtils.clamp(rover.position.z, -limit, limit);
@@ -1454,6 +1364,7 @@ function initGame() {
     MATS.tailHot.emissiveIntensity = braking ? 3.0 : 1.4;
     MATS.revLamp.emissiveIntensity = velocity < -0.2 ? 2.4 : 0.1;
     tailHalos.forEach(s => { s.material.opacity = braking ? 0.95 : 0.4; });
+
     const onPathNow = pathMask(rx, rz) > 0.35;
     updateAudio(speedNorm, keys.forward || keys.backward, onPathNow);
     updateDust(dt, spd, rx, rz, cosR, sinR, onPathNow);
@@ -1464,19 +1375,18 @@ function initGame() {
       document.getElementById('current-biome').textContent = biomeTxt;
     }
 
-    // ---- Camera with its OWN smoothed yaw (no snap on turns) ----
+    // ---- Camera (raised a bit so the whole rover reads) ----
     let dAng = currentRot - camYaw;
     dAng = Math.atan2(Math.sin(dAng), Math.cos(dAng));
     camYaw += dAng * (1 - Math.exp(-4.0 * dt));
     const cfX = -Math.sin(camYaw), cfZ = -Math.cos(camYaw);
-
     sky.position.copy(camera.position);
     if (camMode === 0) {
-      const camDist = (4.4 + spd * 0.14) * camZoom;
-      const camH = (1.9 + spd * 0.05) * camZoom;
+      const camDist = (4.7 + spd * 0.14) * camZoom;
+      const camH = (2.15 + spd * 0.05) * camZoom;
       _camPos.set(rx - cfX * camDist, rover.position.y + camH, rz - cfZ * camDist);
       const lookAhead = 2.2 + spd * 0.25;
-      _look.set(rx + cfX * lookAhead, rover.position.y + 1.3, rz + cfZ * lookAhead);
+      _look.set(rx + cfX * lookAhead, rover.position.y + 1.45, rz + cfZ * lookAhead);
     } else {
       const camDist = (4.6 + spd * 0.1) * camZoom;
       const camH = 1.2 * camZoom;
