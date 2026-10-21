@@ -149,7 +149,7 @@ function initGame() {
   scene.add(sky);
 
   // ============ Lights ============
-  const ambientLight = new THREE.AmbientLight(0x8899bb, 0.32);
+  const ambientLight = new THREE.AmbientLight(0x8899bb, 0.22);
   scene.add(ambientLight);
   const hemiLight = new THREE.HemisphereLight(0xbfd8e8, 0x6b7a4a, 0.6);
   scene.add(hemiLight);
@@ -159,13 +159,17 @@ function initGame() {
   sunLight.shadow.mapSize.set(2048, 2048);
   sunLight.shadow.camera.near = 1;
   sunLight.shadow.camera.far = 220;
-  sunLight.shadow.camera.left = -70;
-  sunLight.shadow.camera.right = 70;
-  sunLight.shadow.camera.top = 70;
-  sunLight.shadow.camera.bottom = -70;
-  sunLight.shadow.bias = -0.0004;
+  const SHADOW_R = 46;                       // shadows cover the area around the rover (sharper than a whole-map shadow)
+  sunLight.shadow.camera.left = -SHADOW_R;
+  sunLight.shadow.camera.right = SHADOW_R;
+  sunLight.shadow.camera.top = SHADOW_R;
+  sunLight.shadow.camera.bottom = -SHADOW_R;
+  sunLight.shadow.camera.updateProjectionMatrix();
+  sunLight.shadow.bias = -0.0003;
+  sunLight.shadow.normalBias = 0.035;
   sunLight.shadow.radius = 3;
   scene.add(sunLight);
+  scene.add(sunLight.target);
   const fillLight = new THREE.DirectionalLight(0x99bbee, 0.4);
   fillLight.position.set(-50, 30, -40);
   scene.add(fillLight);
@@ -228,14 +232,14 @@ function initGame() {
   }
 
   // ============ Unified height grid ============
-  const GSEG = 110;
+  const GSEG = 150;
   const GCELL = WORLD_SIZE / GSEG;
   const HGRID = new Float32Array((GSEG + 1) * (GSEG + 1));
   for (let iz = 0; iz <= GSEG; iz++) {
     for (let ix = 0; ix <= GSEG; ix++) {
       const x = -HALF + ix * GCELL;
       const z = -HALF + iz * GCELL;
-      HGRID[iz * (GSEG + 1) + ix] = fbm(x, z) * 3.5 - 1.75 - pathMask(x, z) * 0.15 + moundH(x, z);
+      HGRID[iz * (GSEG + 1) + ix] = (fbm(x, z) - 0.5) * 5.4 + (smoothNoise(x + 300, z - 120, 75) - 0.5) * 4.2 - pathMask(x, z) * 0.15 + moundH(x, z);
     }
   }
   function getGroundHeight(x, z) {
@@ -256,6 +260,7 @@ function initGame() {
   const GP1 = GSEG + 1;
   const colors = new Float32Array(pos.count * 3);
   const col = new THREE.Color();
+  const tmpRock = new THREE.Color(0.42, 0.40, 0.30), tmpSun = new THREE.Color(0.62, 0.62, 0.30);
   for (let i = 0; i < pos.count; i++) {
     const ix = i % GP1, iy = Math.floor(i / GP1);
     const x = -HALF + ix * GCELL;
@@ -276,6 +281,25 @@ function initGame() {
     else col.setRGB(0.38 + bn * 0.08, 0.47 + bn * 0.08, 0.23);
 
     col.r += micro; col.g += micro; col.b += micro;
+
+    // baked ambient occlusion (hollows darker, crests lighter) + rocky slopes + sun-bleached heights
+    {
+      let sum = 0, cnt = 0;
+      for (let dz2 = -2; dz2 <= 2; dz2 += 2) for (let dx2 = -2; dx2 <= 2; dx2 += 2) {
+        if (!dx2 && !dz2) continue;
+        const jx = Math.min(GSEG, Math.max(0, ix + dx2)), jz = Math.min(GSEG, Math.max(0, iy + dz2));
+        sum += HGRID[jz * GP1 + jx]; cnt++;
+      }
+      const hv = HGRID[i];
+      const ao = THREE.MathUtils.clamp(1 - (sum / cnt - hv) * 0.55, 0.70, 1.12);
+      const ixa = Math.min(GSEG, ix + 1), ixb = Math.max(0, ix - 1), iza = Math.min(GSEG, iy + 1), izb = Math.max(0, iy - 1);
+      const gdx = (HGRID[iy * GP1 + ixa] - HGRID[iy * GP1 + ixb]) / (2 * GCELL);
+      const gdz = (HGRID[iza * GP1 + ix] - HGRID[izb * GP1 + ix]) / (2 * GCELL);
+      const slope = Math.hypot(gdx, gdz);
+      col.lerp(tmpRock, THREE.MathUtils.smoothstep(slope, 0.22, 0.7) * 0.45);
+      col.lerp(tmpSun, THREE.MathUtils.smoothstep(hv, 1.0, 4.0) * 0.25);
+      col.multiplyScalar(ao);
+    }
 
     const pm = pathMask(x, z);
     if (pm > 0) {
@@ -449,6 +473,19 @@ function initGame() {
   if (flowerIM.instanceColor) flowerIM.instanceColor.needsUpdate = true;
   scene.add(flowerIM);
 
+  function withGradient(geo, lo, hi) {
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox, ps = geo.attributes.position;
+    const cs = new Float32Array(ps.count * 3);
+    for (let i = 0; i < ps.count; i++) {
+      const t = (ps.getY(i) - bb.min.y) / Math.max(0.0001, bb.max.y - bb.min.y);
+      const f = lo + (hi - lo) * t;
+      cs[i * 3] = f; cs[i * 3 + 1] = f; cs[i * 3 + 2] = f;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(cs, 3));
+    return geo;
+  }
+
   // ============ Colliders ============
   const colliders = [];
   const smallRocks = [];
@@ -480,8 +517,8 @@ function initGame() {
     rockPlans.push({ x, z, s: 0.15 + Math.random() * 0.3 });
   }
   const rockIM = new THREE.InstancedMesh(
-    new THREE.DodecahedronGeometry(0.8, 0),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }),
+    withGradient(new THREE.DodecahedronGeometry(0.8, 0), 0.62, 1.08),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.95, flatShading: true }),
     rockPlans.length
   );
   rockIM.castShadow = true;
@@ -532,20 +569,20 @@ function initGame() {
   });
 
   const trunkIM = new THREE.InstancedMesh(
-    new THREE.CylinderGeometry(0.16, 0.3, 1, 6),
-    new THREE.MeshStandardMaterial({ color: 0x4a3322, roughness: 0.95, flatShading: true }),
+    withGradient(new THREE.CylinderGeometry(0.16, 0.3, 1, 6), 0.72, 1.08),
+    new THREE.MeshStandardMaterial({ color: 0x70502f, vertexColors: true, roughness: 0.95, flatShading: true }),
     Math.max(1, treePlans.length)
   );
   trunkIM.castShadow = true;
   const coneIM = new THREE.InstancedMesh(
-    new THREE.ConeGeometry(1, 1, 7),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }),
+    withGradient(new THREE.ConeGeometry(1, 1, 7), 0.55, 1.06),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.9, flatShading: true }),
     Math.max(1, coneCount)
   );
   coneIM.castShadow = true;
   const blobIM = new THREE.InstancedMesh(
-    new THREE.IcosahedronGeometry(1, 0),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }),
+    withGradient(new THREE.IcosahedronGeometry(1, 0), 0.58, 1.12),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.9, flatShading: true }),
     Math.max(1, blobCount)
   );
   blobIM.castShadow = true;
@@ -598,10 +635,82 @@ function initGame() {
   blobIM.count = Math.max(1, bi);
   branchIM.count = Math.max(1, ri);
   [trunkIM, coneIM, blobIM, branchIM].forEach(im => {
+    im.receiveShadow = true;
     im.instanceMatrix.needsUpdate = true;
     if (im.instanceColor) im.instanceColor.needsUpdate = true;
     scene.add(im);
   });
+
+  // ============ Bushes: a middle layer of volume between the grass and the trees ============
+  const bushPlans = [];
+  for (let c = 0; c < 60; c++) {
+    const cx = (Math.random() - 0.5) * WORLD_SIZE * 0.9, cz = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
+    if (Math.hypot(cx, cz) < 7 || pathMask(cx, cz) > 0.25) continue;
+    const n = 2 + Math.floor(Math.random() * 3);
+    for (let k = 0; k < n; k++) {
+      const x = cx + (Math.random() - 0.5) * 3.2, z = cz + (Math.random() - 0.5) * 3.2;
+      if (pathMask(x, z) > 0.2) continue;
+      bushPlans.push({ x, z, s: 0.45 + Math.random() * 0.65 });
+    }
+  }
+  const bushIM = new THREE.InstancedMesh(
+    withGradient(new THREE.IcosahedronGeometry(1, 0), 0.58, 1.1),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.9, flatShading: true }),
+    Math.max(1, bushPlans.length)
+  );
+  bushIM.castShadow = true;
+  bushIM.receiveShadow = true;
+  bushPlans.forEach((p, i) => {
+    dummy.position.set(p.x, getGroundHeight(p.x, p.z) + p.s * 0.36, p.z);
+    dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+    dummy.scale.set(p.s * 1.15, p.s * 0.78, p.s * 1.15);
+    dummy.updateMatrix();
+    bushIM.setMatrixAt(i, dummy.matrix);
+    bushIM.setColorAt(i, gCol.setHSL(0.22 + Math.random() * 0.07, 0.38 + Math.random() * 0.12, 0.26 + Math.random() * 0.10));
+  });
+  bushIM.count = bushPlans.length;
+  bushIM.instanceMatrix.needsUpdate = true;
+  if (bushIM.instanceColor) bushIM.instanceColor.needsUpdate = true;
+  scene.add(bushIM);
+
+  // ============ Soft contact shadows under trees, rocks and bushes (they look planted in the ground) ============
+  const blobCv = document.createElement('canvas');
+  blobCv.width = 64; blobCv.height = 64;
+  const bctx = blobCv.getContext('2d');
+  const bgr = bctx.createRadialGradient(32, 32, 2, 32, 32, 32);
+  bgr.addColorStop(0, 'rgba(0,0,0,0.85)');
+  bgr.addColorStop(0.55, 'rgba(0,0,0,0.38)');
+  bgr.addColorStop(1, 'rgba(0,0,0,0)');
+  bctx.fillStyle = bgr; bctx.fillRect(0, 0, 64, 64);
+  const blobTex = new THREE.CanvasTexture(blobCv);
+  const blobGeo = new THREE.PlaneGeometry(1, 1);
+  blobGeo.rotateX(-Math.PI / 2);
+  const contactPlans = [];
+  treePlans.forEach(p => contactPlans.push({ x: p.x, z: p.z, s: 3.0 * p.s }));
+  rockPlans.forEach(p => contactPlans.push({ x: p.x, z: p.z, s: p.s * 2.6 }));
+  bushPlans.forEach(p => contactPlans.push({ x: p.x, z: p.z, s: p.s * 3.0 }));
+  const contactIM = new THREE.InstancedMesh(
+    blobGeo,
+    new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false, opacity: 0.55, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+    Math.max(1, contactPlans.length)
+  );
+  const _cUp = new THREE.Vector3(0, 1, 0), _cN = new THREE.Vector3(), _cQ = new THREE.Quaternion();
+  contactPlans.forEach((p, i) => {
+    const y = getGroundHeight(p.x, p.z);
+    const gdx = (getGroundHeight(p.x + 0.8, p.z) - getGroundHeight(p.x - 0.8, p.z)) / 1.6;
+    const gdz = (getGroundHeight(p.x, p.z + 0.8) - getGroundHeight(p.x, p.z - 0.8)) / 1.6;
+    _cN.set(-gdx, 1, -gdz).normalize();
+    _cQ.setFromUnitVectors(_cUp, _cN);
+    dummy.position.set(p.x, y + 0.09, p.z);
+    dummy.quaternion.copy(_cQ);
+    dummy.scale.set(p.s, 1, p.s);
+    dummy.updateMatrix();
+    contactIM.setMatrixAt(i, dummy.matrix);
+  });
+  contactIM.count = contactPlans.length;
+  contactIM.instanceMatrix.needsUpdate = true;
+  contactIM.renderOrder = 1;
+  scene.add(contactIM);
 
   // ============ Rolling hills (two hazy layers) ============
   function addHills(count, ringR, rMin, rMax, hMin, hMax, color) {
@@ -625,21 +734,23 @@ function initGame() {
 
   // ============ Standing stones (the POI) ============
   const poiGround = getGroundHeight(POI_X, POI_Z);
-  const stoneMat = new THREE.MeshStandardMaterial({ color: 0xb7ae9c, roughness: 0.95, flatShading: true });
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0xb7ae9c, vertexColors: true, roughness: 0.95, flatShading: true });
   const STONES = 7;
   for (let k = 0; k < STONES; k++) {
     if (k === 3) continue;
     const ang = (k / STONES) * Math.PI * 2;
     const sx = POI_X + Math.cos(ang) * 5, sz = POI_Z + Math.sin(ang) * 5;
     const sh = k === 0 ? 5 : 4 + Math.random() * 2.5;
-    const stone = new THREE.Mesh(new THREE.BoxGeometry(1.2, sh, 0.8), stoneMat);
+    const stone = new THREE.Mesh(withGradient(new THREE.BoxGeometry(1.2, sh, 0.8), 0.62, 1.05), stoneMat);
+    stone.receiveShadow = true;
     stone.position.set(sx, getGroundHeight(sx, sz) - 0.3 + sh / 2, sz);
     stone.rotation.set((Math.random() - 0.5) * 0.12, -ang + Math.PI / 2, (Math.random() - 0.5) * 0.12);
     stone.castShadow = true;
     scene.add(stone);
     colliders.push({ x: sx, z: sz, r: 0.8 });
   }
-  const lintel = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.8, 1.0), stoneMat);
+  const lintel = new THREE.Mesh(withGradient(new THREE.BoxGeometry(3.4, 0.8, 1.0), 0.8, 1.05), stoneMat);
+  lintel.receiveShadow = true;
   lintel.position.set(POI_X + 5, getGroundHeight(POI_X + 5, POI_Z) - 0.3 + 5.4, POI_Z);
   lintel.rotation.y = Math.PI / 2;
   lintel.castShadow = true;
@@ -677,7 +788,7 @@ function initGame() {
     arm:    new THREE.MeshStandardMaterial({ color: 0xc9c4b6, metalness: 0.55, roughness: 0.40, flatShading: true, envMapIntensity: 1.0 }),
     joint:  new THREE.MeshStandardMaterial({ color: 0x5e584d, metalness: 0.60, roughness: 0.50, flatShading: true }),
     under:  new THREE.MeshStandardMaterial({ color: 0x3a352d, metalness: 0.30, roughness: 0.80, flatShading: true }),
-    rubber: new THREE.MeshStandardMaterial({ color: 0x2c2621, roughness: 0.95, flatShading: true }),
+    rubber: new THREE.MeshStandardMaterial({ color: 0x4a423a, roughness: 0.9, flatShading: true }),
     dome:   new THREE.MeshStandardMaterial({ color: 0xa6c4d8, metalness: 0.05, roughness: 0.5, flatShading: true, envMapIntensity: 0.55 }),
     black:  new THREE.MeshStandardMaterial({ color: 0x141210, roughness: 0.70, flatShading: true }),
     copper: new THREE.MeshStandardMaterial({ color: 0x8a5a34, metalness: 0.30, roughness: 0.60, flatShading: true }),
@@ -692,7 +803,7 @@ function initGame() {
     tanS:  new THREE.MeshStandardMaterial({ color: 0xb5a488, metalness: 0.15, roughness: 0.60, flatShading: true }),
     armS:  new THREE.MeshStandardMaterial({ color: 0xcfcabb, metalness: 0.60, roughness: 0.35, envMapIntensity: 1.2, flatShading: true }),
     darkS: new THREE.MeshStandardMaterial({ color: 0x2a2723, metalness: 0.30, roughness: 0.65, flatShading: true }),
-    tread: new THREE.MeshStandardMaterial({ color: 0x3a322b, roughness: 0.95, flatShading: true })
+    tread: new THREE.MeshStandardMaterial({ color: 0x625648, roughness: 0.85, flatShading: true })
   };
 
   const buckets = {};
@@ -1011,6 +1122,15 @@ function initGame() {
   headLight.target.position.set(0, 0, -12);
   rover.add(headLight); rover.add(headLight.target);
 
+  rover.traverse(o => { if (o.isMesh && o.material !== OUTLINE_MAT) o.receiveShadow = true; });
+  const roverBlob = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false, opacity: 0.7, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })
+  );
+  roverBlob.scale.set(5.4, 1, 6.2);
+  roverBlob.position.set(0, -0.03, 0.05);
+  roverBlob.renderOrder = 2;
+  rover.add(roverBlob);
   scene.add(rover);
 
   // ============ Controls ============
@@ -1263,6 +1383,7 @@ function initGame() {
   // ============ Day-night ============
   let gameTime = 0.07;
   let dayFactor = 1;
+  const _shLd = new THREE.Vector3(), _shLr = new THREE.Vector3(), _shLu = new THREE.Vector3(), _shUp = new THREE.Vector3(0, 1, 0), _shT = new THREE.Vector3();
   const zenDay = new THREE.Color(0x6fb2e6), horDay = new THREE.Color(0xf6e2b8);
   const zenDusk = new THREE.Color(0x4a3a6a), horDusk = new THREE.Color(0xff9a5a);
   const zenNight = new THREE.Color(0x070c22), horNight = new THREE.Color(0x141a34);
@@ -1273,8 +1394,19 @@ function initGame() {
     gameTime = (gameTime + dt * 0.0004) % 1;
     const ang = gameTime * Math.PI * 2;
     const sh = Math.sin(ang);
-    sunLight.position.set(Math.cos(ang) * 80, Math.max(sh * 80, -25), -30);
-    skyUniforms.sunDir.value.copy(sunLight.position).normalize();
+    _shLd.set(Math.cos(ang) * 80, Math.max(sh * 80, -25), -12).normalize();
+    skyUniforms.sunDir.value.copy(_shLd);
+    // keep the shadow frustum centred on the rover, snapped to shadow-map texels (no shimmering edges)
+    _shLr.crossVectors(_shUp, _shLd).normalize();
+    _shLu.crossVectors(_shLd, _shLr);
+    const _tx = rover.position.x, _ty = rover.position.y, _tz = rover.position.z;
+    const _texel = (2 * SHADOW_R) / sunLight.shadow.mapSize.width;
+    const _pr = Math.round((_tx * _shLr.x + _ty * _shLr.y + _tz * _shLr.z) / _texel) * _texel;
+    const _pu = Math.round((_tx * _shLu.x + _ty * _shLu.y + _tz * _shLu.z) / _texel) * _texel;
+    const _pd = _tx * _shLd.x + _ty * _shLd.y + _tz * _shLd.z;
+    _shT.set(0, 0, 0).addScaledVector(_shLr, _pr).addScaledVector(_shLu, _pu).addScaledVector(_shLd, _pd);
+    sunLight.target.position.copy(_shT);
+    sunLight.position.copy(_shT).addScaledVector(_shLd, 80);
 
     const day = THREE.MathUtils.smoothstep(sh, 0.05, 0.3);
     dayFactor = day;
@@ -1293,7 +1425,7 @@ function initGame() {
     if (sunGlowEl) sunGlowEl.style.opacity = (day * 0.95).toFixed(2);
     sunLight.intensity = 0.4 + day * 2.2 + dusk * 0.6;
     sunLight.color.setRGB(1.0, 0.75 + day * 0.15, 0.55 + day * 0.25);
-    ambientLight.intensity = 0.15 + day * 0.3;
+    ambientLight.intensity = 0.12 + day * 0.2;
     hemiLight.intensity = 0.25 + day * 0.5;
 
     const hours = Math.floor(gameTime * 24);
@@ -1550,7 +1682,7 @@ function initGame() {
     camera.lookAt(_look);
     camLight.position.set(camera.position.x, camera.position.y + 3, camera.position.z);
     camLight.target.position.set(rx, rover.position.y + 1, rz);
-    camLight.intensity = 0.15 + Math.min(0.5, sunLight.intensity * 0.2);
+    camLight.intensity = 0.05 + Math.min(0.14, sunLight.intensity * 0.05);
     const targetFov = 58 + spd * 1.1;
     if (Math.abs(camera.fov - targetFov) > 0.05) {
       camera.fov = THREE.MathUtils.damp(camera.fov, targetFov, 3, dt);
