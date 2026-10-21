@@ -684,6 +684,9 @@ function initGame() {
     crate:  new THREE.MeshStandardMaterial({ color: 0x4c463a, roughness: 0.80, flatShading: true }),
     glow:   new THREE.MeshStandardMaterial({ color: 0xffffcc, emissive: 0xffeeaa, emissiveIntensity: 1.6, flatShading: true }),
     tail:   new THREE.MeshStandardMaterial({ color: 0xff3322, emissive: 0xff2211, emissiveIntensity: 0.9, flatShading: true }),
+    tailHot: new THREE.MeshStandardMaterial({ color: 0xffc8bb, emissive: 0xff6a55, emissiveIntensity: 1.4 }),
+    revLamp: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xdfeeff, emissiveIntensity: 0.1 }),
+    amber:   new THREE.MeshStandardMaterial({ color: 0xffa020, emissive: 0xff8a00, emissiveIntensity: 0.5 }),
     hullS: new THREE.MeshStandardMaterial({ color: 0x8fa1ad, metalness: 0.35, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
     deckS: new THREE.MeshStandardMaterial({ color: 0xa8b8c2, metalness: 0.30, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
     tanS:  new THREE.MeshStandardMaterial({ color: 0xb5a488, metalness: 0.15, roughness: 0.60, flatShading: true }),
@@ -794,7 +797,7 @@ function initGame() {
   partRB('tanS', -1.14, 1.02, 0.05, 0.14, 0.50, 1.50, 0.06);              // side armor
   partRB('tanS',  1.14, 1.02, 0.05, 0.14, 0.50, 1.50, 0.06);
   partRB('hullS', 0, 1.0, 1.2, 1.95, 0.55, 0.20, 0.08);                   // rear plate
-  for (let i = 0; i < 4; i++) partRB('darkS', 0, 0.86 + i * 0.1, 1.31, 1.3, 0.05, 0.03, 0.01); // vent slats
+  for (let i = 0; i < 4; i++) partRB('darkS', 0, 0.86 + i * 0.1, 1.31, 1.05, 0.05, 0.03, 0.01); // vent slats
 
   // ---- Dome + eyes + emblem ----
   const domeGeo = new THREE.SphereGeometry(0.85, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2);
@@ -857,8 +860,35 @@ function initGame() {
   // ---- Lights ----
   partDisc('glow', -0.7, 0.9, -1.57, 0.11, 0.06, 0, 0.35, -1, 10);
   partDisc('glow', 0.7, 0.9, -1.57, 0.11, 0.06, 0, 0.35, -1, 10);
-  partRB('tail', -0.62, 1.05, 1.32, 0.34, 0.13, 0.05, 0.03);
-  partRB('tail', 0.62, 1.05, 1.32, 0.34, 0.13, 0.05, 0.03);
+  [-1, 1].forEach(side => {
+    const lx = side * 0.8;
+    partRB('darkS', lx, 1.04, 1.325, 0.42, 0.28, 0.06, 0.04);          // housing frame
+    partRB('tail', lx, 1.04, 1.36, 0.34, 0.2, 0.04, 0.05);             // red lens
+    for (let j = 0; j < 3; j++) partRB('tailHot', lx, 1.11 - j * 0.07, 1.385, 0.28, 0.025, 0.02, 0.008); // LED strips
+    partRB('amber', lx, 1.225, 1.36, 0.2, 0.04, 0.04, 0.015);          // turn signal
+    partRB('revLamp', lx, 0.885, 1.36, 0.16, 0.06, 0.04, 0.02);        // reverse lamp
+  });
+  partRB('tailHot', 0, 1.22, 1.32, 1.0, 0.03, 0.03, 0.01);              // light bar between the lamps
+
+  const haloCv = document.createElement('canvas');
+  haloCv.width = 64; haloCv.height = 64;
+  const hc = haloCv.getContext('2d');
+  const hg = hc.createRadialGradient(32, 32, 2, 32, 32, 32);
+  hg.addColorStop(0, 'rgba(255,90,70,0.9)');
+  hg.addColorStop(0.4, 'rgba(255,50,40,0.35)');
+  hg.addColorStop(1, 'rgba(255,40,30,0)');
+  hc.fillStyle = hg; hc.fillRect(0, 0, 64, 64);
+  const haloTex = new THREE.CanvasTexture(haloCv);
+  haloTex.colorSpace = THREE.SRGBColorSpace;
+  const tailHalos = [-1, 1].map(side => {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: haloTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4, fog: false
+    }));
+    s.position.set(side * 0.8, 1.04, 1.45);
+    s.scale.set(0.95, 0.7, 1);
+    rover.add(s);
+    return s;
+  });
   partRB('darkS', 0, 0.78, -1.62, 1.9, 0.2, 0.18, 0.07);
 
   Object.keys(buckets).forEach(key => {
@@ -1179,42 +1209,54 @@ function initGame() {
   function drawMinimap() {
     const w = mmCanvas.width, h = mmCanvas.height;
     mmCtx.clearRect(0, 0, w, h);
-    mmCtx.fillStyle = 'rgba(40,62,46,0.55)'; mmCtx.fillRect(0, 0, w, h);
-    mmCtx.fillStyle = 'rgba(20,50,30,0.5)'; mmCtx.fillRect(0, 0, w * 0.3, h * 0.3);
-    mmCtx.fillStyle = 'rgba(150,125,80,0.45)'; mmCtx.fillRect(w * 0.7, 0, w * 0.3, h * 0.3);
-    mmCtx.fillStyle = 'rgba(200,215,225,0.4)'; mmCtx.fillRect(0, h * 0.7, w * 0.3, h * 0.3);
-    mmCtx.fillStyle = 'rgba(80,95,60,0.5)'; mmCtx.fillRect(w * 0.7, h * 0.7, w * 0.3, h * 0.3);
+    mmCtx.fillStyle = 'rgba(12,26,26,0.80)'; mmCtx.fillRect(0, 0, w, h);
+    mmCtx.fillStyle = 'rgba(30,80,50,0.35)'; mmCtx.fillRect(0, 0, w * 0.3, h * 0.3);
+    mmCtx.fillStyle = 'rgba(170,130,70,0.30)'; mmCtx.fillRect(w * 0.7, 0, w * 0.3, h * 0.3);
+    mmCtx.fillStyle = 'rgba(190,220,235,0.26)'; mmCtx.fillRect(0, h * 0.7, w * 0.3, h * 0.3);
+    mmCtx.fillStyle = 'rgba(90,110,60,0.34)'; mmCtx.fillRect(w * 0.7, h * 0.7, w * 0.3, h * 0.3);
 
-    mmCtx.strokeStyle = 'rgba(255,255,255,0.28)'; mmCtx.lineWidth = 1;
-    for (let i = 1; i < 6; i++) {
-      mmCtx.beginPath(); mmCtx.moveTo(i * w / 6, 0); mmCtx.lineTo(i * w / 6, h); mmCtx.stroke();
-      mmCtx.beginPath(); mmCtx.moveTo(0, i * h / 6); mmCtx.lineTo(w, i * h / 6); mmCtx.stroke();
+    mmCtx.lineWidth = 1;
+    for (let i = 1; i < 8; i++) {
+      mmCtx.strokeStyle = i === 4 ? 'rgba(126,240,255,0.30)' : 'rgba(126,240,255,0.12)';
+      mmCtx.beginPath(); mmCtx.moveTo(i * w / 8, 0); mmCtx.lineTo(i * w / 8, h); mmCtx.stroke();
+      mmCtx.beginPath(); mmCtx.moveTo(0, i * h / 8); mmCtx.lineTo(w, i * h / 8); mmCtx.stroke();
     }
 
-    mmCtx.strokeStyle = 'rgba(230,200,150,0.8)'; mmCtx.lineWidth = 2; mmCtx.beginPath();
+    mmCtx.save();
+    mmCtx.strokeStyle = 'rgba(255,214,150,0.85)'; mmCtx.lineWidth = 2;
+    mmCtx.shadowColor = 'rgba(255,200,120,0.8)'; mmCtx.shadowBlur = 5;
+    mmCtx.beginPath();
     for (let k = 0; k <= 40; k++) {
       const zz = -HALF + (k / 40) * WORLD_SIZE;
       const px = ((pathCenter(zz) + HALF) / WORLD_SIZE) * w, py = (k / 40) * h;
       if (k === 0) mmCtx.moveTo(px, py); else mmCtx.lineTo(px, py);
     }
     mmCtx.stroke();
+    mmCtx.restore();
 
     const ppx = ((POI_X + HALF) / WORLD_SIZE) * w, ppy = ((POI_Z + HALF) / WORLD_SIZE) * h;
-    mmCtx.fillStyle = '#ffb347';
-    mmCtx.beginPath(); mmCtx.arc(ppx, ppy - 4, 4, 0, Math.PI * 2); mmCtx.fill();
-    mmCtx.beginPath(); mmCtx.moveTo(ppx - 3, ppy - 2); mmCtx.lineTo(ppx + 3, ppy - 2); mmCtx.lineTo(ppx, ppy + 4); mmCtx.fill();
+    mmCtx.save();
+    mmCtx.shadowColor = '#7ef0ff'; mmCtx.shadowBlur = 8;
+    mmCtx.strokeStyle = '#9ff1ff'; mmCtx.lineWidth = 2;
+    mmCtx.beginPath(); mmCtx.moveTo(ppx, ppy - 6); mmCtx.lineTo(ppx + 6, ppy); mmCtx.lineTo(ppx, ppy + 6); mmCtx.lineTo(ppx - 6, ppy); mmCtx.closePath(); mmCtx.stroke();
+    mmCtx.fillStyle = 'rgba(126,240,255,0.55)';
+    mmCtx.beginPath(); mmCtx.moveTo(ppx, ppy - 3); mmCtx.lineTo(ppx + 3, ppy); mmCtx.lineTo(ppx, ppy + 3); mmCtx.lineTo(ppx - 3, ppy); mmCtx.closePath(); mmCtx.fill();
+    mmCtx.restore();
 
     const rx = ((rover.position.x + HALF) / WORLD_SIZE) * w;
     const ry = ((rover.position.z + HALF) / WORLD_SIZE) * h;
     const ang = Math.atan2(-Math.cos(currentRot), -Math.sin(currentRot));
-    mmCtx.fillStyle = 'rgba(126,240,255,0.30)';
-    mmCtx.beginPath(); mmCtx.moveTo(rx, ry); mmCtx.arc(rx, ry, 40, ang - 0.55, ang + 0.55); mmCtx.closePath(); mmCtx.fill();
+    const cone = mmCtx.createRadialGradient(rx, ry, 2, rx, ry, 44);
+    cone.addColorStop(0, 'rgba(126,240,255,0.50)');
+    cone.addColorStop(1, 'rgba(126,240,255,0)');
+    mmCtx.fillStyle = cone;
+    mmCtx.beginPath(); mmCtx.moveTo(rx, ry); mmCtx.arc(rx, ry, 44, ang - 0.55, ang + 0.55); mmCtx.closePath(); mmCtx.fill();
     mmCtx.save();
     mmCtx.translate(rx, ry); mmCtx.rotate(ang + Math.PI / 2);
-    mmCtx.fillStyle = '#222';
-    mmCtx.fillRect(-6, -5, 3, 4); mmCtx.fillRect(3, -5, 3, 4); mmCtx.fillRect(-6, 1, 3, 4); mmCtx.fillRect(3, 1, 3, 4);
-    mmCtx.fillStyle = '#cfe7ff'; mmCtx.fillRect(-3.5, -5, 7, 10);
-    mmCtx.fillStyle = '#7ef0ff'; mmCtx.beginPath(); mmCtx.arc(0, -1, 2.3, 0, Math.PI * 2); mmCtx.fill();
+    mmCtx.shadowColor = '#7ef0ff'; mmCtx.shadowBlur = 8;
+    mmCtx.fillStyle = '#7ef0ff'; mmCtx.strokeStyle = '#06222a'; mmCtx.lineWidth = 1.5;
+    mmCtx.beginPath(); mmCtx.moveTo(0, -8); mmCtx.lineTo(5.5, 6); mmCtx.lineTo(0, 3); mmCtx.lineTo(-5.5, 6); mmCtx.closePath();
+    mmCtx.stroke(); mmCtx.fill();
     mmCtx.restore();
   }
 
@@ -1407,7 +1449,11 @@ function initGame() {
     rover.position.x = THREE.MathUtils.clamp(rover.position.x, -limit, limit);
     rover.position.z = THREE.MathUtils.clamp(rover.position.z, -limit, limit);
 
-    MATS.tail.emissiveIntensity = (velocity < -0.2 || hit) ? 2.6 : 0.9;
+    const braking = velocity < -0.2 || hit;
+    MATS.tail.emissiveIntensity = braking ? 2.6 : 0.9;
+    MATS.tailHot.emissiveIntensity = braking ? 3.0 : 1.4;
+    MATS.revLamp.emissiveIntensity = velocity < -0.2 ? 2.4 : 0.1;
+    tailHalos.forEach(s => { s.material.opacity = braking ? 0.95 : 0.4; });
     const onPathNow = pathMask(rx, rz) > 0.35;
     updateAudio(speedNorm, keys.forward || keys.backward, onPathNow);
     updateDust(dt, spd, rx, rz, cosR, sinR, onPathNow);
