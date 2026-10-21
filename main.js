@@ -363,15 +363,20 @@ function initGame() {
   const tuftGeo = mergeGeometries(bladeParts, false);
 
   const uTime = { value: 0 };
+  const uRover = { value: new THREE.Vector3(0, -999, 0) };
   const grassMat = new THREE.MeshStandardMaterial({
     vertexColors: true, side: THREE.DoubleSide, roughness: 0.9, metalness: 0.0
   });
   grassMat.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = uTime;
-    shader.vertexShader = 'uniform float uTime;\n' + shader.vertexShader.replace(
+    shader.uniforms.uRover = uRover;
+    shader.vertexShader = 'uniform float uTime;\nuniform vec3 uRover;\n' + shader.vertexShader.replace(
       '#include <begin_vertex>',
       `#include <begin_vertex>
        vec4 wpos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+       float dR = distance(wpos.xz, uRover.xz);
+       float dC = distance(wpos.xyz, cameraPosition);
+       transformed *= mix(0.2, 1.0, smoothstep(1.8, 4.5, dR)) * mix(0.15, 1.0, smoothstep(1.0, 3.0, dC));
        float ph = wpos.x * 0.35 + wpos.z * 0.27;
        float gust = sin(uTime * 1.6 + ph) * 0.6 + sin(uTime * 3.3 + ph * 1.7) * 0.4;
        float hf = position.y * position.y * 2.4;
@@ -658,7 +663,7 @@ function initGame() {
     arm:    new THREE.MeshStandardMaterial({ color: 0xc9c4b6, metalness: 0.55, roughness: 0.40, flatShading: true, envMapIntensity: 1.0 }),
     joint:  new THREE.MeshStandardMaterial({ color: 0x5e584d, metalness: 0.60, roughness: 0.50, flatShading: true }),
     under:  new THREE.MeshStandardMaterial({ color: 0x3a352d, metalness: 0.30, roughness: 0.80, flatShading: true }),
-    rubber: new THREE.MeshStandardMaterial({ color: 0x3b332c, roughness: 0.95, flatShading: true }),
+    rubber: new THREE.MeshStandardMaterial({ color: 0x2c2621, roughness: 0.95, flatShading: true }),
     dome:   new THREE.MeshStandardMaterial({ color: 0xa6c4d8, metalness: 0.05, roughness: 0.5, flatShading: true, envMapIntensity: 0.55 }),
     black:  new THREE.MeshStandardMaterial({ color: 0x141210, roughness: 0.70, flatShading: true }),
     copper: new THREE.MeshStandardMaterial({ color: 0x8a5a34, metalness: 0.30, roughness: 0.60, flatShading: true }),
@@ -670,7 +675,7 @@ function initGame() {
     tanS:  new THREE.MeshStandardMaterial({ color: 0xb5a488, metalness: 0.15, roughness: 0.60, flatShading: true }),
     armS:  new THREE.MeshStandardMaterial({ color: 0xcfcabb, metalness: 0.60, roughness: 0.35, envMapIntensity: 1.2, flatShading: true }),
     darkS: new THREE.MeshStandardMaterial({ color: 0x2a2723, metalness: 0.30, roughness: 0.65, flatShading: true }),
-    tread: new THREE.MeshStandardMaterial({ color: 0x5e5144, roughness: 0.95, flatShading: true })
+    tread: new THREE.MeshStandardMaterial({ color: 0x3a322b, roughness: 0.95, flatShading: true })
   };
 
   const buckets = {};
@@ -816,9 +821,11 @@ function initGame() {
   const CAP_TIP = TRACK - 0.45;   // inner end of each hub cap
   const wheelSlots = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
   wheelSlots.forEach(([sx, sz]) => {
-    partRB('darkS', sx * 0.80, 1.60, sz * 0.74, 0.30, 0.12, 0.30, 0.03);   // upper mount, sits on top of the deck
-    partRB('darkS', sx * 1.25, 0.86, sz * 0.62, 0.12, 0.26, 0.32, 0.03);   // lower mount, bolted to the side armor
-    partRB('darkS', sx * 1.14, 1.31, sz * 0.50, 0.16, 0.09, 0.22, 0.02);   // air-spring mount, on top of the side armor
+    partRB('darkS', sx * 0.80, 1.60, sz * 0.74, 0.34, 0.12, 0.38, 0.03);
+    partDisc('darkS', sx * 0.80, 1.64, sz * 0.74, 0.17, 0.38, 0, 0, 1, 8);   // hinge knuckle   // upper mount, sits on top of the deck
+    partRB('darkS', sx * 1.25, 0.86, sz * 0.5, 0.12, 0.28, 0.38, 0.03);
+    partDisc('darkS', sx * 1.29, 0.86, sz * 0.5, 0.15, 0.38, 0, 0, 1, 8);   // hinge knuckle   // lower mount, bolted to the side armor
+    partRB('darkS', sx * 1.14, 1.31, sz * 0.40, 0.16, 0.09, 0.22, 0.02);   // air-spring mount, on top of the side armor
   });
 
   // ---- Copper cables ----
@@ -854,15 +861,15 @@ function initGame() {
     return mergeGeometries(list.map(g => (g.index ? g.toNonIndexed() : g)), groups);
   }
   function buildWheelGeo() {
-    const carcass = new THREE.CylinderGeometry(0.62, 0.62, 0.72, 10);
+    const carcass = new THREE.CylinderGeometry(0.64, 0.64, 0.72, 14);
     carcass.rotateZ(Math.PI / 2);
     const tp = [];
-    const N = 10;
+    const N = 12;
     for (let i = 0; i < N; i++) {
       const a = (i / N) * Math.PI * 2;
-      const tread = new RoundedBoxGeometry(0.76, 0.27, 0.36, 1, 0.06);
+      const tread = new RoundedBoxGeometry(0.78, 0.2, 0.5, 1, 0.05);
       const m = new THREE.Matrix4().makeRotationX(a);
-      m.setPosition(0, Math.cos(a) * 0.7, Math.sin(a) * 0.7);
+      m.setPosition(0, Math.cos(a) * 0.72, Math.sin(a) * 0.72);
       tread.applyMatrix4(m);
       tp.push(tread);
     }
@@ -911,7 +918,7 @@ function initGame() {
     }
     return mergeSafe(list, false);
   })();
-  const hubJointGeo = new THREE.CylinderGeometry(0.17, 0.17, 0.14, 8);
+  const hubJointGeo = new THREE.CylinderGeometry(0.21, 0.21, 0.2, 8);
   hubJointGeo.rotateZ(Math.PI / 2);
   const rodGeo = new THREE.CylinderGeometry(0.055, 0.055, 1, 6);
   rodGeo.rotateX(Math.PI / 2);
@@ -922,12 +929,12 @@ function initGame() {
     const joint = new THREE.Mesh(hubJointGeo, MATS.darkS); joint.castShadow = true; rover.add(joint);
     return {
       sx, sz, wheel: wheels[i],
-      upper: unitBeam(0.2, 0.15, MATS.armS, 0.04, true),
-      lower: unitBeam(0.2, 0.13, MATS.armS, 0.04, true),
+      upper: unitBeam(0.34, 0.2, MATS.armS, 0.05, true),
+      lower: unitBeam(0.32, 0.17, MATS.armS, 0.05, true),
       rod, spring, joint,
       U: new THREE.Vector3(sx * 0.80, 1.62, sz * 0.74),
-      L: new THREE.Vector3(sx * 1.28, 0.86, sz * 0.62),
-      T: new THREE.Vector3(sx * 1.14, 1.34, sz * 0.50)
+      L: new THREE.Vector3(sx * 1.28, 0.86, sz * 0.5),
+      T: new THREE.Vector3(sx * 1.14, 1.34, sz * 0.40)
     };
   });
   const _sa = new THREE.Vector3(), _sb = new THREE.Vector3(), _sd = new THREE.Vector3();
@@ -947,7 +954,7 @@ function initGame() {
       _Hb.set(q.sx * CAP_TIP, wy - 0.12, q.sz * 1.0);
       placeBeam(q.upper, q.U, _Ht);
       placeBeam(q.lower, q.L, _Hb);
-      _Bp.lerpVectors(q.L, _Hb, 0.5); _Bp.y += 0.1;
+      _Bp.lerpVectors(q.L, _Hb, 0.5); _Bp.y += 0.1; _Bp.z = q.sz * 0.62;
       placeBeam(q.spring, q.T, _Bp);
       placeBeam(q.rod, q.T, _Bp);
       q.joint.position.set(q.sx * CAP_TIP, wy, q.sz * 1.0);
@@ -1217,6 +1224,7 @@ function initGame() {
     }
 
     updateSuspension();
+    uRover.value.set(rover.position.x, rover.position.y, rover.position.z);
     const limit = HALF - 6;
     rover.position.x = THREE.MathUtils.clamp(rover.position.x, -limit, limit);
     rover.position.z = THREE.MathUtils.clamp(rover.position.z, -limit, limit);
@@ -1237,14 +1245,14 @@ function initGame() {
 
     sky.position.copy(camera.position);
     if (camMode === 0) {
-      const camDist = (5.6 + spd * 0.14) * camZoom;
-      const camH = (2.4 + spd * 0.05) * camZoom;
+      const camDist = (4.4 + spd * 0.14) * camZoom;
+      const camH = (1.9 + spd * 0.05) * camZoom;
       _camPos.set(rx - cfX * camDist, rover.position.y + camH, rz - cfZ * camDist);
       const lookAhead = 2.2 + spd * 0.25;
       _look.set(rx + cfX * lookAhead, rover.position.y + 1.3, rz + cfZ * lookAhead);
     } else {
-      const camDist = (5.8 + spd * 0.1) * camZoom;
-      const camH = 1.5 * camZoom;
+      const camDist = (4.6 + spd * 0.1) * camZoom;
+      const camH = 1.2 * camZoom;
       _camPos.set(rx + cfX * camDist, rover.position.y + camH, rz + cfZ * camDist);
       _look.set(rx, rover.position.y + 1.2, rz);
     }
