@@ -155,6 +155,9 @@ function initGame() {
   const fillLight = new THREE.DirectionalLight(0x99bbee, 0.4);
   fillLight.position.set(-50, 30, -40);
   scene.add(fillLight);
+  const camLight = new THREE.DirectionalLight(0xffeedd, 0.6);
+  scene.add(camLight);
+  scene.add(camLight.target);
 
   // ============ Environment map ============
   const envCanvas = document.createElement('canvas');
@@ -655,7 +658,7 @@ function initGame() {
     arm:    new THREE.MeshStandardMaterial({ color: 0xc9c4b6, metalness: 0.55, roughness: 0.40, flatShading: true, envMapIntensity: 1.0 }),
     joint:  new THREE.MeshStandardMaterial({ color: 0x5e584d, metalness: 0.60, roughness: 0.50, flatShading: true }),
     under:  new THREE.MeshStandardMaterial({ color: 0x3a352d, metalness: 0.30, roughness: 0.80, flatShading: true }),
-    rubber: new THREE.MeshStandardMaterial({ color: 0x3f362f, roughness: 0.95, flatShading: true }),
+    rubber: new THREE.MeshStandardMaterial({ color: 0x4d4238, roughness: 0.95, flatShading: true }),
     dome:   new THREE.MeshStandardMaterial({ color: 0xbcd9e6, metalness: 0.05, roughness: 0.35, flatShading: true, envMapIntensity: 1.0 }),
     black:  new THREE.MeshStandardMaterial({ color: 0x141210, roughness: 0.70, flatShading: true }),
     copper: new THREE.MeshStandardMaterial({ color: 0x8a5a34, metalness: 0.30, roughness: 0.60, flatShading: true }),
@@ -667,7 +670,7 @@ function initGame() {
     tanS:  new THREE.MeshStandardMaterial({ color: 0xb5a488, metalness: 0.15, roughness: 0.60 }),
     armS:  new THREE.MeshStandardMaterial({ color: 0xcfcabb, metalness: 0.60, roughness: 0.35, envMapIntensity: 1.2 }),
     darkS: new THREE.MeshStandardMaterial({ color: 0x2a2723, metalness: 0.30, roughness: 0.65 }),
-    tread: new THREE.MeshStandardMaterial({ color: 0x5b4e42, roughness: 0.95, flatShading: true })
+    tread: new THREE.MeshStandardMaterial({ color: 0x7b6c5a, roughness: 0.95, flatShading: true })
   };
 
   const buckets = {};
@@ -781,10 +784,16 @@ function initGame() {
   });
 
   // ---- Rear equipment: black case, tan backpack, antenna ----
-  partRB('darkS', -0.5, 1.82, 0.62, 0.85, 0.55, 0.7, 0.1);
-  partRB('tanS', 0.55, 1.8, 0.62, 0.55, 0.5, 0.6, 0.12);
-  partRB('armS', -0.4, 2.5, 0.7, 0.6, 0.7, 0.05, 0.02, -0.15, 0, 0.35);
-  partBeam('joint', -0.45, 2.05, 0.7, -0.4, 2.3, 0.7, 0.05);
+  partRB('darkS', -0.5, 1.78, 0.62, 0.8, 0.45, 0.65, 0.08);
+  partRB('armS', -0.5, 2.02, 0.62, 0.5, 0.04, 0.4, 0.015);
+  partDisc('tanS', 0.38, 1.85, 0.62, 0.17, 0.6, 0, 1, 0, 12);
+  partDisc('tanS', 0.72, 1.85, 0.62, 0.17, 0.6, 0, 1, 0, 12);
+  partDisc('armS', 0.38, 2.17, 0.62, 0.09, 0.06, 0, 1, 0, 10);
+  partDisc('armS', 0.72, 2.17, 0.62, 0.09, 0.06, 0, 1, 0, 10);
+  partBeam('joint', -0.7, 2.04, 0.85, -0.7, 2.95, 0.85, 0.035);
+  partDisc('glow', -0.7, 2.97, 0.85, 0.05, 0.05, 0, 1, 0, 8);
+  partBeam('joint', -0.35, 2.04, 0.5, -0.35, 2.25, 0.5, 0.05);
+  partDisc('armS', -0.35, 2.3, 0.5, 0.26, 0.04, 0.2, 1, -0.5, 14);
 
   // ---- Suspension: plate arms, joints, coil springs, hydraulic pistons ----
   const wheelSlots = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
@@ -821,8 +830,9 @@ function initGame() {
   // ---- Lights ----
   partDisc('glow', -0.7, 0.9, -1.57, 0.11, 0.06, 0, 0.35, -1, 10);
   partDisc('glow', 0.7, 0.9, -1.57, 0.11, 0.06, 0, 0.35, -1, 10);
-  partDisc('tail', -0.7, 1.05, 1.32, 0.09, 0.05, 0, 0, 1, 10);
-  partDisc('tail', 0.7, 1.05, 1.32, 0.09, 0.05, 0, 0, 1, 10);
+  partRB('tail', -0.62, 1.05, 1.32, 0.34, 0.13, 0.05, 0.03);
+  partRB('tail', 0.62, 1.05, 1.32, 0.34, 0.13, 0.05, 0.03);
+  partRB('darkS', 0, 0.78, -1.62, 1.9, 0.2, 0.18, 0.07);
 
   Object.keys(buckets).forEach(key => {
     const merged = mergeSafe(buckets[key], false);
@@ -840,12 +850,12 @@ function initGame() {
     const carcass = new THREE.CylinderGeometry(0.62, 0.62, 0.72, 20);
     carcass.rotateZ(Math.PI / 2);
     const tp = [];
-    const N = 18;
+    const N = 14;
     for (let i = 0; i < N; i++) {
       const a = (i / N) * Math.PI * 2;
-      const tread = new RoundedBoxGeometry(0.76, 0.22, 0.3, 2, 0.05);
+      const tread = new RoundedBoxGeometry(0.76, 0.27, 0.36, 2, 0.06);
       const m = new THREE.Matrix4().makeRotationX(a);
-      m.setPosition(0, Math.cos(a) * 0.69, Math.sin(a) * 0.69);
+      m.setPosition(0, Math.cos(a) * 0.7, Math.sin(a) * 0.7);
       tread.applyMatrix4(m);
       tp.push(tread);
     }
@@ -1168,6 +1178,9 @@ function initGame() {
     const camGround = getGroundHeight(camera.position.x, camera.position.z) + 0.7;
     if (camera.position.y < camGround) camera.position.y = camGround;
     camera.lookAt(_look);
+    camLight.position.set(camera.position.x, camera.position.y + 3, camera.position.z);
+    camLight.target.position.set(rx, rover.position.y + 1, rz);
+    camLight.intensity = 0.15 + Math.min(0.5, sunLight.intensity * 0.2);
     const targetFov = 58 + spd * 1.1;
     if (Math.abs(camera.fov - targetFov) > 0.05) {
       camera.fov = THREE.MathUtils.damp(camera.fov, targetFov, 3, dt);
