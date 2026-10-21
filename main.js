@@ -1317,7 +1317,7 @@ function initGame() {
     if (sunLight.shadow.map) { sunLight.shadow.map.dispose(); sunLight.shadow.map = null; }
     sunLight.shadow.mapSize.set(1024, 1024);
   }
-  if ((navigator.hardwareConcurrency || 4) <= 4) downgradeGraphics();
+  // (automatic quality drop disabled - always full quality)
 
   function onResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -1510,7 +1510,7 @@ function initGame() {
 
     perfFrames++; perfAcc += dt;
     if (perfFrames === 180) {
-      if (perfAcc / 180 > 0.040) downgradeGraphics();
+      // (automatic quality drop disabled)
       perfFrames = -9999;
     }
   }
