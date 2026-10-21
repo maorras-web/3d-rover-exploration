@@ -249,9 +249,10 @@ function initGame() {
     const fx = gx - ix, fz = gz - iz;
     const i00 = iz * (GSEG + 1) + ix, i10 = i00 + 1;
     const i01 = i00 + (GSEG + 1), i11 = i01 + 1;
-    const a = HGRID[i00] * (1 - fx) + HGRID[i10] * fx;
-    const b = HGRID[i01] * (1 - fx) + HGRID[i11] * fx;
-    return a * (1 - fz) + b * fz;
+    const h00 = HGRID[i00], h10 = HGRID[i10], h01 = HGRID[i01], h11 = HGRID[i11];
+    // same two triangles the ground mesh is drawn with (no mismatch = no sinking)
+    if (fx + fz <= 1) return h00 + (h10 - h00) * fx + (h01 - h00) * fz;
+    return h11 + (h01 - h11) * (1 - fx) + (h10 - h11) * (1 - fz);
   }
 
   // ============ Ground ============
@@ -281,6 +282,7 @@ function initGame() {
     else col.setRGB(0.38 + bn * 0.08, 0.47 + bn * 0.08, 0.23);
 
     col.r += micro; col.g += micro; col.b += micro;
+    { const pt = smoothNoise(x + 90, z - 40, 20) - 0.5; col.r += pt * 0.14; col.g += pt * 0.04; col.b -= pt * 0.03; }
 
     // baked ambient occlusion (hollows darker, crests lighter) + rocky slopes + sun-bleached heights
     {
@@ -360,7 +362,7 @@ function initGame() {
 
   // ============ 3D grass with wind ============
   function makeBladeGeo(h, w, bend) {
-    const segs = 4;
+    const segs = 3;
     const positions = [], normals = [], uvs = [], vcols = [], indices = [];
     const baseCol = new THREE.Color(0x46682a);
     const tipCol = new THREE.Color(0xb9cc5c);
@@ -390,7 +392,7 @@ function initGame() {
   }
 
   const bladeParts = [];
-  for (let k = 0; k < 5; k++) {
+  for (let k = 0; k < 3; k++) {
     const b = makeBladeGeo(0.5 + Math.random() * 0.45, 0.13 + Math.random() * 0.08, 0.12 + Math.random() * 0.16);
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler((Math.random() - 0.5) * 0.6, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.6));
@@ -423,7 +425,7 @@ function initGame() {
     );
   };
 
-  const GRASS = 8500;
+  const GRASS = 20000;
   const grassMesh = new THREE.InstancedMesh(tuftGeo, grassMat, GRASS);
   grassMesh.receiveShadow = true;
   const dummy = new THREE.Object3D();
@@ -431,11 +433,11 @@ function initGame() {
   let gi = 0;
   for (let i = 0; i < GRASS * 1.5 && gi < GRASS; i++) {
     const z = (Math.random() - 0.5) * WORLD_SIZE * 0.94;
-    const x = Math.random() < 0.55 ? pathCenter(z) + (Math.random() - 0.5) * 30 : (Math.random() - 0.5) * WORLD_SIZE * 0.94;
+    const x = Math.random() < 0.3 ? pathCenter(z) + (Math.random() - 0.5) * 30 : (Math.random() - 0.5) * WORLD_SIZE * 0.94;
     if (pathMask(x, z) > 0.5) continue;
     dummy.position.set(x, getGroundHeight(x, z) - 0.04, z);
     dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-    dummy.scale.setScalar(0.65 + Math.random() * 0.7);
+    dummy.scale.setScalar(0.8 + Math.random() * 0.7);
     dummy.updateMatrix();
     grassMesh.setMatrixAt(gi, dummy.matrix);
     const t = Math.random();
@@ -549,7 +551,7 @@ function initGame() {
     if (nx < 0.3 && nz < 0.3) type = 'pine';
     else if (nx > 0.7 && nz < 0.3) type = 'dead';
     const plan = { x, z, type, s: 1.1 + Math.random() * 0.7, trunkH: 2.2 + Math.random() * 1.6, parts: [] };
-    plan.color = new THREE.Color().setHSL(type === 'pine' ? 0.34 : 0.22 + Math.random() * 0.06, 0.30 + Math.random() * 0.12, type === 'pine' ? 0.17 + Math.random() * 0.06 : 0.27 + Math.random() * 0.09).getHex();
+    plan.color = new THREE.Color().setHSL(type === 'pine' ? 0.34 : 0.20 + Math.random() * 0.07, 0.46 + Math.random() * 0.12, type === 'pine' ? 0.20 + Math.random() * 0.07 : 0.34 + Math.random() * 0.11).getHex();
     if (type === 'pine') {
       for (let k = 0; k < 3; k++) plan.parts.push({ k, size: 1.7 - k * 0.4 });
     } else if (type === 'normal') {
@@ -1421,7 +1423,7 @@ function initGame() {
 
     scene.fog.color.copy(skyUniforms.horizon.value);
     skyUniforms.cloudAmt.value = 0.15 + day * 0.85;
-    skyUniforms.cloudCol.value.setRGB(0.25 + dusk * 0.55 + day * 0.2, 0.25 + dusk * 0.30 + day * 0.7, 0.35 + dusk * 0.20 + day * 0.65);
+    skyUniforms.cloudCol.value.setRGB(0.25 + dusk * 0.55 + day * 0.72, 0.25 + dusk * 0.30 + day * 0.68, 0.35 + dusk * 0.20 + day * 0.55);
     if (sunGlowEl) sunGlowEl.style.opacity = (day * 0.95).toFixed(2);
     sunLight.intensity = 0.4 + day * 2.2 + dusk * 0.6;
     sunLight.color.setRGB(1.0, 0.75 + day * 0.15, 0.55 + day * 0.25);
@@ -1566,10 +1568,11 @@ function initGame() {
     const steerTarget = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
     steerSmooth = THREE.MathUtils.damp(steerSmooth, steerTarget, 6.0, dt);
     if (steerTarget === 0 && Math.abs(steerSmooth) < 0.01) steerSmooth = 0;
-    const authority = 0.25 + 0.75 * Math.min(1, spd / 5.0);      // less turn when slow
-    const highSpeedTrim = 1.15 - 0.45 * speedNorm;               // less turn when very fast
-    const dirSign = velocity >= 0 ? 1 : -1;
-    currentRot += 1.7 * steerSmooth * authority * highSpeedTrim * dirSign * dt;
+    // Car-like steering: turning needs movement, steering angle shrinks with speed, reverse behaves like a real car
+    const maxSteerAngle = 0.6 / (1 + spd * 0.25);
+    const steerAngle = steerSmooth * maxSteerAngle;
+    const WHEELBASE = 2.4;
+    currentRot += (velocity * Math.tan(steerAngle) / WHEELBASE) * dt;
     rover.rotation.y = currentRot;
 
     // ---- Move ----
@@ -1626,12 +1629,31 @@ function initGame() {
     rover.rotation.x = pitch;
     rover.rotation.z = roll;
 
+    // ---- Hull clearance: probe the body footprint, lift the rover if any point would touch the ground ----
+    {
+      const sP = Math.sin(pitch), sRl = Math.sin(roll);
+      const probes = [[-1.0, -1.6], [1.0, -1.6], [-1.0, 1.3], [1.0, 1.3], [0, -1.6], [0, 1.3], [-1.1, 0], [1.1, 0], [0, 0]];
+      let lift = 0;
+      for (let k = 0; k < probes.length; k++) {
+        const px = probes[k][0], pz = probes[k][1];
+        const gx2 = rx + px * cosR + pz * sinR;
+        const gz2 = rz - px * sinR + pz * cosR;
+        const need = driveHeight(gx2, gz2) + 0.06 - (rover.position.y + 0.52 - pz * sP + px * sRl);
+        if (need > lift) lift = need;
+      }
+      if (lift > 0) rover.position.y += lift;
+    }
+
     // Each wheel travels independently (visible suspension compression)
     for (let i = 0; i < 4; i++) {
       const w = wheels[i];
       const wantY = THREE.MathUtils.clamp(hw[i] + 0.74 - rover.position.y, 0.74 - 0.22, 0.74 + 0.22);
       w.y = THREE.MathUtils.damp(w.y, wantY, 12, dt);
       w.mesh.rotation.x = wheelSpin;
+      if (w.lz < 0) {            // front wheels visibly steer
+        w.mesh.rotation.order = 'YXZ';
+        w.mesh.rotation.y = THREE.MathUtils.clamp(steerAngle, -0.35, 0.35);
+      }
       w.mesh.position.y = w.y;
     }
 
