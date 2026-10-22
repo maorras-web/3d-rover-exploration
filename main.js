@@ -401,8 +401,11 @@ function initGame() {
         float cz = sin(wp.y * 0.05) * 6.0 + sin(wp.y * 0.013) * 4.0;
         float ad = abs(wp.x - cz);
         float lod = 1.0 - smoothstep(14.0, 45.0, length(vViewPosition));
-        float wHalf = 2.4 + (fb(wp * 1.6) - 0.5) * 1.1 + (vn(wp * 0.3 + 7.0) - 0.5) * 0.9;
-        float pm = 1.0 - smoothstep(wHalf - 0.45, wHalf + 0.1, ad);
+        float pm = 0.0;
+        if (ad < 3.6) {   // the trail is never wider than ~3.5 m from its centre line: no noise needed anywhere else
+          float wHalf = 2.4 + (fb(wp * 1.6) - 0.5) * 1.1 + (vn(wp * 0.3 + 7.0) - 0.5) * 0.9;
+          pm = 1.0 - smoothstep(wHalf - 0.45, wHalf + 0.1, ad);
+        }
         float lodG = 1.0 - smoothstep(12.0, 70.0, length(vViewPosition));
         base *= 1.0 + (vn(wp * 1.9) - 0.5) * 0.16 * lodG;
         vec3 pcol = base;
@@ -2126,9 +2129,9 @@ function drawGrassAtlasCanvas() {
   const QUALITY = {
     high:   { pr: 2.0, bloom: true,  shadow: 2048, shR: 40, half: false, grassQ: 1.0,  grassD: 1.0, far: 1e9, bushes: true,
               note: 'Best looks. The resolution adjusts itself if the phone struggles.' },
-    medium: { pr: 1.5, bloom: false, shadow: 1024, shR: 40, half: false, grassQ: 0.75, grassD: 0.8, far: 170, bushes: true,
+    medium: { pr: 2.0, bloom: false, shadow: 1024, shR: 40, half: false, grassQ: 0.75, grassD: 0.8, far: 170, bushes: true,
               note: 'Balanced. Slightly softer image, no glow, a bit less grass.' },
-    low:    { pr: 1.0, bloom: false, shadow: 1024, shR: 30, half: true,  grassQ: 0.5,  grassD: 0.6, far: 120, bushes: false,
+    low:    { pr: 1.5, bloom: false, shadow: 1024, shR: 30, half: true,  grassQ: 0.5,  grassD: 0.6, far: 120, bushes: false,
               note: 'Fastest. Soft image, simpler shadows, much less grass.' }
   };
   const store = {
@@ -2238,10 +2241,10 @@ function drawGrassAtlasCanvas() {
   }
   const autoTune = (() => {
     const dev = detectDevice();
-    const key = 'roverAuto2|' + dev.gpu + '|' + dev.cores + '|' + dev.mem;
+    const key = 'roverAuto3|' + dev.gpu + '|' + dev.cores + '|' + dev.mem;
     const MAXL = LEVELS.length - 1;
     let lvl = 0, minLvl = 0, bad = 0, good = 0, lastChange = 0, evalAt = 0, frames = 0;
-    let probeUntil = 0, probeFails = 0, saved = -1, capMs = 0, startLvl = 0;
+    let probeUntil = 0, probeFails = 0, probeBlockUntil = 0, saved = -1, capMs = 0, startLvl = 0;
     function apply(i) {
       const L = LEVELS[i];
       bloomPass.enabled = L.bloom;
@@ -2249,7 +2252,7 @@ function drawGrassAtlasCanvas() {
       uGrassQ.value = L.gQ; uGrassD.value = L.gD; grassFarMax = L.far;
       bushLayer.visible = L.bush;
       bushLayer.live.forEach(m => { if (m) m.visible = L.bush; });
-      const pr = Math.max(0.5, PR_MAX * L.res);
+      const pr = Math.max(PR_MIN, PR_MAX * L.res);   // never below 1.0 (0.6 was a blurry 5x upscale)
       if (Math.abs(pr - curPR) > 0.01) applyPR(pr);
     }
     function init() {
@@ -2276,12 +2279,13 @@ function drawGrassAtlasCanvas() {
         good = 0; bad += veryBad ? 2 : 1;
         if (bad >= 3 && lvl < MAXL) {                       // about 1.5 s of slow frames
           lvl = Math.min(MAXL, lvl + (veryBad ? 2 : 1));
-          if (now < probeUntil) { minLvl = Math.max(minLvl, lvl); probeFails++; }   // the step up we just tried did not hold
+          if (now < probeUntil) { probeFails++; probeUntil = 0; probeBlockUntil = now + Math.min(300000, 15000 * Math.pow(2, probeFails - 1)); }   // the step up we just tried did not hold: wait longer before the next try (15 s, 30 s, 1 min, 2 min, 4 min, then every 5 min)
           apply(lvl); lastChange = now; bad = 0; evalAt = now + 1500; changed = true;
         }
       } else if (isGood) {
         bad = 0; good++;
-        if (lvl > minLvl && probeFails < 3 && good >= 20 && now - lastChange > 12000) {   // ~10 s of full speed: try better looks
+        if (probeUntil && now > probeUntil) { probeFails = 0; probeUntil = 0; }          // the last step up held: forget old failures
+        if (lvl > minLvl && now >= probeBlockUntil && good >= 20 && now - lastChange > 12000) {   // ~10 s of full speed: try better looks
           lvl--; probeUntil = now + 8000; apply(lvl); lastChange = now; good = 0; evalAt = now + 1500; changed = true;
         }
       } else {
@@ -2292,6 +2296,8 @@ function drawGrassAtlasCanvas() {
     }
     return {
       init, tick, dev,
+      forceLevel(i) { apply(i); },
+      restoreLevel() { apply(lvl); },
       get capMs() { return capMs; },
       get level() { return lvl; },
       label() { return 'auto L' + lvl + (capMs ? ' | 60fps cap' : ''); },
@@ -2695,7 +2701,10 @@ function drawGrassAtlasCanvas() {
     shadowDirty = false;
     renderer.info.reset();
     const jsT1 = performance.now();
-    if (dbg.noPost) renderer.render(scene, camera); else composer.render();
+    for (let rk = 0; rk < dbg.multi; rk++) {       // (speed test only) several renders per frame, so the cost shows even above the 60 fps cap
+      if (rk > 0) renderer.shadowMap.needsUpdate = true;
+      if (dbg.noPost) renderer.render(scene, camera); else composer.render();
+    }
     const jsT2 = performance.now();
     jsEma += ((jsT1 - jsT0) - jsEma) * 0.05;
     subEma += ((jsT2 - jsT1) - subEma) * 0.05;
@@ -2742,40 +2751,47 @@ function drawGrassAtlasCanvas() {
   }
 
   // ============ Speed test: finds out what slows the game down on THIS phone ============
-  const dbg = { noGrass: false, noPost: false, running: false };
+  const dbg = { noGrass: false, noPost: false, running: false, multi: 1 };
   let jsEma = 0, subEma = 0;
   perfEl.style.whiteSpace = 'pre';
   function setTrees(v) { treeLayers.forEach(l => { l.visible = v; l.live.forEach(m => { if (m) m.visible = v; }); }); }
-  let liteBefore = true;
   const DIAG_STEPS = [
-    { name: 'Normal (baseline)', on() {}, off() {} },
-    { name: 'Glass blur ON (menus)', on() { liteBefore = document.body.classList.contains('lite-ui'); document.body.classList.remove('lite-ui'); },
-      off() { document.body.classList.toggle('lite-ui', liteBefore); } },
-    { name: 'Without sun-glow layer', on() { if (sunGlowEl) sunGlowEl.style.display = 'none'; }, off() { if (sunGlowEl) sunGlowEl.style.display = ''; } },
-    { name: 'Without sky', on() { sky.visible = false; }, off() { sky.visible = true; } },
-    { name: 'Without ground', on() { ground.visible = false; }, off() { ground.visible = true; } },
-    { name: 'Everything off', on() { dbg.noPost = false; sunLight.castShadow = false; dbg.noGrass = true; setTrees(false); rover.visible = false; sky.visible = false; ground.visible = false; if (sunGlowEl) sunGlowEl.style.display = 'none'; document.body.classList.add('lite-ui'); },
-      off() { sunLight.castShadow = true; dbg.noGrass = false; setTrees(true); rover.visible = true; sky.visible = true; ground.visible = true; if (sunGlowEl) sunGlowEl.style.display = ''; } }
+    { name: 'Full (reference)', on() {}, off() {} },
+    { name: 'No post-processing', on() { dbg.noPost = true; }, off() { dbg.noPost = false; } },
+    { name: 'No shadows', on() { sunLight.castShadow = false; }, off() { sunLight.castShadow = true; } },
+    { name: 'No grass', on() { dbg.noGrass = true; }, off() { dbg.noGrass = false; } },
+    { name: 'No trees', on() { setTrees(false); }, off() { setTrees(true); } },
+    { name: 'No ground', on() { ground.visible = false; }, off() { ground.visible = true; } },
+    { name: 'No sky', on() { sky.visible = false; }, off() { sky.visible = true; } },
+    { name: 'No rover', on() { rover.visible = false; }, off() { rover.visible = true; } }
   ];
+  const DIAG_K = 4;   // renders per frame during the test
   const diagHud = document.createElement('div');
   diagHud.style.cssText = 'position:fixed;left:8px;top:96px;z-index:99997;padding:6px 9px;background:rgba(0,0,0,0.75);color:#e8f6ff;font:11px/1.45 monospace;border-radius:8px;pointer-events:none;display:none;white-space:pre;';
   document.body.appendChild(diagHud);
   let diagStep = -1, diagT0 = 0, diagSum = 0, diagN = 0, diagRes = [], diagHideAt = 0;
   function diagStart() {
     dbg.running = true; diagRes = []; diagStep = -1; diagT0 = 0; diagHideAt = 0;
+    autoTune.forceLevel(0);          // test the BEST quality (the auto level hides the real costs)
+    dbg.multi = DIAG_K;
     document.getElementById('settings-panel').classList.remove('show');
     diagHud.style.display = 'block';
-    diagHud.textContent = 'SPEED TEST starting - keep driving forward (about 25 seconds)...';
+    diagHud.textContent = 'SPEED TEST starting at best quality - keep driving forward (about 35 seconds)...';
   }
   function diagFinish() {
-    dbg.running = false;
-    const base = diagRes[0].ms || 1;
-    let txt = 'SPEED TEST RESULT (frame time, lower = faster)\n';
+    dbg.running = false; dbg.multi = 1;
+    autoTune.restoreLevel();
+    // frame time with DIAG_K renders per frame = max(16.7 ms, DIAG_K x cost of one frame)
+    const cost = (ms) => ms > 21 ? ms / DIAG_K : 0;            // 0 = "cheaper than ~5 ms": hidden by the 60 fps cap
+    const fmt = (c) => c ? c.toFixed(1) + ' ms' : '< 5 ms';
+    const base = cost(diagRes[0].ms);
+    let txt = 'SPEED TEST (cost of ONE frame at best quality, res x' + curPR.toFixed(2) + ')\n';
     diagRes.forEach((r, i) => {
-      txt += (r.name + '                              ').slice(0, 24) + r.ms.toFixed(1) + ' ms  ' + Math.round(1000 / (r.ms || 1)) + ' fps' +
-        (i === 0 ? '' : '  (' + (r.ms - base >= 0 ? '+' : '') + (r.ms - base).toFixed(1) + ')') + '\n';
+      const c = cost(r.ms);
+      txt += (r.name + '                              ').slice(0, 22) + fmt(c) + '  ' + (c ? Math.round(1000 / c) + ' fps' : '') +
+        (i === 0 ? '' : '  (' + (c - base >= 0 ? '+' : '') + (c - base).toFixed(1) + ')') + '\n';
     });
-    txt += '\nJS ' + jsEma.toFixed(1) + ' ms | submit ' + subEma.toFixed(1) + ' ms\nTake a screenshot of this and send it';
+    txt += '\nTake a screenshot of this and send it';
     diagHud.textContent = txt;
     diagHideAt = performance.now() + 120000;
   }
@@ -2793,20 +2809,6 @@ function drawGrassAtlasCanvas() {
       diagHud.textContent = 'SPEED TEST ' + (diagStep + 1) + '/' + DIAG_STEPS.length + ': ' + DIAG_STEPS[diagStep].name + '\nkeep driving forward...';
     }
   }
-  // ============ Light menus: no blur behind the buttons/panels (blur over a moving 3D picture is very heavy on weak phones) ============
-  const liteStyle = document.createElement('style');
-  liteStyle.textContent = 'body.lite-ui *{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;filter:none!important;}';
-  document.head.appendChild(liteStyle);
-  function setBlur(on, save) {
-    document.body.classList.toggle('lite-ui', !on);
-    const bb = document.getElementById('blur-toggle');
-    if (bb) { bb.textContent = on ? 'ON' : 'OFF'; bb.classList.toggle('on', on); }
-    if (save) store.set('roverBlur', on ? '1' : '0');
-  }
-  setBlur(store.get('roverBlur') === '1', false);
-  const blurBtn = document.getElementById('blur-toggle');
-  if (blurBtn) blurBtn.addEventListener('click', () => setBlur(document.body.classList.contains('lite-ui'), true));
-
   document.getElementById('diag-btn').addEventListener('click', diagStart);
 
   document.addEventListener('gesturestart', e => e.preventDefault());
