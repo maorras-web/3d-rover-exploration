@@ -280,7 +280,7 @@ function initGame() {
     if (dist < 22) col.setRGB(0.36, 0.47, 0.21);
     else if (nx < 0.3 && nz < 0.3) col.setRGB(0.16, 0.36, 0.19);
     else if (nx > 0.7 && nz < 0.3) col.setRGB(0.82, 0.71, 0.45);
-    else if (nx < SNOW_NX && nz > SNOW_NZ) col.setRGB(0.86, 0.90, 0.95);
+    else if (nx < SNOW_NX && nz > SNOW_NZ) col.setRGB(0.80, 0.86, 0.93);
     else if (nx > 0.7 && nz > 0.7) col.setRGB(0.36, 0.41, 0.26);
     else col.setRGB(0.38 + bn * 0.08, 0.47 + bn * 0.08, 0.23);
 
@@ -712,8 +712,8 @@ function initGame() {
     dummy.scale.set(p.s, p.s * (0.55 + Math.random() * 0.3), p.s * (0.8 + Math.random() * 0.4));
     dummy.updateMatrix();
     rockIM.setMatrixAt(i, dummy.matrix);
-    const shade = 0.66 + Math.random() * 0.3;
-    rockIM.setColorAt(i, gCol.setRGB(shade, shade * 0.97, shade * 0.92));
+    const shade = 0.48 + Math.random() * 0.26;
+    rockIM.setColorAt(i, gCol.setRGB(shade, shade * 0.95, shade * 0.86));
     if (p.s > 1.45) colliders.push({ x: p.x, z: p.z, r: 0.7 * p.s });   // only really big boulders block the rover
     else addClimbRock(dummy.matrix, p.s);                              // everything else can be driven over
   });
@@ -742,7 +742,7 @@ function initGame() {
       }
     }
     treePlans.push(plan);
-    colliders.push({ x, z, r: 0.45 * plan.s });
+    colliders.push({ x, z, r: 0.45 * plan.s, tree: true });
   }
   let coneCount = 0, blobCount = 0, branchCount = 0;
   treePlans.forEach(p => {
@@ -1592,7 +1592,7 @@ function initGame() {
     }
 
     mmCtx.save();
-    mmCtx.strokeStyle = 'rgba(255,214,150,0.85)'; mmCtx.lineWidth = 2;
+    mmCtx.strokeStyle = 'rgba(255,214,150,0.9)'; mmCtx.lineWidth = 2.6;
     mmCtx.shadowColor = 'rgba(255,200,120,0.8)'; mmCtx.shadowBlur = 5;
     mmCtx.beginPath();
     for (let k = 0; k <= 80; k++) {
@@ -1621,7 +1621,7 @@ function initGame() {
     mmCtx.fillStyle = cone;
     mmCtx.beginPath(); mmCtx.moveTo(rx, ry); mmCtx.arc(rx, ry, 44, ang - 0.55, ang + 0.55); mmCtx.closePath(); mmCtx.fill();
     mmCtx.save();
-    mmCtx.translate(rx, ry); mmCtx.rotate(ang + Math.PI / 2);
+    mmCtx.translate(rx, ry); mmCtx.rotate(ang + Math.PI / 2); mmCtx.scale(1.35, 1.35);
     mmCtx.shadowColor = '#7ef0ff'; mmCtx.shadowBlur = 8;
     mmCtx.fillStyle = '#7ef0ff'; mmCtx.strokeStyle = '#06222a'; mmCtx.lineWidth = 1.5;
     mmCtx.beginPath(); mmCtx.moveTo(0, -8); mmCtx.lineTo(5.5, 6); mmCtx.lineTo(0, 3); mmCtx.lineTo(-5.5, 6); mmCtx.closePath();
@@ -1694,13 +1694,44 @@ function initGame() {
     if (downgraded) return;
     downgraded = true;
     bloomPass.enabled = false;
-    renderer.setPixelRatio(1);
-    composer.setPixelRatio(1);
-    composer.setSize(window.innerWidth, window.innerHeight);
     if (sunLight.shadow.map) { sunLight.shadow.map.dispose(); sunLight.shadow.map = null; }
     sunLight.shadow.mapSize.set(1024, 1024);
   }
   // (automatic quality drop disabled - always full quality)
+
+  // ============ Smooth adaptive resolution: full quality on fast phones, fluid on slower ones ============
+  const PR_MAX = Math.min(window.devicePixelRatio, 2);
+  const PR_MIN = Math.min(PR_MAX, 1.0);
+  let curPR = PR_MAX;
+  function applyPR(r) {
+    curPR = r;
+    renderer.setPixelRatio(r);
+    composer.setPixelRatio(r);
+    composer.setSize(window.innerWidth, window.innerHeight);
+    bloomPass.setSize(window.innerWidth / 2, window.innerHeight / 2);
+  }
+  renderer.info.autoReset = false;
+  let lastFrameMs = 0, emaMs = 16.7, nextEvalMs = 0, adaptWarm = 3, fastWins = 0, veryLow = 0, ceilPR = 99, ceilUntil = 0, overlayAt = 0;
+
+  // Hidden FPS panel: tap the clock 3 times quickly to show / hide it
+  const perfEl = document.createElement('div');
+  perfEl.style.cssText = 'position:fixed;left:50%;top:6px;transform:translateX(-50%);z-index:99998;padding:3px 8px;background:rgba(0,0,0,0.6);color:#9fffb5;font:11px/1.3 monospace;border-radius:6px;pointer-events:none;display:none;white-space:nowrap;';
+  document.body.appendChild(perfEl);
+  let perfOn = false, perfTaps = [];
+  document.getElementById('time-display').addEventListener('click', () => {
+    const nw = performance.now();
+    perfTaps = perfTaps.filter(x => nw - x < 900);
+    perfTaps.push(nw);
+    if (perfTaps.length >= 3) { perfTaps = []; perfOn = !perfOn; perfEl.style.display = perfOn ? 'block' : 'none'; }
+  });
+
+  // Arrow at the screen edge that points to the POI when it is out of view
+  const poiArrow = document.createElement('div');
+  poiArrow.style.cssText = 'position:fixed;left:0;top:0;z-index:55;pointer-events:none;display:none;width:44px;height:52px;text-align:center;font:700 10px sans-serif;color:#cfeeff;text-shadow:0 1px 3px #000;';
+  poiArrow.innerHTML = '<svg viewBox="0 0 24 24" width="30" height="30" style="display:block;margin:0 auto;filter:drop-shadow(0 0 4px #7ef0ff)"><path d="M12 2 L21 20 L12 15 L3 20 Z" fill="#7ef0ff" stroke="#06222a" stroke-width="1.2"/></svg><span></span>';
+  document.body.appendChild(poiArrow);
+  const poiArrowSvg = poiArrow.querySelector('svg'), poiArrowTxt = poiArrow.querySelector('span');
+  const _poiV = new THREE.Vector3();
 
   function onResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -2009,6 +2040,25 @@ function initGame() {
       _camPos.z = rz - odx * os + odz * oc;
       _camPos.y += orbitPitch * 3.0 * camZoom;
     }
+    {
+      // trees must not sit between the camera and the rover: pull the camera closer when one is in the way
+      const sdx = _camPos.x - rx, sdz = _camPos.z - rz;
+      const sl2 = sdx * sdx + sdz * sdz;
+      if (sl2 > 0.01) {
+        const slen = Math.sqrt(sl2);
+        let tMin = 1;
+        for (let i = 0; i < colliders.length; i++) {
+          const c = colliders[i];
+          if (!c.tree) continue;
+          const tt = ((c.x - rx) * sdx + (c.z - rz) * sdz) / sl2;
+          if (tt < 0.12 || tt > 1.0) continue;
+          const px = rx + sdx * tt - c.x, pz = rz + sdz * tt - c.z;
+          const rr = c.r + 0.9;
+          if (px * px + pz * pz < rr * rr) tMin = Math.min(tMin, Math.max(0.55, tt - rr / slen));
+        }
+        if (tMin < 1) { _camPos.x = rx + sdx * tMin; _camPos.z = rz + sdz * tMin; }
+      }
+    }
     camera.position.lerp(_camPos, 1 - Math.exp(-4.5 * dt));
     // keep the camera out of tree trunks / boulders...
     for (let i = 0; i < colliders.length; i++) {
@@ -2040,11 +2090,61 @@ function initGame() {
     poi.scale.set(poiS, poiS * 1.5, 1);
     poi.position.y = poiBaseY + Math.sin(t * 2) * 0.3;
 
+    _poiV.copy(poi.position).project(camera);
+    const poiBehind = _poiV.z > 1;
+    let pnx = poiBehind ? -_poiV.x : _poiV.x, pny = poiBehind ? -_poiV.y : _poiV.y;
+    if (!poiBehind && Math.abs(pnx) < 0.92 && Math.abs(pny) < 0.88) {
+      poiArrow.style.display = 'none';
+    } else {
+      const pm = Math.max(Math.abs(pnx), Math.abs(pny), 0.0001);
+      pnx /= pm; pny /= pm;
+      const sw = window.innerWidth, sh = window.innerHeight;
+      const ex = THREE.MathUtils.clamp((pnx * 0.5 + 0.5) * sw, 60, sw - 60);
+      const ey = THREE.MathUtils.clamp((1 - (pny * 0.5 + 0.5)) * sh, 70, sh - 120);
+      poiArrow.style.display = 'block';
+      poiArrow.style.transform = 'translate(' + (ex - 22) + 'px,' + (ey - 26) + 'px)';
+      poiArrowSvg.style.transform = 'rotate(' + (Math.atan2(pnx, pny) * 180 / Math.PI) + 'deg)';
+      poiArrowTxt.textContent = Math.round(poiDist) + ' m';
+    }
+
     updateDayNight(dt);
     mmTimer += dt;
     if (mmTimer > 0.25) { mmTimer = 0; drawMinimap(); }
 
+    renderer.info.reset();
     composer.render();
+
+    // ---- adaptive resolution (checked once a second) ----
+    const nowMs = performance.now();
+    const rawMs = lastFrameMs ? nowMs - lastFrameMs : 16.7;
+    lastFrameMs = nowMs;
+    if (rawMs < 250) emaMs += (rawMs - emaMs) * 0.05;
+    if (nowMs > nextEvalMs) {
+      nextEvalMs = nowMs + 1000;
+      if (adaptWarm > 0) {
+        adaptWarm--;
+      } else {
+        if (emaMs > 20 && curPR > PR_MIN + 0.01) {
+          ceilPR = Math.max(PR_MIN, curPR - 0.1); ceilUntil = nowMs + 60000;
+          applyPR(Math.max(PR_MIN, curPR - 0.15));
+          fastWins = 0; adaptWarm = 2;
+        } else if (emaMs < 17.6 && curPR < PR_MAX - 0.01) {
+          if (++fastWins >= 4) {
+            const cap = nowMs < ceilUntil ? ceilPR : PR_MAX;
+            if (curPR < cap - 0.01) applyPR(Math.min(cap, curPR + 0.1));
+            fastWins = 0; adaptWarm = 2;
+          }
+        } else {
+          fastWins = 0;
+        }
+        if (emaMs > 30 && curPR <= PR_MIN + 0.01) { if (++veryLow >= 5 && !downgraded) downgradeGraphics(); } else veryLow = 0;
+      }
+    }
+    if (perfOn && nowMs > overlayAt) {
+      overlayAt = nowMs + 500;
+      const inf = renderer.info.render;
+      perfEl.textContent = Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + (downgraded ? ' | LOW' : '');
+    }
 
     perfFrames++; perfAcc += dt;
     if (perfFrames === 180) {

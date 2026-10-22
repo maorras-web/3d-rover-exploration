@@ -783,3 +783,10 @@ html, body {
 @media (max-height: 480px) {
   #status-bars { width: 300px; padding: 11px 26px calc(5px + env(safe-area-inset-bottom)); }
 }
+
+
+/* ===== Readability pass: minimap + dashboard labels ===== */
+#minimap { background: rgba(10,24,28,0.30); }
+#minimap-canvas { opacity: 0.95; }
+.gauge { font-size: 9.5px; }
+.dash-title { font-size: 9px; }
