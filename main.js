@@ -104,9 +104,9 @@ function initGame() {
       float hh(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       void main(){
         vec3 c = texture2D(tDiffuse, vUv).rgb;
-        c = pow(max(c, vec3(0.0)), vec3(0.86));
+        c = pow(max(c, vec3(0.0)), vec3(0.92));
         float g = dot(c, vec3(0.299, 0.587, 0.114));
-        c = mix(vec3(g), c, 1.20);
+        c = mix(vec3(g), c, 1.10);
         float shd = 1.0 - smoothstep(0.0, 0.5, g);
         float hil = smoothstep(0.45, 1.0, g);
         c += vec3(-0.010, 0.006, 0.022) * shd;
@@ -505,23 +505,121 @@ function initGame() {
     return g;
   }
 
-  const bladeParts = [];
-  for (let k = 0; k < 3; k++) {
-    const b = makeBladeGeo(0.2 + Math.random() * 0.18, 0.10 + Math.random() * 0.06, 0.05 + Math.random() * 0.08);
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler((Math.random() - 0.5) * 0.6, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.6));
-    m.compose(new THREE.Vector3((Math.random() - 0.5) * 0.2, 0, (Math.random() - 0.5) * 0.2), q, new THREE.Vector3(1, 1, 1));
-    b.applyMatrix4(m);
-    bladeParts.push(b);
+  // ============ GRASS: textured clumps (many blades per clump) instead of a few geometric blades ============
+  // Every clump is 2-3 crossed quads that carry a hand-drawn alpha texture of ~50-80 blades. The left half of the atlas
+  // is lush grass, the right half is grass with wild flowers (daisies, lupines, buttercups). This looks far denser
+  // than real blade geometry and costs ~4x fewer triangles.
+function drawGrassAtlasCanvas() {
+  const W = 512, H = 256;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const g = cv.getContext('2d', { willReadFrequently: true });
+  let seed = 90210;
+  const R = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const hsl = (h, s, l) => 'hsl(' + h.toFixed(0) + ',' + s.toFixed(0) + '%,' + l.toFixed(0) + '%)';
+  const YB = 252;
+  function blade(ox, x0, h, w, lean, dark, gold) {
+    const xt = ox + x0 + lean, yt = YB - h;
+    const gr = g.createLinearGradient(0, YB, 0, yt);
+    const hu = 96 + R() * 14, k = dark ? 0.72 : 1;
+    gr.addColorStop(0, hsl(hu + 4, 55, 13 * k + 2));
+    gr.addColorStop(0.45, hsl(hu, 58, 27 * k + 3));
+    gr.addColorStop(1, gold ? hsl(46 + R() * 8, 52, 52) : hsl(hu - 16 + R() * 8, 62, 44 * k + 8));
+    g.fillStyle = gr;
+    g.beginPath();
+    g.moveTo(ox + x0 - w / 2, YB);
+    g.quadraticCurveTo(ox + x0 - w * 0.5 + lean * 0.15, YB - h * 0.5, xt, yt);
+    g.quadraticCurveTo(ox + x0 + w * 0.5 + lean * 0.6, YB - h * 0.55, ox + x0 + w / 2, YB);
+    g.closePath();
+    g.fill();
   }
-  const tuftGeo = mergeGeometries(bladeParts, false);
+  function clump(ox, n) {
+    for (let i = 0; i < n; i++) {
+      const x0 = 128 + (R() + R() - 1) * 60;
+      const h = 70 + R() * 150 + (R() < 0.12 ? 30 : 0);
+      blade(ox, x0, h, 3.5 + R() * 5, (R() - 0.5) * 84, i < n * 0.4, R() < 0.08);
+    }
+  }
+  function stem(ox, x0, h, lean) {
+    g.strokeStyle = hsl(100, 45, 26); g.lineWidth = 2.4; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(ox + x0, YB); g.quadraticCurveTo(ox + x0 + lean * 0.2, YB - h * 0.5, ox + x0 + lean, YB - h); g.stroke();
+    return [ox + x0 + lean, YB - h];
+  }
+  function daisy(ox, x0, h) {
+    const lean = (R() - 0.5) * 30, p = stem(ox, x0, h, lean);
+    g.save(); g.translate(p[0], p[1]); g.rotate(R() * 3);
+    g.fillStyle = '#f7f7f1';
+    for (let k = 0; k < 9; k++) { g.save(); g.rotate(k / 9 * Math.PI * 2); g.beginPath(); g.ellipse(9, 0, 8.5, 3.2, 0, 0, Math.PI * 2); g.fill(); g.restore(); }
+    g.fillStyle = '#f0c21e'; g.beginPath(); g.arc(0, 0, 4.4, 0, Math.PI * 2); g.fill();
+    g.restore();
+  }
+  function lupine(ox, x0, h) {
+    const lean = (R() - 0.5) * 24, p = stem(ox, x0, h * 0.55, lean * 0.5);
+    for (let j = 0; j < 16; j++) {
+      const y = p[1] - j * 4.6, x = p[0] + Math.sin(j * 0.8) * 1.6 + lean * 0.02 * j, r = 2.2 + (16 - j) * 0.28;
+      g.fillStyle = hsl(268 + R() * 18, 52, 50 + R() * 14);
+      g.beginPath(); g.arc(x - 2.5, y, r, 0, Math.PI * 2); g.arc(x + 2.5, y, r, 0, Math.PI * 2); g.fill();
+    }
+  }
+  function dot(ox, x0, h, col, r) {
+    const p = stem(ox, x0, h, (R() - 0.5) * 24);
+    g.fillStyle = col; g.beginPath(); g.arc(p[0], p[1], r, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.35)'; g.beginPath(); g.arc(p[0] - r * 0.3, p[1] - r * 0.3, r * 0.4, 0, Math.PI * 2); g.fill();
+  }
+  clump(0, 84);
+  clump(256, 46);
+  for (let i = 0; i < 4; i++) daisy(256, 128 + (R() - 0.5) * 120, 80 + R() * 80);
+  for (let i = 0; i < 2; i++) lupine(256, 128 + (R() - 0.5) * 100, 150 + R() * 70);
+  for (let i = 0; i < 3; i++) dot(256, 128 + (R() - 0.5) * 120, 70 + R() * 70, '#f2d23c', 5.5);
+  for (let i = 0; i < 2; i++) dot(256, 128 + (R() - 0.5) * 120, 60 + R() * 60, '#e08fc0', 6);
+  return cv;
+}
+
+  const grassTex = (() => {
+    const cv = drawGrassAtlasCanvas();
+    const W = cv.width, H = cv.height;
+    const src = cv.getContext('2d').getImageData(0, 0, W, H).data;
+    const out = new Uint8Array(W * H * 4);
+    for (let y = 0; y < H; y++) {
+      const sy = H - 1 - y;                          // DataTexture rows start at the bottom
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4, j = (sy * W + x) * 4, a = src[j + 3];
+        if (a < 6) { out[i] = 70; out[i + 1] = 118; out[i + 2] = 40; out[i + 3] = 0; }   // green fringe colour (no dark halo when mip-mapped)
+        else { out[i] = src[j]; out[i + 1] = src[j + 1]; out[i + 2] = src[j + 2]; out[i + 3] = a; }
+      }
+    }
+    const t = new THREE.DataTexture(out, W, H, THREE.RGBAFormat, THREE.UnsignedByteType);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.generateMipmaps = true;
+    t.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+    t.needsUpdate = true;
+    return t;
+  })();
+  function makeClumpGeo(nQuads, w, h) {
+    const pos = [], nor = [], uv = [], idx = [];
+    for (let q = 0; q < nQuads; q++) {
+      const a = (q / nQuads) * Math.PI + 0.35, c = Math.cos(a) * w / 2, sn = Math.sin(a) * w / 2;
+      const b0 = pos.length / 3;
+      pos.push(-c, 0, -sn, c, 0, sn, c, h, sn, -c, h, -sn);
+      for (let k = 0; k < 4; k++) nor.push(0, 1, 0);          // up-facing normals: the grass is lit like the ground (soft, no dark backs)
+      uv.push(0, 0, 0.5, 0, 0.5, 1, 0, 1);                    // left half of the atlas (the shader shifts 14% of clumps to the flower half)
+      idx.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx);
+    return g;
+  }
+  const tuftGeo = makeClumpGeo(2, 1.8, 0.85);   // far-field clumps (bigger, they have to cover more ground)
 
   const uTime = { value: 0 };
   const uGrassQ = { value: 1 }, uGrassD = { value: 1 };   // grass range / density (set by the quality level)
   const uRover = { value: new THREE.Vector3(0, -999, 0) };
-  const grassMat = new THREE.MeshStandardMaterial({
-    vertexColors: true, side: THREE.DoubleSide, roughness: 0.9, metalness: 0.0
-  });
+  const grassMat = new THREE.MeshLambertMaterial({ map: grassTex, alphaTest: 0.38, side: THREE.DoubleSide });
   grassMat.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = uTime;
     shader.uniforms.uRover = uRover;
@@ -532,14 +630,17 @@ function initGame() {
        float dR = distance(wpos.xz, uRover.xz);
        float dC = distance(wpos.xyz, cameraPosition);
        transformed *= mix(0.3, 1.0, smoothstep(2.4, 4.4, dR)) * mix(0.15, 1.0, smoothstep(1.0, 3.0, dC));
+       float vr = fract(sin(dot(wpos.xz, vec2(41.3, 17.9))) * 9731.17);
+       vMapUv.x += step(0.86, vr) * 0.5;
        float ph = wpos.x * 0.35 + wpos.z * 0.27;
        float gust = sin(uTime * 1.6 + ph) * 0.6 + sin(uTime * 3.3 + ph * 1.7) * 0.4;
-       float hf = position.y * position.y * 6.0;
+       float hf = position.y * position.y * 3.2;
        transformed.x += gust * 0.17 * hf;
        transformed.z += cos(uTime * 1.2 + ph) * 0.11 * hf;
        float mt = sin(wpos.x * 0.045 + 1.3) * sin(wpos.z * 0.04 + 0.5);
        vColor *= vec3(1.0 + mt * 0.10, 1.0 + mt * 0.04, 1.0 - mt * 0.07) * (1.0 + gust * 0.09 * hf);`
     );
+    shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n  normal = normalize( vNormal );');
   };
 
   const GRASS = 20000;
@@ -567,7 +668,7 @@ function initGame() {
   }
 
   // far-field grass: square chunks, each one is its own draw call that is skipped when it is out of view
-  const FG_CH = 33, FG_N = Math.ceil(WORLD_SIZE / FG_CH);
+  const FG_CH = 55, FG_N = Math.ceil(WORLD_SIZE / FG_CH);
   const fgMats = Array.from({ length: FG_N * FG_N }, () => []);
   const fgCols = Array.from({ length: FG_N * FG_N }, () => []);
   let gi = 0;
@@ -609,31 +710,12 @@ function initGame() {
   // Two world-anchored rings follow the rover: a very dense, fine one close by and a sparser, wider one behind it.
   // Each tuft thins out smoothly with distance (a per-tuft random threshold, so tufts grow/shrink instead of popping),
   // and the two layers cross-fade into each other and into the far-field grass, so the density just fades away naturally.
-  const nearParts = [];
-  for (let k = 0; k < 5; k++) {
-    const b = makeBladeGeo(0.18 + Math.random() * 0.24, 0.07 + Math.random() * 0.05, 0.04 + Math.random() * 0.10, 0x395824, 0xc2d868);
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler((Math.random() - 0.5) * 0.7, (k / 5) * Math.PI * 2 + Math.random() * 0.8, (Math.random() - 0.5) * 0.7));
-    m.compose(new THREE.Vector3((Math.random() - 0.5) * 0.2, 0, (Math.random() - 0.5) * 0.2), q, new THREE.Vector3(1, 1, 1));
-    b.applyMatrix4(m);
-    nearParts.push(b);
-  }
-  const nearGeo = mergeGeometries(nearParts, false);
-  // Cheap geometry for the wide layer (3 blades x 2 segments = 12 triangles vs 30), so it can cover a much bigger area
-  const midParts = [];
-  for (let k = 0; k < 3; k++) {
-    const b = makeBladeGeo(0.18 + Math.random() * 0.24, 0.08 + Math.random() * 0.05, 0.04 + Math.random() * 0.10, 0x395824, 0xb5ca62, 2);
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler((Math.random() - 0.5) * 0.7, (k / 3) * Math.PI * 2 + Math.random() * 0.8, (Math.random() - 0.5) * 0.7));
-    m.compose(new THREE.Vector3((Math.random() - 0.5) * 0.2, 0, (Math.random() - 0.5) * 0.2), q, new THREE.Vector3(1, 1, 1));
-    b.applyMatrix4(m);
-    midParts.push(b);
-  }
-  const midGeo = mergeGeometries(midParts, false);
+  const nearGeo = makeClumpGeo(3, 1.0, 0.58);   // close layer: 3 crossed quads = 6 triangles per clump (was 30)
+  const midGeo = makeClumpGeo(2, 1.15, 0.64);   // wide layer: 4 triangles per clump (was 12)
   function ngHash(i, j, sd) { const n = Math.sin(i * 127.1 + j * 311.7 + sd * 74.7) * 43758.5453; return n - Math.floor(n); }
 
   function makeGrassLayer(geo, CELL, N, K, densGLSL, scaleMul, TILE, maxR) {
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.85, metalness: 0.0 });
+    const mat = new THREE.MeshLambertMaterial({ map: grassTex, alphaTest: 0.38, side: THREE.DoubleSide });
     mat.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = uTime;
       shader.uniforms.uRover = uRover;
@@ -654,10 +736,15 @@ function initGame() {
          transformed *= fade;
          float ph = wpos.x * 0.35 + wpos.z * 0.27;
          float gust = sin(uTime * 1.6 + ph) * 0.6 + sin(uTime * 3.3 + ph * 1.7) * 0.4;
-         float hf = position.y * position.y * 6.0;
+         float hf = position.y * position.y * 3.2;
          transformed.x += gust * 0.17 * hf * fade;
-         transformed.z += cos(uTime * 1.2 + ph) * 0.11 * hf * fade;`
+         transformed.z += cos(uTime * 1.2 + ph) * 0.11 * hf * fade;
+         float vr = fract(sin(dot(wpos.xz, vec2(41.3, 17.9))) * 9731.17);
+         vMapUv.x += step(0.86, vr) * 0.5;
+         float mt = sin(wpos.x * 0.045 + 1.3) * sin(wpos.z * 0.04 + 0.5);
+         vColor *= vec3(1.0 + mt * 0.10, 1.0 + mt * 0.04, 1.0 - mt * 0.07) * (1.0 + gust * 0.09 * hf);`
       );
+      shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n  normal = normalize( vNormal );');
     };
     // The ring is cut into square tiles (one draw call each). Tiles behind the camera, outside the
     // picture, or too far away to show any grass are skipped completely.
@@ -748,9 +835,9 @@ function initGame() {
     return update;
   }
   // dense close layer: full density next to the rover, thinning smoothly to nothing by ~18 m (patch radius ~19.5 m)
-  const updateGrassNear = makeGrassLayer(nearGeo, 0.85, 46, 4, 'float dens = pow(1.0 - smoothstep(3.0, 18.5, dRd), 2.0);', 1.0, 8, 19.0);
+  const updateGrassNear = makeGrassLayer(nearGeo, 0.85, 46, 3, 'float dens = pow(1.0 - smoothstep(3.0, 18.5, dRd), 2.0);', 1.0, 12, 19.0);
   // wide layer: cheap geometry, slightly bigger tufts, covers ~100 m and fades into the far-field grass
-  const updateGrassMid = makeGrassLayer(midGeo, 3.0, 68, 3, 'float dens = smoothstep(4.0, 14.0, dRd) * (1.0 - smoothstep(60.0, 100.0, dRd));', 1.3, 12, 100.0);
+  const updateGrassMid = makeGrassLayer(midGeo, 3.0, 68, 3, 'float dens = smoothstep(4.0, 14.0, dRd) * (1.0 - smoothstep(60.0, 100.0, dRd));', 2.0, 17, 100.0);
   function updateNearGrass(px, pz) { updateGrassNear(px, pz); updateGrassMid(px, pz); }
   const _gFrustum = new THREE.Frustum(), _gPV = new THREE.Matrix4();
   let grassFarMax = 1e9;           // far-field grass beyond this distance is not drawn (quality level)
@@ -980,7 +1067,7 @@ function initGame() {
     if (nx < 0.3 && nz < 0.3) type = 'pine';
     else if (nx > 0.7 && nz < 0.3) type = 'dead';
     const plan = { x, z, type, s: 1.1 + Math.random() * 0.7, trunkH: 2.2 + Math.random() * 1.6, parts: [] };
-    plan.color = new THREE.Color().setHSL(type === 'pine' ? 0.36 + Math.random() * 0.03 : 0.17 + Math.random() * 0.11, 0.52 + Math.random() * 0.16, type === 'pine' ? 0.20 + Math.random() * 0.08 : 0.34 + Math.random() * 0.13).getHex();
+    plan.color = new THREE.Color().setHSL(type === 'pine' ? 0.36 + Math.random() * 0.03 : 0.22 + Math.random() * 0.09, 0.44 + Math.random() * 0.14, type === 'pine' ? 0.20 + Math.random() * 0.08 : 0.28 + Math.random() * 0.12).getHex();
     if (type === 'pine') {
       for (let k = 0; k < 3; k++) plan.parts.push({ k, size: 1.7 - k * 0.4 });
     } else if (type === 'normal') {
@@ -1916,7 +2003,7 @@ function initGame() {
   }
 
   // ============ Day-night ============
-  let gameTime = 0.07;
+  let gameTime = 0.19;   // high morning sun (sun is at the horizon at t=0 -> clock shows 06:00)
   let dayFactor = 1;
   const _shLd = new THREE.Vector3(), _shLr = new THREE.Vector3(), _shLu = new THREE.Vector3(), _shUp = new THREE.Vector3(0, 1, 0), _shT = new THREE.Vector3();
   const zenDay = new THREE.Color(0x6fb2e6), horDay = new THREE.Color(0xf6e2b8);
@@ -1964,8 +2051,9 @@ function initGame() {
     ambientLight.intensity = 0.12 + day * 0.2;
     hemiLight.intensity = 0.25 + day * 0.5;
 
-    const hours = Math.floor(gameTime * 24);
-    const mins = Math.floor((gameTime * 24 - hours) * 60);
+    const clockH = (gameTime * 24 + 6) % 24;
+    const hours = Math.floor(clockH);
+    const mins = Math.floor((clockH - hours) * 60);
     const icon = day > 0.5 ? '🌞' : (dusk > 0.5 ? '🌅' : '🌙');
     const txt = icon + ' ' + String(hours).padStart(2, '0') + ':' + String(mins).padStart(2, '0');
     if (txt !== lastTimeText) {
