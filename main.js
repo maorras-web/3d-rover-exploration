@@ -2746,15 +2746,16 @@ function drawGrassAtlasCanvas() {
   let jsEma = 0, subEma = 0;
   perfEl.style.whiteSpace = 'pre';
   function setTrees(v) { treeLayers.forEach(l => { l.visible = v; l.live.forEach(m => { if (m) m.visible = v; }); }); }
+  let liteBefore = true;
   const DIAG_STEPS = [
     { name: 'Normal (baseline)', on() {}, off() {} },
-    { name: 'Without glow/effects', on() { dbg.noPost = true; }, off() { dbg.noPost = false; } },
-    { name: 'Without shadows', on() { sunLight.castShadow = false; }, off() { sunLight.castShadow = true; } },
-    { name: 'Without grass', on() { dbg.noGrass = true; }, off() { dbg.noGrass = false; } },
-    { name: 'Without trees', on() { setTrees(false); }, off() { setTrees(true); } },
-    { name: 'Without the rover', on() { rover.visible = false; }, off() { rover.visible = true; } },
-    { name: 'All of them off', on() { dbg.noPost = true; sunLight.castShadow = false; dbg.noGrass = true; setTrees(false); rover.visible = false; },
-      off() { dbg.noPost = false; sunLight.castShadow = true; dbg.noGrass = false; setTrees(true); rover.visible = true; } }
+    { name: 'Glass blur ON (menus)', on() { liteBefore = document.body.classList.contains('lite-ui'); document.body.classList.remove('lite-ui'); },
+      off() { document.body.classList.toggle('lite-ui', liteBefore); } },
+    { name: 'Without sun-glow layer', on() { if (sunGlowEl) sunGlowEl.style.display = 'none'; }, off() { if (sunGlowEl) sunGlowEl.style.display = ''; } },
+    { name: 'Without sky', on() { sky.visible = false; }, off() { sky.visible = true; } },
+    { name: 'Without ground', on() { ground.visible = false; }, off() { ground.visible = true; } },
+    { name: 'Everything off', on() { dbg.noPost = false; sunLight.castShadow = false; dbg.noGrass = true; setTrees(false); rover.visible = false; sky.visible = false; ground.visible = false; if (sunGlowEl) sunGlowEl.style.display = 'none'; document.body.classList.add('lite-ui'); },
+      off() { sunLight.castShadow = true; dbg.noGrass = false; setTrees(true); rover.visible = true; sky.visible = true; ground.visible = true; if (sunGlowEl) sunGlowEl.style.display = ''; } }
   ];
   const diagHud = document.createElement('div');
   diagHud.style.cssText = 'position:fixed;left:8px;top:96px;z-index:99997;padding:6px 9px;background:rgba(0,0,0,0.75);color:#e8f6ff;font:11px/1.45 monospace;border-radius:8px;pointer-events:none;display:none;white-space:pre;';
@@ -2792,6 +2793,20 @@ function drawGrassAtlasCanvas() {
       diagHud.textContent = 'SPEED TEST ' + (diagStep + 1) + '/' + DIAG_STEPS.length + ': ' + DIAG_STEPS[diagStep].name + '\nkeep driving forward...';
     }
   }
+  // ============ Light menus: no blur behind the buttons/panels (blur over a moving 3D picture is very heavy on weak phones) ============
+  const liteStyle = document.createElement('style');
+  liteStyle.textContent = 'body.lite-ui *{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;filter:none!important;}';
+  document.head.appendChild(liteStyle);
+  function setBlur(on, save) {
+    document.body.classList.toggle('lite-ui', !on);
+    const bb = document.getElementById('blur-toggle');
+    if (bb) { bb.textContent = on ? 'ON' : 'OFF'; bb.classList.toggle('on', on); }
+    if (save) store.set('roverBlur', on ? '1' : '0');
+  }
+  setBlur(store.get('roverBlur') === '1', false);
+  const blurBtn = document.getElementById('blur-toggle');
+  if (blurBtn) blurBtn.addEventListener('click', () => setBlur(document.body.classList.contains('lite-ui'), true));
+
   document.getElementById('diag-btn').addEventListener('click', diagStart);
 
   document.addEventListener('gesturestart', e => e.preventDefault());
