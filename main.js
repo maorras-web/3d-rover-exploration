@@ -381,8 +381,15 @@ function initGame() {
   scene.add(ground);
 
   // ============ 3D grass with wind ============
-  function makeBladeGeo(h, w, bend, bc, tc) {
-    const segs = 3;
+  // The snowy zone is x < -88 and z > 88 (same rule as the ground colours / biome name).
+  // No grass at all there; the margin also covers the blended white-to-green edge of the ground.
+  const SNOW_MARGIN = 3;
+  function inSnow(x, z) {
+    return x < -HALF + 0.3 * WORLD_SIZE + SNOW_MARGIN && z > -HALF + 0.7 * WORLD_SIZE - SNOW_MARGIN;
+  }
+
+  function makeBladeGeo(h, w, bend, bc, tc, nSegs) {
+    const segs = nSegs || 3;
     const positions = [], normals = [], uvs = [], vcols = [], indices = [];
     const baseCol = new THREE.Color(bc !== undefined ? bc : 0x46682a);
     const tipCol = new THREE.Color(tc !== undefined ? tc : 0xb9cc5c);
@@ -436,7 +443,7 @@ function initGame() {
        vec4 wpos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
        float dR = distance(wpos.xz, uRover.xz);
        float dC = distance(wpos.xyz, cameraPosition);
-       transformed *= smoothstep(11.0, 19.0, dR) * mix(0.15, 1.0, smoothstep(1.0, 3.0, dC));   // far grass hides near the rover (the dense near-grass layer takes over)
+       transformed *= mix(0.3, 1.0, smoothstep(2.4, 4.4, dR)) * mix(0.15, 1.0, smoothstep(1.0, 3.0, dC));
        float ph = wpos.x * 0.35 + wpos.z * 0.27;
        float gust = sin(uTime * 1.6 + ph) * 0.6 + sin(uTime * 3.3 + ph * 1.7) * 0.4;
        float hf = position.y * position.y * 6.0;
@@ -445,7 +452,7 @@ function initGame() {
     );
   };
 
-  const GRASS = 30000;
+  const GRASS = 20000;
   const grassMesh = new THREE.InstancedMesh(tuftGeo, grassMat, GRASS);
   grassMesh.receiveShadow = true;
   const dummy = new THREE.Object3D();
@@ -454,7 +461,7 @@ function initGame() {
   for (let i = 0; i < GRASS * 1.5 && gi < GRASS; i++) {
     const z = (Math.random() - 0.5) * WORLD_SIZE * 0.94;
     const x = Math.random() < 0.3 ? pathCenter(z) + (Math.random() - 0.5) * 30 : (Math.random() - 0.5) * WORLD_SIZE * 0.94;
-    if (pathMask(x, z) > 0.5) continue;
+    if (pathMask(x, z) > 0.5 || inSnow(x, z)) continue;
     dummy.position.set(x, getGroundHeight(x, z) - 0.04, z);
     dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
     dummy.scale.setScalar(0.75 + Math.random() * 0.5);
@@ -470,14 +477,13 @@ function initGame() {
   if (grassMesh.instanceColor) grassMesh.instanceColor.needsUpdate = true;
   scene.add(grassMesh);
 
-  // ============ Near-rover grass: dense, high quality, only around the rover ============
-  // A ring of world-anchored cells follows the rover; when it crosses a cell border only the row/column that
-  // wrapped around is rebuilt, so the grass stays put in the world and costs almost nothing per frame.
-  const NG_CELL = 0.75, NG_N = 46, NG_K = 4;
-  const NG_COUNT = NG_N * NG_N * NG_K;
+  // ============ Streamed grass around the rover (no visible "edge of the grass") ============
+  // Two world-anchored rings follow the rover: a very dense, fine one close by and a sparser, wider one behind it.
+  // Each tuft thins out smoothly with distance (a per-tuft random threshold, so tufts grow/shrink instead of popping),
+  // and the two layers cross-fade into each other and into the far-field grass, so the density just fades away naturally.
   const nearParts = [];
   for (let k = 0; k < 5; k++) {
-    const b = makeBladeGeo(0.18 + Math.random() * 0.24, 0.07 + Math.random() * 0.05, 0.04 + Math.random() * 0.10, 0x2f4a1c, 0xc2d868);
+    const b = makeBladeGeo(0.18 + Math.random() * 0.24, 0.07 + Math.random() * 0.05, 0.04 + Math.random() * 0.10, 0x395824, 0xc2d868);
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler((Math.random() - 0.5) * 0.7, (k / 5) * Math.PI * 2 + Math.random() * 0.8, (Math.random() - 0.5) * 0.7));
     m.compose(new THREE.Vector3((Math.random() - 0.5) * 0.2, 0, (Math.random() - 0.5) * 0.2), q, new THREE.Vector3(1, 1, 1));
@@ -485,76 +491,100 @@ function initGame() {
     nearParts.push(b);
   }
   const nearGeo = mergeGeometries(nearParts, false);
-  const nearMat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.85, metalness: 0.0 });
-  nearMat.onBeforeCompile = (shader) => {
-    shader.uniforms.uTime = uTime;
-    shader.uniforms.uRover = uRover;
-    shader.vertexShader = 'uniform float uTime;\nuniform vec3 uRover;\n' + shader.vertexShader.replace(
-      '#include <begin_vertex>',
-      `#include <begin_vertex>
-       vec4 wpos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
-       float dR = distance(wpos.xz, uRover.xz);
-       float dC = distance(wpos.xyz, cameraPosition);
-       float fade = (1.0 - smoothstep(12.5, 17.5, dR)) * mix(0.3, 1.0, smoothstep(2.4, 4.4, dR)) * mix(0.1, 1.0, smoothstep(0.8, 2.2, dC));
-       transformed *= fade;
-       float ph = wpos.x * 0.35 + wpos.z * 0.27;
-       float gust = sin(uTime * 1.6 + ph) * 0.6 + sin(uTime * 3.3 + ph * 1.7) * 0.4;
-       float hf = position.y * position.y * 6.0;
-       transformed.x += gust * 0.17 * hf * fade;
-       transformed.z += cos(uTime * 1.2 + ph) * 0.11 * hf * fade;`
-    );
-  };
-  const nearGrass = new THREE.InstancedMesh(nearGeo, nearMat, NG_COUNT);
-  nearGrass.frustumCulled = false;
-  nearGrass.receiveShadow = true;
-  nearGrass.visible = false;      // shown after the first fill
-  const ngDummy = new THREE.Object3D();
-  const ngCol = new THREE.Color();
-  for (let i = 0; i < NG_COUNT; i++) nearGrass.setColorAt(i, ngCol.setRGB(1, 1, 1));
-  const ngCellI = new Int32Array(NG_N * NG_N).fill(-2147483000);
-  const ngCellJ = new Int32Array(NG_N * NG_N).fill(-2147483000);
+  // Cheap geometry for the wide layer (3 blades x 2 segments = 12 triangles vs 30), so it can cover a much bigger area
+  const midParts = [];
+  for (let k = 0; k < 3; k++) {
+    const b = makeBladeGeo(0.18 + Math.random() * 0.24, 0.08 + Math.random() * 0.05, 0.04 + Math.random() * 0.10, 0x395824, 0xb5ca62, 2);
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler((Math.random() - 0.5) * 0.7, (k / 3) * Math.PI * 2 + Math.random() * 0.8, (Math.random() - 0.5) * 0.7));
+    m.compose(new THREE.Vector3((Math.random() - 0.5) * 0.2, 0, (Math.random() - 0.5) * 0.2), q, new THREE.Vector3(1, 1, 1));
+    b.applyMatrix4(m);
+    midParts.push(b);
+  }
+  const midGeo = mergeGeometries(midParts, false);
   function ngHash(i, j, sd) { const n = Math.sin(i * 127.1 + j * 311.7 + sd * 74.7) * 43758.5453; return n - Math.floor(n); }
-  function updateNearGrass(px, pz) {
-    const cx = Math.floor(px / NG_CELL), cz = Math.floor(pz / NG_CELL);
-    const baseI = cx - (NG_N >> 1), baseJ = cz - (NG_N >> 1);
-    let dirty = false;
-    for (let b = 0; b < NG_N; b++) {
-      const cj = baseJ + ((((b - baseJ) % NG_N) + NG_N) % NG_N);
-      for (let a = 0; a < NG_N; a++) {
-        const ci = baseI + ((((a - baseI) % NG_N) + NG_N) % NG_N);
-        const si = b * NG_N + a;
-        if (ngCellI[si] === ci && ngCellJ[si] === cj) continue;
-        ngCellI[si] = ci; ngCellJ[si] = cj; dirty = true;
-        for (let k = 0; k < NG_K; k++) {
-          const idx = si * NG_K + k;
-          const x = (ci + ngHash(ci, cj, k * 7 + 1)) * NG_CELL;
-          const z = (cj + ngHash(ci, cj, k * 7 + 2)) * NG_CELL;
-          const pm = pathMask(x, z);
-          const keep = Math.abs(x) < HALF - 1 && Math.abs(z) < HALF - 1 && (pm < 0.2 || (pm < 0.5 && ngHash(ci, cj, k * 7 + 3) > 0.5));
-          if (keep) {
-            ngDummy.position.set(x, getGroundHeight(x, z) - 0.03, z);
-            ngDummy.rotation.set(0, ngHash(ci, cj, k * 7 + 4) * Math.PI * 2, 0);
-            ngDummy.scale.setScalar(0.8 + ngHash(ci, cj, k * 7 + 5) * 0.6);
-          } else {
-            ngDummy.position.set(x, -50, z);
-            ngDummy.rotation.set(0, 0, 0);
-            ngDummy.scale.setScalar(0.0001);
+
+  function makeGrassLayer(geo, CELL, N, K, densGLSL, scaleMul) {
+    const COUNT = N * N * K;
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.85, metalness: 0.0 });
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = uTime;
+      shader.uniforms.uRover = uRover;
+      shader.vertexShader = 'uniform float uTime;\nuniform vec3 uRover;\n' + shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+         vec4 wpos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+         float dR = distance(wpos.xz, uRover.xz);
+         float dC = distance(wpos.xyz, cameraPosition);
+         ${densGLSL}
+         float rnd = fract(sin(dot(wpos.xz, vec2(12.9898, 78.233))) * 43758.5453);
+         float vis = 1.0 - smoothstep(dens * 1.1 - 0.1, dens * 1.1, rnd);
+         float fade = vis * mix(0.3, 1.0, smoothstep(2.4, 4.4, dR)) * mix(0.1, 1.0, smoothstep(0.8, 2.2, dC));
+         transformed *= fade;
+         float ph = wpos.x * 0.35 + wpos.z * 0.27;
+         float gust = sin(uTime * 1.6 + ph) * 0.6 + sin(uTime * 3.3 + ph * 1.7) * 0.4;
+         float hf = position.y * position.y * 6.0;
+         transformed.x += gust * 0.17 * hf * fade;
+         transformed.z += cos(uTime * 1.2 + ph) * 0.11 * hf * fade;`
+      );
+    };
+    const mesh = new THREE.InstancedMesh(geo, mat, COUNT);
+    mesh.frustumCulled = false;
+    mesh.receiveShadow = true;
+    mesh.visible = false;      // shown after the first fill
+    const dm = new THREE.Object3D();
+    const col = new THREE.Color();
+    for (let i = 0; i < COUNT; i++) mesh.setColorAt(i, col.setRGB(1, 1, 1));
+    const cellI = new Int32Array(N * N).fill(-2147483000);
+    const cellJ = new Int32Array(N * N).fill(-2147483000);
+    function update(px, pz) {
+      const cx = Math.floor(px / CELL), cz = Math.floor(pz / CELL);
+      const baseI = cx - (N >> 1), baseJ = cz - (N >> 1);
+      let dirty = false;
+      for (let b = 0; b < N; b++) {
+        const cj = baseJ + ((((b - baseJ) % N) + N) % N);
+        for (let a = 0; a < N; a++) {
+          const ci = baseI + ((((a - baseI) % N) + N) % N);
+          const si = b * N + a;
+          if (cellI[si] === ci && cellJ[si] === cj) continue;
+          cellI[si] = ci; cellJ[si] = cj; dirty = true;
+          for (let k = 0; k < K; k++) {
+            const idx = si * K + k;
+            const x = (ci + ngHash(ci, cj, k * 7 + 1)) * CELL;
+            const z = (cj + ngHash(ci, cj, k * 7 + 2)) * CELL;
+            const pm = pathMask(x, z);
+            const keep = Math.abs(x) < HALF - 1 && Math.abs(z) < HALF - 1 && !inSnow(x, z) && (pm < 0.2 || (pm < 0.5 && ngHash(ci, cj, k * 7 + 3) > 0.5));
+            if (keep) {
+              dm.position.set(x, getGroundHeight(x, z) - 0.03, z);
+              dm.rotation.set(0, ngHash(ci, cj, k * 7 + 4) * Math.PI * 2, 0);
+              dm.scale.setScalar((0.8 + ngHash(ci, cj, k * 7 + 5) * 0.6) * scaleMul);
+            } else {
+              dm.position.set(x, -50, z);
+              dm.rotation.set(0, 0, 0);
+              dm.scale.setScalar(0.0001);
+            }
+            dm.updateMatrix();
+            mesh.setMatrixAt(idx, dm.matrix);
+            const t = ngHash(ci, cj, k * 7 + 6);
+            if (t < 0.12) col.setRGB(1.12, 1.0, 0.62); else col.setRGB(0.82 + t * 0.3, 0.9 + t * 0.22, 0.74 + t * 0.26);
+            mesh.setColorAt(idx, col);
           }
-          ngDummy.updateMatrix();
-          nearGrass.setMatrixAt(idx, ngDummy.matrix);
-          const t = ngHash(ci, cj, k * 7 + 6);
-          if (t < 0.12) ngCol.setRGB(1.12, 1.0, 0.62); else ngCol.setRGB(0.82 + t * 0.3, 0.9 + t * 0.22, 0.74 + t * 0.26);
-          nearGrass.setColorAt(idx, ngCol);
         }
       }
+      if (dirty) {
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.instanceColor.needsUpdate = true;
+        mesh.visible = true;
+      }
     }
-    if (dirty) {
-      nearGrass.instanceMatrix.needsUpdate = true;
-      nearGrass.instanceColor.needsUpdate = true;
-      nearGrass.visible = true;
-    }
+    scene.add(mesh);
+    return update;
   }
-  scene.add(nearGrass);
+  // dense close layer: full density next to the rover, thinning smoothly to nothing by ~18 m (patch radius ~19.5 m)
+  const updateGrassNear = makeGrassLayer(nearGeo, 0.85, 46, 4, 'float dens = pow(1.0 - smoothstep(3.0, 18.5, dR), 2.0);', 1.0);
+  // wide layer: cheap geometry, slightly bigger tufts, covers ~100 m and fades into the far-field grass
+  const updateGrassMid = makeGrassLayer(midGeo, 3.0, 68, 3, 'float dens = smoothstep(4.0, 14.0, dR) * (1.0 - smoothstep(60.0, 100.0, dR));', 1.3);
+  function updateNearGrass(px, pz) { updateGrassNear(px, pz); updateGrassMid(px, pz); }
 
   // ============ Flowers ============
   const flowerPlans = [];
