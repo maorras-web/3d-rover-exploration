@@ -89,6 +89,8 @@ function initGame() {
   renderer.toneMappingExposure = 1.15;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   document.body.appendChild(renderer.domElement);
+  renderer.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); }, false);   // allow the browser to restore the context
+  renderer.domElement.addEventListener('webglcontextrestored', () => { shadowDirty = true; }, false);
 
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
@@ -1788,6 +1790,7 @@ function initGame() {
     bloomPass.enabled = false;
     if (sunLight.shadow.map) { sunLight.shadow.map.dispose(); sunLight.shadow.map = null; }
     sunLight.shadow.mapSize.set(1024, 1024);
+    shadowDirty = true;
   }
   // (automatic quality drop disabled - always full quality)
 
@@ -1795,13 +1798,18 @@ function initGame() {
   let PR_MAX = Math.min(window.devicePixelRatio, 2);
   let PR_MIN = Math.min(PR_MAX, 1.0);
   let curPR = PR_MAX;
+  // IMPORTANT (black-flicker fix): the <canvas> itself is kept at a FIXED pixel ratio (PR_MAX).
+  // Resizing a WebGL canvas clears its buffer, and doing it right after composer.render() made the
+  // browser show one empty (black) frame every time the adaptive resolution changed.
+  // So adaptive resolution only resizes the composer's internal render targets (never the canvas).
   function applyPR(r) {
     curPR = r;
-    renderer.setPixelRatio(r);
     composer.setPixelRatio(r);
     composer.setSize(window.innerWidth, window.innerHeight);
     bloomPass.setSize(window.innerWidth / 2, window.innerHeight / 2);
   }
+  const ADAPTIVE_RES = false;   // resolution is ALWAYS kept at maximum (never lowered automatically)
+  let shadowDirty = false;   // force a shadow-map redraw on the next frame (after the map was disposed)
   renderer.info.autoReset = false;
   let lastFrameMs = 0, emaMs = 16.7, nextEvalMs = 0, adaptWarm = 3, fastWins = 0, veryLow = 0, ceilPR = 99, ceilUntil = 0, overlayAt = 0;
 
@@ -1846,12 +1854,15 @@ function initGame() {
     PR_MAX = Math.min(window.devicePixelRatio, q.pr);
     PR_MIN = Math.min(PR_MAX, 1.0);
     ceilPR = 99; ceilUntil = 0; fastWins = 0; veryLow = 0; adaptWarm = 2;
+    renderer.setPixelRatio(PR_MAX);   // the only place the canvas is resized (on quality change)
+    renderer.setSize(window.innerWidth, window.innerHeight);
     applyPR(PR_MAX);
     bloomPass.enabled = q.bloom;
     downgraded = false;
     if (sunLight.shadow.mapSize.width !== q.shadow) {
       if (sunLight.shadow.map) { sunLight.shadow.map.dispose(); sunLight.shadow.map = null; }
       sunLight.shadow.mapSize.set(q.shadow, q.shadow);
+      shadowDirty = true;
     }
     SHADOW_R = q.shR;
     sunLight.shadow.camera.left = -SHADOW_R; sunLight.shadow.camera.right = SHADOW_R;
@@ -1860,10 +1871,8 @@ function initGame() {
     shadowForceHalf = q.half;
     uGrassQ.value = q.grassQ; uGrassD.value = q.grassD; grassFarMax = q.far;
     bushIM.visible = q.bushes;
-    document.querySelectorAll('#q-row .sp-btn').forEach(b => b.classList.toggle('on', b.dataset.q === level));
-    const noteEl = document.getElementById('q-note');
-    if (noteEl) noteEl.textContent = q.note;
     if (save) store.set('roverQuality', level);
+    try { renderer.shadowMap.needsUpdate = true; composer.render(); } catch (e) { /* scene not ready yet */ }   // refill the cleared canvas right away
   }
   function setPerf(on) {
     perfOn = on;
@@ -1879,7 +1888,6 @@ function initGame() {
     document.getElementById('btn-settings').addEventListener('click', openSp);
     document.getElementById('sp-close').addEventListener('click', closeSp);
     spPanel.addEventListener('click', (e) => { if (e.target === spPanel) closeSp(); });
-    document.querySelectorAll('#q-row .sp-btn').forEach(b => b.addEventListener('click', () => applyQuality(b.dataset.q, true)));
     document.getElementById('fps-toggle').addEventListener('click', () => setPerf(!perfOn));
   }
 
@@ -1888,7 +1896,9 @@ function initGame() {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     composer.setSize(window.innerWidth, window.innerHeight);
+    bloomPass.setSize(window.innerWidth / 2, window.innerHeight / 2);
     checkOrientation();
+    try { renderer.shadowMap.needsUpdate = true; composer.render(); } catch (e) { }   // resize clears the canvas: repaint now
   }
   window.addEventListener('resize', onResize);
 
@@ -2264,7 +2274,8 @@ function initGame() {
 
     cullGrass(rx, rz);
     shadowFrame++;
-    renderer.shadowMap.needsUpdate = !((shadowHalf || shadowForceHalf) && (shadowFrame & 1));
+    renderer.shadowMap.needsUpdate = shadowDirty || !((shadowHalf || shadowForceHalf) && (shadowFrame & 1));
+    shadowDirty = false;
     renderer.info.reset();
     composer.render();
 
@@ -2275,7 +2286,7 @@ function initGame() {
     if (rawMs < 250) emaMs += (rawMs - emaMs) * 0.05;
     if (!shadowHalf && emaMs > 19 && nowMs > shadowRetestAt && adaptWarm <= 0) { shadowHalf = true; shadowRetestAt = nowMs + 15000; }
     else if (shadowHalf && nowMs > shadowRetestAt) { shadowHalf = false; shadowRetestAt = nowMs + 4000; }   // re-test full-rate shadows
-    if (nowMs > nextEvalMs) {
+    if (ADAPTIVE_RES && nowMs > nextEvalMs) {
       nextEvalMs = nowMs + 1000;
       if (adaptWarm > 0) {
         adaptWarm--;
@@ -2312,7 +2323,7 @@ function initGame() {
   document.addEventListener('gesturestart', e => e.preventDefault());
   document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 
-  applyQuality(store.get('roverQuality') || 'high', false);
+  applyQuality('high', true);   // always start on HIGH (ignores any saved lower setting)
   setPerf(store.get('roverFps') !== '0');
   checkOrientation();
   drawMinimap();
