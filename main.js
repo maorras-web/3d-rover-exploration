@@ -318,18 +318,18 @@ function initGame() {
     for (let c = 0; c < TEXN; c++) {
       const x = -HALF + (c + 0.5) / TEXN * WORLD_SIZE;
       const z = HALF - (r + 0.5) / TEXN * WORLD_SIZE;
-      const n = noise2D(c * 0.73 + 1.3, r * 0.91 + 7.1);
       const o = (r * TEXN + c) * 4;
       let R, G, Bc, A = 0;
       {
-        const l = Math.min(1, 0.9 + Math.floor(smoothNoise(x, z, 4) * 3) / 3 * 0.08 + n * 0.06);
+        // continuous, soft patches (two scales) instead of 3 hard steps + per-texel random speckle
+        const l = Math.min(1, 0.95 + (smoothNoise(x, z, 5) - 0.5) * 0.12 + (smoothNoise(x + 40, z - 70, 1.6) - 0.5) * 0.06);
         R = G = Bc = Math.round(255 * l);
       }
       texData[o] = R; texData[o + 1] = G; texData[o + 2] = Bc; texData[o + 3] = A;
     }
   }
   const groundTex = new THREE.DataTexture(texData, TEXN, TEXN, THREE.RGBAFormat);
-  groundTex.magFilter = THREE.NearestFilter;
+  groundTex.magFilter = THREE.LinearFilter;
   groundTex.minFilter = THREE.LinearMipmapLinearFilter;
   groundTex.generateMipmaps = true;
   groundTex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
