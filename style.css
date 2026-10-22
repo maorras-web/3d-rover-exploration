@@ -749,3 +749,37 @@ html, body {
 }
 .gauge-shape::before { background: rgba(8,14,18,0.55); }
 .gauge, .dash-title { color: #eaf3f6; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+
+
+/* =====================================================================
+   Dashboard panel v2: arched, see-through glass with a double outline (like the reference)
+   ===================================================================== */
+#status-bars {
+  width: 340px;
+  padding: 14px 30px calc(6px + env(safe-area-inset-bottom));
+  gap: 3px;
+  border: none;
+  border-radius: 0;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 100' preserveAspectRatio='none'><path d='M0,100 C6,70 14,40 40,24 C62,12 90,6 130,5 L270,5 C310,6 338,12 360,24 C386,40 394,70 400,100 Z' fill='rgba(14,22,28,0.36)' stroke='rgba(236,242,244,0.85)' stroke-width='1.6' vector-effect='non-scaling-stroke'/><path d='M12,100 C17,74 24,50 46,34 C66,22 92,16 132,15 L268,15 C308,16 334,22 354,34 C376,50 383,74 388,100' fill='none' stroke='rgba(255,255,255,0.28)' stroke-width='1' vector-effect='non-scaling-stroke'/></svg>") center / 100% 100% no-repeat;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+  filter: drop-shadow(0 -2px 8px rgba(126,240,255,0.12));
+}
+#status-bars::before { display: none; }
+.dash-main { gap: 12px; }
+.bar {
+  height: 10px;
+  padding: 1px;
+  border: 1.5px solid rgba(240,244,246,0.90);
+  border-radius: 6px;
+  background: rgba(0,0,0,0.15);
+  box-shadow: 0 0 6px rgba(255,255,255,0.15);
+}
+.bar-fill { border-radius: 4px; }
+.gauge { font-size: 8px; letter-spacing: 0.7px; }
+.gauge-shape { background: linear-gradient(180deg, #eef2f3, #8e999e); }
+.dash-title { font-size: 8px; letter-spacing: 2.2px; margin-top: 1px; }
+@media (max-height: 480px) {
+  #status-bars { width: 300px; padding: 11px 26px calc(5px + env(safe-area-inset-bottom)); }
+}
