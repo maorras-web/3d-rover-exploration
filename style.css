@@ -642,3 +642,110 @@ html, body {
   pointer-events: none;
 }
 #hud-msg.show { opacity: 1; }
+
+/* =====================================================================
+   Glass pass: transparent panels like the reference picture (English only)
+   ===================================================================== */
+
+/* ---- Top-right chips ---- */
+#current-biome, #time-display {
+  padding: 4px 11px 4px 8px;
+  gap: 6px;
+  font-size: 11.5px;
+  letter-spacing: 1.1px;
+  border: 1px solid rgba(228,235,238,0.62);
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(44,56,62,0.42), rgba(14,20,24,0.42));
+  -webkit-backdrop-filter: blur(5px) saturate(1.15);
+  backdrop-filter: blur(5px) saturate(1.15);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.18);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+.ico { width: 15px; height: 15px; }
+
+/* ---- Minimap: see-through glass ---- */
+#minimap {
+  background: rgba(110,160,180,0.10);
+  border: 1.5px solid rgba(226,240,246,0.80);
+  border-radius: 18px / 14px;
+  -webkit-backdrop-filter: blur(1.5px);
+  backdrop-filter: blur(1.5px);
+  box-shadow: 0 0 0 1px rgba(126,240,255,0.18), 0 2px 10px rgba(0,0,0,0.28), inset 0 0 14px rgba(126,240,255,0.14);
+}
+#minimap-canvas { opacity: 0.78; }
+#btn-fullscreen {
+  background: rgba(20,28,32,0.40);
+  border: 1px solid rgba(228,235,238,0.55);
+  color: #dff6fb;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+/* ---- Steering + pedals: metal ring, see-through centre ---- */
+.ctrl-round {
+  --ring: 5px;
+  position: relative;
+  isolation: isolate;
+  border: var(--ring) solid transparent;
+  background: radial-gradient(circle at 50% 34%, rgba(110,122,106,0.46) 0%, rgba(56,66,52,0.46) 60%, rgba(26,32,24,0.55) 100%);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.35), inset 0 0 12px rgba(0,0,0,0.30);
+}
+.ctrl-round::before {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--ring));
+  padding: var(--ring);
+  border-radius: inherit;
+  background: var(--metal);
+  z-index: -1;
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+.ctrl-round:active, .ctrl-round.active,
+.pedal-gas:active, .pedal-gas.active, .pedal-reverse:active, .pedal-reverse.active {
+  background: radial-gradient(circle at 50% 34%, rgba(150,190,145,0.60) 0%, rgba(80,110,72,0.55) 70%, rgba(40,56,36,0.60) 100%);
+  box-shadow: 0 0 14px rgba(150,255,170,0.40), inset 0 0 12px rgba(0,0,0,0.30);
+}
+
+/* ---- Camera / sound buttons: thin silver ring, glass centre ---- */
+.cam-btn {
+  border: 1.5px solid rgba(222,230,234,0.72);
+  background: radial-gradient(circle at 50% 30%, rgba(70,82,88,0.42), rgba(18,24,28,0.45));
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.18);
+  color: #f2f5f6;
+}
+.cam-btn:active { background: rgba(126,240,255,0.30); }
+
+/* ---- Dashboard panel: arched glass with a thin double outline ---- */
+#status-bars {
+  background: linear-gradient(180deg, rgba(40,52,58,0.40), rgba(10,16,20,0.50));
+  border: 1.5px solid rgba(232,238,240,0.75);
+  border-bottom: none;
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  box-shadow: 0 -2px 12px rgba(126,240,255,0.10), inset 0 1px 0 rgba(255,255,255,0.25);
+}
+#status-bars::before {
+  content: '';
+  position: absolute;
+  inset: 4px 4px 0 4px;
+  border: 1px solid rgba(255,255,255,0.22);
+  border-bottom: none;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.bar {
+  height: 7px;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(235,240,242,0.70);
+  box-shadow: none;
+}
+.gauge-shape::before { background: rgba(8,14,18,0.55); }
+.gauge, .dash-title { color: #eaf3f6; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
