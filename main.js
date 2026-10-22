@@ -2097,7 +2097,7 @@ function drawGrassAtlasCanvas() {
 
   // Hidden FPS panel: tap the clock 3 times quickly to show / hide it
   const perfEl = document.createElement('div');
-  perfEl.style.cssText = 'position:fixed;left:50%;top:6px;transform:translateX(-50%);z-index:99998;padding:3px 8px;background:rgba(0,0,0,0.6);color:#9fffb5;font:11px/1.3 monospace;border-radius:6px;pointer-events:none;display:none;white-space:nowrap;';
+  perfEl.style.cssText = 'position:fixed;left:50%;top:6px;transform:translateX(-50%);z-index:99998;padding:3px 8px;background:rgba(0,0,0,0.6);color:#9fffb5;font:11px/1.3 monospace;border-radius:6px;pointer-events:none;display:none;white-space:pre;text-align:center;';
   document.body.appendChild(perfEl);
   let perfOn = false, perfTaps = [];
   document.getElementById('time-display').addEventListener('click', () => {
@@ -2173,6 +2173,124 @@ function drawGrassAtlasCanvas() {
     spPanel.addEventListener('click', (e) => { if (e.target === spPanel) closeSp(); });
     document.getElementById('fps-toggle').addEventListener('click', () => setPerf(!perfOn));
   }
+
+  // ============ Auto performance: finds the best graphics level for THIS phone and keeps the game smooth ============
+  // 1) at start: the phone is recognised (GPU name, CPU cores, memory, screen size) and a starting level is chosen
+  // 2) while playing: the real frame time is measured; if it is too slow the game steps down one small level at a
+  //    time (the least visible savings first), and later it carefully tries to step back up
+  // 3) the level that worked is remembered for next time (so a phone is tuned once, then starts right)
+  // The canvas is NEVER resized while playing (that was the cause of the black flicker); the levels only change
+  // grass density / range, glow, shadow update rate and (last resort) the internal render resolution.
+  const LEVELS = [
+    { bloom: true,  half: false, gD: 1.00, gQ: 1.00, far: 1e9, bush: true,  res: 1.00 },   // 0  best looks
+    { bloom: true,  half: true,  gD: 1.00, gQ: 1.00, far: 1e9, bush: true,  res: 1.00 },   // 1  shadows refreshed every 2nd frame
+    { bloom: true,  half: true,  gD: 0.85, gQ: 0.90, far: 260, bush: true,  res: 1.00 },   // 2  slightly less grass
+    { bloom: false, half: true,  gD: 0.85, gQ: 0.90, far: 260, bush: true,  res: 1.00 },   // 3  no glow
+    { bloom: false, half: true,  gD: 0.70, gQ: 0.80, far: 200, bush: true,  res: 1.00 },   // 4
+    { bloom: false, half: true,  gD: 0.60, gQ: 0.70, far: 160, bush: false, res: 1.00 },   // 5  no bushes
+    { bloom: false, half: true,  gD: 0.50, gQ: 0.60, far: 130, bush: false, res: 0.85 },   // 6  slightly lower resolution
+    { bloom: false, half: true,  gD: 0.40, gQ: 0.50, far: 110, bush: false, res: 0.70 },   // 7
+    { bloom: false, half: true,  gD: 0.30, gQ: 0.45, far: 90,  bush: false, res: 0.60 }    // 8  weakest phones
+  ];
+  function detectDevice() {
+    let gpu = '';
+    try {
+      const gl = renderer.getContext();
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      if (ext) gpu = String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || '');
+      if (!gpu) gpu = String(gl.getParameter(gl.RENDERER) || '');
+    } catch (e) { /* unknown GPU */ }
+    const ua = navigator.userAgent || '';
+    return {
+      gpu, ua,
+      cores: navigator.hardwareConcurrency || 4,
+      mem: navigator.deviceMemory || 0,
+      dpr: window.devicePixelRatio || 1,
+      ios: /iPhone|iPad|iPod/.test(ua)
+    };
+  }
+  function estimateLevel(d, pixels) {
+    const g = (d.gpu || '').toLowerCase();
+    let lvl = 3, m;                                   // unknown phone: start in the middle
+    if (d.ios || g.indexOf('apple') >= 0) lvl = 0;
+    else if ((m = g.match(/adreno[^\d]*(\d{3})/))) {
+      const n = +m[1];
+      lvl = n >= 825 ? 0 : n >= 800 ? 1 : n >= 730 ? 0 : n >= 650 ? 1 : n >= 640 ? 2 : n >= 610 ? 3 : 4;
+    } else if (/immortalis/.test(g)) lvl = 0;
+    else if ((m = g.match(/mali[^\d]*g(\d{2,3})/))) {
+      const n = +m[1];
+      lvl = n >= 710 ? 1 : n === 78 ? 1 : n === 77 ? 2 : (n === 76 || n === 68 || n === 57 || n === 610 || n === 615) ? 3 : (n === 72 || n === 71 || n === 52) ? 4 : (n === 51 || n === 31) ? 5 : 3;
+    } else if (/powervr/.test(g)) lvl = 4;
+    else if (/swiftshader|llvmpipe|software/.test(g)) lvl = 7;
+    else if (/nvidia|geforce|radeon/.test(g)) lvl = 0;
+    else if (/intel/.test(g)) lvl = 1;
+    if (d.mem && d.mem <= 3) lvl += 1;
+    if (d.cores <= 4) lvl += 1;
+    if (pixels > 2.4e6) lvl += 1;
+    return Math.max(0, Math.min(LEVELS.length - 1, lvl));
+  }
+  const autoTune = (() => {
+    const dev = detectDevice();
+    const key = 'roverAuto2|' + dev.gpu + '|' + dev.cores + '|' + dev.mem;
+    const MAXL = LEVELS.length - 1;
+    let lvl = 0, minLvl = 0, bad = 0, good = 0, lastChange = 0, evalAt = 0, frames = 0;
+    let probeUntil = 0, probeFails = 0, saved = -1, capMs = 0, startLvl = 0;
+    function apply(i) {
+      const L = LEVELS[i];
+      bloomPass.enabled = L.bloom;
+      shadowForceHalf = L.half;
+      uGrassQ.value = L.gQ; uGrassD.value = L.gD; grassFarMax = L.far;
+      bushLayer.visible = L.bush;
+      bushLayer.live.forEach(m => { if (m) m.visible = L.bush; });
+      const pr = Math.max(0.5, PR_MAX * L.res);
+      if (Math.abs(pr - curPR) > 0.01) applyPR(pr);
+    }
+    function init() {
+      const px = window.innerWidth * window.innerHeight * Math.pow(Math.min(dev.dpr, 2), 2);
+      let start = estimateLevel(dev, px);
+      const stored = parseInt(store.get(key), 10);
+      if (!isNaN(stored) && stored >= 0 && stored <= MAXL) start = stored;     // this phone was tuned before
+      lvl = startLvl = start;
+      // very weak phones also start with a lighter shadow map / smaller canvas (decided once, before playing)
+      applyQuality(start <= 3 ? 'high' : (start <= 5 ? 'medium' : 'low'), false);
+      apply(lvl);
+      lastChange = performance.now();
+    }
+    // called every rendered frame; returns true when the level changed (caller resets its smoothing)
+    function tick(now, ema) {
+      frames++;
+      if (frames < 100) return false;                       // warm-up: shader compiles, world streaming
+      if (!capMs && frames > 150 && ema < 10.5) capMs = 1000 / 60;   // 90/120 Hz phones that are very fast: steady 60 fps
+      if (now < evalAt) return false;
+      evalAt = now + 500;
+      let changed = false;
+      const veryBad = ema > 33, isBad = ema > 21, isGood = ema < 18.3;   // 21 ms = below ~47 fps: on 60 Hz screens that already feels uneven
+      if (isBad) {
+        good = 0; bad += veryBad ? 2 : 1;
+        if (bad >= 3 && lvl < MAXL) {                       // about 1.5 s of slow frames
+          lvl = Math.min(MAXL, lvl + (veryBad ? 2 : 1));
+          if (now < probeUntil) { minLvl = Math.max(minLvl, lvl); probeFails++; }   // the step up we just tried did not hold
+          apply(lvl); lastChange = now; bad = 0; evalAt = now + 1500; changed = true;
+        }
+      } else if (isGood) {
+        bad = 0; good++;
+        if (lvl > minLvl && probeFails < 3 && good >= 20 && now - lastChange > 12000) {   // ~10 s of full speed: try better looks
+          lvl--; probeUntil = now + 8000; apply(lvl); lastChange = now; good = 0; evalAt = now + 1500; changed = true;
+        }
+      } else {
+        bad = Math.max(0, bad - 1); good = 0;
+      }
+      if (now - lastChange > 25000 && saved !== lvl) { saved = lvl; store.set(key, String(lvl)); }   // remember what works
+      return changed;
+    }
+    return {
+      init, tick, dev,
+      get capMs() { return capMs; },
+      get level() { return lvl; },
+      label() { return 'auto L' + lvl + (capMs ? ' | 60fps cap' : ''); },
+      info() { return (dev.gpu || 'gpu?').slice(0, 38) + ' | ' + dev.cores + ' cores' + (dev.mem ? ' | ' + dev.mem + ' GB' : '') + ' | start L' + startLvl; }
+    };
+  })();
 
   function onResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -2301,8 +2419,12 @@ function drawGrassAtlasCanvas() {
     return '🌱 Grassland';
   }
 
+  let lastRenderAt = 0;
   function animate() {
     requestAnimationFrame(animate);
+    const rafNow = performance.now();
+    if (autoTune.capMs && rafNow - lastRenderAt < autoTune.capMs - 2) return;   // 120 Hz phones: render at a steady 60 fps
+    lastRenderAt = rafNow;
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
     uTime.value = t;
@@ -2571,8 +2693,7 @@ function drawGrassAtlasCanvas() {
     const rawMs = lastFrameMs ? nowMs - lastFrameMs : 16.7;
     lastFrameMs = nowMs;
     if (rawMs < 250) emaMs += (rawMs - emaMs) * 0.05;
-    if (!shadowHalf && emaMs > 19 && nowMs > shadowRetestAt && adaptWarm <= 0) { shadowHalf = true; shadowRetestAt = nowMs + 15000; }
-    else if (shadowHalf && nowMs > shadowRetestAt) { shadowHalf = false; shadowRetestAt = nowMs + 4000; }   // re-test full-rate shadows
+    if (autoTune.tick(nowMs, emaMs)) emaMs = 17;      // level changed: restart the measurement
     if (ADAPTIVE_RES && nowMs > nextEvalMs) {
       nextEvalMs = nowMs + 1000;
       if (adaptWarm > 0) {
@@ -2597,7 +2718,7 @@ function drawGrassAtlasCanvas() {
     if (perfOn && nowMs > overlayAt) {
       overlayAt = nowMs + 500;
       const inf = renderer.info.render;
-      perfEl.textContent = Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + (shadowHalf ? ' | shadow 1/2' : '') + (downgraded ? ' | LOW' : '');
+      perfEl.textContent = Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + ' | ' + autoTune.label() + '\n' + autoTune.info();
     }
 
     perfFrames++; perfAcc += dt;
@@ -2610,7 +2731,7 @@ function drawGrassAtlasCanvas() {
   document.addEventListener('gesturestart', e => e.preventDefault());
   document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 
-  applyQuality('high', true);   // always start on HIGH (ignores any saved lower setting)
+  autoTune.init();   // recognise the phone, pick the starting graphics level
   setPerf(store.get('roverFps') !== '0');
   checkOrientation();
   drawMinimap();
