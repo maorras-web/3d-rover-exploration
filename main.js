@@ -843,6 +843,11 @@ function drawGrassAtlasCanvas() {
   let grassFarMax = 1e9;           // far-field grass beyond this distance is not drawn (quality level)
   function cullGrass(px, pz) {
     camera.updateMatrixWorld();
+    if (dbg.noGrass) {
+      for (let i = 0; i < grassChunks.length; i++) grassChunks[i].mesh.visible = false;
+      for (let i = 0; i < grassLayers.length; i++) grassLayers[i].cull(_gFrustum, 1e9, 1e9);
+      return;
+    }
     _gPV.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     _gFrustum.setFromProjectionMatrix(_gPV);
     for (let i = 0; i < grassChunks.length; i++) {
@@ -1155,10 +1160,12 @@ function drawGrassAtlasCanvas() {
   [trunkIM, coneIM, blobIM, branchIM].forEach(im => { im.receiveShadow = true; });
   addSway(coneIM.material, 0.05);
   addSway(blobIM.material, 0.035);
-  chunkify(trunkIM, treePlans.length, 400, 430);
-  chunkify(coneIM, ci, 400, 430);
-  chunkify(blobIM, bi, 400, 430);
-  chunkify(branchIM, ri, 400, 430);
+  const treeLayers = [
+    chunkify(trunkIM, treePlans.length, 400, 430),
+    chunkify(coneIM, ci, 400, 430),
+    chunkify(blobIM, bi, 400, 430),
+    chunkify(branchIM, ri, 400, 430)
+  ];
 
   // ============ Bushes: a middle layer of volume between the grass and the trees ============
   const bushPlans = [];
@@ -2425,6 +2432,7 @@ function drawGrassAtlasCanvas() {
     const rafNow = performance.now();
     if (autoTune.capMs && rafNow - lastRenderAt < autoTune.capMs - 2) return;   // 120 Hz phones: render at a steady 60 fps
     lastRenderAt = rafNow;
+    const jsT0 = performance.now();
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
     uTime.value = t;
@@ -2686,15 +2694,20 @@ function drawGrassAtlasCanvas() {
     renderer.shadowMap.needsUpdate = shadowDirty || !((shadowHalf || shadowForceHalf) && (shadowFrame & 1));
     shadowDirty = false;
     renderer.info.reset();
-    composer.render();
+    const jsT1 = performance.now();
+    if (dbg.noPost) renderer.render(scene, camera); else composer.render();
+    const jsT2 = performance.now();
+    jsEma += ((jsT1 - jsT0) - jsEma) * 0.05;
+    subEma += ((jsT2 - jsT1) - subEma) * 0.05;
 
     // ---- adaptive resolution (checked once a second) ----
     const nowMs = performance.now();
     const rawMs = lastFrameMs ? nowMs - lastFrameMs : 16.7;
     lastFrameMs = nowMs;
     if (rawMs < 250) emaMs += (rawMs - emaMs) * 0.05;
-    if (autoTune.tick(nowMs, emaMs)) emaMs = 17;      // level changed: restart the measurement
-    if (ADAPTIVE_RES && nowMs > nextEvalMs) {
+    diagTick(nowMs, rawMs);
+    if (!dbg.running && autoTune.tick(nowMs, emaMs)) emaMs = 17;      // level changed: restart the measurement
+    if (ADAPTIVE_RES && !dbg.running && nowMs > nextEvalMs) {
       nextEvalMs = nowMs + 1000;
       if (adaptWarm > 0) {
         adaptWarm--;
@@ -2718,7 +2731,7 @@ function drawGrassAtlasCanvas() {
     if (perfOn && nowMs > overlayAt) {
       overlayAt = nowMs + 500;
       const inf = renderer.info.render;
-      perfEl.textContent = Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + ' | ' + autoTune.label() + '\n' + autoTune.info();
+      perfEl.textContent = 'JS ' + jsEma.toFixed(1) + ' | submit ' + subEma.toFixed(1) + ' | wait ' + Math.max(0, emaMs - jsEma - subEma).toFixed(1) + ' ms\n' + Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + ' | ' + autoTune.label() + '\n' + autoTune.info();
     }
 
     perfFrames++; perfAcc += dt;
@@ -2727,6 +2740,59 @@ function drawGrassAtlasCanvas() {
       perfFrames = -9999;
     }
   }
+
+  // ============ Speed test: finds out what slows the game down on THIS phone ============
+  const dbg = { noGrass: false, noPost: false, running: false };
+  let jsEma = 0, subEma = 0;
+  perfEl.style.whiteSpace = 'pre';
+  function setTrees(v) { treeLayers.forEach(l => { l.visible = v; l.live.forEach(m => { if (m) m.visible = v; }); }); }
+  const DIAG_STEPS = [
+    { name: 'Normal (baseline)', on() {}, off() {} },
+    { name: 'Without glow/effects', on() { dbg.noPost = true; }, off() { dbg.noPost = false; } },
+    { name: 'Without shadows', on() { sunLight.castShadow = false; }, off() { sunLight.castShadow = true; } },
+    { name: 'Without grass', on() { dbg.noGrass = true; }, off() { dbg.noGrass = false; } },
+    { name: 'Without trees', on() { setTrees(false); }, off() { setTrees(true); } },
+    { name: 'Without the rover', on() { rover.visible = false; }, off() { rover.visible = true; } },
+    { name: 'All of them off', on() { dbg.noPost = true; sunLight.castShadow = false; dbg.noGrass = true; setTrees(false); rover.visible = false; },
+      off() { dbg.noPost = false; sunLight.castShadow = true; dbg.noGrass = false; setTrees(true); rover.visible = true; } }
+  ];
+  const diagHud = document.createElement('div');
+  diagHud.style.cssText = 'position:fixed;left:8px;top:96px;z-index:99997;padding:6px 9px;background:rgba(0,0,0,0.75);color:#e8f6ff;font:11px/1.45 monospace;border-radius:8px;pointer-events:none;display:none;white-space:pre;';
+  document.body.appendChild(diagHud);
+  let diagStep = -1, diagT0 = 0, diagSum = 0, diagN = 0, diagRes = [], diagHideAt = 0;
+  function diagStart() {
+    dbg.running = true; diagRes = []; diagStep = -1; diagT0 = 0; diagHideAt = 0;
+    document.getElementById('settings-panel').classList.remove('show');
+    diagHud.style.display = 'block';
+    diagHud.textContent = 'SPEED TEST starting - keep driving forward (about 25 seconds)...';
+  }
+  function diagFinish() {
+    dbg.running = false;
+    const base = diagRes[0].ms || 1;
+    let txt = 'SPEED TEST RESULT (frame time, lower = faster)\n';
+    diagRes.forEach((r, i) => {
+      txt += (r.name + '                              ').slice(0, 24) + r.ms.toFixed(1) + ' ms  ' + Math.round(1000 / (r.ms || 1)) + ' fps' +
+        (i === 0 ? '' : '  (' + (r.ms - base >= 0 ? '+' : '') + (r.ms - base).toFixed(1) + ')') + '\n';
+    });
+    txt += '\nJS ' + jsEma.toFixed(1) + ' ms | submit ' + subEma.toFixed(1) + ' ms\nTake a screenshot of this and send it';
+    diagHud.textContent = txt;
+    diagHideAt = performance.now() + 120000;
+  }
+  function diagTick(now, raw) {
+    if (!dbg.running) { if (diagHideAt && now > diagHideAt) { diagHud.style.display = 'none'; diagHideAt = 0; } return; }
+    if (diagStep >= 0 && now - diagT0 > 800 && raw < 400) { diagSum += raw; diagN++; }
+    if (diagStep < 0 || now - diagT0 > 3600) {
+      if (diagStep >= 0) {
+        DIAG_STEPS[diagStep].off();
+        diagRes.push({ name: DIAG_STEPS[diagStep].name, ms: diagN ? diagSum / diagN : 0 });
+      }
+      diagStep++; diagSum = 0; diagN = 0; diagT0 = now;
+      if (diagStep >= DIAG_STEPS.length) { diagFinish(); return; }
+      DIAG_STEPS[diagStep].on();
+      diagHud.textContent = 'SPEED TEST ' + (diagStep + 1) + '/' + DIAG_STEPS.length + ': ' + DIAG_STEPS[diagStep].name + '\nkeep driving forward...';
+    }
+  }
+  document.getElementById('diag-btn').addEventListener('click', diagStart);
 
   document.addEventListener('gesturestart', e => e.preventDefault());
   document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
