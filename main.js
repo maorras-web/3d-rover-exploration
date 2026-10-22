@@ -79,7 +79,7 @@ function initGame() {
   scene.fog = new THREE.FogExp2(0xe9c9a2, 0.0040);   // denser haze = depth + everything past ~500 m is fully hidden
 
   const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 560);   // far clipping: at 560 m the fog is ~99.5% so nothing visibly pops
-  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
@@ -176,9 +176,7 @@ function initGame() {
           vec2 cuv = d.xz / (max(d.y, 0.0) + 0.22) * 1.25 + vec2(uT * 0.008, 0.0);
           float dn = fbm2(cuv);
           float cov = smoothstep(0.47, 0.76, dn);
-          vec2 toSun = normalize(sd.xz + vec2(0.0001)) * 0.10;
-          float dn2 = fbm2(cuv + toSun);
-          float lt = clamp(0.55 + (dn - dn2) * 3.5, 0.0, 1.0);
+          float lt = clamp(1.25 - dn * 1.05 + pow(s, 2.0) * 0.30, 0.0, 1.0);
           cov *= smoothstep(0.02, 0.22, d.y) * cloudAmt;
           vec3 cdark = cloudCol * vec3(0.55, 0.62, 0.78);
           vec3 cc = mix(cdark, cloudCol, lt);
@@ -326,6 +324,15 @@ function initGame() {
 
     col.r += micro; col.g += micro; col.b += micro;
     { const pt = smoothNoise(x + 90, z - 40, 20) - 0.5; col.r += pt * 0.14; col.g += pt * 0.04; col.b -= pt * 0.03; }
+    // baked ground details (zero runtime cost): big colour patches, sun-dried yellow grass, mossy clover patches (grassy biomes only)
+    if (col.g > col.r * 1.05 && col.g > col.b * 1.2) {
+      const mac = smoothNoise(x - 33, z + 71, 9) - 0.5;
+      const dry = THREE.MathUtils.smoothstep(smoothNoise(x + 140, z + 15, 14), 0.62, 0.8);
+      const moss = THREE.MathUtils.smoothstep(smoothNoise(x - 60, z - 120, 7), 0.6, 0.8);
+      col.r *= 1 + mac * 0.30 + dry * 0.22;
+      col.g *= 1 + mac * 0.30 + dry * 0.05 + moss * 0.06;
+      col.b *= 1 - mac * 0.12 - dry * 0.15;
+    }
 
     // baked ambient occlusion (hollows darker, crests lighter) + rocky slopes + sun-bleached heights
     {
@@ -397,11 +404,7 @@ function initGame() {
         float wHalf = 2.4 + (fb(wp * 1.6) - 0.5) * 1.1 + (vn(wp * 0.3 + 7.0) - 0.5) * 0.9;
         float pm = 1.0 - smoothstep(wHalf - 0.45, wHalf + 0.1, ad);
         float lodG = 1.0 - smoothstep(12.0, 70.0, length(vViewPosition));
-        float macroN = vn(wp * 0.11 + 11.0) * 0.65 + vn(wp * 0.37 - 5.0) * 0.35 - 0.5;
-        float mesoN = (vn(wp * 1.9) - 0.5) * lodG;
-        base *= 1.0 + macroN * 0.34 + mesoN * 0.16;
-        base.r *= 1.0 + macroN * 0.14;
-        base.b *= 1.0 - macroN * 0.12;
+        base *= 1.0 + (vn(wp * 1.9) - 0.5) * 0.16 * lodG;
         vec3 pcol = base;
         if (pm > 0.002) {
           float large = fb(wp * 0.5);
@@ -533,7 +536,9 @@ function initGame() {
        float gust = sin(uTime * 1.6 + ph) * 0.6 + sin(uTime * 3.3 + ph * 1.7) * 0.4;
        float hf = position.y * position.y * 6.0;
        transformed.x += gust * 0.17 * hf;
-       transformed.z += cos(uTime * 1.2 + ph) * 0.11 * hf;`
+       transformed.z += cos(uTime * 1.2 + ph) * 0.11 * hf;
+       float mt = sin(wpos.x * 0.045 + 1.3) * sin(wpos.z * 0.04 + 0.5);
+       vColor *= vec3(1.0 + mt * 0.10, 1.0 + mt * 0.04, 1.0 - mt * 0.07) * (1.0 + gust * 0.09 * hf);`
     );
   };
 
@@ -762,10 +767,10 @@ function initGame() {
   }
 
   // ============ CHUNKED WORLD STREAMING (trees, rocks, bushes, flowers, contact shadows) ============
-  // The world is a grid of 55 m chunks. Every decor type keeps its instance data per chunk and only builds a small
+  // The world is a grid of 88 m chunks (5 x 5 = few draw calls). Every decor type keeps its instance data per chunk and only builds a small
   // THREE.InstancedMesh for chunks near the rover; chunks that are far away (inside the fog) are disposed again.
   // Each live chunk mesh has its own bounding sphere, so the camera and the shadow camera cull them one by one.
-  const CHUNK = 55, CH_N = Math.ceil(WORLD_SIZE / CHUNK);
+  const CHUNK = 88, CH_N = Math.ceil(WORLD_SIZE / CHUNK);
   const chunkLayers = [];
   function chunkIndexOf(x, z) {
     const cx = Math.min(CH_N - 1, Math.max(0, Math.floor((x + HALF) / CHUNK)));
@@ -824,6 +829,17 @@ function initGame() {
     }
   }
   let chunkTick = 0;
+  // gentle wind sway for foliage: done in the vertex shader, so it costs no extra draw calls
+  function addSway(mat, amp) {
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = uTime;
+      sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        vec4 swp = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+        float swh = position.y + 1.0;
+        transformed.x += sin(uTime * 1.3 + swp.x * 0.21 + swp.z * 0.17) * ${amp.toFixed(3)} * swh;
+        transformed.z += cos(uTime * 1.1 + swp.z * 0.23 + swp.x * 0.05) * ${(amp * 0.8).toFixed(3)} * swh;`);
+    };
+  }
 
   // ============ Flowers ============
   const flowerPlans = [];
@@ -1050,6 +1066,8 @@ function initGame() {
   blobIM.count = Math.max(1, bi);
   branchIM.count = Math.max(1, ri);
   [trunkIM, coneIM, blobIM, branchIM].forEach(im => { im.receiveShadow = true; });
+  addSway(coneIM.material, 0.05);
+  addSway(blobIM.material, 0.035);
   chunkify(trunkIM, treePlans.length, 400, 430);
   chunkify(coneIM, ci, 400, 430);
   chunkify(blobIM, bi, 400, 430);
@@ -1084,6 +1102,7 @@ function initGame() {
     if (p.s >= 0.7) colliders.push({ x: p.x, z: p.z, r: p.s * 1.0 });
     else smallRocks.push({ x: p.x, z: p.z, r: p.s * 1.1, h: p.s * 0.5 });
   });
+  addSway(bushIM.material, 0.03);
   const bushLayer = chunkify(bushIM, bushPlans.length, 230, 260);
 
   // ============ Soft contact shadows under trees, rocks and bushes (they look planted in the ground) ============
@@ -1122,6 +1141,47 @@ function initGame() {
   });
   contactIM.renderOrder = 1;
   chunkify(contactIM, contactPlans.length, 300, 330);
+
+  // ============ Floating pollen (day) / fireflies (night): a single Points draw call, 140 vertices ============
+  const POLLEN_N = 140;
+  const pollenGeo = new THREE.BufferGeometry();
+  {
+    const pp = new Float32Array(POLLEN_N * 3), ps = new Float32Array(POLLEN_N);
+    for (let i = 0; i < POLLEN_N; i++) { pp[i * 3] = Math.random(); pp[i * 3 + 1] = Math.random(); pp[i * 3 + 2] = Math.random(); ps[i] = Math.random(); }
+    pollenGeo.setAttribute('position', new THREE.BufferAttribute(pp, 3));
+    pollenGeo.setAttribute('seed', new THREE.BufferAttribute(ps, 1));
+  }
+  const pollenU = { uTime: uTime, uC: { value: new THREE.Vector3() }, uNight: skyUniforms.nightAmt, uSize: { value: 60 } };
+  const pollen = new THREE.Points(pollenGeo, new THREE.ShaderMaterial({
+    uniforms: pollenU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `
+      uniform float uTime; uniform vec3 uC; uniform float uNight; uniform float uSize;
+      attribute float seed; varying float vA;
+      void main(){
+        vec3 p = vec3(position.x * 36.0, position.y * 3.4 + 0.3, position.z * 36.0);
+        p.x += sin(uTime * 0.40 + seed * 40.0) * 1.2;
+        p.y += sin(uTime * 0.55 + seed * 17.0) * 0.45;
+        p.z += cos(uTime * 0.35 + seed * 23.0) * 1.2;
+        vec2 w = mod(p.xz - uC.xz + 18.0, 36.0) - 18.0;
+        vec3 wp = vec3(uC.x + w.x, uC.y + p.y, uC.z + w.y);
+        vec4 mv = viewMatrix * vec4(wp, 1.0);
+        gl_Position = projectionMatrix * mv;
+        float dist = max(-mv.z, 0.5);
+        gl_PointSize = min(uSize * mix(1.0, 1.8, uNight) / dist, 36.0);
+        float tw = 0.55 + 0.45 * sin(uTime * (1.5 + seed * 2.0) + seed * 30.0);
+        vA = tw * (1.0 - smoothstep(10.0, 20.0, dist)) * smoothstep(0.8, 2.0, dist);
+      }`,
+    fragmentShader: `
+      uniform float uNight; varying float vA;
+      void main(){
+        float d = length(gl_PointCoord - vec2(0.5));
+        float a = 1.0 - smoothstep(0.1, 0.5, d);
+        vec3 col = mix(vec3(1.0, 0.95, 0.72), vec3(0.78, 1.0, 0.45), uNight);
+        gl_FragColor = vec4(col, a * vA * mix(0.35, 0.95, uNight));
+      }`
+  }));
+  pollen.frustumCulled = false;
+  scene.add(pollen);
 
   // ============ Rolling hills (two hazy layers) ============
   function addHills(count, ringR, rMin, rMax, hMin, hMax, color) {
@@ -1937,6 +1997,7 @@ function initGame() {
   // So adaptive resolution only resizes the composer's internal render targets (never the canvas).
   function applyPR(r) {
     curPR = r;
+    pollenU.uSize.value = window.innerHeight * r * 0.045;
     composer.setPixelRatio(r);
     composer.setSize(window.innerWidth, window.innerHeight);
     bloomPass.setSize(window.innerWidth / 2, window.innerHeight / 2);
@@ -2031,6 +2092,7 @@ function initGame() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     composer.setSize(window.innerWidth, window.innerHeight);
     bloomPass.setSize(window.innerWidth / 2, window.innerHeight / 2);
+    pollenU.uSize.value = window.innerHeight * renderer.getPixelRatio() * 0.045;
     checkOrientation();
     try { renderer.shadowMap.needsUpdate = true; composer.render(); } catch (e) { }   // resize clears the canvas: repaint now
   }
@@ -2407,6 +2469,7 @@ function initGame() {
     if (mmTimer > 0.25) { mmTimer = 0; drawMinimap(); }
 
     chunkTick++;
+    pollenU.uC.value.copy(rover.position);
     if (chunkTick === 1) updateChunks(rx, rz, true); else if ((chunkTick & 7) === 0) updateChunks(rx, rz, false);
     cullGrass(rx, rz);
     shadowFrame++;
