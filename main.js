@@ -71,6 +71,9 @@ function initGame() {
   // ============ Scene ============
   const WORLD_SIZE = 440;
   const HALF = WORLD_SIZE / 2;
+  // Snowy zone = the corner where nx < SNOW_NX and nz > SNOW_NZ (nx/nz are 0..1 across the world).
+  // It was 0.30 / 0.70 (a 132 m square); now 0.40 / 0.60 (a 176 m square, ~1.8x the area).
+  const SNOW_NX = 0.40, SNOW_NZ = 0.60;
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0xe9c9a2, 0.0035);
@@ -277,7 +280,7 @@ function initGame() {
     if (dist < 22) col.setRGB(0.36, 0.47, 0.21);
     else if (nx < 0.3 && nz < 0.3) col.setRGB(0.16, 0.36, 0.19);
     else if (nx > 0.7 && nz < 0.3) col.setRGB(0.82, 0.71, 0.45);
-    else if (nx < 0.3 && nz > 0.7) col.setRGB(0.86, 0.90, 0.95);
+    else if (nx < SNOW_NX && nz > SNOW_NZ) col.setRGB(0.86, 0.90, 0.95);
     else if (nx > 0.7 && nz > 0.7) col.setRGB(0.36, 0.41, 0.26);
     else col.setRGB(0.38 + bn * 0.08, 0.47 + bn * 0.08, 0.23);
 
@@ -381,11 +384,11 @@ function initGame() {
   scene.add(ground);
 
   // ============ 3D grass with wind ============
-  // The snowy zone is x < -88 and z > 88 (same rule as the ground colours / biome name).
+  // Snowy zone: same rule as the ground colours / biome name / minimap.
   // No grass at all there; the margin also covers the blended white-to-green edge of the ground.
   const SNOW_MARGIN = 3;
   function inSnow(x, z) {
-    return x < -HALF + 0.3 * WORLD_SIZE + SNOW_MARGIN && z > -HALF + 0.7 * WORLD_SIZE - SNOW_MARGIN;
+    return x < -HALF + SNOW_NX * WORLD_SIZE + SNOW_MARGIN && z > -HALF + SNOW_NZ * WORLD_SIZE - SNOW_MARGIN;
   }
 
   function makeBladeGeo(h, w, bend, bc, tc, nSegs) {
@@ -1578,7 +1581,7 @@ function initGame() {
     mmCtx.fillStyle = 'rgba(12,26,26,0.80)'; mmCtx.fillRect(0, 0, w, h);
     mmCtx.fillStyle = 'rgba(30,80,50,0.35)'; mmCtx.fillRect(0, 0, w * 0.3, h * 0.3);
     mmCtx.fillStyle = 'rgba(170,130,70,0.30)'; mmCtx.fillRect(w * 0.7, 0, w * 0.3, h * 0.3);
-    mmCtx.fillStyle = 'rgba(190,220,235,0.26)'; mmCtx.fillRect(0, h * 0.7, w * 0.3, h * 0.3);
+    mmCtx.fillStyle = 'rgba(190,220,235,0.26)'; mmCtx.fillRect(0, h * SNOW_NZ, w * SNOW_NX, h * (1 - SNOW_NZ));
     mmCtx.fillStyle = 'rgba(90,110,60,0.34)'; mmCtx.fillRect(w * 0.7, h * 0.7, w * 0.3, h * 0.3);
 
     mmCtx.lineWidth = 1;
@@ -1817,7 +1820,7 @@ function initGame() {
     if (dist < 22) return '🌿 Green Field';
     if (nx < 0.3 && nz < 0.3) return '🌲 Dense Forest';
     if (nx > 0.7 && nz < 0.3) return '🏜️ Desert';
-    if (nx < 0.3 && nz > 0.7) return '❄️ Snowy Zone';
+    if (nx < SNOW_NX && nz > SNOW_NZ) return '❄️ Snowy Zone';
     if (nx > 0.7 && nz > 0.7) return '🌾 Swamp';
     return '🌱 Grassland';
   }
@@ -2007,7 +2010,20 @@ function initGame() {
       _camPos.y += orbitPitch * 3.0 * camZoom;
     }
     camera.position.lerp(_camPos, 1 - Math.exp(-4.5 * dt));
-    const camGround = getGroundHeight(camera.position.x, camera.position.z) + 0.7;
+    // keep the camera out of tree trunks / boulders...
+    for (let i = 0; i < colliders.length; i++) {
+      const c = colliders[i];
+      const cdx = camera.position.x - c.x, cdz = camera.position.z - c.z;
+      const rr = c.r + 0.8;
+      const cd2 = cdx * cdx + cdz * cdz;
+      if (cd2 < rr * rr) {
+        const cd = Math.sqrt(cd2) || 0.001;
+        camera.position.x = c.x + cdx / cd * rr;
+        camera.position.z = c.z + cdz / cd * rr;
+      }
+    }
+    // ...and above rocks (driveHeight includes the rock surfaces)
+    const camGround = driveHeight(camera.position.x, camera.position.z) + 0.7;
     if (camera.position.y < camGround) camera.position.y = camGround;
     camera.lookAt(_look);
     camLight.position.set(camera.position.x, camera.position.y + 3, camera.position.z);
