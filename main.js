@@ -163,7 +163,7 @@ function initGame() {
   sunLight.shadow.mapSize.set(2048, 2048);
   sunLight.shadow.camera.near = 8;          // tight depth range = more precise shadows, less self-shadow flicker
   sunLight.shadow.camera.far = 165;
-  const SHADOW_R = 40;                       // shadows cover the area around the rover (sharper than a whole-map shadow)
+  let SHADOW_R = 40;                       // shadows cover the area around the rover (sharper than a whole-map shadow)
   sunLight.shadow.camera.left = -SHADOW_R;
   sunLight.shadow.camera.right = SHADOW_R;
   sunLight.shadow.camera.top = SHADOW_R;
@@ -434,6 +434,7 @@ function initGame() {
   const tuftGeo = mergeGeometries(bladeParts, false);
 
   const uTime = { value: 0 };
+  const uGrassQ = { value: 1 }, uGrassD = { value: 1 };   // grass range / density (set by the quality level)
   const uRover = { value: new THREE.Vector3(0, -999, 0) };
   const grassMat = new THREE.MeshStandardMaterial({
     vertexColors: true, side: THREE.DoubleSide, roughness: 0.9, metalness: 0.0
@@ -551,13 +552,17 @@ function initGame() {
     mat.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = uTime;
       shader.uniforms.uRover = uRover;
-      shader.vertexShader = 'uniform float uTime;\nuniform vec3 uRover;\n' + shader.vertexShader.replace(
+      shader.uniforms.uGrassQ = uGrassQ;
+      shader.uniforms.uGrassD = uGrassD;
+      shader.vertexShader = 'uniform float uTime;\nuniform vec3 uRover;\nuniform float uGrassQ;\nuniform float uGrassD;\n' + shader.vertexShader.replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
          vec4 wpos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
          float dR = distance(wpos.xz, uRover.xz);
+         float dRd = dR / uGrassQ;
          float dC = distance(wpos.xyz, cameraPosition);
          ${densGLSL}
+         dens *= uGrassD;
          float rnd = fract(sin(dot(wpos.xz, vec2(12.9898, 78.233))) * 43758.5453);
          float vis = 1.0 - smoothstep(dens * 1.1 - 0.1, dens * 1.1, rnd);
          float fade = vis * mix(0.3, 1.0, smoothstep(2.4, 4.4, dR)) * mix(0.1, 1.0, smoothstep(0.8, 2.2, dC));
@@ -650,23 +655,29 @@ function initGame() {
         const t = tiles[n];
         if (!t.ready) { t.mesh.visible = false; continue; }
         const dx = Math.max(t.x0 - px, 0, px - t.x1), dz = Math.max(t.z0 - pz, 0, pz - t.z1);
-        t.mesh.visible = (dx * dx + dz * dz < maxR * maxR) && frustum.intersectsSphere(t.sphere);
+        const mr = maxR * uGrassQ.value;
+        t.mesh.visible = (dx * dx + dz * dz < mr * mr) && frustum.intersectsSphere(t.sphere);
       }
     }
     grassLayers.push({ cull });
     return update;
   }
   // dense close layer: full density next to the rover, thinning smoothly to nothing by ~18 m (patch radius ~19.5 m)
-  const updateGrassNear = makeGrassLayer(nearGeo, 0.85, 46, 4, 'float dens = pow(1.0 - smoothstep(3.0, 18.5, dR), 2.0);', 1.0, 8, 19.0);
+  const updateGrassNear = makeGrassLayer(nearGeo, 0.85, 46, 4, 'float dens = pow(1.0 - smoothstep(3.0, 18.5, dRd), 2.0);', 1.0, 8, 19.0);
   // wide layer: cheap geometry, slightly bigger tufts, covers ~100 m and fades into the far-field grass
-  const updateGrassMid = makeGrassLayer(midGeo, 3.0, 68, 3, 'float dens = smoothstep(4.0, 14.0, dR) * (1.0 - smoothstep(60.0, 100.0, dR));', 1.3, 12, 100.0);
+  const updateGrassMid = makeGrassLayer(midGeo, 3.0, 68, 3, 'float dens = smoothstep(4.0, 14.0, dRd) * (1.0 - smoothstep(60.0, 100.0, dRd));', 1.3, 12, 100.0);
   function updateNearGrass(px, pz) { updateGrassNear(px, pz); updateGrassMid(px, pz); }
   const _gFrustum = new THREE.Frustum(), _gPV = new THREE.Matrix4();
+  let grassFarMax = 1e9;           // far-field grass beyond this distance is not drawn (quality level)
   function cullGrass(px, pz) {
     camera.updateMatrixWorld();
     _gPV.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     _gFrustum.setFromProjectionMatrix(_gPV);
-    for (let i = 0; i < grassChunks.length; i++) grassChunks[i].mesh.visible = _gFrustum.intersectsSphere(grassChunks[i].sphere);
+    for (let i = 0; i < grassChunks.length; i++) {
+      const c = grassChunks[i];
+      const cdx = c.sphere.center.x - px, cdz = c.sphere.center.z - pz;
+      c.mesh.visible = (Math.sqrt(cdx * cdx + cdz * cdz) - c.sphere.radius < grassFarMax) && _gFrustum.intersectsSphere(c.sphere);
+    }
     for (let i = 0; i < grassLayers.length; i++) grassLayers[i].cull(_gFrustum, px, pz);
   }
 
@@ -1781,8 +1792,8 @@ function initGame() {
   // (automatic quality drop disabled - always full quality)
 
   // ============ Smooth adaptive resolution: full quality on fast phones, fluid on slower ones ============
-  const PR_MAX = Math.min(window.devicePixelRatio, 2);
-  const PR_MIN = Math.min(PR_MAX, 1.0);
+  let PR_MAX = Math.min(window.devicePixelRatio, 2);
+  let PR_MIN = Math.min(PR_MAX, 1.0);
   let curPR = PR_MAX;
   function applyPR(r) {
     curPR = r;
@@ -1803,7 +1814,7 @@ function initGame() {
     const nw = performance.now();
     perfTaps = perfTaps.filter(x => nw - x < 900);
     perfTaps.push(nw);
-    if (perfTaps.length >= 3) { perfTaps = []; perfOn = !perfOn; perfEl.style.display = perfOn ? 'block' : 'none'; }
+    if (perfTaps.length >= 3) { perfTaps = []; setPerf(!perfOn); }
   });
 
   // Arrow at the screen edge that points to the POI when it is out of view
@@ -1813,6 +1824,64 @@ function initGame() {
   document.body.appendChild(poiArrow);
   const poiArrowSvg = poiArrow.querySelector('svg'), poiArrowTxt = poiArrow.querySelector('span');
   const _poiV = new THREE.Vector3();
+
+  // ============ Settings: graphics quality (High / Medium / Low) + FPS counter ============
+  const QUALITY = {
+    high:   { pr: 2.0, bloom: true,  shadow: 2048, shR: 40, half: false, grassQ: 1.0,  grassD: 1.0, far: 1e9, bushes: true,
+              note: 'Best looks. The resolution adjusts itself if the phone struggles.' },
+    medium: { pr: 1.5, bloom: false, shadow: 1024, shR: 40, half: false, grassQ: 0.75, grassD: 0.8, far: 170, bushes: true,
+              note: 'Balanced. Slightly softer image, no glow, a bit less grass.' },
+    low:    { pr: 1.0, bloom: false, shadow: 1024, shR: 30, half: true,  grassQ: 0.5,  grassD: 0.6, far: 120, bushes: false,
+              note: 'Fastest. Soft image, simpler shadows, much less grass.' }
+  };
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* private mode: ignore */ } }
+  };
+  let qualityLevel = 'high';
+  function applyQuality(level, save) {
+    const q = QUALITY[level] || QUALITY.high;
+    if (!QUALITY[level]) level = 'high';
+    qualityLevel = level;
+    PR_MAX = Math.min(window.devicePixelRatio, q.pr);
+    PR_MIN = Math.min(PR_MAX, 1.0);
+    ceilPR = 99; ceilUntil = 0; fastWins = 0; veryLow = 0; adaptWarm = 2;
+    applyPR(PR_MAX);
+    bloomPass.enabled = q.bloom;
+    downgraded = false;
+    if (sunLight.shadow.mapSize.width !== q.shadow) {
+      if (sunLight.shadow.map) { sunLight.shadow.map.dispose(); sunLight.shadow.map = null; }
+      sunLight.shadow.mapSize.set(q.shadow, q.shadow);
+    }
+    SHADOW_R = q.shR;
+    sunLight.shadow.camera.left = -SHADOW_R; sunLight.shadow.camera.right = SHADOW_R;
+    sunLight.shadow.camera.top = SHADOW_R; sunLight.shadow.camera.bottom = -SHADOW_R;
+    sunLight.shadow.camera.updateProjectionMatrix();
+    shadowForceHalf = q.half;
+    uGrassQ.value = q.grassQ; uGrassD.value = q.grassD; grassFarMax = q.far;
+    bushIM.visible = q.bushes;
+    document.querySelectorAll('#q-row .sp-btn').forEach(b => b.classList.toggle('on', b.dataset.q === level));
+    const noteEl = document.getElementById('q-note');
+    if (noteEl) noteEl.textContent = q.note;
+    if (save) store.set('roverQuality', level);
+  }
+  function setPerf(on) {
+    perfOn = on;
+    perfEl.style.display = on ? 'block' : 'none';
+    const fb = document.getElementById('fps-toggle');
+    if (fb) { fb.textContent = on ? 'ON' : 'OFF'; fb.classList.toggle('on', on); }
+    store.set('roverFps', on ? '1' : '0');
+  }
+  {
+    const spPanel = document.getElementById('settings-panel');
+    const openSp = () => spPanel.classList.add('show');
+    const closeSp = () => spPanel.classList.remove('show');
+    document.getElementById('btn-settings').addEventListener('click', openSp);
+    document.getElementById('sp-close').addEventListener('click', closeSp);
+    spPanel.addEventListener('click', (e) => { if (e.target === spPanel) closeSp(); });
+    document.querySelectorAll('#q-row .sp-btn').forEach(b => b.addEventListener('click', () => applyQuality(b.dataset.q, true)));
+    document.getElementById('fps-toggle').addEventListener('click', () => setPerf(!perfOn));
+  }
 
   function onResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -1886,7 +1955,7 @@ function initGame() {
   let camYaw = 0;               // independent smoothed camera yaw
   let wheelSpin = 0, pitch = 0, roll = 0;
   let perfFrames = 0, perfAcc = 0;
-  let shadowFrame = 0, shadowHalf = false, shadowRetestAt = 0;   // slow phones: redraw the shadow map every 2nd frame
+  let shadowFrame = 0, shadowHalf = false, shadowForceHalf = false, shadowRetestAt = 0;   // slow phones: redraw the shadow map every 2nd frame
   let camMode = 0, camZoom = 1;   // 0 = behind the rover, 1 = front (like the picture)
   const btnCamView = document.getElementById('cam-view');
   // Drag a finger on empty space to slowly orbit the camera 360 degrees around the rover
@@ -2195,7 +2264,7 @@ function initGame() {
 
     cullGrass(rx, rz);
     shadowFrame++;
-    renderer.shadowMap.needsUpdate = !(shadowHalf && (shadowFrame & 1));
+    renderer.shadowMap.needsUpdate = !((shadowHalf || shadowForceHalf) && (shadowFrame & 1));
     renderer.info.reset();
     composer.render();
 
@@ -2243,6 +2312,8 @@ function initGame() {
   document.addEventListener('gesturestart', e => e.preventDefault());
   document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 
+  applyQuality(store.get('roverQuality') || 'high', false);
+  setPerf(store.get('roverFps') !== '0');
   checkOrientation();
   drawMinimap();
   animate();
