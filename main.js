@@ -84,6 +84,7 @@ function initGame() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.autoUpdate = false;   // we decide each frame whether the shadow map is redrawn
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -160,9 +161,9 @@ function initGame() {
   sunLight.position.set(60, 45, 35);
   sunLight.castShadow = true;
   sunLight.shadow.mapSize.set(2048, 2048);
-  sunLight.shadow.camera.near = 1;
-  sunLight.shadow.camera.far = 220;
-  const SHADOW_R = 46;                       // shadows cover the area around the rover (sharper than a whole-map shadow)
+  sunLight.shadow.camera.near = 8;          // tight depth range = more precise shadows, less self-shadow flicker
+  sunLight.shadow.camera.far = 165;
+  const SHADOW_R = 40;                       // shadows cover the area around the rover (sharper than a whole-map shadow)
   sunLight.shadow.camera.left = -SHADOW_R;
   sunLight.shadow.camera.right = SHADOW_R;
   sunLight.shadow.camera.top = SHADOW_R;
@@ -456,10 +457,33 @@ function initGame() {
   };
 
   const GRASS = 20000;
-  const grassMesh = new THREE.InstancedMesh(tuftGeo, grassMat, GRASS);
-  grassMesh.receiveShadow = true;
   const dummy = new THREE.Object3D();
   const gCol = new THREE.Color();
+
+  // ---- culling helpers: grass that is outside the camera view is not drawn at all ----
+  let GH_MIN = Infinity, GH_MAX = -Infinity;
+  for (let i = 0; i < HGRID.length; i++) { if (HGRID[i] < GH_MIN) GH_MIN = HGRID[i]; if (HGRID[i] > GH_MAX) GH_MAX = HGRID[i]; }
+  function heightRange(x0, z0, x1, z1) {
+    if ((x1 - x0) * (z1 - z0) > 1800) return [GH_MIN, GH_MAX];
+    const ix0 = Math.max(0, Math.floor((x0 + HALF) / GCELL)), ix1 = Math.min(GSEG, Math.ceil((x1 + HALF) / GCELL));
+    const iz0 = Math.max(0, Math.floor((z0 + HALF) / GCELL)), iz1 = Math.min(GSEG, Math.ceil((z1 + HALF) / GCELL));
+    let lo = Infinity, hi = -Infinity;
+    for (let iz = iz0; iz <= iz1; iz++) for (let ix = ix0; ix <= ix1; ix++) {
+      const h = HGRID[iz * (GSEG + 1) + ix];
+      if (h < lo) lo = h;
+      if (h > hi) hi = h;
+    }
+    return lo > hi ? [GH_MIN, GH_MAX] : [lo, hi];
+  }
+  function sphereFromBox(x0, y0, z0, x1, y1, z1) {
+    const dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
+    return new THREE.Sphere(new THREE.Vector3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), 0.5 * Math.sqrt(dx * dx + dy * dy + dz * dz));
+  }
+
+  // far-field grass: square chunks, each one is its own draw call that is skipped when it is out of view
+  const FG_CH = 33, FG_N = Math.ceil(WORLD_SIZE / FG_CH);
+  const fgMats = Array.from({ length: FG_N * FG_N }, () => []);
+  const fgCols = Array.from({ length: FG_N * FG_N }, () => []);
   let gi = 0;
   for (let i = 0; i < GRASS * 1.5 && gi < GRASS; i++) {
     const z = (Math.random() - 0.5) * WORLD_SIZE * 0.94;
@@ -469,16 +493,31 @@ function initGame() {
     dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
     dummy.scale.setScalar(0.75 + Math.random() * 0.5);
     dummy.updateMatrix();
-    grassMesh.setMatrixAt(gi, dummy.matrix);
+    const q = Math.min(FG_N - 1, Math.max(0, Math.floor((z + HALF) / FG_CH))) * FG_N + Math.min(FG_N - 1, Math.max(0, Math.floor((x + HALF) / FG_CH)));
+    const e = dummy.matrix.elements;
+    for (let k = 0; k < 16; k++) fgMats[q].push(e[k]);
     const t = Math.random();
     if (Math.random() < 0.14) gCol.setRGB(1.18, 1.05, 0.62); else gCol.setRGB(0.84 + t * 0.25, 0.90 + t * 0.20, 0.76 + t * 0.25);
-    grassMesh.setColorAt(gi, gCol);
+    fgCols[q].push(gCol.r, gCol.g, gCol.b);
     gi++;
   }
-  grassMesh.count = gi;
-  grassMesh.instanceMatrix.needsUpdate = true;
-  if (grassMesh.instanceColor) grassMesh.instanceColor.needsUpdate = true;
-  scene.add(grassMesh);
+  const grassChunks = [];
+  for (let q = 0; q < fgMats.length; q++) {
+    const n = fgCols[q].length / 3;
+    if (!n) continue;
+    const m = new THREE.InstancedMesh(tuftGeo, grassMat, n);
+    m.instanceMatrix.array.set(fgMats[q]);
+    m.instanceMatrix.needsUpdate = true;
+    m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(fgCols[q]), 3);
+    m.frustumCulled = false;      // we cull the chunks ourselves (see cullGrass)
+    m.receiveShadow = true;
+    const cI = q % FG_N, cJ = Math.floor(q / FG_N);
+    const x0 = -HALF + cI * FG_CH, z0 = -HALF + cJ * FG_CH;
+    const hr = heightRange(x0, z0, x0 + FG_CH, z0 + FG_CH);
+    grassChunks.push({ mesh: m, sphere: sphereFromBox(x0 - 1.5, hr[0] - 0.3, z0 - 1.5, x0 + FG_CH + 1.5, hr[1] + 1.4, z0 + FG_CH + 1.5) });
+    scene.add(m);
+  }
+  const grassLayers = [];
 
   // ============ Streamed grass around the rover (no visible "edge of the grass") ============
   // Two world-anchored rings follow the rover: a very dense, fine one close by and a sparser, wider one behind it.
@@ -507,8 +546,7 @@ function initGame() {
   const midGeo = mergeGeometries(midParts, false);
   function ngHash(i, j, sd) { const n = Math.sin(i * 127.1 + j * 311.7 + sd * 74.7) * 43758.5453; return n - Math.floor(n); }
 
-  function makeGrassLayer(geo, CELL, N, K, densGLSL, scaleMul) {
-    const COUNT = N * N * K;
+  function makeGrassLayer(geo, CELL, N, K, densGLSL, scaleMul, TILE, maxR) {
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.85, metalness: 0.0 });
     mat.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = uTime;
@@ -531,28 +569,44 @@ function initGame() {
          transformed.z += cos(uTime * 1.2 + ph) * 0.11 * hf * fade;`
       );
     };
-    const mesh = new THREE.InstancedMesh(geo, mat, COUNT);
-    mesh.frustumCulled = false;
-    mesh.receiveShadow = true;
-    mesh.visible = false;      // shown after the first fill
+    // The ring is cut into square tiles (one draw call each). Tiles behind the camera, outside the
+    // picture, or too far away to show any grass are skipped completely.
+    const NT = Math.ceil(N / TILE);
+    const tiles = [];
+    const white = new THREE.Color(1, 1, 1);
+    for (let tb = 0; tb < NT; tb++) {
+      for (let ta = 0; ta < NT; ta++) {
+        const a0 = ta * TILE, b0 = tb * TILE;
+        const w = Math.min(N, a0 + TILE) - a0, h = Math.min(N, b0 + TILE) - b0;
+        const mesh = new THREE.InstancedMesh(geo, mat, w * h * K);
+        mesh.frustumCulled = false;
+        mesh.receiveShadow = true;
+        mesh.visible = false;      // shown after the first fill
+        for (let i = 0; i < w * h * K; i++) mesh.setColorAt(i, white);
+        scene.add(mesh);
+        tiles.push({ mesh, a0, b0, w, h, dirty: false, ready: false, sphere: new THREE.Sphere(), x0: 0, x1: 0, z0: 0, z1: 0 });
+      }
+    }
     const dm = new THREE.Object3D();
     const col = new THREE.Color();
-    for (let i = 0; i < COUNT; i++) mesh.setColorAt(i, col.setRGB(1, 1, 1));
     const cellI = new Int32Array(N * N).fill(-2147483000);
     const cellJ = new Int32Array(N * N).fill(-2147483000);
     function update(px, pz) {
       const cx = Math.floor(px / CELL), cz = Math.floor(pz / CELL);
       const baseI = cx - (N >> 1), baseJ = cz - (N >> 1);
-      let dirty = false;
       for (let b = 0; b < N; b++) {
         const cj = baseJ + ((((b - baseJ) % N) + N) % N);
+        const tbi = Math.floor(b / TILE);
         for (let a = 0; a < N; a++) {
           const ci = baseI + ((((a - baseI) % N) + N) % N);
           const si = b * N + a;
           if (cellI[si] === ci && cellJ[si] === cj) continue;
-          cellI[si] = ci; cellJ[si] = cj; dirty = true;
+          cellI[si] = ci; cellJ[si] = cj;
+          const tile = tiles[tbi * NT + Math.floor(a / TILE)];
+          tile.dirty = true;
+          const local = (b - tile.b0) * tile.w + (a - tile.a0);
           for (let k = 0; k < K; k++) {
-            const idx = si * K + k;
+            const idx = local * K + k;
             const x = (ci + ngHash(ci, cj, k * 7 + 1)) * CELL;
             const z = (cj + ngHash(ci, cj, k * 7 + 2)) * CELL;
             const pm = pathMask(x, z);
@@ -567,27 +621,54 @@ function initGame() {
               dm.scale.setScalar(0.0001);
             }
             dm.updateMatrix();
-            mesh.setMatrixAt(idx, dm.matrix);
+            tile.mesh.setMatrixAt(idx, dm.matrix);
             const t = ngHash(ci, cj, k * 7 + 6);
             if (t < 0.12) col.setRGB(1.12, 1.0, 0.62); else col.setRGB(0.82 + t * 0.3, 0.9 + t * 0.22, 0.74 + t * 0.26);
-            mesh.setColorAt(idx, col);
+            tile.mesh.setColorAt(idx, col);
           }
         }
       }
-      if (dirty) {
-        mesh.instanceMatrix.needsUpdate = true;
-        mesh.instanceColor.needsUpdate = true;
-        mesh.visible = true;
+      for (let n = 0; n < tiles.length; n++) {
+        const tile = tiles[n];
+        if (!tile.dirty) continue;
+        tile.dirty = false;
+        tile.mesh.instanceMatrix.needsUpdate = true;
+        tile.mesh.instanceColor.needsUpdate = true;
+        // world box of this tile (cell indices of its slots) -> culling sphere
+        let mi = Infinity, ma = -Infinity, mj = Infinity, mb = -Infinity;
+        for (let a = tile.a0; a < tile.a0 + tile.w; a++) { const v = cellI[tile.b0 * N + a]; if (v < mi) mi = v; if (v > ma) ma = v; }
+        for (let b = tile.b0; b < tile.b0 + tile.h; b++) { const v = cellJ[b * N + tile.a0]; if (v < mj) mj = v; if (v > mb) mb = v; }
+        tile.x0 = mi * CELL - 1.2; tile.x1 = (ma + 1) * CELL + 1.2;
+        tile.z0 = mj * CELL - 1.2; tile.z1 = (mb + 1) * CELL + 1.2;
+        const hr = heightRange(tile.x0, tile.z0, tile.x1, tile.z1);
+        tile.sphere.copy(sphereFromBox(tile.x0, hr[0] - 0.3, tile.z0, tile.x1, hr[1] + 1.6, tile.z1));
+        tile.ready = true;
       }
     }
-    scene.add(mesh);
+    function cull(frustum, px, pz) {
+      for (let n = 0; n < tiles.length; n++) {
+        const t = tiles[n];
+        if (!t.ready) { t.mesh.visible = false; continue; }
+        const dx = Math.max(t.x0 - px, 0, px - t.x1), dz = Math.max(t.z0 - pz, 0, pz - t.z1);
+        t.mesh.visible = (dx * dx + dz * dz < maxR * maxR) && frustum.intersectsSphere(t.sphere);
+      }
+    }
+    grassLayers.push({ cull });
     return update;
   }
   // dense close layer: full density next to the rover, thinning smoothly to nothing by ~18 m (patch radius ~19.5 m)
-  const updateGrassNear = makeGrassLayer(nearGeo, 0.85, 46, 4, 'float dens = pow(1.0 - smoothstep(3.0, 18.5, dR), 2.0);', 1.0);
+  const updateGrassNear = makeGrassLayer(nearGeo, 0.85, 46, 4, 'float dens = pow(1.0 - smoothstep(3.0, 18.5, dR), 2.0);', 1.0, 8, 19.0);
   // wide layer: cheap geometry, slightly bigger tufts, covers ~100 m and fades into the far-field grass
-  const updateGrassMid = makeGrassLayer(midGeo, 3.0, 68, 3, 'float dens = smoothstep(4.0, 14.0, dR) * (1.0 - smoothstep(60.0, 100.0, dR));', 1.3);
+  const updateGrassMid = makeGrassLayer(midGeo, 3.0, 68, 3, 'float dens = smoothstep(4.0, 14.0, dR) * (1.0 - smoothstep(60.0, 100.0, dR));', 1.3, 12, 100.0);
   function updateNearGrass(px, pz) { updateGrassNear(px, pz); updateGrassMid(px, pz); }
+  const _gFrustum = new THREE.Frustum(), _gPV = new THREE.Matrix4();
+  function cullGrass(px, pz) {
+    camera.updateMatrixWorld();
+    _gPV.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    _gFrustum.setFromProjectionMatrix(_gPV);
+    for (let i = 0; i < grassChunks.length; i++) grassChunks[i].mesh.visible = _gFrustum.intersectsSphere(grassChunks[i].sphere);
+    for (let i = 0; i < grassLayers.length; i++) grassLayers[i].cull(_gFrustum, px, pz);
+  }
 
   // ============ Flowers ============
   const flowerPlans = [];
@@ -1805,6 +1886,7 @@ function initGame() {
   let camYaw = 0;               // independent smoothed camera yaw
   let wheelSpin = 0, pitch = 0, roll = 0;
   let perfFrames = 0, perfAcc = 0;
+  let shadowFrame = 0, shadowHalf = false, shadowRetestAt = 0;   // slow phones: redraw the shadow map every 2nd frame
   let camMode = 0, camZoom = 1;   // 0 = behind the rover, 1 = front (like the picture)
   const btnCamView = document.getElementById('cam-view');
   // Drag a finger on empty space to slowly orbit the camera 360 degrees around the rover
@@ -2111,6 +2193,9 @@ function initGame() {
     mmTimer += dt;
     if (mmTimer > 0.25) { mmTimer = 0; drawMinimap(); }
 
+    cullGrass(rx, rz);
+    shadowFrame++;
+    renderer.shadowMap.needsUpdate = !(shadowHalf && (shadowFrame & 1));
     renderer.info.reset();
     composer.render();
 
@@ -2119,6 +2204,8 @@ function initGame() {
     const rawMs = lastFrameMs ? nowMs - lastFrameMs : 16.7;
     lastFrameMs = nowMs;
     if (rawMs < 250) emaMs += (rawMs - emaMs) * 0.05;
+    if (!shadowHalf && emaMs > 19 && nowMs > shadowRetestAt && adaptWarm <= 0) { shadowHalf = true; shadowRetestAt = nowMs + 15000; }
+    else if (shadowHalf && nowMs > shadowRetestAt) { shadowHalf = false; shadowRetestAt = nowMs + 4000; }   // re-test full-rate shadows
     if (nowMs > nextEvalMs) {
       nextEvalMs = nowMs + 1000;
       if (adaptWarm > 0) {
@@ -2143,7 +2230,7 @@ function initGame() {
     if (perfOn && nowMs > overlayAt) {
       overlayAt = nowMs + 500;
       const inf = renderer.info.render;
-      perfEl.textContent = Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + (downgraded ? ' | LOW' : '');
+      perfEl.textContent = Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + (shadowHalf ? ' | shadow 1/2' : '') + (downgraded ? ' | LOW' : '');
     }
 
     perfFrames++; perfAcc += dt;
