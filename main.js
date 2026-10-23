@@ -1870,6 +1870,9 @@ function drawGrassAtlasCanvas() {
   const sunGlowEl = document.getElementById('sun-glow');
   let actx = null, master = null, mix = null, soundOn = true, noiseBuf = null, eng = null, lastThud = 0;
   let rpmState = 0.2, gear = 1, shiftDuck = 0;
+  // volume trims in decibels (negative = quieter)
+  const GRAVEL_DB = -6, ENGINE_DB = -5;
+  const GRAVEL_K = Math.pow(10, GRAVEL_DB / 20), ENGINE_K = Math.pow(10, ENGINE_DB / 20);
   const GEAR_AT = [0, 0.16, 0.36, 0.60, 1.01];     // speed (0..1) where each gear starts
   function makeGravelBuffer(ctx) {
     const sr = ctx.sampleRate, len = Math.floor(sr * 3);
@@ -1936,7 +1939,7 @@ function drawGrassAtlasCanvas() {
       wob.connect(wobG); oscs.forEach(o => wobG.connect(o.detune));
       // firing "lope"
       const lfo = actx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 12;
-      const lfoG = actx.createGain(); lfoG.gain.value = 0.03;
+      const lfoG = actx.createGain(); lfoG.gain.value = 0.03 * ENGINE_K;
       lfo.connect(lfoG); lfoG.connect(bus.gain);
       // intake / exhaust breath
       const inSrc = actx.createBufferSource(); inSrc.buffer = noiseBuf; inSrc.loop = true; inSrc.playbackRate.value = 0.7;
@@ -2011,15 +2014,15 @@ function drawGrassAtlasCanvas() {
     eng.oscs[2].frequency.setTargetAtTime(f0 * 0.5, t0, 0.05);
     eng.oscs[3].frequency.setTargetAtTime(f0 * 2, t0, 0.05);
     eng.lp.frequency.setTargetAtTime(380 + rpm * 1300 + (throttle ? 500 : 0), t0, 0.08);
-    eng.bus.gain.setTargetAtTime((0.10 + rpm * 0.13) * (throttle ? 1 : 0.8) * (1 - 0.4 * shiftDuck), t0, 0.06);
+    eng.bus.gain.setTargetAtTime((0.10 + rpm * 0.13) * (throttle ? 1 : 0.8) * (1 - 0.4 * shiftDuck) * ENGINE_K, t0, 0.06);
     eng.lfo.frequency.setTargetAtTime(f0 * 0.5, t0, 0.08);
-    eng.inG.gain.setTargetAtTime(throttle ? 0.012 + rpm * 0.05 : 0.004, t0, 0.1);
+    eng.inG.gain.setTargetAtTime((throttle ? 0.012 + rpm * 0.05 : 0.004) * ENGINE_K, t0, 0.1);
     eng.inF.frequency.setTargetAtTime(300 + rpm * 900, t0, 0.1);
     eng.wh.frequency.setTargetAtTime((260 + sp * 760) * (reversing ? 1.25 : 1), t0, 0.08);
-    eng.whG.gain.setTargetAtTime(sp * 0.016 * (throttle ? 1 : 0.6), t0, 0.1);
+    eng.whG.gain.setTargetAtTime(sp * 0.016 * (throttle ? 1 : 0.6) * ENGINE_K, t0, 0.1);
     // ground
     eng.gSrc.playbackRate.setTargetAtTime(0.45 + sp * 1.25, t0, 0.1);
-    eng.gG.gain.setTargetAtTime(Math.pow(sp, 1.1) * (onPath ? 0.30 : 0.04), t0, 0.12);
+    eng.gG.gain.setTargetAtTime(Math.pow(sp, 1.1) * (onPath ? 0.30 : 0.04) * GRAVEL_K, t0, 0.12);
     eng.sG.gain.setTargetAtTime(sp * (onPath ? 0.02 : 0.10), t0, 0.15);
     eng.hG.gain.setTargetAtTime(sp * 0.16, t0, 0.15);
     eng.wg.gain.setTargetAtTime(0.03 + sp * 0.06, t0, 0.2);
