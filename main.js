@@ -402,7 +402,7 @@ function initGame() {
   // ---- baked lawn detail map (tileable, built once): soft patches + tiny grass strokes + dry flecks ----
   // Sampled twice in the ground shader (two scales). It replaces a per-pixel hash noise, so it adds detail at ~zero GPU cost.
   const detailTex = (() => {
-    const N = 256;
+    const N = 384;
     let seed = 777;
     const R = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
     const lattice = (n) => { const a = new Float32Array(n * n); for (let i = 0; i < a.length; i++) a[i] = R(); return a; };
@@ -415,33 +415,70 @@ function initGame() {
       return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
     };
     const l1 = lattice(6), l2 = lattice(14), l3 = lattice(34), ld = lattice(5);
-    const L = new Float32Array(N * N), T = new Float32Array(N * N);   // brightness, dryness
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-      const n = periodic(l1, 6, x, y) * 0.5 + periodic(l2, 14, x, y) * 0.3 + periodic(l3, 34, x, y) * 0.2;
-      L[y * N + x] = 0.5 + (n - 0.5) * 0.34;
-      T[y * N + x] = periodic(ld, 5, x, y) - 0.5;
-    }
-    const stroke = (x, y, ang, len, amt) => {     // tapered stroke, wrapped around the tile edges
-      const dx = Math.cos(ang), dy = Math.sin(ang);
-      for (let k = 0; k < len; k++) {
-        const px = ((Math.round(x + dx * k) % N) + N) % N, py = ((Math.round(y + dy * k) % N) + N) % N;
-        L[py * N + px] += amt * (0.35 + 0.65 * (1 - k / len));
+    // top-down view of a dense lawn: dark gaps, hundreds of overlapping blades (dark base -> bright tip), clover leaves, golden tips
+    const CR = new Float32Array(N * N).fill(0.07), CG = new Float32Array(N * N).fill(0.16), CB = new Float32Array(N * N).fill(0.04);
+    const splat = (x, y, r, g, b, a) => {          // bilinear "over" blend, wrapped around the tile edges
+      const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+      for (let k = 0; k < 4; k++) {
+        const w = ((k & 1) ? fx : 1 - fx) * ((k & 2) ? fy : 1 - fy) * a;
+        if (w < 0.02) continue;
+        let px = ix + (k & 1), py = iy + ((k >> 1) & 1);
+        px = px >= N ? px - N : (px < 0 ? px + N : px); py = py >= N ? py - N : (py < 0 ? py + N : py);
+        const i = py * N + px;
+        CR[i] += (r - CR[i]) * w; CG[i] += (g - CG[i]) * w; CB[i] += (b - CB[i]) * w;
       }
     };
-    for (let i = 0; i < 2600; i++) stroke(R() * N, R() * N, -Math.PI / 2 + (R() - 0.5) * 1.5, 5 + R() * 10, R() < 0.55 ? -0.11 : 0.085);
-    for (let i = 0; i < 160; i++) { const px = Math.floor(R() * N), py = Math.floor(R() * N); L[py * N + px] += 0.10; L[py * N + (px + 1) % N] += 0.06; }
+    const blade = (x0, y0, ang, len, k, gold) => {
+      let dx = Math.cos(ang), dy = Math.sin(ang);
+      const cv = (R() - 0.5) * 0.09, cc = Math.cos(cv), ss = Math.sin(cv);
+      let x = x0, y = y0;
+      for (let s = 0; s <= len; s++) {
+        const t = s / len, taper = 1 - t * 0.75;
+        let r = (0.09 + t * 0.34) * k, g = (0.24 + t * 0.50) * k, b = (0.05 + t * 0.09) * k;
+        if (gold) { r += t * 0.30; g += t * 0.08; }
+        splat(x, y, r, g, b, 0.9 * taper);
+        splat(x - dy * 0.8, y + dx * 0.8, r * 0.92, g * 0.92, b * 0.92, 0.55 * taper);
+        const nx = dx * cc - dy * ss; dy = dx * ss + dy * cc; dx = nx;
+        x += dx; y += dy;
+      }
+    };
+    for (let i = 0; i < 8200; i++) {
+      const dark = R() < 0.35;                      // the under-layer is darker (self-shadowing), the top layer is brighter
+      blade(R() * N, R() * N, R() * Math.PI * 2, 7 + R() * 18, (dark ? 0.62 : 0.9) + R() * 0.45, R() < 0.03);
+    }
+    for (let i = 0; i < 48; i++) {                   // clover patches: three round leaves
+      const cx = R() * N, cy = R() * N;
+      for (let l = 0; l < 3; l++) {
+        const a = R() * 6.28, lx = cx + Math.cos(a) * 3.2, ly = cy + Math.sin(a) * 3.2, k = 0.85 + R() * 0.3;
+        for (let q = 0; q < 14; q++) { const qa = q / 14 * 6.28; splat(lx + Math.cos(qa) * 1.6, ly + Math.sin(qa) * 1.6, 0.20 * k, 0.52 * k, 0.12 * k, 0.8); }
+        splat(lx, ly, 0.24 * k, 0.60 * k, 0.14 * k, 1);
+      }
+    }
     const data = new Uint8Array(N * N * 4);
+    const HN = N >> 1, PA = new Float32Array(HN * HN), TA = new Float32Array(HN * HN);
+    for (let y = 0; y < HN; y++) for (let x = 0; x < HN; x++) {
+      const X = x * 2, Y = y * 2;
+      PA[y * HN + x] = 0.74 + (periodic(l1, 6, X, Y) * 0.5 + periodic(l2, 14, X, Y) * 0.3 + periodic(l3, 34, X, Y) * 0.2) * 0.52;   // soft light / dark patches (what the 17 m sample shows)
+      TA[y * HN + x] = periodic(ld, 5, X, Y) - 0.5;
+    }
+    let mr = 0, mg = 0, mb = 0;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const i = y * N + x, j = (y >> 1) * HN + (x >> 1), patch = PA[j], t = TA[j];
+      CR[i] *= patch * (1 + t * 0.32); CG[i] *= patch; CB[i] *= patch * (1 - t * 0.28);
+      mr += CR[i]; mg += CG[i]; mb += CB[i];
+    }
+    mr /= N * N; mg /= N * N; mb /= N * N;
     const c8 = (v) => Math.max(0, Math.min(255, Math.round(v * 255)));
-    for (let i = 0; i < N * N; i++) {
-      const l = Math.max(0.30, Math.min(0.78, L[i])), t = T[i];   // keeps overlapping strokes from turning into black specks (x0.6 .. x1.56)
-      data[i * 4] = c8(l * (1 + t * 0.18)); data[i * 4 + 1] = c8(l * (1 - Math.abs(t) * 0.04)); data[i * 4 + 2] = c8(l * (1 - t * 0.16)); data[i * 4 + 3] = 255;
+    const cl = (v) => Math.max(0.15, Math.min(0.9, v));
+    for (let i = 0; i < N * N; i++) {                // normalise: 0.5 = "no change", so the ground keeps its overall colour
+      data[i * 4] = c8(cl(CR[i] / mr * 0.5)); data[i * 4 + 1] = c8(cl(CG[i] / mg * 0.5)); data[i * 4 + 2] = c8(cl(CB[i] / mb * 0.5)); data[i * 4 + 3] = 255;
     }
     const tex = new THREE.DataTexture(data, N, N, THREE.RGBAFormat, THREE.UnsignedByteType);   // data texture: 0.5 = "no change"
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.magFilter = THREE.LinearFilter;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.generateMipmaps = true;
-    tex.anisotropy = Math.min(2, renderer.capabilities.getMaxAnisotropy());
+    tex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
     tex.needsUpdate = true;
     return tex;
   })();
@@ -475,9 +512,10 @@ function initGame() {
         float lodG = 1.0 - smoothstep(12.0, 70.0, length(vViewPosition));
         // lawn detail (grassy biomes only; not on snow / sand): soft patches at ~17 m and blade strokes / flecks at ~3.4 m
         float lawn = smoothstep(0.0, 0.04, vColor.g - vColor.r * 1.05) * smoothstep(0.0, 0.06, vColor.g - vColor.b * 1.2);
-        vec3 dBig = texture2D(detailTex, wp * 0.0588).rgb * 2.0;
+        vec3 dBig = texture2D(detailTex, wp * 0.0588, 2.5).rgb * 2.0;
         vec3 dFine = texture2D(detailTex, wp * 0.294 + 0.37).rgb * 2.0;
-        base *= mix(vec3(1.0), dBig, 0.8 * lawn) * mix(vec3(1.0), dFine, 0.9 * lodG * lawn);
+        base *= mix(vec3(1.0), vec3(0.90, 0.92, 0.85), lawn);   // under the blades the lawn is deeper and less neon
+        base *= mix(vec3(1.0), dBig, 0.8 * lawn) * mix(vec3(1.0), dFine, 0.8 * lodG * lawn);
         vec3 pcol = base;
         if (pm > 0.002) {
           float large = fb(wp * 0.5);
@@ -711,7 +749,7 @@ function drawGrassAtlasCanvas() {
        transformed.x += gust * 0.17 * hf;
        transformed.z += cos(uTime * 1.2 + ph) * 0.11 * hf;
        float mt = sin(wpos.x * 0.045 + 1.3) * sin(wpos.z * 0.04 + 0.5);
-       vColor *= vec3(1.0 + mt * 0.10, 1.0 + mt * 0.04, 1.0 - mt * 0.07) * (1.0 + gust * 0.09 * hf);`
+       vColor *= vec3(1.0 + mt * 0.10, 1.0 + mt * 0.04, 1.0 - mt * 0.07) * (1.0 + gust * 0.09 * hf) * mix(0.6, 1.0, smoothstep(0.9, 3.6, dR));`
     );
     shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n  normal = normalize( vNormal );');
   };
@@ -770,7 +808,7 @@ function drawGrassAtlasCanvas() {
     m.instanceMatrix.needsUpdate = true;
     m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(fgCols[q]), 3);
     m.frustumCulled = false;      // we cull the chunks ourselves (see cullGrass)
-    m.receiveShadow = true;
+    m.receiveShadow = false;   // speed test: grass was the biggest cost; the shadow lookup per grass pixel is skipped
     const cI = q % FG_N, cJ = Math.floor(q / FG_N);
     const x0 = -HALF + cI * FG_CH, z0 = -HALF + cJ * FG_CH;
     const hr = heightRange(x0, z0, x0 + FG_CH, z0 + FG_CH);
@@ -815,7 +853,7 @@ function drawGrassAtlasCanvas() {
          float vr = fract(sin(dot(wpos.xz, vec2(41.3, 17.9))) * 9731.17);
          vMapUv.x += step(0.86, vr) * 0.5;
          float mt = sin(wpos.x * 0.045 + 1.3) * sin(wpos.z * 0.04 + 0.5);
-         vColor *= vec3(1.0 + mt * 0.10, 1.0 + mt * 0.04, 1.0 - mt * 0.07) * (1.0 + gust * 0.09 * hf);`
+         vColor *= vec3(1.0 + mt * 0.10, 1.0 + mt * 0.04, 1.0 - mt * 0.07) * (1.0 + gust * 0.09 * hf) * mix(0.6, 1.0, smoothstep(0.9, 3.6, dR));`
       );
       shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n  normal = normalize( vNormal );');
     };
@@ -830,7 +868,7 @@ function drawGrassAtlasCanvas() {
         const w = Math.min(N, a0 + TILE) - a0, h = Math.min(N, b0 + TILE) - b0;
         const mesh = new THREE.InstancedMesh(geo, mat, w * h * K);
         mesh.frustumCulled = false;
-        mesh.receiveShadow = true;
+        mesh.receiveShadow = false;   // speed test: no shadow lookup per grass pixel
         mesh.visible = false;      // shown after the first fill
         for (let i = 0; i < w * h * K; i++) mesh.setColorAt(i, white);
         scene.add(mesh);
@@ -2362,12 +2400,12 @@ function drawGrassAtlasCanvas() {
   const LEVELS = [
     { bloom: true,  half: false, gD: 1.00, gQ: 1.00, far: 1e9, bush: true,  res: 1.00 },   // 0  best looks
     { bloom: true,  half: true,  gD: 1.00, gQ: 1.00, far: 1e9, bush: true,  res: 1.00 },   // 1  shadows refreshed every 2nd frame
-    { bloom: true,  half: true,  gD: 0.85, gQ: 0.90, far: 260, bush: true,  res: 1.00 },   // 2  slightly less grass
-    { bloom: false, half: true,  gD: 0.85, gQ: 0.90, far: 260, bush: true,  res: 1.00 },   // 3  no glow
-    { bloom: false, half: true,  gD: 0.70, gQ: 0.80, far: 200, bush: true,  res: 1.00 },   // 4
-    { bloom: false, half: true,  gD: 0.60, gQ: 0.70, far: 160, bush: false, res: 1.00 },   // 5  no bushes
-    { bloom: false, half: true,  gD: 0.50, gQ: 0.60, far: 130, bush: false, res: 0.85 },   // 6  slightly lower resolution
-    { bloom: false, half: true,  gD: 0.40, gQ: 0.50, far: 110, bush: false, res: 0.70 },   // 7
+    { bloom: false, half: true,  gD: 1.00, gQ: 1.00, far: 1e9, bush: true,  res: 1.00 },   // 2  no glow (measured ~10 ms: the biggest saving that is barely visible)
+    { bloom: false, half: true,  gD: 0.92, gQ: 0.95, far: 300, bush: true,  res: 1.00 },   // 3  grass only just thinned
+    { bloom: false, half: true,  gD: 0.82, gQ: 0.85, far: 240, bush: true,  res: 1.00 },   // 4
+    { bloom: false, half: true,  gD: 0.70, gQ: 0.75, far: 190, bush: false, res: 1.00 },   // 5  no bushes
+    { bloom: false, half: true,  gD: 0.60, gQ: 0.65, far: 150, bush: false, res: 0.85 },   // 6  slightly lower resolution
+    { bloom: false, half: true,  gD: 0.45, gQ: 0.55, far: 120, bush: false, res: 0.70 },   // 7
     { bloom: false, half: true,  gD: 0.30, gQ: 0.45, far: 90,  bush: false, res: 0.60 }    // 8  weakest phones
   ];
   function detectDevice() {
@@ -2409,7 +2447,7 @@ function drawGrassAtlasCanvas() {
   }
   const autoTune = (() => {
     const dev = detectDevice();
-    const key = 'roverAuto5|' + dev.gpu + '|' + dev.cores + '|' + dev.mem;
+    const key = 'roverAuto6|' + dev.gpu + '|' + dev.cores + '|' + dev.mem;
     const keyM = key + '|m30';
     const MAXL = LEVELS.length - 1;
     let lvl = 0, minLvl = 0, bad = 0, good = 0, lastChange = 0, evalAt = 0, frames = 0;
