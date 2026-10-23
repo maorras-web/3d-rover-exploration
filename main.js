@@ -92,7 +92,20 @@ function initGame() {
   renderer.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); }, false);   // allow the browser to restore the context
   renderer.domElement.addEventListener('webglcontextrestored', () => { shadowDirty = true; }, false);
 
-  const composer = new EffectComposer(renderer);
+  // 4x MSAA for the scene render target: on tile-based mobile GPUs (Mali, Adreno) it is resolved in on-chip tile memory,
+  // so it is far cheaper than raising the resolution, and it removes the jagged edges. The GPU is asked first; if it cannot
+  // do multisampled RGBA16F targets the scene is rendered without MSAA exactly as before.
+  const MSAA_SAMPLES = (() => {
+    if (/[?&]nomsaa/.test(location.search)) return 0;   // A/B test: add ?nomsaa to the page address to compare
+    try {
+      const gl = renderer.getContext();
+      if (!renderer.capabilities.isWebGL2 || !gl.getInternalformatParameter) return 0;
+      const list = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA16F, gl.SAMPLES);
+      for (let i = 0; i < list.length; i++) if (list[i] <= 4 && list[i] >= 2) return list[i];
+    } catch (e) { /* no MSAA */ }
+    return 0;
+  })();
+  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { type: THREE.HalfFloatType, samples: MSAA_SAMPLES }));
   composer.addPass(new RenderPass(scene, camera));
   const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.30, 0.7, 0.85);
   composer.addPass(bloomPass);
@@ -674,7 +687,7 @@ function drawGrassAtlasCanvas() {
   const uTime = { value: 0 };
   const uGrassQ = { value: 1 }, uGrassD = { value: 1 };   // grass range / density (set by the quality level)
   const uRover = { value: new THREE.Vector3(0, -999, 0) };
-  const grassMat = new THREE.MeshLambertMaterial({ map: grassTex, alphaTest: 0.38, side: THREE.DoubleSide });
+  const grassMat = new THREE.MeshLambertMaterial({ map: grassTex, alphaTest: 0.38, side: THREE.DoubleSide, alphaToCoverage: MSAA_SAMPLES > 0 });
   grassMat.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = uTime;
     shader.uniforms.uRover = uRover;
@@ -770,7 +783,7 @@ function drawGrassAtlasCanvas() {
   function ngHash(i, j, sd) { const n = Math.sin(i * 127.1 + j * 311.7 + sd * 74.7) * 43758.5453; return n - Math.floor(n); }
 
   function makeGrassLayer(geo, CELL, N, K, densGLSL, scaleMul, TILE, maxR) {
-    const mat = new THREE.MeshLambertMaterial({ map: grassTex, alphaTest: 0.38, side: THREE.DoubleSide });
+    const mat = new THREE.MeshLambertMaterial({ map: grassTex, alphaTest: 0.38, side: THREE.DoubleSide, alphaToCoverage: MSAA_SAMPLES > 0 });
     mat.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = uTime;
       shader.uniforms.uRover = uRover;
@@ -1509,8 +1522,10 @@ function drawGrassAtlasCanvas() {
   // ---- Dark cartoon outline (inverted hull) like the target image ----
   const OUTLINE_KEYS = ['hullS', 'deckS', 'tanS', 'armS', 'darkS', 'dome'];
   const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: 0x15110d, side: THREE.BackSide });
+  const OUTLINE_W = { value: 0.03 };   // set from the render resolution in applyPR()
   OUTLINE_MAT.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed += normalize(normal) * 0.03;');
+    sh.uniforms.uOutlineW = OUTLINE_W;
+    sh.vertexShader = 'uniform float uOutlineW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed += normalize(normal) * uOutlineW;');
   };
   function makeOutlineGeo(src) {
     const g = new THREE.BufferGeometry();
@@ -2147,6 +2162,7 @@ function drawGrassAtlasCanvas() {
   // So adaptive resolution only resizes the composer's internal render targets (never the canvas).
   function applyPR(r) {
     curPR = r;
+    OUTLINE_W.value = r >= 1.5 ? 0.03 : 0.02 + Math.max(0, r - 1.0) * 0.02;   // thinner outline at low resolution
     pollenU.uSize.value = window.innerHeight * r * 0.045;
     composer.setPixelRatio(r);
     composer.setSize(window.innerWidth, window.innerHeight);
