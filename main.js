@@ -1579,8 +1579,10 @@ function drawGrassAtlasCanvas() {
   partDisc('armS', 0.68, 2.17, 1.16, 0.09, 0.06, 0, 1, 0, 10);
   partBeam('joint', -0.72, 2.0, 1.31, -0.72, 2.95, 1.31, 0.035);
   partDisc('glow', -0.72, 2.97, 1.31, 0.05, 0.05, 0, 1, 0, 8);
-  partBeam('joint', -0.35, 2.04, 0.5, -0.35, 2.25, 0.5, 0.05);
-  partDisc('armS', -0.35, 2.3, 0.5, 0.26, 0.04, 0.2, 1, -0.5, 14);
+  // radar mast on top of the dome: a collar sits on the dome surface, the mast rises clearly above it and the dish floats on top
+  partDisc('tanS', -0.18, 2.27, 0.12, 0.10, 0.07, 0, 1, 0, 10);
+  partBeam('joint', -0.18, 2.27, 0.12, -0.18, 2.62, 0.12, 0.03);
+  partDisc('armS', -0.18, 2.68, 0.12, 0.27, 0.04, 0.2, 1, -0.5, 14);
 
   // ---- Suspension brackets: mounted ON the outside of the hull (never buried) ----
   // The arms and air springs themselves are dynamic (see updateSuspension) and follow each wheel.
@@ -1862,8 +1864,32 @@ function drawGrassAtlasCanvas() {
   });
 
   // ============ Sound (synthesized in the browser, no audio files needed) ============
+  // Engine: detuned saw voices + a sub, soft-clipped for harmonics, filtered by revs/throttle, with an automatic
+  // 4-gear box (revs rise, drop at every shift), engine-brake when you lift off, a thin motor whine,
+  // granular gravel under the tires (grain rate follows the speed), tire hum, wind and a very light outdoor echo.
   const sunGlowEl = document.getElementById('sun-glow');
-  let actx = null, master = null, soundOn = true, noiseBuf = null, eng = null, lastThud = 0;
+  let actx = null, master = null, mix = null, soundOn = true, noiseBuf = null, eng = null, lastThud = 0;
+  let rpmState = 0.2, gear = 1, shiftDuck = 0;
+  const GEAR_AT = [0, 0.16, 0.36, 0.60, 1.01];     // speed (0..1) where each gear starts
+  function makeGravelBuffer(ctx) {
+    const sr = ctx.sampleRate, len = Math.floor(sr * 3);
+    const buf = ctx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+    let fine = 0, chunk = 0, lp = 0;
+    for (let i = 0; i < len; i++) {
+      if (Math.random() < 0.012) fine = 0.5 + Math.random() * 0.5;        // many tiny stones
+      if (Math.random() < 0.0009) chunk = 0.8 + Math.random() * 0.6;      // now and then a bigger crunch
+      const n = Math.random() * 2 - 1;
+      lp += (n - lp) * 0.35;                                              // the big crunches are duller
+      d[i] = n * fine * 0.55 + lp * chunk;
+      fine *= 0.972; chunk *= 0.9965;
+    }
+    let mx = 0.0001;
+    for (let i = 0; i < len; i++) if (Math.abs(d[i]) > mx) mx = Math.abs(d[i]);
+    const fadeN = Math.floor(sr * 0.05);
+    for (let i = 0; i < len; i++) d[i] *= 0.9 / mx;
+    for (let i = 0; i < fadeN; i++) { const k = i / fadeN; d[i] *= k; d[len - 1 - i] *= k; }   // loops without a click
+    return buf;
+  }
   function initAudio() {
     if (actx) { if (actx.state === 'suspended' && soundOn) actx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -1875,45 +1901,80 @@ function drawGrassAtlasCanvas() {
       const comp = actx.createDynamicsCompressor();
       master.connect(comp); comp.connect(actx.destination);
 
+      // everything plays through "mix": a dry path plus a very light echo (cheap feedback delays, no heavy reverb)
+      mix = actx.createGain(); mix.gain.value = 1;
+      mix.connect(master);
+      const rvIn = actx.createGain(); rvIn.gain.value = 0.15;
+      mix.connect(rvIn);
+      [[0.041, 0.36], [0.067, 0.32], [0.097, 0.28]].forEach(([dtm, fb]) => {
+        const dl = actx.createDelay(0.3); dl.delayTime.value = dtm;
+        const fg = actx.createGain(); fg.gain.value = fb;
+        const lpf = actx.createBiquadFilter(); lpf.type = 'lowpass'; lpf.frequency.value = 2200;
+        rvIn.connect(dl); dl.connect(lpf); lpf.connect(master); lpf.connect(fg); fg.connect(dl);
+      });
+
       const len = Math.floor(actx.sampleRate * 2);
       noiseBuf = actx.createBuffer(1, len, actx.sampleRate);
       const nd = noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) nd[i] = Math.random() * 2 - 1;
 
-      // Motor: saw + sub square through a low-pass filter, plus a thin electric whine
-      const bus = actx.createGain(); bus.gain.value = 0.0;
-      const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 400; lp.Q.value = 0.9;
-      const o1 = actx.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = 60;
-      const o2 = actx.createOscillator(); o2.type = 'square'; o2.frequency.value = 30;
-      const g2 = actx.createGain(); g2.gain.value = 0.55;
-      o1.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(bus); bus.connect(master);
-      const o3 = actx.createOscillator(); o3.type = 'triangle'; o3.frequency.value = 240;
-      const whine = actx.createGain(); whine.gain.value = 0;
-      o3.connect(whine); whine.connect(master);
-      // engine "pulse"
-      const lfo = actx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 8;
-      const lfoG = actx.createGain(); lfoG.gain.value = 0.035;
+      // ---- engine ----
+      const bus = actx.createGain(); bus.gain.value = 0;
+      const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500; lp.Q.value = 1.1;
+      const growl = actx.createBiquadFilter(); growl.type = 'peaking'; growl.frequency.value = 260; growl.Q.value = 1.2; growl.gain.value = 5;
+      const shaper = actx.createWaveShaper();
+      const curve = new Float32Array(1024);
+      for (let i = 0; i < 1024; i++) { const x = i / 512 - 1; curve[i] = Math.tanh(x * 2.6); }
+      shaper.curve = curve;
+      const pre = actx.createGain(); pre.gain.value = 0.55;
+      const mk = (type, g) => { const o = actx.createOscillator(); o.type = type; o.frequency.value = 50; const og = actx.createGain(); og.gain.value = g; o.connect(og); og.connect(pre); return o; };
+      const oscs = [mk('sawtooth', 0.9), mk('sawtooth', 0.7), mk('square', 0.5), mk('sawtooth', 0.25)];   // main, detuned, sub, octave
+      pre.connect(shaper); shaper.connect(lp); lp.connect(growl); growl.connect(bus); bus.connect(mix);
+      // tiny random wobble of the revs (an engine is never perfectly steady)
+      const wob = actx.createOscillator(); wob.type = 'sine'; wob.frequency.value = 2.7;
+      const wobG = actx.createGain(); wobG.gain.value = 9;
+      wob.connect(wobG); oscs.forEach(o => wobG.connect(o.detune));
+      // firing "lope"
+      const lfo = actx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 12;
+      const lfoG = actx.createGain(); lfoG.gain.value = 0.03;
       lfo.connect(lfoG); lfoG.connect(bus.gain);
-      o1.start(); o2.start(); o3.start(); lfo.start();
+      // intake / exhaust breath
+      const inSrc = actx.createBufferSource(); inSrc.buffer = noiseBuf; inSrc.loop = true; inSrc.playbackRate.value = 0.7;
+      const inF = actx.createBiquadFilter(); inF.type = 'bandpass'; inF.frequency.value = 420; inF.Q.value = 0.8;
+      const inG = actx.createGain(); inG.gain.value = 0;
+      inSrc.connect(inF); inF.connect(inG); inG.connect(mix);
+      // electric / gearbox whine
+      const wh = actx.createOscillator(); wh.type = 'triangle'; wh.frequency.value = 260;
+      const whG = actx.createGain(); whG.gain.value = 0;
+      wh.connect(whG); whG.connect(mix);
+      oscs.forEach(o => o.start()); wob.start(); lfo.start(); inSrc.start(); wh.start();
 
-      // Wheels on ground (gravel on the trail, swish on grass)
-      const ns = actx.createBufferSource(); ns.buffer = noiseBuf; ns.loop = true;
-      const nf = actx.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 500; nf.Q.value = 0.7;
-      const ng = actx.createGain(); ng.gain.value = 0;
-      ns.connect(nf); nf.connect(ng); ng.connect(master); ns.start();
+      // ---- tires: gravel grains (trail), swish (grass), low hum ----
+      const gSrc = actx.createBufferSource(); gSrc.buffer = makeGravelBuffer(actx); gSrc.loop = true;
+      const gHp = actx.createBiquadFilter(); gHp.type = 'highpass'; gHp.frequency.value = 650;
+      const gG = actx.createGain(); gG.gain.value = 0;
+      gSrc.connect(gHp); gHp.connect(gG); gG.connect(mix); gSrc.start();
+      const sSrc = actx.createBufferSource(); sSrc.buffer = noiseBuf; sSrc.loop = true; sSrc.playbackRate.value = 0.9;
+      const sF = actx.createBiquadFilter(); sF.type = 'bandpass'; sF.frequency.value = 1500; sF.Q.value = 0.5;
+      const sG = actx.createGain(); sG.gain.value = 0;
+      sSrc.connect(sF); sF.connect(sG); sG.connect(mix); sSrc.start();
+      const hSrc = actx.createBufferSource(); hSrc.buffer = noiseBuf; hSrc.loop = true; hSrc.playbackRate.value = 0.35;
+      const hF = actx.createBiquadFilter(); hF.type = 'bandpass'; hF.frequency.value = 130; hF.Q.value = 1.0;
+      const hG = actx.createGain(); hG.gain.value = 0;
+      hSrc.connect(hF); hF.connect(hG); hG.connect(mix); hSrc.start();
 
-      // Soft wind ambience
+      // ---- wind (grows with speed) ----
       const ws = actx.createBufferSource(); ws.buffer = noiseBuf; ws.loop = true; ws.playbackRate.value = 0.6;
       const wf = actx.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 420;
-      const wg = actx.createGain(); wg.gain.value = 0.05;
+      const wg = actx.createGain(); wg.gain.value = 0.04;
       const wl = actx.createOscillator(); wl.frequency.value = 0.15;
-      const wlg = actx.createGain(); wlg.gain.value = 0.025;
+      const wlg = actx.createGain(); wlg.gain.value = 0.02;
       wl.connect(wlg); wlg.connect(wg.gain); wl.start();
-      ws.connect(wf); wf.connect(wg); wg.connect(master); ws.start();
+      ws.connect(wf); wf.connect(wg); wg.connect(mix); ws.start();
 
-      eng = { bus, lp, o1, o2, o3, whine, lfo, nf, ng };
+      eng = { bus, lp, oscs, lfo, inG, inF, wh, whG, gSrc, gG, sG, hG, wg, wf };
       if (actx.state === 'suspended') actx.resume();
-    } catch (e) { actx = null; }
+    } catch (e) { actx = null; eng = null; }
   }
   ['touchend', 'pointerup', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, initAudio, true));
   document.addEventListener('visibilitychange', () => {
@@ -1928,32 +1989,61 @@ function drawGrassAtlasCanvas() {
     if (master) master.gain.setTargetAtTime(soundOn ? 0.9 : 0, actx.currentTime, 0.05);
     if (actx && soundOn && actx.state === 'suspended') actx.resume();
   });
-  function updateAudio(speedNorm, throttle, onPath) {
+  function updateAudio(speedNorm, throttle, onPath, dt, reversing) {
     if (!actx || !eng || actx.state !== 'running') return;
     const t0 = actx.currentTime;
-    const rpm = 0.15 + speedNorm * 0.85 + (throttle ? 0.05 : 0);
-    eng.o1.frequency.setTargetAtTime(55 + rpm * 120, t0, 0.07);
-    eng.o2.frequency.setTargetAtTime(27 + rpm * 60, t0, 0.07);
-    eng.o3.frequency.setTargetAtTime(220 + rpm * 620, t0, 0.07);
-    eng.lp.frequency.setTargetAtTime(330 + rpm * 900 + (throttle ? 150 : 0), t0, 0.1);
-    eng.bus.gain.setTargetAtTime(0.10 + rpm * 0.17 + (throttle ? 0.04 : 0), t0, 0.1);
-    eng.whine.gain.setTargetAtTime(speedNorm * 0.02, t0, 0.1);
-    eng.lfo.frequency.setTargetAtTime(7 + rpm * 26, t0, 0.1);
-    eng.nf.frequency.setTargetAtTime(onPath ? 750 + speedNorm * 900 : 380 + speedNorm * 320, t0, 0.15);
-    eng.ng.gain.setTargetAtTime(speedNorm * (onPath ? 0.22 : 0.11), t0, 0.12);
+    const sp = Math.min(1, Math.max(0, speedNorm));
+    // automatic gearbox: the revs follow the wheels inside a gear and fall at each upshift
+    let g = 1;
+    for (let i = 1; i < 4; i++) if (sp >= GEAR_AT[i]) g = i + 1;
+    if (g !== gear) { if (g > gear) shiftDuck = 1; gear = g; }
+    const lo = GEAR_AT[gear - 1], hi = GEAR_AT[gear];
+    const frac = Math.min(1, Math.max(0, (sp - lo) / (hi - lo)));
+    let target = 0.2 + frac * 0.62 + (gear - 1) * 0.02 + (throttle ? 0.1 : 0);
+    if (reversing) target *= 0.9;
+    // the engine has inertia: revs climb fast when you push, fall slower when you lift off
+    rpmState += (target - rpmState) * Math.min(1, dt * (target > rpmState ? 4.5 : 2.2));
+    shiftDuck = Math.max(0, shiftDuck - dt * 7);
+    const rpm = Math.min(1, Math.max(0, rpmState));
+    const f0 = 26 + rpm * 98;
+    eng.oscs[0].frequency.setTargetAtTime(f0, t0, 0.05);
+    eng.oscs[1].frequency.setTargetAtTime(f0 * 1.006, t0, 0.05);
+    eng.oscs[2].frequency.setTargetAtTime(f0 * 0.5, t0, 0.05);
+    eng.oscs[3].frequency.setTargetAtTime(f0 * 2, t0, 0.05);
+    eng.lp.frequency.setTargetAtTime(380 + rpm * 1300 + (throttle ? 500 : 0), t0, 0.08);
+    eng.bus.gain.setTargetAtTime((0.10 + rpm * 0.13) * (throttle ? 1 : 0.8) * (1 - 0.4 * shiftDuck), t0, 0.06);
+    eng.lfo.frequency.setTargetAtTime(f0 * 0.5, t0, 0.08);
+    eng.inG.gain.setTargetAtTime(throttle ? 0.012 + rpm * 0.05 : 0.004, t0, 0.1);
+    eng.inF.frequency.setTargetAtTime(300 + rpm * 900, t0, 0.1);
+    eng.wh.frequency.setTargetAtTime((260 + sp * 760) * (reversing ? 1.25 : 1), t0, 0.08);
+    eng.whG.gain.setTargetAtTime(sp * 0.016 * (throttle ? 1 : 0.6), t0, 0.1);
+    // ground
+    eng.gSrc.playbackRate.setTargetAtTime(0.45 + sp * 1.25, t0, 0.1);
+    eng.gG.gain.setTargetAtTime(Math.pow(sp, 1.1) * (onPath ? 0.30 : 0.04), t0, 0.12);
+    eng.sG.gain.setTargetAtTime(sp * (onPath ? 0.02 : 0.10), t0, 0.15);
+    eng.hG.gain.setTargetAtTime(sp * 0.16, t0, 0.15);
+    eng.wg.gain.setTargetAtTime(0.03 + sp * 0.06, t0, 0.2);
+    eng.wf.frequency.setTargetAtTime(380 + sp * 900, t0, 0.2);
   }
   function thud(strength) {
     if (!actx || actx.state !== 'running' || !soundOn) return;
     const now = actx.currentTime;
     if (now - lastThud < 0.25) return;
     lastThud = now;
+    const k = Math.min(1, 0.4 + strength);
+    // low body "boom"
+    const o = actx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(130, now); o.frequency.exponentialRampToValueAtTime(42, now + 0.25);
+    const og = actx.createGain();
+    og.gain.setValueAtTime(0.55 * k, now); og.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    o.connect(og); og.connect(mix); o.start(now); o.stop(now + 0.32);
+    // short crack of the impact
     const s = actx.createBufferSource(); s.buffer = noiseBuf;
-    const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 220;
+    const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 0.8;
     const g = actx.createGain();
-    g.gain.setValueAtTime(0.5 * Math.min(1, 0.4 + strength), now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
-    s.connect(f); f.connect(g); g.connect(master);
-    s.start(now); s.stop(now + 0.3);
+    g.gain.setValueAtTime(0.35 * k, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+    s.connect(f); f.connect(g); g.connect(mix);
+    s.start(now); s.stop(now + 0.16);
   }
 
   // ============ Dust kicked up by the wheels ============
@@ -2654,7 +2744,7 @@ function drawGrassAtlasCanvas() {
     MATS.headHot.emissiveIntensity = 1.6 + darkness * 1.5;
     frontHalos.forEach(s => { s.material.opacity = Math.min(0.9, 0.25 + darkness * 0.45); });
     const onPathNow = pathMask(rx, rz) > 0.35;
-    updateAudio(speedNorm, keys.forward || keys.backward, onPathNow);
+    updateAudio(speedNorm, keys.forward || keys.backward, onPathNow, dt, velocity < -0.2);
     updateDust(dt, spd, rx, rz, cosR, sinR, onPathNow);
     updateVitals(dt, spd, speedNorm, keys.forward || keys.backward, hit);
 
