@@ -95,17 +95,20 @@ function initGame() {
   // 4x MSAA for the scene render target: on tile-based mobile GPUs (Mali, Adreno) it is resolved in on-chip tile memory,
   // so it is far cheaper than raising the resolution, and it removes the jagged edges. The GPU is asked first; if it cannot
   // do multisampled RGBA16F targets the scene is rendered without MSAA exactly as before.
+  // The scene is drawn into an 8-bit RGBA8 target (half the memory traffic of the old 16-bit one: the main cost on phone GPUs).
+  // Add ?hdr to the page address to compare with the old 16-bit buffer.
+  const USE_HDR = /[?&]hdr/.test(location.search);
   const MSAA_SAMPLES = (() => {
     if (/[?&]nomsaa/.test(location.search)) return 0;   // A/B test: add ?nomsaa to the page address to compare
     try {
       const gl = renderer.getContext();
       if (!renderer.capabilities.isWebGL2 || !gl.getInternalformatParameter) return 0;
-      const list = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA16F, gl.SAMPLES);
+      const list = gl.getInternalformatParameter(gl.RENDERBUFFER, USE_HDR ? gl.RGBA16F : gl.RGBA8, gl.SAMPLES);
       for (let i = 0; i < list.length; i++) if (list[i] <= 4 && list[i] >= 2) return list[i];
     } catch (e) { /* no MSAA */ }
     return 0;
   })();
-  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { type: THREE.HalfFloatType, samples: MSAA_SAMPLES }));
+  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { type: USE_HDR ? THREE.HalfFloatType : THREE.UnsignedByteType, samples: MSAA_SAMPLES }));
   composer.addPass(new RenderPass(scene, camera));
   const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.30, 0.7, 0.85);
   composer.addPass(bloomPass);
@@ -197,6 +200,7 @@ function initGame() {
           cc += sunColor * (pow(s, 4.0) * 0.35 + pow(s, 30.0) * 0.5) * (0.3 + 0.7 * lt) * vis;
           cc = mix(cc, horizon, hz * 0.45);
           col = mix(col, cc, cov * 0.93);
+          col += (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;   // anti-banding for the 8-bit buffer
           gl_FragColor = vec4(col, 1.0);
         }`
     })
@@ -2405,7 +2409,7 @@ function drawGrassAtlasCanvas() {
   }
   const autoTune = (() => {
     const dev = detectDevice();
-    const key = 'roverAuto4|' + dev.gpu + '|' + dev.cores + '|' + dev.mem;
+    const key = 'roverAuto5|' + dev.gpu + '|' + dev.cores + '|' + dev.mem;
     const keyM = key + '|m30';
     const MAXL = LEVELS.length - 1;
     let lvl = 0, minLvl = 0, bad = 0, good = 0, lastChange = 0, evalAt = 0, frames = 0;
@@ -2472,7 +2476,7 @@ function drawGrassAtlasCanvas() {
       get capMs() { return mode30 ? 1000 / 30 : capMs; },
       get level() { return lvl; },
       label() { return 'auto L' + lvl + (mode30 ? ' | 30fps lock' : (capMs ? ' | 60fps cap' : '')); },
-      info() { return (dev.gpu || 'gpu?').slice(0, 38) + ' | ' + dev.cores + ' cores' + (dev.mem ? ' | ' + dev.mem + ' GB' : '') + ' | start L' + startLvl; }
+      info() { return (dev.gpu || 'gpu?').slice(0, 38) + ' | ' + dev.cores + ' cores' + (dev.mem ? ' | ' + dev.mem + ' GB' : '') + ' | start L' + startLvl + ' | ' + (USE_HDR ? 'RT16' : 'RT8') + (MSAA_SAMPLES ? ' msaa' + MSAA_SAMPLES : ' nomsaa'); }
     };
   })();
 
