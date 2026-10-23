@@ -1041,6 +1041,7 @@ function drawGrassAtlasCanvas() {
   // ============ Colliders ============
   const colliders = [];
   const smallRocks = [];
+  const bushState = { on: true };   // bushes can be hidden on weaker graphics levels: then they must not block or lift the rover
   // Climbable rocks: every rock keeps the inverse of its real transform, so the drive height matches the
   // visible mesh (an ellipsoid just inside the dodecahedron) and wheels ride up the rock instead of sinking in.
   const ROCK_CELL = 6;
@@ -1063,6 +1064,7 @@ function drawGrassAtlasCanvas() {
     let bump = 0;
     for (let i = 0; i < smallRocks.length; i++) {
       const s = smallRocks[i];
+      if (s.bush && !bushState.on) continue;
       const dx = x - s.x, dz = z - s.z;
       const d2 = dx * dx + dz * dz;
       if (d2 < s.r * s.r) {
@@ -1262,8 +1264,8 @@ function drawGrassAtlasCanvas() {
     dummy.updateMatrix();
     bushIM.setMatrixAt(i, dummy.matrix);
     bushIM.setColorAt(i, gCol.setHSL(0.22 + Math.random() * 0.07, 0.38 + Math.random() * 0.12, 0.26 + Math.random() * 0.10));
-    if (p.s >= 0.7) colliders.push({ x: p.x, z: p.z, r: p.s * 1.0 });
-    else smallRocks.push({ x: p.x, z: p.z, r: p.s * 1.1, h: p.s * 0.5 });
+    if (p.s >= 0.7) colliders.push({ x: p.x, z: p.z, r: p.s * 1.0, bush: true });
+    else smallRocks.push({ x: p.x, z: p.z, r: p.s * 1.1, h: p.s * 0.5, bush: true });
   });
   addSway(bushIM.material, 0.03);
   const bushLayer = chunkify(bushIM, bushPlans.length, 230, 260);
@@ -2231,7 +2233,7 @@ function drawGrassAtlasCanvas() {
     sunLight.shadow.camera.updateProjectionMatrix();
     shadowForceHalf = q.half;
     uGrassQ.value = q.grassQ; uGrassD.value = q.grassD; grassFarMax = q.far;
-    bushLayer.visible = q.bushes;
+    bushLayer.visible = bushState.on = q.bushes;
     bushLayer.live.forEach(m => { if (m) m.visible = q.bushes; });
     if (save) store.set('roverQuality', level);
     try { renderer.shadowMap.needsUpdate = true; composer.render(); } catch (e) { /* scene not ready yet */ }   // refill the cleared canvas right away
@@ -2320,7 +2322,7 @@ function drawGrassAtlasCanvas() {
       bloomPass.enabled = L.bloom;
       shadowForceHalf = L.half;
       uGrassQ.value = L.gQ; uGrassD.value = L.gD; grassFarMax = L.far;
-      bushLayer.visible = L.bush;
+      bushLayer.visible = bushState.on = L.bush;
       bushLayer.live.forEach(m => { if (m) m.visible = L.bush; });
       const pr = Math.max(PR_MIN, PR_MAX * L.res * (mode30 ? 0.75 : 1));   // never below 1.0 (0.6 was a blurry 5x upscale)
       if (Math.abs(pr - curPR) > 0.01) applyPR(pr);
@@ -2551,6 +2553,7 @@ function drawGrassAtlasCanvas() {
     let hit = false;
     for (let i = 0; i < colliders.length; i++) {
       const c = colliders[i];
+      if (c.bush && !bushState.on) continue;
       const dx = rover.position.x - c.x;
       const dz = rover.position.z - c.z;
       const rr = c.r + 1.2;
@@ -2720,6 +2723,7 @@ function drawGrassAtlasCanvas() {
     // keep the camera out of tree trunks / boulders...
     for (let i = 0; i < colliders.length; i++) {
       const c = colliders[i];
+      if (c.bush && !bushState.on) continue;
       const cdx = camera.position.x - c.x, cdz = camera.position.z - c.z;
       const rr = c.r + 0.8;
       const cd2 = cdx * cdx + cdz * cdz;
