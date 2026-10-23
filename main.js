@@ -109,6 +109,7 @@ function initGame() {
   composer.addPass(new RenderPass(scene, camera));
   const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.30, 0.7, 0.85);
   composer.addPass(bloomPass);
+  bloomPass.nMips = 3;   // fewer blur passes = a cheaper glow (the widest, faintest halo is dropped)
   composer.addPass(new ShaderPass({
     uniforms: { tDiffuse: { value: null } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
@@ -2309,10 +2310,11 @@ function drawGrassAtlasCanvas() {
   }
   const autoTune = (() => {
     const dev = detectDevice();
-    const key = 'roverAuto3|' + dev.gpu + '|' + dev.cores + '|' + dev.mem;
+    const key = 'roverAuto4|' + dev.gpu + '|' + dev.cores + '|' + dev.mem;
+    const keyM = key + '|m30';
     const MAXL = LEVELS.length - 1;
     let lvl = 0, minLvl = 0, bad = 0, good = 0, lastChange = 0, evalAt = 0, frames = 0;
-    let probeUntil = 0, probeFails = 0, probeBlockUntil = 0, saved = -1, capMs = 0, startLvl = 0;
+    let probeUntil = 0, probeFails = 0, probeBlockUntil = 0, saved = -1, capMs = 0, startLvl = 0, mode30 = false;
     function apply(i) {
       const L = LEVELS[i];
       bloomPass.enabled = L.bloom;
@@ -2320,7 +2322,7 @@ function drawGrassAtlasCanvas() {
       uGrassQ.value = L.gQ; uGrassD.value = L.gD; grassFarMax = L.far;
       bushLayer.visible = L.bush;
       bushLayer.live.forEach(m => { if (m) m.visible = L.bush; });
-      const pr = Math.max(PR_MIN, PR_MAX * L.res);   // never below 1.0 (0.6 was a blurry 5x upscale)
+      const pr = Math.max(PR_MIN, PR_MAX * L.res * (mode30 ? 0.75 : 1));   // never below 1.0 (0.6 was a blurry 5x upscale)
       if (Math.abs(pr - curPR) > 0.01) applyPR(pr);
     }
     function init() {
@@ -2328,9 +2330,11 @@ function drawGrassAtlasCanvas() {
       let start = estimateLevel(dev, px);
       const stored = parseInt(store.get(key), 10);
       if (!isNaN(stored) && stored >= 0 && stored <= MAXL) start = stored;     // this phone was tuned before
+      if (store.get(keyM) === '1') mode30 = true;
+      else if (isNaN(stored) && start >= 6) { mode30 = true; start = 3; }   // weak phone: steady 30 fps with nicer looks
       lvl = startLvl = start;
       // very weak phones also start with a lighter shadow map / smaller canvas (decided once, before playing)
-      applyQuality(start <= 3 ? 'high' : (start <= 5 ? 'medium' : 'low'), false);
+      applyQuality(mode30 ? 'low' : (start <= 3 ? 'high' : (start <= 5 ? 'medium' : 'low')), false);
       apply(lvl);
       lastChange = performance.now();
     }
@@ -2342,9 +2346,13 @@ function drawGrassAtlasCanvas() {
       if (now < evalAt) return false;
       evalAt = now + 500;
       let changed = false;
-      const veryBad = ema > 33, isBad = ema > 21, isGood = ema < 18.3;   // 21 ms = below ~47 fps: on 60 Hz screens that already feels uneven
+      const veryBad = ema > (mode30 ? 55 : 33), isBad = ema > (mode30 ? 38 : 21), isGood = ema < (mode30 ? 35.5 : 18.3);   // 21 ms = below ~47 fps: on 60 Hz screens that already feels uneven
       if (isBad) {
         good = 0; bad += veryBad ? 2 : 1;
+        if (bad >= 3 && !mode30 && lvl >= 6) {           // all the cheap tricks are used up: lock to 30 fps and restore the looks instead
+          mode30 = true; store.set(keyM, '1'); lvl = 3; apply(lvl); lastChange = now; bad = 0; evalAt = now + 1500;
+          return true;
+        }
         if (bad >= 3 && lvl < MAXL) {                       // about 1.5 s of slow frames
           lvl = Math.min(MAXL, lvl + (veryBad ? 2 : 1));
           if (now < probeUntil) { probeFails++; probeUntil = 0; probeBlockUntil = now + Math.min(300000, 15000 * Math.pow(2, probeFails - 1)); }   // the step up we just tried did not hold: wait longer before the next try (15 s, 30 s, 1 min, 2 min, 4 min, then every 5 min)
@@ -2366,9 +2374,9 @@ function drawGrassAtlasCanvas() {
       init, tick, dev,
       forceLevel(i) { apply(i); },
       restoreLevel() { apply(lvl); },
-      get capMs() { return capMs; },
+      get capMs() { return mode30 ? 1000 / 30 : capMs; },
       get level() { return lvl; },
-      label() { return 'auto L' + lvl + (capMs ? ' | 60fps cap' : ''); },
+      label() { return 'auto L' + lvl + (mode30 ? ' | 30fps lock' : (capMs ? ' | 60fps cap' : '')); },
       info() { return (dev.gpu || 'gpu?').slice(0, 38) + ' | ' + dev.cores + ' cores' + (dev.mem ? ' | ' + dev.mem + ' GB' : '') + ' | start L' + startLvl; }
     };
   })();
