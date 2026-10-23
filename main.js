@@ -381,14 +381,62 @@ function initGame() {
   groundTex.generateMipmaps = true;
   groundTex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
   groundTex.needsUpdate = true;
+  // ---- baked lawn detail map (tileable, built once): soft patches + tiny grass strokes + dry flecks ----
+  // Sampled twice in the ground shader (two scales). It replaces a per-pixel hash noise, so it adds detail at ~zero GPU cost.
+  const detailTex = (() => {
+    const N = 256;
+    let seed = 777;
+    const R = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    const lattice = (n) => { const a = new Float32Array(n * n); for (let i = 0; i < a.length; i++) a[i] = R(); return a; };
+    const periodic = (lat, n, x, y) => {          // smooth value noise that wraps every N pixels (seamless tiling)
+      const fx = x / N * n, fy = y / N * n;
+      const ix = Math.floor(fx), iy = Math.floor(fy);
+      let tx = fx - ix, ty = fy - iy; tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
+      const x0 = ix % n, y0 = iy % n, x1 = (ix + 1) % n, y1 = (iy + 1) % n;
+      const a = lat[y0 * n + x0], b = lat[y0 * n + x1], c = lat[y1 * n + x0], d = lat[y1 * n + x1];
+      return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+    };
+    const l1 = lattice(6), l2 = lattice(14), l3 = lattice(34), ld = lattice(5);
+    const L = new Float32Array(N * N), T = new Float32Array(N * N);   // brightness, dryness
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const n = periodic(l1, 6, x, y) * 0.5 + periodic(l2, 14, x, y) * 0.3 + periodic(l3, 34, x, y) * 0.2;
+      L[y * N + x] = 0.5 + (n - 0.5) * 0.34;
+      T[y * N + x] = periodic(ld, 5, x, y) - 0.5;
+    }
+    const stroke = (x, y, ang, len, amt) => {     // tapered stroke, wrapped around the tile edges
+      const dx = Math.cos(ang), dy = Math.sin(ang);
+      for (let k = 0; k < len; k++) {
+        const px = ((Math.round(x + dx * k) % N) + N) % N, py = ((Math.round(y + dy * k) % N) + N) % N;
+        L[py * N + px] += amt * (0.35 + 0.65 * (1 - k / len));
+      }
+    };
+    for (let i = 0; i < 2600; i++) stroke(R() * N, R() * N, -Math.PI / 2 + (R() - 0.5) * 1.5, 5 + R() * 10, R() < 0.55 ? -0.11 : 0.085);
+    for (let i = 0; i < 160; i++) { const px = Math.floor(R() * N), py = Math.floor(R() * N); L[py * N + px] += 0.10; L[py * N + (px + 1) % N] += 0.06; }
+    const data = new Uint8Array(N * N * 4);
+    const c8 = (v) => Math.max(0, Math.min(255, Math.round(v * 255)));
+    for (let i = 0; i < N * N; i++) {
+      const l = Math.max(0.30, Math.min(0.78, L[i])), t = T[i];   // keeps overlapping strokes from turning into black specks (x0.6 .. x1.56)
+      data[i * 4] = c8(l * (1 + t * 0.18)); data[i * 4 + 1] = c8(l * (1 - Math.abs(t) * 0.04)); data[i * 4 + 2] = c8(l * (1 - t * 0.16)); data[i * 4 + 3] = 255;
+    }
+    const tex = new THREE.DataTexture(data, N, N, THREE.RGBAFormat, THREE.UnsignedByteType);   // data texture: 0.5 = "no change"
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.magFilter = THREE.LinearFilter;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.generateMipmaps = true;
+    tex.anisotropy = Math.min(2, renderer.capabilities.getMaxAnisotropy());
+    tex.needsUpdate = true;
+    return tex;
+  })();
   const groundMat = new THREE.MeshStandardMaterial({
     map: groundTex, vertexColors: true, roughness: 0.95, metalness: 0.0, flatShading: false
   });
   // The dirt trail is drawn per-pixel (fine grain, wheel ruts, pebbles, ragged grassy edges)
   // instead of from the coarse ground texture, so it looks like a real worn track.
   groundMat.onBeforeCompile = (sh) => {
+    sh.uniforms.detailTex = { value: detailTex };
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
+        uniform sampler2D detailTex;
         float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y); }
@@ -407,7 +455,11 @@ function initGame() {
           pm = 1.0 - smoothstep(wHalf - 0.45, wHalf + 0.1, ad);
         }
         float lodG = 1.0 - smoothstep(12.0, 70.0, length(vViewPosition));
-        base *= 1.0 + (vn(wp * 1.9) - 0.5) * 0.16 * lodG;
+        // lawn detail (grassy biomes only; not on snow / sand): soft patches at ~17 m and blade strokes / flecks at ~3.4 m
+        float lawn = smoothstep(0.0, 0.04, vColor.g - vColor.r * 1.05) * smoothstep(0.0, 0.06, vColor.g - vColor.b * 1.2);
+        vec3 dBig = texture2D(detailTex, wp * 0.0588).rgb * 2.0;
+        vec3 dFine = texture2D(detailTex, wp * 0.294 + 0.37).rgb * 2.0;
+        base *= mix(vec3(1.0), dBig, 0.8 * lawn) * mix(vec3(1.0), dFine, 0.9 * lodG * lawn);
         vec3 pcol = base;
         if (pm > 0.002) {
           float large = fb(wp * 0.5);
