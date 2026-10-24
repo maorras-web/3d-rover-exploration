@@ -347,9 +347,9 @@ function initGame() {
       const mac = smoothNoise(x - 33, z + 71, 9) - 0.5;
       const dry = THREE.MathUtils.smoothstep(smoothNoise(x + 140, z + 15, 14), 0.62, 0.8);
       const moss = THREE.MathUtils.smoothstep(smoothNoise(x - 60, z - 120, 7), 0.6, 0.8);
-      col.r *= 1 + mac * 0.30 + dry * 0.22;
+      col.r *= 1 + mac * 0.30 + dry * 0.06;
       col.g *= 1 + mac * 0.30 + dry * 0.05 + moss * 0.06;
-      col.b *= 1 - mac * 0.12 - dry * 0.15;
+      col.b *= 1 - mac * 0.12 - dry * 0.04;
     }
 
     // baked ambient occlusion (hollows darker, crests lighter) + rocky slopes + sun-bleached heights
@@ -402,11 +402,13 @@ function initGame() {
   // ---- baked lawn detail map (tileable, built once): soft patches + tiny grass strokes + dry flecks ----
   // Sampled twice in the ground shader (two scales). It replaces a per-pixel hash noise, so it adds detail at ~zero GPU cost.
   const detailTex = (() => {
+    // LAWN CARPET in the style of a stylised mobile game: calm deep green, thin lighter blade strokes, soft darker patches.
+    // The texture is a MULTIPLIER (0.5 = "no change") so it works on top of the ground colour; it tiles seamlessly.
     const N = 384;
-    let seed = 777;
+    let seed = 4242;
     const R = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
     const lattice = (n) => { const a = new Float32Array(n * n); for (let i = 0; i < a.length; i++) a[i] = R(); return a; };
-    const periodic = (lat, n, x, y) => {          // smooth value noise that wraps every N pixels (seamless tiling)
+    const periodic = (lat, n, x, y) => {
       const fx = x / N * n, fy = y / N * n;
       const ix = Math.floor(fx), iy = Math.floor(fy);
       let tx = fx - ix, ty = fy - iy; tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
@@ -415,9 +417,8 @@ function initGame() {
       return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
     };
     const l1 = lattice(6), l2 = lattice(14), l3 = lattice(34), ld = lattice(5);
-    // top-down view of a dense lawn: dark gaps, hundreds of overlapping blades (dark base -> bright tip), clover leaves, golden tips
-    const CR = new Float32Array(N * N).fill(0.07), CG = new Float32Array(N * N).fill(0.16), CB = new Float32Array(N * N).fill(0.04);
-    const splat = (x, y, r, g, b, a) => {          // bilinear "over" blend, wrapped around the tile edges
+    const CR = new Float32Array(N * N).fill(1), CG = new Float32Array(N * N).fill(1), CB = new Float32Array(N * N).fill(1);
+    const splat = (x, y, r, g, b, a) => {
       const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
       for (let k = 0; k < 4; k++) {
         const w = ((k & 1) ? fx : 1 - fx) * ((k & 2) ? fy : 1 - fy) * a;
@@ -428,49 +429,39 @@ function initGame() {
         CR[i] += (r - CR[i]) * w; CG[i] += (g - CG[i]) * w; CB[i] += (b - CB[i]) * w;
       }
     };
-    const blade = (x0, y0, ang, len, k, gold) => {
+    const stroke = (x0, y0, ang, len, r, g, b, a) => {
       let dx = Math.cos(ang), dy = Math.sin(ang);
-      const cv = (R() - 0.5) * 0.09, cc = Math.cos(cv), ss = Math.sin(cv);
+      const cv = (R() - 0.5) * 0.10, cc = Math.cos(cv), ss = Math.sin(cv);
       let x = x0, y = y0;
       for (let s = 0; s <= len; s++) {
-        const t = s / len, taper = 1 - t * 0.75;
-        let r = (0.09 + t * 0.34) * k, g = (0.24 + t * 0.50) * k, b = (0.05 + t * 0.09) * k;
-        if (gold) { r += t * 0.30; g += t * 0.08; }
-        splat(x, y, r, g, b, 0.9 * taper);
-        splat(x - dy * 0.8, y + dx * 0.8, r * 0.92, g * 0.92, b * 0.92, 0.55 * taper);
+        const w = Math.sin(Math.PI * s / len), aa = a * (0.2 + 0.8 * w);       // thin at both ends, strongest in the middle
+        splat(x, y, r, g, b, aa);
+        splat(x - dy * 1.0, y + dx * 1.0, r, g, b, aa * 0.75);                  // ~3 px wide blade
+        splat(x + dy * 1.0, y - dx * 1.0, r, g, b, aa * 0.75);
         const nx = dx * cc - dy * ss; dy = dx * ss + dy * cc; dx = nx;
         x += dx; y += dy;
       }
     };
-    for (let i = 0; i < 8200; i++) {
-      const dark = R() < 0.35;                      // the under-layer is darker (self-shadowing), the top layer is brighter
-      blade(R() * N, R() * N, R() * Math.PI * 2, 7 + R() * 18, (dark ? 0.62 : 0.9) + R() * 0.45, R() < 0.03);
-    }
-    for (let i = 0; i < 48; i++) {                   // clover patches: three round leaves
-      const cx = R() * N, cy = R() * N;
-      for (let l = 0; l < 3; l++) {
-        const a = R() * 6.28, lx = cx + Math.cos(a) * 3.2, ly = cy + Math.sin(a) * 3.2, k = 0.85 + R() * 0.3;
-        for (let q = 0; q < 14; q++) { const qa = q / 14 * 6.28; splat(lx + Math.cos(qa) * 1.6, ly + Math.sin(qa) * 1.6, 0.20 * k, 0.52 * k, 0.12 * k, 0.8); }
-        splat(lx, ly, 0.24 * k, 0.60 * k, 0.14 * k, 1);
-      }
-    }
-    const data = new Uint8Array(N * N * 4);
+    const dirA = () => (R() < 0.7 ? -Math.PI / 2 + (R() - 0.5) * 1.9 : R() * Math.PI * 2);   // most blades lean the same general way
+    for (let i = 0; i < 700; i++) stroke(R() * N, R() * N, dirA(), 9 + R() * 13, 0.68, 0.74, 0.60, 0.6);                      // dark gaps / shadow lines
+    for (let i = 0; i < 1000; i++) { const k = 0.9 + R() * 0.22; stroke(R() * N, R() * N, dirA(), 17 + R() * 19, 1.46 * k, 1.34 * k, 1.72 * k, 0.9); }   // light blades
     const HN = N >> 1, PA = new Float32Array(HN * HN), TA = new Float32Array(HN * HN);
     for (let y = 0; y < HN; y++) for (let x = 0; x < HN; x++) {
       const X = x * 2, Y = y * 2;
-      PA[y * HN + x] = 0.74 + (periodic(l1, 6, X, Y) * 0.5 + periodic(l2, 14, X, Y) * 0.3 + periodic(l3, 34, X, Y) * 0.2) * 0.52;   // soft light / dark patches (what the 17 m sample shows)
+      PA[y * HN + x] = 0.86 + (periodic(l1, 6, X, Y) * 0.5 + periodic(l2, 14, X, Y) * 0.3 + periodic(l3, 34, X, Y) * 0.2) * 0.28;   // soft light / dark patches
       TA[y * HN + x] = periodic(ld, 5, X, Y) - 0.5;
     }
     let mr = 0, mg = 0, mb = 0;
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const i = y * N + x, j = (y >> 1) * HN + (x >> 1), patch = PA[j], t = TA[j];
-      CR[i] *= patch * (1 + t * 0.32); CG[i] *= patch; CB[i] *= patch * (1 - t * 0.28);
+      CR[i] *= patch * (1 + t * 0.10); CG[i] *= patch; CB[i] *= patch * (1 - t * 0.10);
       mr += CR[i]; mg += CG[i]; mb += CB[i];
     }
     mr /= N * N; mg /= N * N; mb /= N * N;
+    const data = new Uint8Array(N * N * 4);
     const c8 = (v) => Math.max(0, Math.min(255, Math.round(v * 255)));
-    const cl = (v) => Math.max(0.15, Math.min(0.9, v));
-    for (let i = 0; i < N * N; i++) {                // normalise: 0.5 = "no change", so the ground keeps its overall colour
+    const cl = (v) => Math.max(0.28, Math.min(0.78, v));
+    for (let i = 0; i < N * N; i++) {
       data[i * 4] = c8(cl(CR[i] / mr * 0.5)); data[i * 4 + 1] = c8(cl(CG[i] / mg * 0.5)); data[i * 4 + 2] = c8(cl(CB[i] / mb * 0.5)); data[i * 4 + 3] = 255;
     }
     const tex = new THREE.DataTexture(data, N, N, THREE.RGBAFormat, THREE.UnsignedByteType);   // data texture: 0.5 = "no change"
@@ -478,7 +469,7 @@ function initGame() {
     tex.magFilter = THREE.LinearFilter;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.generateMipmaps = true;
-    tex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+    tex.anisotropy = 1;   // measured: anisotropic filtering on the ground (half of the screen, flat angle) made it ~7x slower
     tex.needsUpdate = true;
     return tex;
   })();
@@ -514,8 +505,8 @@ function initGame() {
         float lawn = smoothstep(0.0, 0.04, vColor.g - vColor.r * 1.05) * smoothstep(0.0, 0.06, vColor.g - vColor.b * 1.2);
         vec3 dBig = texture2D(detailTex, wp * 0.0588, 2.5).rgb * 2.0;
         vec3 dFine = texture2D(detailTex, wp * 0.294 + 0.37).rgb * 2.0;
-        base *= mix(vec3(1.0), vec3(0.90, 0.92, 0.85), lawn);   // under the blades the lawn is deeper and less neon
-        base *= mix(vec3(1.0), dBig, 0.8 * lawn) * mix(vec3(1.0), dFine, 0.8 * lodG * lawn);
+        base *= mix(vec3(1.0), vec3(0.60, 0.64, 0.50), lawn);   // deep olive green (measured against the reference game), no neon lime
+        base *= mix(vec3(1.0), dBig, 0.8 * lawn) * mix(vec3(1.0), dFine, 0.85 * lodG * lawn);
         vec3 pcol = base;
         if (pm > 0.002) {
           float large = fb(wp * 0.5);
@@ -951,6 +942,9 @@ function drawGrassAtlasCanvas() {
   const updateGrassMid = makeGrassLayer(midGeo, 3.0, 68, 3, 'float dens = smoothstep(4.0, 14.0, dRd) * (1.0 - smoothstep(60.0, 100.0, dRd));', 2.0, 17, 100.0);
   function updateNearGrass(px, pz) { updateGrassNear(px, pz); updateGrassMid(px, pz); }
   const _gFrustum = new THREE.Frustum(), _gPV = new THREE.Matrix4();
+  // The ground carpet carries the grass look now, so the 3D tufts are only a light accent close to the rover.
+  // Raise these three numbers if you want more 3D grass (and pay for it in speed): density 1 / range 1 / far 1e9 = the old full grass.
+  const GRASS3D_DENSITY = 0.20, GRASS3D_RANGE = 0.40, GRASS3D_FAR = 0;
   let grassFarMax = 1e9;           // far-field grass beyond this distance is not drawn (quality level)
   function cullGrass(px, pz) {
     camera.updateMatrixWorld();
@@ -964,7 +958,7 @@ function drawGrassAtlasCanvas() {
     for (let i = 0; i < grassChunks.length; i++) {
       const c = grassChunks[i];
       const cdx = c.sphere.center.x - px, cdz = c.sphere.center.z - pz;
-      c.mesh.visible = (Math.sqrt(cdx * cdx + cdz * cdz) - c.sphere.radius < grassFarMax) && _gFrustum.intersectsSphere(c.sphere);
+      c.mesh.visible = grassFarMax > 0 && (Math.sqrt(cdx * cdx + cdz * cdz) - c.sphere.radius < grassFarMax) && _gFrustum.intersectsSphere(c.sphere);   // far-field tufts are off when GRASS3D_FAR = 0
     }
     for (let i = 0; i < grassLayers.length; i++) grassLayers[i].cull(_gFrustum, px, pz);
   }
@@ -2367,7 +2361,7 @@ function drawGrassAtlasCanvas() {
     sunLight.shadow.camera.top = SHADOW_R; sunLight.shadow.camera.bottom = -SHADOW_R;
     sunLight.shadow.camera.updateProjectionMatrix();
     shadowForceHalf = q.half;
-    uGrassQ.value = q.grassQ; uGrassD.value = q.grassD; grassFarMax = q.far;
+    uGrassQ.value = q.grassQ * GRASS3D_RANGE; uGrassD.value = q.grassD * GRASS3D_DENSITY; grassFarMax = Math.min(q.far, GRASS3D_FAR);
     bushLayer.visible = bushState.on = q.bushes;
     bushLayer.live.forEach(m => { if (m) m.visible = q.bushes; });
     if (save) store.set('roverQuality', level);
@@ -2456,7 +2450,7 @@ function drawGrassAtlasCanvas() {
       const L = LEVELS[i];
       bloomPass.enabled = L.bloom;
       shadowForceHalf = L.half;
-      uGrassQ.value = L.gQ; uGrassD.value = L.gD; grassFarMax = L.far;
+      uGrassQ.value = L.gQ * GRASS3D_RANGE; uGrassD.value = L.gD * GRASS3D_DENSITY; grassFarMax = Math.min(L.far, GRASS3D_FAR);
       bushLayer.visible = bushState.on = L.bush;
       bushLayer.live.forEach(m => { if (m) m.visible = L.bush; });
       const pr = Math.max(PR_MIN, PR_MAX * L.res * (mode30 ? 0.75 : 1));   // never below 1.0 (0.6 was a blurry 5x upscale)
@@ -2465,6 +2459,7 @@ function drawGrassAtlasCanvas() {
     function init() {
       const px = window.innerWidth * window.innerHeight * Math.pow(Math.min(dev.dpr, 2), 2);
       let start = estimateLevel(dev, px);
+      if (/[?&]reset/.test(location.search)) { store.set(key, ''); store.set(keyM, ''); }   // add ?reset to the page address: forget the saved level
       const stored = parseInt(store.get(key), 10);
       if (!isNaN(stored) && stored >= 0 && stored <= MAXL) start = stored;     // this phone was tuned before
       if (store.get(keyM) === '1') mode30 = true;
@@ -2978,20 +2973,23 @@ function drawGrassAtlasCanvas() {
     { name: 'No trees', on() { setTrees(false); }, off() { setTrees(true); } },
     { name: 'No ground', on() { ground.visible = false; }, off() { ground.visible = true; } },
     { name: 'No sky', on() { sky.visible = false; }, off() { sky.visible = true; } },
-    { name: 'No rover', on() { rover.visible = false; }, off() { rover.visible = true; } }
+    { name: 'No rover', on() { rover.visible = false; }, off() { rover.visible = true; } },
+    { name: 'Full again (drift)', on() {}, off() {} }
   ];
   const DIAG_K = 4;   // renders per frame during the test
   const diagHud = document.createElement('div');
   diagHud.style.cssText = 'position:fixed;left:8px;top:96px;z-index:99997;padding:6px 9px;background:rgba(0,0,0,0.75);color:#e8f6ff;font:11px/1.45 monospace;border-radius:8px;pointer-events:none;display:none;white-space:pre;';
   document.body.appendChild(diagHud);
   let diagStep = -1, diagT0 = 0, diagSum = 0, diagN = 0, diagRes = [], diagHideAt = 0;
-  function diagStart() {
+  let diagCurrent = false;
+  function diagStart(useCurrent) {
+    diagCurrent = !!useCurrent;
     dbg.running = true; diagRes = []; diagStep = -1; diagT0 = 0; diagHideAt = 0;
-    autoTune.forceLevel(0);          // test the BEST quality (the auto level hides the real costs)
+    if (!diagCurrent) autoTune.forceLevel(0);          // test the BEST quality (the auto level hides the real costs)
     dbg.multi = DIAG_K;
     document.getElementById('settings-panel').classList.remove('show');
     diagHud.style.display = 'block';
-    diagHud.textContent = 'SPEED TEST starting at best quality - keep driving forward (about 35 seconds)...';
+    diagHud.textContent = 'SPEED TEST starting: leave the rover STANDING STILL and do not touch the screen (about 35 seconds)...';
   }
   function diagFinish() {
     dbg.running = false; dbg.multi = 1;
@@ -3000,13 +2998,13 @@ function drawGrassAtlasCanvas() {
     const cost = (ms) => ms > 21 ? ms / DIAG_K : 0;            // 0 = "cheaper than ~5 ms": hidden by the 60 fps cap
     const fmt = (c) => c ? c.toFixed(1) + ' ms' : '< 5 ms';
     const base = cost(diagRes[0].ms);
-    let txt = 'SPEED TEST (cost of ONE frame at best quality, res x' + curPR.toFixed(2) + ')\n';
+    let txt = 'SPEED TEST (cost of ONE frame ' + (diagCurrent ? 'at the CURRENT level ' + autoTune.label() : 'at best quality') + ', res x' + curPR.toFixed(2) + ')\n';
     diagRes.forEach((r, i) => {
       const c = cost(r.ms);
       txt += (r.name + '                              ').slice(0, 22) + fmt(c) + '  ' + (c ? Math.round(1000 / c) + ' fps' : '') +
         (i === 0 ? '' : '  (' + (c - base >= 0 ? '+' : '') + (c - base).toFixed(1) + ')') + '\n';
     });
-    txt += '\nTake a screenshot of this and send it';
+    txt += '\nIf "Full again" differs from "Full (reference)" by more than ~10%, the phone is heating up:\nwait 5 minutes and run it again. Then take a screenshot and send it';
     diagHud.textContent = txt;
     diagHideAt = performance.now() + 120000;
   }
@@ -3021,10 +3019,11 @@ function drawGrassAtlasCanvas() {
       diagStep++; diagSum = 0; diagN = 0; diagT0 = now;
       if (diagStep >= DIAG_STEPS.length) { diagFinish(); return; }
       DIAG_STEPS[diagStep].on();
-      diagHud.textContent = 'SPEED TEST ' + (diagStep + 1) + '/' + DIAG_STEPS.length + ': ' + DIAG_STEPS[diagStep].name + '\nkeep driving forward...';
+      diagHud.textContent = 'SPEED TEST ' + (diagStep + 1) + '/' + DIAG_STEPS.length + ': ' + DIAG_STEPS[diagStep].name + '\nstand still, do not touch the screen...';
     }
   }
-  document.getElementById('diag-btn').addEventListener('click', diagStart);
+  document.getElementById('diag-btn').addEventListener('click', () => diagStart(false));
+  document.getElementById('diag-btn2').addEventListener('click', () => diagStart(true));
 
   document.addEventListener('gesturestart', e => e.preventDefault());
   document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
