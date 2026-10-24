@@ -298,6 +298,9 @@ function initGame() {
     return h * (1 - t) + HG_Y * t;
   }
 
+  // nothing (trees, rocks, bushes) may grow inside the garage or on the driveway in front of it
+  function inGarageZone(x, z) { return x > HG_X - 11 && x < HG_X + 26 && z > HG_Z - 13 && z < HG_Z + 13; }
+
   // ============ Unified height grid ============
   const GSEG = 220;
   const GCELL = WORLD_SIZE / GSEG;
@@ -1183,6 +1186,7 @@ function drawGrassAtlasCanvas() {
     if (Math.hypot(x, z) < 8) continue;
     rockPlans.push({ x, z, s: 0.85 + Math.random() * 0.45 });
   }
+  for (let i = rockPlans.length - 1; i >= 0; i--) if (inGarageZone(rockPlans[i].x, rockPlans[i].z)) rockPlans.splice(i, 1);
   const rockIM = new THREE.InstancedMesh(
     withGradient(new THREE.DodecahedronGeometry(0.8, 0), 0.62, 1.08),
     new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.95, flatShading: true }),
@@ -1230,6 +1234,7 @@ function drawGrassAtlasCanvas() {
         plan.parts.push({ ox: Math.cos(ang) * Math.cos(el) * dist, oy: Math.sin(el) * dist, oz: Math.sin(ang) * Math.cos(el) * dist, r: rk });
       }
     }
+    if (inGarageZone(x, z)) continue;
     treePlans.push(plan);
     colliders.push({ x, z, r: 0.45 * plan.s, tree: true });
   }
@@ -1324,7 +1329,7 @@ function drawGrassAtlasCanvas() {
     const n = 2 + Math.floor(Math.random() * 3);
     for (let k = 0; k < n; k++) {
       const x = cx + (Math.random() - 0.5) * 3.2, z = cz + (Math.random() - 0.5) * 3.2;
-      if (pathMask(x, z) > 0.2) continue;
+      if (pathMask(x, z) > 0.2 || inGarageZone(x, z)) continue;
       bushPlans.push({ x, z, s: 0.45 + Math.random() * 0.65 });
     }
   }
@@ -1454,26 +1459,26 @@ function drawGrassAtlasCanvas() {
   {
     const boxes = { wall: [], roof: [], floor: [], accent: [], glow: [] };
     const bx = (k, x, y, z, w, h, d) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); boxes[k].push(g); };
-    bx('floor', 0, 0.1, 0, 16.6, 0.3, 18.6);
-    bx('wall', -8, 3.5, 0, 0.6, 7, 18);                       // back wall
-    bx('wall', 0, 3.5, -9, 16, 7, 0.6);                       // side walls
-    bx('wall', 0, 3.5, 9, 16, 7, 0.6);
-    bx('wall', 8, 3.5, -7.25, 0.6, 7, 3.5);                   // front, either side of the door
-    bx('wall', 8, 3.5, 7.25, 0.6, 7, 3.5);
+    bx('floor', 0, -0.12, 0, 16.6, 0.3, 18.6);
+    bx('wall', -8, 3.4, 0, 0.6, 7.2, 18);                       // back wall
+    bx('wall', 0, 3.4, -9, 16, 7.2, 0.6);                       // side walls
+    bx('wall', 0, 3.4, 9, 16, 7.2, 0.6);
+    bx('wall', 8, 3.4, -7.25, 0.6, 7.2, 3.5);                   // front, either side of the door
+    bx('wall', 8, 3.4, 7.25, 0.6, 7.2, 3.5);
     bx('wall', 8, 6.1, 0, 0.6, 1.8, 11);                      // above the door
     bx('roof', 0, 7.25, 0, 17.2, 0.5, 19.2);
     bx('accent', 8.05, 5.1, 0, 0.7, 0.4, 11.2);               // yellow door frame
-    bx('accent', 8.05, 2.5, -5.6, 0.8, 5, 0.5);
-    bx('accent', 8.05, 2.5, 5.6, 0.8, 5, 0.5);
-    bx('accent', 0, 0.27, 0, 7.4, 0.05, 7.4);                 // paint-bay square on the floor
-    bx('glow', 0, 0.3, 0, 6.6, 0.05, 6.6);
+    bx('accent', 8.05, 2.4, -5.6, 0.8, 5.2, 0.5);
+    bx('accent', 8.05, 2.4, 5.6, 0.8, 5.2, 0.5);
+    bx('accent', 0, 0.04, 0, 7.4, 0.05, 7.4);                 // paint-bay square on the floor
+    bx('glow', 0, 0.075, 0, 6.6, 0.05, 6.6);
     bx('glow', -3, 6.9, 0, 0.5, 0.15, 14);                    // ceiling light strips
     bx('glow', 0, 6.9, 0, 0.5, 0.15, 14);
     bx('glow', 3, 6.9, 0, 0.5, 0.15, 14);
     const mats = {
-      wall: new THREE.MeshStandardMaterial({ color: 0x7d8a93, roughness: 0.7, metalness: 0.3, flatShading: true }),
+      wall: new THREE.MeshStandardMaterial({ color: 0x8e9ba4, roughness: 0.7, metalness: 0.3, flatShading: true }),
       roof: new THREE.MeshStandardMaterial({ color: 0x55616a, roughness: 0.8, metalness: 0.2, flatShading: true }),
-      floor: new THREE.MeshStandardMaterial({ color: 0x3b4045, roughness: 0.9, flatShading: true }),
+      floor: new THREE.MeshStandardMaterial({ color: 0x59626a, roughness: 0.9, flatShading: true }),
       accent: new THREE.MeshStandardMaterial({ color: 0xf2b61e, roughness: 0.6, flatShading: true }),
       glow: new THREE.MeshStandardMaterial({ color: 0xdff6ff, emissive: 0x7fdcff, emissiveIntensity: 1.1 })
     };
@@ -1482,7 +1487,7 @@ function drawGrassAtlasCanvas() {
     Object.keys(boxes).forEach(k => {
       const m = new THREE.Mesh(mergeGeometries(boxes[k], false), mats[k]);
       m.castShadow = k === 'wall' || k === 'roof';
-      m.receiveShadow = true;
+      m.receiveShadow = false;
       grp.add(m);
     });
     // sign above the door
