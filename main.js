@@ -1103,6 +1103,10 @@ function drawGrassAtlasCanvas() {
   // visible mesh (an ellipsoid just inside the dodecahedron) and wheels ride up the rock instead of sinking in.
   const ROCK_CELL = 6;
   const rockGrid = new Map();
+  // Green hills (the big smooth domes around the map) are drivable too: same exact-surface trick as the rocks
+  const hillRecs = [];
+  const HILL_R2 = 0.995 * 0.995;
+  const MAX_CLIMB_ROCK = 1.15;   // taller than this (about the wheel size) and a rock is a wall, not a ramp
   const ROCK_LOCAL_R2 = (0.8 * 0.93) * (0.8 * 0.93);
   const rockKey = (ix, iz) => (ix + 2000) * 4096 + (iz + 2000);
   function addClimbRock(matrix, s) {
@@ -1116,6 +1120,17 @@ function drawGrassAtlasCanvas() {
       if (!rockGrid.has(k)) rockGrid.set(k, []);
       rockGrid.get(k).push(rec);
     }
+  }
+  function rockTopHeight(matrix) {   // height of a rock's highest point above the ground under it
+    const e = new THREE.Matrix3().setFromMatrix4(matrix).invert().elements;
+    const bb = e[3] * e[3] + e[4] * e[4] + e[5] * e[5];
+    return matrix.elements[13] + Math.sqrt(ROCK_LOCAL_R2 / bb) - getGroundHeight(matrix.elements[12], matrix.elements[14]);
+  }
+  function addHillPhysics(matrix) {
+    const e = new THREE.Matrix3().setFromMatrix4(matrix).invert().elements.slice();
+    const sx = Math.hypot(matrix.elements[0], matrix.elements[1], matrix.elements[2]);   // horizontal reach of the dome
+    const rad = Math.max(sx, Math.hypot(matrix.elements[8], matrix.elements[9], matrix.elements[10])) + 1;
+    hillRecs.push({ x: matrix.elements[12], y: matrix.elements[13], z: matrix.elements[14], e, rad2: rad * rad, bb: e[3] * e[3] + e[4] * e[4] + e[5] * e[5] });
   }
   function driveHeight(x, z) {
     let bump = 0;
@@ -1144,6 +1159,19 @@ function drawGrassAtlasCanvas() {
           const top = r.y + (-ab + Math.sqrt(disc)) / r.bb;
           if (top > h) h = top;
         }
+      }
+    }
+    for (let i = 0; i < hillRecs.length; i++) {
+      const r = hillRecs[i];
+      const dx = x - r.x, dz = z - r.z;
+      if (dx * dx + dz * dz > r.rad2) continue;
+      const e = r.e;
+      const ax = e[0] * dx + e[6] * dz, ay = e[1] * dx + e[7] * dz, az = e[2] * dx + e[8] * dz;
+      const ab = ax * e[3] + ay * e[4] + az * e[5];
+      const disc = ab * ab - r.bb * (ax * ax + ay * ay + az * az - HILL_R2);
+      if (disc > 0) {
+        const top = r.y + (-ab + Math.sqrt(disc)) / r.bb;
+        if (top > h) h = top;
       }
     }
     return h;
@@ -1184,8 +1212,8 @@ function drawGrassAtlasCanvas() {
     rockIM.setMatrixAt(i, dummy.matrix);
     const shade = 0.48 + Math.random() * 0.26;
     rockIM.setColorAt(i, gCol.setRGB(shade, shade * 0.95, shade * 0.86));
-    if (p.s > 1.45) colliders.push({ x: p.x, z: p.z, r: 0.7 * p.s });   // only really big boulders block the rover
-    else addClimbRock(dummy.matrix, p.s);                              // everything else can be driven over
+    if (p.s > 1.45 || rockTopHeight(dummy.matrix) > MAX_CLIMB_ROCK) colliders.push({ x: p.x, z: p.z, r: 0.88 * p.s });   // boulders too big to climb block the rover (collider = the visible rock)
+    else addClimbRock(dummy.matrix, p.s);                                                                            // everything else can be driven over
   });
   chunkify(rockIM, rockPlans.length, 270, 300);
 
@@ -1406,9 +1434,9 @@ function drawGrassAtlasCanvas() {
   scene.add(pollen);
 
   // ============ Rolling hills (two hazy layers) ============
-  function addHills(count, ringR, rMin, rMax, hMin, hMax, color) {
+  function addHills(count, ringR, rMin, rMax, hMin, hMax, color, segW, segH, drivable) {
     const im = new THREE.InstancedMesh(
-      withGradient(new THREE.SphereGeometry(1, 16, 10), 0.78, 1.12),
+      withGradient(new THREE.SphereGeometry(1, segW || 16, segH || 10), 0.78, 1.12),
       new THREE.MeshStandardMaterial({ color, vertexColors: true, roughness: 1, flatShading: false }), count);
     for (let i = 0; i < count; i++) {
       const ang = (i / count) * Math.PI * 2 + Math.random() * 0.3;
@@ -1418,11 +1446,15 @@ function drawGrassAtlasCanvas() {
       dummy.scale.set(rr, hh, rr * 0.8);
       dummy.updateMatrix();
       im.setMatrixAt(i, dummy.matrix);
+      if (drivable) {   // only domes that reach into the playable square need physics
+        const ddx = Math.max(Math.abs(dummy.position.x) - HALF, 0), ddz = Math.max(Math.abs(dummy.position.z) - HALF, 0);
+        if (Math.hypot(ddx, ddz) < rr) addHillPhysics(dummy.matrix);
+      }
     }
     im.instanceMatrix.needsUpdate = true;
     scene.add(im);
   }
-  addHills(20, 262, 48, 74, 14, 24, 0x5f8a3a);
+  addHills(20, 262, 48, 74, 14, 24, 0x5f8a3a, 24, 14, true);
   addHills(20, 376, 80, 115, 29, 45, 0x7d9c86);
 
   // ============ Standing stones (the POI) ============
@@ -2696,26 +2728,47 @@ function drawGrassAtlasCanvas() {
 
     // ---- Move ----
     const fwdX = -Math.sin(currentRot), fwdZ = -Math.cos(currentRot);
+    // steep ground ahead (big hills, tall rocks): the rover slows down on it, and a wall stops it
+    if (Math.abs(velocity) > 0.3) {
+      const sgn = velocity > 0 ? 1 : -1;
+      const slopeAhead = (driveHeight(rover.position.x + fwdX * sgn * 1.9, rover.position.z + fwdZ * sgn * 1.9) - driveHeight(rover.position.x, rover.position.z)) / 1.9;
+      if (slopeAhead > 1.35) velocity = 0;
+      else if (slopeAhead > 0.3) velocity *= 1 - Math.min(0.5, (slopeAhead - 0.3) * 1.2) * Math.min(1, dt * 6);
+    }
     rover.position.x += fwdX * velocity * dt;
     rover.position.z += fwdZ * velocity * dt;
     wheelSpin += (velocity * dt) / 0.7;
 
-    // ---- Collisions ----
+    // ---- Collisions: the rover's footprint (wheels included) is a rectangle, so nothing can pass through a wheel ----
     let hit = false;
-    for (let i = 0; i < colliders.length; i++) {
-      const c = colliders[i];
-      if (c.bush && !bushState.on) continue;
-      const dx = rover.position.x - c.x;
-      const dz = rover.position.z - c.z;
-      const rr = c.r + 1.2;
-      const d2 = dx * dx + dz * dz;
-      if (d2 < rr * rr && d2 > 0.0001) {
-        const d = Math.sqrt(d2);
-        const push = (rr - d) / d;
-        rover.position.x += dx * push;
-        rover.position.z += dz * push;
+    const RV_HX = 2.3, RV_HZ = 1.85;   // half width / half length of the footprint (wheels outer edge)
+    for (let pass = 0; pass < 2; pass++) {
+      const cR = Math.cos(currentRot), sR = Math.sin(currentRot);
+      for (let i = 0; i < colliders.length; i++) {
+        const c = colliders[i];
+        if (c.bush && !bushState.on) continue;
+        const dx = c.x - rover.position.x, dz = c.z - rover.position.z;
+        const reach = RV_HX + RV_HZ + c.r + 0.2;
+        if (dx * dx + dz * dz > reach * reach) continue;
+        const lx = dx * cR - dz * sR, lz = dx * sR + dz * cR;          // collider centre in the rover's own frame
+        const ex = lx - Math.max(-RV_HX, Math.min(RV_HX, lx));
+        const ez = lz - Math.max(-RV_HZ, Math.min(RV_HZ, lz));
+        const rad = c.r + 0.1;
+        const d2 = ex * ex + ez * ez;
+        if (d2 >= rad * rad) continue;
+        let mx, mz;                                                      // how far the rover must move (rover frame) to get out
+        if (d2 > 1e-6) {
+          const d = Math.sqrt(d2), pen = rad - d;
+          mx = -ex / d * pen; mz = -ez / d * pen;
+        } else {                                                         // centre is inside the footprint: leave through the nearest side
+          const px = RV_HX - Math.abs(lx) + rad, pz = RV_HZ - Math.abs(lz) + rad;
+          if (px < pz) { mx = -Math.sign(lx || 1) * px; mz = 0; } else { mx = 0; mz = -Math.sign(lz || 1) * pz; }
+        }
+        rover.position.x += mx * cR + mz * sR;
+        rover.position.z += -mx * sR + mz * cR;
         hit = true;
       }
+      if (!hit) break;
     }
     if (hit && spd > 2) { velocity *= 0.7; thud(speedNorm); }
 
