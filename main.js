@@ -517,10 +517,12 @@ function initGame() {
         // lawn detail (grassy biomes only; not on snow / sand): soft patches at ~17 m and blade strokes / flecks at ~3.4 m
         float lawn = smoothstep(0.0, 0.04, vColor.g - vColor.r * 1.05) * smoothstep(0.0, 0.06, vColor.g - vColor.b * 1.2);
         vec3 dBig = texture2D(detailTex, wp * 0.0588, 2.5).rgb * 2.0;
-        vec3 dFine = texture2D(detailTex, wp * 0.20 + 0.37).rgb * 2.0;
+        float sharpB = -0.8 * (1.0 - smoothstep(6.0, 26.0, length(vViewPosition)));
+        vec3 dFine = texture2D(detailTex, wp * 0.20 + 0.37, sharpB).rgb * 2.0;
         dFine = max(vec3(0.2), (dFine - 1.0) * 1.2 + 1.0);   // a bit more contrast: crisp blades, dark gaps
         base *= mix(vec3(1.0), vec3(0.50, 0.47, 0.41), lawn);   // deep olive green: measured against the reference game (target 88,115,38), no neon lime
         base *= mix(vec3(1.0), dBig, 0.8 * lawn) * mix(vec3(1.0), dFine, 1.0 * lodG * lawn);
+        base *= mix(vec3(1.0), vec3(1.32, 1.30, 1.55), smoothstep(8.0, 45.0, length(vViewPosition)) * lawn * 0.85);
         vec3 pcol = base;
         if (pm > 0.002) {
           float large = fb(wp * 0.5);
@@ -637,10 +639,10 @@ function drawGrassAtlasCanvas() {
   function blade(ox, x0, h, w, lean, dark, gold) {
     const xt = ox + x0 + lean, yt = YB - h;
     const gr = g.createLinearGradient(0, YB, 0, yt);
-    const hu = 96 + R() * 14, k = dark ? 0.72 : 1;
-    gr.addColorStop(0, hsl(hu + 2, 50, 17 * k + 3));
-    gr.addColorStop(0.45, hsl(hu - 6, 55, 32 * k + 4));
-    gr.addColorStop(1, gold ? hsl(46 + R() * 8, 52, 54) : hsl(hu - 22 + R() * 8, 50, 50 * k + 6));
+    const hu = 82 + R() * 12, k = dark ? 0.72 : 1;
+    gr.addColorStop(0, hsl(hu + 2, 44, 17 * k + 3));
+    gr.addColorStop(0.45, hsl(hu - 6, 46, 32 * k + 4));
+    gr.addColorStop(1, gold ? hsl(46 + R() * 8, 52, 54) : hsl(hu - 14 + R() * 8, 46, 50 * k + 6));
     g.fillStyle = gr;
     g.beginPath();
     g.moveTo(ox + x0 - w / 2, YB);
