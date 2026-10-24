@@ -429,26 +429,39 @@ function initGame() {
         CR[i] += (r - CR[i]) * w; CG[i] += (g - CG[i]) * w; CB[i] += (b - CB[i]) * w;
       }
     };
-    const stroke = (x0, y0, ang, len, r, g, b, a) => {
+    // one blade: wide dark root -> pointed bright tip, slightly curved
+    const blade = (x0, y0, ang, len, wd, c0, c1, a) => {
       let dx = Math.cos(ang), dy = Math.sin(ang);
-      const cv = (R() - 0.5) * 0.10, cc = Math.cos(cv), ss = Math.sin(cv);
+      const cv = (R() - 0.5) * 0.18, cc = Math.cos(cv), ss = Math.sin(cv);
       let x = x0, y = y0;
       for (let s = 0; s <= len; s++) {
-        const w = Math.sin(Math.PI * s / len), aa = a * (0.2 + 0.8 * w);       // thin at both ends, strongest in the middle
+        const t = s / len, w = wd * (1 - t * 0.9);
+        const r = c0[0] + (c1[0] - c0[0]) * t, g = c0[1] + (c1[1] - c0[1]) * t, b = c0[2] + (c1[2] - c0[2]) * t;
+        const aa = a * (0.6 + 0.4 * Math.sin(Math.PI * Math.min(1, t * 0.9 + 0.1)));
         splat(x, y, r, g, b, aa);
-        splat(x - dy * 1.0, y + dx * 1.0, r, g, b, aa * 0.75);                  // ~3 px wide blade
-        splat(x + dy * 1.0, y - dx * 1.0, r, g, b, aa * 0.75);
+        for (let o = 1; o <= w; o += 1) { splat(x - dy * o, y + dx * o, r, g, b, aa * 0.8); splat(x + dy * o, y - dx * o, r, g, b, aa * 0.8); }
         const nx = dx * cc - dy * ss; dy = dx * ss + dy * cc; dx = nx;
         x += dx; y += dy;
       }
     };
-    const dirA = () => (R() < 0.7 ? -Math.PI / 2 + (R() - 0.5) * 1.9 : R() * Math.PI * 2);   // most blades lean the same general way
-    for (let i = 0; i < 700; i++) stroke(R() * N, R() * N, dirA(), 9 + R() * 13, 0.68, 0.74, 0.60, 0.6);                      // dark gaps / shadow lines
-    for (let i = 0; i < 1000; i++) { const k = 0.9 + R() * 0.22; stroke(R() * N, R() * N, dirA(), 17 + R() * 19, 1.46 * k, 1.34 * k, 1.72 * k, 0.9); }   // light blades
+    const UP = -Math.PI / 2;
+    // 1) dark under-layer (the gaps between the tufts)
+    for (let i = 0; i < 620; i++) blade(R() * N, R() * N, UP + (R() - 0.5) * 2.6, 10 + R() * 14, 2.2, [0.22, 0.25, 0.16], [0.42, 0.46, 0.30], 0.9);
+    // 2) tufts: 4-7 blades fanning out from one root (the "star" clusters of the reference lawn)
+    for (let t = 0; t < 430; t++) {
+      const cx = R() * N, cy = R() * N, nb = 4 + Math.floor(R() * 4), k = 0.9 + R() * 0.25;
+      for (let q = 0; q < 9; q++) splat(cx + (q % 3) - 1, cy + Math.floor(q / 3) - 1, 0.16, 0.18, 0.11, 0.95);   // dark root shadow
+      for (let b = 0; b < nb; b++) {
+        const ang = UP + ((b + R() * 0.8) / nb - 0.5) * 2.5 + (R() - 0.5) * 0.35;      // a fan of ~140 degrees pointing "up"
+        blade(cx, cy, ang, 11 + R() * 15, 2.0 + R() * 1.0, [0.55 * k, 0.62 * k, 0.34 * k], [2.4 * k, 2.25 * k, 1.9 * k], 0.97);
+      }
+    }
+    // 3) a few long loose blades lying on top
+    for (let i = 0; i < 260; i++) { const k = 0.9 + R() * 0.3; blade(R() * N, R() * N, UP + (R() - 0.5) * 2.2, 18 + R() * 16, 1.2, [0.8 * k, 0.85 * k, 0.5 * k], [2.0 * k, 1.9 * k, 1.9 * k], 0.9); }
     const HN = N >> 1, PA = new Float32Array(HN * HN), TA = new Float32Array(HN * HN);
     for (let y = 0; y < HN; y++) for (let x = 0; x < HN; x++) {
       const X = x * 2, Y = y * 2;
-      PA[y * HN + x] = 0.86 + (periodic(l1, 6, X, Y) * 0.5 + periodic(l2, 14, X, Y) * 0.3 + periodic(l3, 34, X, Y) * 0.2) * 0.28;   // soft light / dark patches
+      PA[y * HN + x] = 0.84 + (periodic(l1, 6, X, Y) * 0.5 + periodic(l2, 14, X, Y) * 0.3 + periodic(l3, 34, X, Y) * 0.2) * 0.32;   // soft light / dark patches
       TA[y * HN + x] = periodic(ld, 5, X, Y) - 0.5;
     }
     let mr = 0, mg = 0, mb = 0;
@@ -460,7 +473,7 @@ function initGame() {
     mr /= N * N; mg /= N * N; mb /= N * N;
     const data = new Uint8Array(N * N * 4);
     const c8 = (v) => Math.max(0, Math.min(255, Math.round(v * 255)));
-    const cl = (v) => Math.max(0.28, Math.min(0.78, v));
+    const cl = (v) => Math.max(0.10, Math.min(0.97, v));
     for (let i = 0; i < N * N; i++) {
       data[i * 4] = c8(cl(CR[i] / mr * 0.5)); data[i * 4 + 1] = c8(cl(CG[i] / mg * 0.5)); data[i * 4 + 2] = c8(cl(CB[i] / mb * 0.5)); data[i * 4 + 3] = 255;
     }
@@ -505,6 +518,7 @@ function initGame() {
         float lawn = smoothstep(0.0, 0.04, vColor.g - vColor.r * 1.05) * smoothstep(0.0, 0.06, vColor.g - vColor.b * 1.2);
         vec3 dBig = texture2D(detailTex, wp * 0.0588, 2.5).rgb * 2.0;
         vec3 dFine = texture2D(detailTex, wp * 0.20 + 0.37).rgb * 2.0;
+        dFine = max(vec3(0.2), (dFine - 1.0) * 1.2 + 1.0);   // a bit more contrast: crisp blades, dark gaps
         base *= mix(vec3(1.0), vec3(0.50, 0.47, 0.41), lawn);   // deep olive green: measured against the reference game (target 88,115,38), no neon lime
         base *= mix(vec3(1.0), dBig, 0.8 * lawn) * mix(vec3(1.0), dFine, 1.0 * lodG * lawn);
         vec3 pcol = base;
@@ -624,9 +638,9 @@ function drawGrassAtlasCanvas() {
     const xt = ox + x0 + lean, yt = YB - h;
     const gr = g.createLinearGradient(0, YB, 0, yt);
     const hu = 96 + R() * 14, k = dark ? 0.72 : 1;
-    gr.addColorStop(0, hsl(hu + 4, 55, 13 * k + 2));
-    gr.addColorStop(0.45, hsl(hu, 58, 27 * k + 3));
-    gr.addColorStop(1, gold ? hsl(46 + R() * 8, 52, 52) : hsl(hu - 16 + R() * 8, 62, 44 * k + 8));
+    gr.addColorStop(0, hsl(hu + 2, 50, 17 * k + 3));
+    gr.addColorStop(0.45, hsl(hu - 6, 55, 32 * k + 4));
+    gr.addColorStop(1, gold ? hsl(46 + R() * 8, 52, 54) : hsl(hu - 22 + R() * 8, 50, 50 * k + 6));
     g.fillStyle = gr;
     g.beginPath();
     g.moveTo(ox + x0 - w / 2, YB);
@@ -638,7 +652,7 @@ function drawGrassAtlasCanvas() {
   function clump(ox, n) {
     for (let i = 0; i < n; i++) {
       const x0 = 128 + (R() + R() - 1) * 60;
-      const h = 70 + R() * 150 + (R() < 0.12 ? 30 : 0);
+      const h = 55 + R() * 120 + (R() < 0.12 ? 25 : 0);
       blade(ox, x0, h, 3.5 + R() * 5, (R() - 0.5) * 84, i < n * 0.4, R() < 0.08);
     }
   }
@@ -716,7 +730,7 @@ function drawGrassAtlasCanvas() {
     g.setIndex(idx);
     return g;
   }
-  const tuftGeo = makeClumpGeo(2, 1.8, 0.85);   // far-field clumps (bigger, they have to cover more ground)
+  const tuftGeo = makeClumpGeo(2, 1.8, 0.68);   // far-field clumps (bigger, they have to cover more ground)
 
   const uTime = { value: 0 };
   const uGrassQ = { value: 1 }, uGrassD = { value: 1 };   // grass range / density (set by the quality level)
@@ -812,8 +826,8 @@ function drawGrassAtlasCanvas() {
   // Two world-anchored rings follow the rover: a very dense, fine one close by and a sparser, wider one behind it.
   // Each tuft thins out smoothly with distance (a per-tuft random threshold, so tufts grow/shrink instead of popping),
   // and the two layers cross-fade into each other and into the far-field grass, so the density just fades away naturally.
-  const nearGeo = makeClumpGeo(3, 1.0, 0.58);   // close layer: 3 crossed quads = 6 triangles per clump (was 30)
-  const midGeo = makeClumpGeo(2, 1.15, 0.64);   // wide layer: 4 triangles per clump (was 12)
+  const nearGeo = makeClumpGeo(3, 0.95, 0.42);   // close layer: 3 crossed quads = 6 triangles per clump (was 30)
+  const midGeo = makeClumpGeo(2, 1.15, 0.48);   // wide layer: 4 triangles per clump (was 12)
   function ngHash(i, j, sd) { const n = Math.sin(i * 127.1 + j * 311.7 + sd * 74.7) * 43758.5453; return n - Math.floor(n); }
 
   function makeGrassLayer(geo, CELL, N, K, densGLSL, scaleMul, TILE, maxR) {
@@ -937,7 +951,7 @@ function drawGrassAtlasCanvas() {
     return update;
   }
   // dense close layer: full density next to the rover, thinning smoothly to nothing by ~18 m (patch radius ~19.5 m)
-  const updateGrassNear = makeGrassLayer(nearGeo, 0.85, 46, 3, 'float dens = pow(1.0 - smoothstep(3.0, 18.5, dRd), 2.0);', 1.0, 12, 19.0);
+  const updateGrassNear = makeGrassLayer(nearGeo, 0.85, 46, 4, 'float dens = pow(1.0 - smoothstep(3.0, 18.5, dRd), 2.0);', 1.0, 12, 19.0);
   // wide layer: cheap geometry, slightly bigger tufts, covers ~100 m and fades into the far-field grass
   const updateGrassMid = makeGrassLayer(midGeo, 3.0, 68, 3, 'float dens = smoothstep(4.0, 14.0, dRd) * (1.0 - smoothstep(60.0, 100.0, dRd)) * 0.30;', 2.0, 17, 100.0);
   function updateNearGrass(px, pz) { updateGrassNear(px, pz); updateGrassMid(px, pz); }
