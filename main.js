@@ -469,7 +469,7 @@ function initGame() {
     tex.magFilter = THREE.LinearFilter;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.generateMipmaps = true;
-    tex.anisotropy = 1;   // measured: anisotropic filtering on the ground (half of the screen, flat angle) made it ~7x slower
+    tex.anisotropy = Math.min(2, renderer.capabilities.getMaxAnisotropy());   // x2 keeps the blades sharp at the flat viewing angle (x4 was too slow in the speed test); set to 1 if the ground gets slow
     tex.needsUpdate = true;
     return tex;
   })();
@@ -504,9 +504,9 @@ function initGame() {
         // lawn detail (grassy biomes only; not on snow / sand): soft patches at ~17 m and blade strokes / flecks at ~3.4 m
         float lawn = smoothstep(0.0, 0.04, vColor.g - vColor.r * 1.05) * smoothstep(0.0, 0.06, vColor.g - vColor.b * 1.2);
         vec3 dBig = texture2D(detailTex, wp * 0.0588, 2.5).rgb * 2.0;
-        vec3 dFine = texture2D(detailTex, wp * 0.294 + 0.37).rgb * 2.0;
-        base *= mix(vec3(1.0), vec3(0.60, 0.64, 0.50), lawn);   // deep olive green (measured against the reference game), no neon lime
-        base *= mix(vec3(1.0), dBig, 0.8 * lawn) * mix(vec3(1.0), dFine, 0.85 * lodG * lawn);
+        vec3 dFine = texture2D(detailTex, wp * 0.20 + 0.37).rgb * 2.0;
+        base *= mix(vec3(1.0), vec3(0.50, 0.47, 0.41), lawn);   // deep olive green: measured against the reference game (target 88,115,38), no neon lime
+        base *= mix(vec3(1.0), dBig, 0.8 * lawn) * mix(vec3(1.0), dFine, 1.0 * lodG * lawn);
         vec3 pcol = base;
         if (pm > 0.002) {
           float large = fb(wp * 0.5);
@@ -939,12 +939,12 @@ function drawGrassAtlasCanvas() {
   // dense close layer: full density next to the rover, thinning smoothly to nothing by ~18 m (patch radius ~19.5 m)
   const updateGrassNear = makeGrassLayer(nearGeo, 0.85, 46, 3, 'float dens = pow(1.0 - smoothstep(3.0, 18.5, dRd), 2.0);', 1.0, 12, 19.0);
   // wide layer: cheap geometry, slightly bigger tufts, covers ~100 m and fades into the far-field grass
-  const updateGrassMid = makeGrassLayer(midGeo, 3.0, 68, 3, 'float dens = smoothstep(4.0, 14.0, dRd) * (1.0 - smoothstep(60.0, 100.0, dRd));', 2.0, 17, 100.0);
+  const updateGrassMid = makeGrassLayer(midGeo, 3.0, 68, 3, 'float dens = smoothstep(4.0, 14.0, dRd) * (1.0 - smoothstep(60.0, 100.0, dRd)) * 0.30;', 2.0, 17, 100.0);
   function updateNearGrass(px, pz) { updateGrassNear(px, pz); updateGrassMid(px, pz); }
   const _gFrustum = new THREE.Frustum(), _gPV = new THREE.Matrix4();
   // The ground carpet carries the grass look now, so the 3D tufts are only a light accent close to the rover.
   // Raise these three numbers if you want more 3D grass (and pay for it in speed): density 1 / range 1 / far 1e9 = the old full grass.
-  const GRASS3D_DENSITY = 0.20, GRASS3D_RANGE = 0.40, GRASS3D_FAR = 0;
+  const GRASS3D_DENSITY = 1.00, GRASS3D_RANGE = 0.50, GRASS3D_FAR = 0;   // full 3D grass up to ~9 m around the rover (tiny area = cheap), far-field tufts off
   let grassFarMax = 1e9;           // far-field grass beyond this distance is not drawn (quality level)
   function cullGrass(px, pz) {
     camera.updateMatrixWorld();
