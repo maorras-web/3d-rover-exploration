@@ -785,12 +785,17 @@ function drawGrassAtlasCanvas() {
     return new THREE.Sphere(new THREE.Vector3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), 0.5 * Math.sqrt(dx * dx + dy * dy + dz * dz));
   }
 
+  // MASTER SWITCH for all 3D grass tufts (the ones that appear / "grow" around the rover while driving).
+  // false = the lawn look comes only from the ground texture (like the Blast Royal lawn): nothing grows, much cheaper on weak phones.
+  // true  = the old 3D tufts come back.
+  const GRASS3D_ON = false;
+
   // far-field grass: square chunks, each one is its own draw call that is skipped when it is out of view
   const FG_CH = 55, FG_N = Math.ceil(WORLD_SIZE / FG_CH);
   const fgMats = Array.from({ length: FG_N * FG_N }, () => []);
   const fgCols = Array.from({ length: FG_N * FG_N }, () => []);
   let gi = 0;
-  for (let i = 0; i < GRASS * 1.5 && gi < GRASS; i++) {
+  for (let i = 0; GRASS3D_ON && i < GRASS * 1.5 && gi < GRASS; i++) {
     const z = (Math.random() - 0.5) * WORLD_SIZE * 0.94;
     const x = Math.random() < 0.3 ? pathCenter(z) + (Math.random() - 0.5) * 30 : (Math.random() - 0.5) * WORLD_SIZE * 0.94;
     if (pathMask(x, z) > 0.5 || inSnow(x, z)) continue;
@@ -953,9 +958,9 @@ function drawGrassAtlasCanvas() {
     return update;
   }
   // dense close layer: full density next to the rover, thinning smoothly to nothing by ~18 m (patch radius ~19.5 m)
-  const updateGrassNear = makeGrassLayer(nearGeo, 0.85, 46, 4, 'float dens = pow(1.0 - smoothstep(3.0, 18.5, dRd), 2.0);', 1.0, 12, 19.0);
+  const updateGrassNear = !GRASS3D_ON ? () => {} : makeGrassLayer(nearGeo, 0.85, 46, 4, 'float dens = pow(1.0 - smoothstep(3.0, 18.5, dRd), 2.0);', 1.0, 12, 19.0);
   // wide layer: cheap geometry, slightly bigger tufts, covers ~100 m and fades into the far-field grass
-  const updateGrassMid = makeGrassLayer(midGeo, 3.0, 68, 3, 'float dens = smoothstep(4.0, 14.0, dRd) * (1.0 - smoothstep(60.0, 100.0, dRd)) * 0.30;', 2.0, 17, 100.0);
+  const updateGrassMid = !GRASS3D_ON ? () => {} : makeGrassLayer(midGeo, 3.0, 68, 3, 'float dens = smoothstep(4.0, 14.0, dRd) * (1.0 - smoothstep(60.0, 100.0, dRd)) * 0.30;', 2.0, 17, 100.0);
   function updateNearGrass(px, pz) { updateGrassNear(px, pz); updateGrassMid(px, pz); }
   const _gFrustum = new THREE.Frustum(), _gPV = new THREE.Matrix4();
   // The ground carpet carries the grass look now, so the 3D tufts are only a light accent close to the rover.
