@@ -1059,28 +1059,6 @@ function drawGrassAtlasCanvas() {
     };
   }
 
-  // ============ Flowers ============
-  const flowerPlans = [];
-  for (let i = 0; i < 520; i++) {
-    const x = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
-    const z = (Math.random() - 0.5) * WORLD_SIZE * 0.85;
-    if (pathMask(x, z) > 0.4) continue;
-    flowerPlans.push({ x, z, c: [0xff6699, 0xffcc33, 0xff8844, 0xaa66ff, 0xffffff, 0xff4455, 0x66ccff][i % 7] });
-  }
-  const flowerIM = new THREE.InstancedMesh(
-    new THREE.IcosahedronGeometry(0.09, 0),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true }),
-    Math.max(1, flowerPlans.length)
-  );
-  flowerPlans.forEach((p, i) => {
-    dummy.position.set(p.x, getGroundHeight(p.x, p.z) + 0.24, p.z);
-    dummy.rotation.set(0, Math.random() * 3, 0);
-    dummy.scale.setScalar(1.4 + Math.random() * 0.7);
-    dummy.updateMatrix();
-    flowerIM.setMatrixAt(i, dummy.matrix);
-    flowerIM.setColorAt(i, gCol.setHex(p.c));
-  });
-  chunkify(flowerIM, flowerPlans.length, 120, 145);
 
   function withGradient(geo, lo, hi) {
     geo.computeBoundingBox();
@@ -1232,9 +1210,16 @@ function drawGrassAtlasCanvas() {
     if (type === 'pine') {
       for (let k = 0; k < 3; k++) plan.parts.push({ k, size: 1.7 - k * 0.4 });
     } else if (type === 'normal') {
-      const blobs = 3 + Math.floor(Math.random() * 3);
-      for (let k = 0; k < blobs; k++) {
-        plan.parts.push({ ox: (Math.random() - 0.5) * 1.5, oy: Math.random() * 1.3, oz: (Math.random() - 0.5) * 1.5, r: 0.9 + Math.random() * 0.6 });
+      // Crown = one main blob that always swallows the top of the trunk (centre 0.9 above the trunk tip, radius >= 1.1),
+      // plus 2-4 smaller blobs that always OVERLAP the main one - so no leaf blob can ever float free of the tree.
+      const r0 = 1.1 + Math.random() * 0.5;
+      plan.parts.push({ ox: (Math.random() - 0.5) * 0.3, oy: 0, oz: (Math.random() - 0.5) * 0.3, r: r0 });
+      const extra = 2 + Math.floor(Math.random() * 3);
+      for (let k = 0; k < extra; k++) {
+        const rk = 0.8 + Math.random() * 0.5;
+        const ang = Math.random() * Math.PI * 2, el = Math.random() * 1.0;          // direction: sideways or up, never down
+        const dist = (0.45 + Math.random() * 0.3) * (r0 + rk);                     // < r0 + rk  ->  the blobs always intersect
+        plan.parts.push({ ox: Math.cos(ang) * Math.cos(el) * dist, oy: Math.sin(el) * dist, oz: Math.sin(ang) * Math.cos(el) * dist, r: rk });
       }
     }
     treePlans.push(plan);
