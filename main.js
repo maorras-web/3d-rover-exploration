@@ -290,6 +290,14 @@ function initGame() {
     return 3.2 * t * t;
   }
 
+  // ============ Garage position + flat pad (the terrain is levelled under it) ============
+  const HG_X = -40, HG_Z = 30, HG_Y = 0.6;
+  function hangarFlat(x, z, h) {
+    const ex = Math.max(Math.abs(x - HG_X) - 11, 0), ez = Math.max(Math.abs(z - HG_Z) - 12, 0);
+    const t = 1 - THREE.MathUtils.smoothstep(Math.hypot(ex, ez), 0, 14);
+    return h * (1 - t) + HG_Y * t;
+  }
+
   // ============ Unified height grid ============
   const GSEG = 220;
   const GCELL = WORLD_SIZE / GSEG;
@@ -298,7 +306,7 @@ function initGame() {
     for (let ix = 0; ix <= GSEG; ix++) {
       const x = -HALF + ix * GCELL;
       const z = -HALF + iz * GCELL;
-      HGRID[iz * (GSEG + 1) + ix] = (fbm(x, z) - 0.5) * 5.4 + (smoothNoise(x + 300, z - 120, 75) - 0.5) * 4.2 - pathMask(x, z) * 0.15 + moundH(x, z);
+      HGRID[iz * (GSEG + 1) + ix] = hangarFlat(x, z, (fbm(x, z) - 0.5) * 5.4 + (smoothNoise(x + 300, z - 120, 75) - 0.5) * 4.2 - pathMask(x, z) * 0.15 + moundH(x, z));
     }
   }
   function getGroundHeight(x, z) {
@@ -1441,6 +1449,126 @@ function drawGrassAtlasCanvas() {
   }
   addHills(20, 262, 48, 74, 14, 24, 0x5f8a3a, 24, 14, true);
   addHills(20, 376, 80, 115, 29, 45, 0x7d9c86);
+
+  // ============ GARAGE: a real building the rover drives into to repaint itself (almost free: ~6 draw calls) ============
+  {
+    const boxes = { wall: [], roof: [], floor: [], accent: [], glow: [] };
+    const bx = (k, x, y, z, w, h, d) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); boxes[k].push(g); };
+    bx('floor', 0, 0.1, 0, 16.6, 0.3, 18.6);
+    bx('wall', -8, 3.5, 0, 0.6, 7, 18);                       // back wall
+    bx('wall', 0, 3.5, -9, 16, 7, 0.6);                       // side walls
+    bx('wall', 0, 3.5, 9, 16, 7, 0.6);
+    bx('wall', 8, 3.5, -7.25, 0.6, 7, 3.5);                   // front, either side of the door
+    bx('wall', 8, 3.5, 7.25, 0.6, 7, 3.5);
+    bx('wall', 8, 6.1, 0, 0.6, 1.8, 11);                      // above the door
+    bx('roof', 0, 7.25, 0, 17.2, 0.5, 19.2);
+    bx('accent', 8.05, 5.1, 0, 0.7, 0.4, 11.2);               // yellow door frame
+    bx('accent', 8.05, 2.5, -5.6, 0.8, 5, 0.5);
+    bx('accent', 8.05, 2.5, 5.6, 0.8, 5, 0.5);
+    bx('accent', 0, 0.27, 0, 7.4, 0.05, 7.4);                 // paint-bay square on the floor
+    bx('glow', 0, 0.3, 0, 6.6, 0.05, 6.6);
+    bx('glow', -3, 6.9, 0, 0.5, 0.15, 14);                    // ceiling light strips
+    bx('glow', 0, 6.9, 0, 0.5, 0.15, 14);
+    bx('glow', 3, 6.9, 0, 0.5, 0.15, 14);
+    const mats = {
+      wall: new THREE.MeshStandardMaterial({ color: 0x7d8a93, roughness: 0.7, metalness: 0.3, flatShading: true }),
+      roof: new THREE.MeshStandardMaterial({ color: 0x55616a, roughness: 0.8, metalness: 0.2, flatShading: true }),
+      floor: new THREE.MeshStandardMaterial({ color: 0x3b4045, roughness: 0.9, flatShading: true }),
+      accent: new THREE.MeshStandardMaterial({ color: 0xf2b61e, roughness: 0.6, flatShading: true }),
+      glow: new THREE.MeshStandardMaterial({ color: 0xdff6ff, emissive: 0x7fdcff, emissiveIntensity: 1.1 })
+    };
+    const grp = new THREE.Group();
+    grp.position.set(HG_X, HG_Y, HG_Z);
+    Object.keys(boxes).forEach(k => {
+      const m = new THREE.Mesh(mergeGeometries(boxes[k], false), mats[k]);
+      m.castShadow = k === 'wall' || k === 'roof';
+      m.receiveShadow = true;
+      grp.add(m);
+    });
+    // sign above the door
+    const sc = document.createElement('canvas');
+    sc.width = 512; sc.height = 100;
+    const sx = sc.getContext('2d');
+    sx.fillStyle = '#12181c'; sx.fillRect(0, 0, 512, 100);
+    sx.strokeStyle = '#f2b61e'; sx.lineWidth = 8; sx.strokeRect(6, 6, 500, 88);
+    sx.fillStyle = '#ffd24a'; sx.font = 'bold 64px sans-serif'; sx.textAlign = 'center'; sx.textBaseline = 'middle';
+    sx.fillText('GARAGE', 256, 54);
+    const sTex = new THREE.CanvasTexture(sc);
+    sTex.colorSpace = THREE.SRGBColorSpace;
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(10.6, 2.07), new THREE.MeshBasicMaterial({ map: sTex, toneMapped: false }));
+    sign.rotation.y = Math.PI / 2;
+    sign.position.set(8.4, 8.9, 0);
+    grp.add(sign);
+    scene.add(grp);
+    // solid walls (circles along each wall; the door stays open)
+    for (let z = -8.5; z <= 8.5; z += 2) colliders.push({ x: HG_X - 8, z: HG_Z + z, r: 0.9 });
+    for (let x = -7; x <= 7; x += 2) { colliders.push({ x: HG_X + x, z: HG_Z - 9, r: 0.9 }); colliders.push({ x: HG_X + x, z: HG_Z + 9, r: 0.9 }); }
+    for (let z = 5.9; z <= 8.9; z += 1.5) { colliders.push({ x: HG_X + 8, z: HG_Z - z, r: 0.9 }); colliders.push({ x: HG_X + 8, z: HG_Z + z, r: 0.9 }); }
+  }
+
+  // ---- garage menu: colours cost nothing (just material colours) and are remembered ----
+  const PAINT_KEY = 'roverPaint1';
+  let paint = {};
+  try { paint = JSON.parse(localStorage.getItem(PAINT_KEY)) || {}; } catch (e) { paint = {}; }
+  let paintApplied = false, garageStill = 0, garageSuppressed = false, garagePanel = null, garageOpen = false;
+  function applyPaint() {
+    if (paint.body) { MATS.hullS.color.set(paint.body); MATS.deckS.color.set(paint.body).offsetHSL(0, 0, 0.07); }
+    if (paint.accent) { MATS.tanS.color.set(paint.accent); MATS.armS.color.set(paint.accent); }
+    if (paint.light) {
+      MATS.headHot.color.set(paint.light); MATS.headHot.emissive.set(paint.light);
+      if (typeof frontHalos !== 'undefined') frontHalos.forEach(h => h.material.color.set(paint.light));
+    }
+  }
+  function openGarage() {
+    if (!garagePanel) {
+      const palettes = [
+        ['body', 'BODY COLOUR', ['#8fa1ad', '#d9382c', '#f08a1c', '#f2c12e', '#3fae4a', '#2f7fe0', '#8a4fd6', '#e8e8ea', '#2a2d31']],
+        ['accent', 'ARMS & PODS', ['#b5a488', '#222222', '#e8e8ea', '#d9382c', '#f2c12e', '#2fd6ff', '#3fae4a', '#f08a1c']],
+        ['light', 'HEADLIGHTS', ['#e8fbff', '#ffd27a', '#ff4a3a', '#5dff8a', '#4aa8ff', '#c27bff']]
+      ];
+      const p = document.createElement('div');
+      p.style.cssText = 'position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:100001;width:236px;padding:12px 14px;background:rgba(10,18,22,0.78);border:1.5px solid rgba(230,238,240,0.7);border-radius:14px;color:#eaf3f6;font:600 11px sans-serif;letter-spacing:1px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:none;';
+      let h = '<div style="text-align:center;font-size:14px;letter-spacing:3px;margin-bottom:8px;color:#ffd24a">GARAGE</div>';
+      palettes.forEach(([key, label, cols]) => {
+        h += '<div style="margin:8px 0 4px;opacity:.85">' + label + '</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
+        cols.forEach(c => { h += '<button data-k="' + key + '" data-c="' + c + '" style="width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.75);background:' + c + ';padding:0"></button>'; });
+        h += '</div>';
+      });
+      h += '<button id="garage-done" style="margin-top:12px;width:100%;padding:8px;border-radius:9px;border:1.5px solid rgba(230,238,240,.7);background:rgba(255,255,255,.12);color:#fff;font:700 12px sans-serif;letter-spacing:2px">DRIVE OUT</button>';
+      p.innerHTML = h;
+      document.body.appendChild(p);
+      p.addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        if (b.id === 'garage-done') { closeGarage(); return; }
+        paint[b.dataset.k] = b.dataset.c;
+        try { localStorage.setItem(PAINT_KEY, JSON.stringify(paint)); } catch (err) {}
+        applyPaint();
+      });
+      p.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+      garagePanel = p;
+    }
+    garagePanel.style.display = 'block';
+    garageOpen = true;
+  }
+  function closeGarage() {
+    if (garagePanel) garagePanel.style.display = 'none';
+    garageOpen = false;
+    garageSuppressed = true;      // do not reopen until the rover has left and come back
+  }
+  function garageTick(dt, spd) {
+    if (!paintApplied) { paintApplied = true; applyPaint(); }
+    const gx = rover.position.x - HG_X, gz = rover.position.z - HG_Z;
+    const inside = gx > -6.5 && gx < 6.5 && Math.abs(gz) < 7;
+    if (!inside) {
+      garageStill = 0; garageSuppressed = false;
+      if (garageOpen) { garagePanel.style.display = 'none'; garageOpen = false; }
+      return;
+    }
+    if (garageOpen || garageSuppressed) return;
+    garageStill = spd < 1.2 ? garageStill + dt : 0;
+    if (garageStill > 0.5) openGarage();
+  }
 
   // ============ Standing stones (the POI) ============
   const poiGround = getGroundHeight(POI_X, POI_Z);
@@ -2968,6 +3096,7 @@ function drawGrassAtlasCanvas() {
     shadowFrame++;
     renderer.shadowMap.needsUpdate = shadowDirty || !((shadowHalf || shadowForceHalf) && (shadowFrame & 1));
     shadowDirty = false;
+    garageTick(dt, spd);
     renderer.info.reset();
     const jsT1 = performance.now();
     for (let rk = 0; rk < dbg.multi; rk++) {       // (speed test only) several renders per frame, so the cost shows even above the 60 fps cap
