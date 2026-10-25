@@ -345,9 +345,7 @@ function initGame() {
     const micro = noise2D(x * 3.1, z * 2.7) * 0.06;
 
     if (dist < 22) col.setRGB(0.36, 0.47, 0.21);
-    else if (nx < 0.3 && nz < 0.3) col.setRGB(0.16, 0.36, 0.19);
     else if (nx > 0.7 && nz < 0.3) col.setRGB(0.82, 0.71, 0.45);
-    else if (nx < SNOW_NX && nz > SNOW_NZ) col.setRGB(0.80, 0.86, 0.93);
     else if (nx > 0.7 && nz > 0.7) col.setRGB(0.36, 0.41, 0.26);
     else col.setRGB(0.38 + bn * 0.08, 0.47 + bn * 0.08, 0.23);
 
@@ -601,7 +599,7 @@ function initGame() {
   // No grass at all there; the margin also covers the blended white-to-green edge of the ground.
   const SNOW_MARGIN = 3;
   function inSnow(x, z) {
-    return x < -HALF + SNOW_NX * WORLD_SIZE + SNOW_MARGIN && z > -HALF + SNOW_NZ * WORLD_SIZE - SNOW_MARGIN;
+    return false;   // the snowy zone was removed from the map
   }
 
   function makeBladeGeo(h, w, bend, bc, tc, nSegs) {
@@ -1215,8 +1213,7 @@ function drawGrassAtlasCanvas() {
     if (Math.sqrt(x * x + z * z) < 9 || pathMask(x, z) > 0.5) continue;
     const nx = (x + HALF) / WORLD_SIZE, nz = (z + HALF) / WORLD_SIZE;
     let type = 'normal';
-    if (nx < 0.3 && nz < 0.3) type = 'pine';
-    else if (nx > 0.7 && nz < 0.3) type = 'dead';
+    if (nx > 0.7 && nz < 0.3) continue;   // desert: no trees at all
     const plan = { x, z, type, s: 1.1 + Math.random() * 0.7, trunkH: 2.2 + Math.random() * 1.6, parts: [] };
     plan.color = new THREE.Color().setHSL(type === 'pine' ? 0.36 + Math.random() * 0.03 : 0.22 + Math.random() * 0.09, 0.44 + Math.random() * 0.14, type === 'pine' ? 0.20 + Math.random() * 0.08 : 0.28 + Math.random() * 0.12).getHex();
     if (type === 'pine') {
@@ -2332,9 +2329,7 @@ function drawGrassAtlasCanvas() {
     const w = mmCanvas.width, h = mmCanvas.height;
     mmCtx.clearRect(0, 0, w, h);
     mmCtx.fillStyle = 'rgba(12,26,26,0.80)'; mmCtx.fillRect(0, 0, w, h);
-    mmCtx.fillStyle = 'rgba(30,80,50,0.35)'; mmCtx.fillRect(0, 0, w * 0.3, h * 0.3);
     mmCtx.fillStyle = 'rgba(170,130,70,0.30)'; mmCtx.fillRect(w * 0.7, 0, w * 0.3, h * 0.3);
-    mmCtx.fillStyle = 'rgba(190,220,235,0.26)'; mmCtx.fillRect(0, h * SNOW_NZ, w * SNOW_NX, h * (1 - SNOW_NZ));
     mmCtx.fillStyle = 'rgba(90,110,60,0.34)'; mmCtx.fillRect(w * 0.7, h * 0.7, w * 0.3, h * 0.3);
 
     mmCtx.lineWidth = 1;
@@ -2804,9 +2799,7 @@ function drawGrassAtlasCanvas() {
     const nx = (x + HALF) / WORLD_SIZE, nz = (z + HALF) / WORLD_SIZE;
     const dist = Math.sqrt(x * x + z * z);
     if (dist < 22) return '🌿 Green Field';
-    if (nx < 0.3 && nz < 0.3) return '🌲 Dense Forest';
     if (nx > 0.7 && nz < 0.3) return '🏜️ Desert';
-    if (nx < SNOW_NX && nz > SNOW_NZ) return '❄️ Snowy Zone';
     if (nx > 0.7 && nz > 0.7) return '🌾 Swamp';
     return '🌱 Grassland';
   }
