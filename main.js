@@ -1664,19 +1664,19 @@ function drawGrassAtlasCanvas() {
       '#home-title b{display:block;font:900 30px/1 system-ui,Arial,sans-serif;letter-spacing:4px}' +
       '#home-title i{display:block;font:700 12px system-ui,Arial,sans-serif;font-style:normal;letter-spacing:4px;color:#ffd24a;margin-top:6px}' +
       '#home-best{position:fixed;left:calc(22px + env(safe-area-inset-left));top:calc(76px + env(safe-area-inset-top));z-index:100001;pointer-events:none;color:#eaf6f8;font:700 11px system-ui,Arial,sans-serif;letter-spacing:2px;text-shadow:0 1px 4px rgba(0,0,0,0.6)}' +
-      '#home-panel{position:fixed;right:calc(14px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);z-index:100001;width:230px;padding:11px 14px;background:rgba(10,18,22,0.62);border:1.5px solid rgba(230,238,240,0.6);border-radius:14px;color:#eaf3f6;font:600 11px system-ui,Arial,sans-serif;letter-spacing:1px;max-height:calc(100vh - 24px);overflow-y:auto}' +
+      '#home-panel{position:fixed;right:calc(14px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);z-index:100001;width:250px;padding:10px 14px;background:rgba(10,18,22,0.62);border:1.5px solid rgba(230,238,240,0.6);border-radius:14px;color:#eaf3f6;font:600 11px system-ui,Arial,sans-serif;letter-spacing:1px;max-height:calc(100vh - 24px);overflow-y:auto}' +
       '#home-panel .hp-h{text-align:center;font-size:13px;letter-spacing:3px;margin-bottom:4px;color:#ffd24a}' +
       '#home-panel .hp-l{margin:7px 0 4px;opacity:0.85}' +
-      '#home-panel .hp-row{display:flex;flex-wrap:wrap;gap:6px}' +
-      '#home-panel button.sw{width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,255,255,0.7);padding:0;outline:none}' +
+      '#home-panel .hp-row{display:flex;flex-wrap:wrap;gap:5px}' +
+      '#home-panel button.sw{width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,0.7);padding:0;outline:none}' +
       '#home-hint{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:100001;pointer-events:none;color:#fff;opacity:0.7;font:600 10px system-ui,Arial,sans-serif;letter-spacing:2px;text-shadow:0 1px 4px rgba(0,0,0,0.7);white-space:nowrap}' +
       '#home-start{position:fixed;left:calc(22px + env(safe-area-inset-left));bottom:calc(22px + env(safe-area-inset-bottom));z-index:100001;width:210px;padding:15px 0;border-radius:14px;border:2px solid #ffe08a;background:linear-gradient(#f6b21c,#d9820c);color:#2a1700;font:900 19px system-ui,Arial,sans-serif;letter-spacing:4px;box-shadow:0 4px 14px rgba(0,0,0,0.45);outline:none}' +
       '#home-start:active{transform:scale(0.97)}';
     document.head.appendChild(st);
     const palettes = [
       ['body', 'BODY COLOUR', ['#8fa1ad', '#d9382c', '#f08a1c', '#f2c12e', '#3fae4a', '#2f7fe0', '#8a4fd6', '#e8e8ea', '#2a2d31']],
+      ['dome', 'DOME COLOUR', ['#a6c4d8', '#d9382c', '#f2c12e', '#3fae4a', '#2f7fe0', '#8a4fd6', '#e8e8ea', '#2a2d31', '#f08a1c']],
       ['accent', 'ARMS & PODS', ['#b5a488', '#222222', '#e8e8ea', '#d9382c', '#f2c12e', '#2fd6ff', '#3fae4a', '#f08a1c']],
-      ['dome', 'DOME', ['#a6c4d8', '#d9382c', '#f2c12e', '#3fae4a', '#2f7fe0', '#8a4fd6', '#e8e8ea', '#2a2d31', '#f08a1c']],
       ['light', 'HEADLIGHTS', ['#e8fbff', '#ffd27a', '#ff4a3a', '#5dff8a', '#4aa8ff', '#c27bff']]
     ];
     const root = document.createElement('div');
@@ -3267,11 +3267,11 @@ function drawGrassAtlasCanvas() {
     // ---- Steering: the stick asks for a fraction of the tyres' grip. Slow = limited by wheel lock, fast = limited by grip (so the car
     //      understeers wide when you carry too much speed into a corner, like a real one) ----
     const steerTarget = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
-    steerSmooth = THREE.MathUtils.damp(steerSmooth, steerTarget, steerTarget === 0 ? 10 : 5.5, dt);
+    steerSmooth = THREE.MathUtils.damp(steerSmooth, steerTarget, steerTarget === 0 ? 12 : 7.5, dt);
     if (steerTarget === 0 && Math.abs(steerSmooth) < 0.01) steerSmooth = 0;
     const WHEELBASE = 2.4;
-    const lockYaw = spd * Math.tan(0.58) / WHEELBASE;                            // yaw rate with the wheels at full lock
-    const gripYaw = (onRoadNow ? 17 : 11) / Math.max(spd, 3);                    // yaw rate at which lateral acceleration hits the grip limit (m/s^2)
+    const lockYaw = spd * Math.tan(0.62) / WHEELBASE;                            // yaw rate with the wheels at full lock
+    const gripYaw = (onRoadNow ? 30 : 18) / Math.max(spd, 3);                    // yaw rate at which lateral acceleration hits the grip limit (m/s^2)
     const yawRate = steerSmooth * Math.min(lockYaw, gripYaw) * (velocity < 0 ? -1 : 1);
     const steerAngle = steerSmooth * 0.58 / (1 + spd * 0.05);                    // (only drives the visible front wheels)
     currentRot += yawRate * dt;
@@ -3334,10 +3334,10 @@ function drawGrassAtlasCanvas() {
         rover.position.x -= rnx * sg * over; rover.position.z -= rnz * sg * over;
         if (velocity > 0) {                                           // slide along the rail: turn towards the road direction, lose speed
           const dAlign = Math.atan2(Math.sin(Math.atan2(-trkTX[ni], -trkTZ[ni]) - currentRot), Math.cos(Math.atan2(-trkTX[ni], -trkTZ[ni]) - currentRot));
-          currentRot += dAlign * Math.min(1, 3 * dt);
+          currentRot += dAlign * Math.min(1, 6 * dt);
           rover.rotation.y = currentRot;
-        }
-        velocity *= 1 - Math.min(0.9, 1.6 * dt);
+          velocity *= 1 - Math.min(0.9, (0.4 + 2.0 * Math.abs(dAlign)) * dt);     // shallow scrape = small loss, head-on = big loss
+        } else velocity *= 1 - Math.min(0.9, 1.6 * dt);
         if (spd > 10) thud(0.25);
       }
     }
