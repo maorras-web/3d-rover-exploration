@@ -216,10 +216,18 @@ function initGame() {
       const t = Math.random(), k = 0.45 + Math.random() * 0.55;
       c[i * 3] = k * (t < 0.2 ? 1.0 : 0.85); c[i * 3 + 1] = k * (t < 0.2 ? 0.85 : 0.92); c[i * 3 + 2] = k * (t < 0.5 ? 1.0 : 0.8);
     }
+    const sz = new Float32Array(n);
+    for (let i = 0; i < n; i++) sz[i] = 2.2 + Math.pow(Math.random(), 3) * 5.5;      // mostly small, a few bright big ones
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(p, 3));
-    g.setAttribute('color', new THREE.BufferAttribute(c, 3));
-    const pts = new THREE.Points(g, new THREE.PointsMaterial({ size: 1.9, sizeAttenuation: false, vertexColors: true, fog: false, depthWrite: false }));
+    g.setAttribute('aCol', new THREE.BufferAttribute(c, 3));
+    g.setAttribute('aSize', new THREE.BufferAttribute(sz, 1));
+    const pts = new THREE.Points(g, new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false,
+      uniforms: { uPR: { value: Math.min(window.devicePixelRatio, 2) } },
+      vertexShader: 'attribute vec3 aCol; attribute float aSize; uniform float uPR; varying vec3 vC; void main(){ vC = aCol; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_PointSize = aSize * uPR; }',
+      fragmentShader: 'varying vec3 vC; void main(){ float d = length(gl_PointCoord - 0.5); if (d > 0.5) discard; gl_FragColor = vec4(vC, smoothstep(0.5, 0.12, d)); }'
+    }));
     pts.frustumCulled = false;
     scene.add(pts);
     return pts;
@@ -362,7 +370,7 @@ function initGame() {
   // ============ RACE TRACK: a closed circuit (~1170 m) levelled into the terrain ============
   // The centre line is a smooth closed curve (min corner radius ~48 m, so it can be driven fast). The ground is flattened along it
   // BEFORE any colours / objects are computed, so the road, the physics and the trees all agree on the same height grid.
-  const TRK_N = 1000, TRK_W = 14, TRK_FLAT = 9.5, TRK_BLEND = 20;
+  const TRK_N = 1000, TRK_W = 22, TRK_FLAT = 15, TRK_BLEND = 26;
   const trkX = new Float32Array(TRK_N), trkZ = new Float32Array(TRK_N), trkY = new Float32Array(TRK_N);
   const trkTX = new Float32Array(TRK_N), trkTZ = new Float32Array(TRK_N);      // unit tangent (direction of travel)
   for (let i = 0; i < TRK_N; i++) {
@@ -1640,6 +1648,7 @@ function drawGrassAtlasCanvas() {
   function applyPaint() {
     if (paint.body) { MATS.hullS.color.set(paint.body); MATS.deckS.color.set(paint.body).offsetHSL(0, 0, 0.07); }
     if (paint.accent) { MATS.tanS.color.set(paint.accent); MATS.armS.color.set(paint.accent); }
+    if (paint.dome) MATS.dome.color.set(paint.dome);
     if (paint.light) {
       MATS.headHot.color.set(paint.light); MATS.headHot.emissive.set(paint.light);
       if (typeof frontHalos !== 'undefined') frontHalos.forEach(h => h.material.color.set(paint.light));
@@ -1655,11 +1664,11 @@ function drawGrassAtlasCanvas() {
       '#home-title b{display:block;font:900 30px/1 system-ui,Arial,sans-serif;letter-spacing:4px}' +
       '#home-title i{display:block;font:700 12px system-ui,Arial,sans-serif;font-style:normal;letter-spacing:4px;color:#ffd24a;margin-top:6px}' +
       '#home-best{position:fixed;left:calc(22px + env(safe-area-inset-left));top:calc(76px + env(safe-area-inset-top));z-index:100001;pointer-events:none;color:#eaf6f8;font:700 11px system-ui,Arial,sans-serif;letter-spacing:2px;text-shadow:0 1px 4px rgba(0,0,0,0.6)}' +
-      '#home-panel{position:fixed;right:calc(14px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);z-index:100001;width:230px;padding:11px 14px;background:rgba(10,18,22,0.62);border:1.5px solid rgba(230,238,240,0.6);border-radius:14px;color:#eaf3f6;font:600 11px system-ui,Arial,sans-serif;letter-spacing:1px}' +
+      '#home-panel{position:fixed;right:calc(14px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);z-index:100001;width:230px;padding:11px 14px;background:rgba(10,18,22,0.62);border:1.5px solid rgba(230,238,240,0.6);border-radius:14px;color:#eaf3f6;font:600 11px system-ui,Arial,sans-serif;letter-spacing:1px;max-height:calc(100vh - 24px);overflow-y:auto}' +
       '#home-panel .hp-h{text-align:center;font-size:13px;letter-spacing:3px;margin-bottom:4px;color:#ffd24a}' +
       '#home-panel .hp-l{margin:7px 0 4px;opacity:0.85}' +
       '#home-panel .hp-row{display:flex;flex-wrap:wrap;gap:6px}' +
-      '#home-panel button.sw{width:27px;height:27px;border-radius:50%;border:2px solid rgba(255,255,255,0.7);padding:0;outline:none}' +
+      '#home-panel button.sw{width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,255,255,0.7);padding:0;outline:none}' +
       '#home-hint{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:100001;pointer-events:none;color:#fff;opacity:0.7;font:600 10px system-ui,Arial,sans-serif;letter-spacing:2px;text-shadow:0 1px 4px rgba(0,0,0,0.7);white-space:nowrap}' +
       '#home-start{position:fixed;left:calc(22px + env(safe-area-inset-left));bottom:calc(22px + env(safe-area-inset-bottom));z-index:100001;width:210px;padding:15px 0;border-radius:14px;border:2px solid #ffe08a;background:linear-gradient(#f6b21c,#d9820c);color:#2a1700;font:900 19px system-ui,Arial,sans-serif;letter-spacing:4px;box-shadow:0 4px 14px rgba(0,0,0,0.45);outline:none}' +
       '#home-start:active{transform:scale(0.97)}';
@@ -1667,6 +1676,7 @@ function drawGrassAtlasCanvas() {
     const palettes = [
       ['body', 'BODY COLOUR', ['#8fa1ad', '#d9382c', '#f08a1c', '#f2c12e', '#3fae4a', '#2f7fe0', '#8a4fd6', '#e8e8ea', '#2a2d31']],
       ['accent', 'ARMS & PODS', ['#b5a488', '#222222', '#e8e8ea', '#d9382c', '#f2c12e', '#2fd6ff', '#3fae4a', '#f08a1c']],
+      ['dome', 'DOME', ['#a6c4d8', '#d9382c', '#f2c12e', '#3fae4a', '#2f7fe0', '#8a4fd6', '#e8e8ea', '#2a2d31', '#f08a1c']],
       ['light', 'HEADLIGHTS', ['#e8fbff', '#ffd27a', '#ff4a3a', '#5dff8a', '#4aa8ff', '#c27bff']]
     ];
     const root = document.createElement('div');
@@ -2743,7 +2753,7 @@ function drawGrassAtlasCanvas() {
   }
   const autoTune = (() => {
     const dev = detectDevice();
-    const key = 'roverAuto6|' + dev.gpu + '|' + dev.cores + '|' + dev.mem;
+    const key = 'roverAuto7|' + dev.gpu + '|' + dev.cores + '|' + dev.mem;
     const keyM = key + '|m30';
     const MAXL = LEVELS.length - 1;
     let lvl = 0, minLvl = 0, bad = 0, good = 0, lastChange = 0, evalAt = 0, frames = 0;
@@ -2934,7 +2944,7 @@ function drawGrassAtlasCanvas() {
   // ============ RACE: asphalt, kerbs, start gantry, laps + timer + speedometer ============
   const RACE_LAPS = 3;
   function buildRaceTrack() {
-    const STEP = 2, SEGS = TRK_N / STEP, LAT = 6;
+    const STEP = 2, SEGS = TRK_N / STEP, LAT = 8, HWd = TRK_W / 2;
     const g0 = (x, z, up) => getGroundHeight(x, z) + up;
     // --- asphalt ribbon (one mesh, ~4k triangles), laid 7 cm above the levelled ground
     const cv = document.createElement('canvas'); cv.width = cv.height = 256;
@@ -2961,7 +2971,7 @@ function drawGrassAtlasCanvas() {
       for (let l = 0; l <= LAT; l++) {
         const o = (l / LAT - 0.5) * TRK_W, x = trkX[i] + nx * o, z = trkZ[i] + nz * o, v = s * (LAT + 1) + l;
         pos[v * 3] = x; pos[v * 3 + 1] = g0(x, z, 0.07); pos[v * 3 + 2] = z;
-        uv[v * 2] = l / LAT; uv[v * 2 + 1] = dist / 7;
+        uv[v * 2] = l / LAT; uv[v * 2 + 1] = dist / TRK_W;
       }
     }
     for (let s = 0; s < SEGS; s++) for (let l = 0; l < LAT; l++) {
@@ -2987,8 +2997,8 @@ function drawGrassAtlasCanvas() {
     };
     for (let s = 0; s < SEGS; s++) {
       const i0 = s * STEP, i1 = ((s + 1) * STEP) % TRK_N, kc = (s & 1) ? cRed : cWhite;
-      strip(i0, i1, 7.0, 8.2, 0.09, kc);
-      strip(i0, i1, -8.2, -7.0, 0.09, kc);
+      strip(i0, i1, HWd, HWd + 1.2, 0.09, kc);
+      strip(i0, i1, -HWd - 1.2, -HWd, 0.09, kc);
       if (!(s & 1)) strip(i0, i1, -0.14, 0.14, 0.09, cLine);
     }
     const mg = new THREE.BufferGeometry();
@@ -3001,9 +3011,9 @@ function drawGrassAtlasCanvas() {
 
     // --- start / finish: chequered line + gantry
     {
-      const ck = document.createElement('canvas'); ck.width = 224; ck.height = 32;
+      const ck = document.createElement('canvas'); ck.width = 22 * 16; ck.height = 32;
       const kx = ck.getContext('2d');
-      for (let cxI = 0; cxI < 14; cxI++) for (let cyI = 0; cyI < 2; cyI++) { kx.fillStyle = ((cxI + cyI) & 1) ? '#101010' : '#f4f4f4'; kx.fillRect(cxI * 16, cyI * 16, 16, 16); }
+      for (let cxI = 0; cxI < 22; cxI++) for (let cyI = 0; cyI < 2; cyI++) { kx.fillStyle = ((cxI + cyI) & 1) ? '#101010' : '#f4f4f4'; kx.fillRect(cxI * 16, cyI * 16, 16, 16); }
       const kt = new THREE.CanvasTexture(ck); kt.colorSpace = THREE.SRGBColorSpace; kt.magFilter = THREE.NearestFilter; kt.generateMipmaps = false; kt.minFilter = THREE.LinearFilter;
       const nx = -trkTZ[0], nz = trkTX[0], tx = trkTX[0], tz = trkTZ[0], hw = TRK_W / 2, hl = 1.2;
       const Q = (o, d) => { const x = trkX[0] + nx * o + tx * d, z = trkZ[0] + nz * o + tz * d; return [x, g0(x, z, 0.085), z]; };
@@ -3025,7 +3035,7 @@ function drawGrassAtlasCanvas() {
       const gantry = new THREE.Group();
       const steel = new THREE.MeshStandardMaterial({ color: 0x2b3036, roughness: 0.6, metalness: 0.4, flatShading: true });
       const gy = getGroundHeight(trkX[0], trkZ[0]);
-      const postX = hw + 2.0;
+      const postX = hw + 2.4;
       for (const sgn of [-1, 1]) {
         const post = new THREE.Mesh(new THREE.BoxGeometry(0.7, 8.0, 0.7), steel);
         post.position.set(sgn * postX, 3.5, 0); gantry.add(post);
@@ -3048,7 +3058,7 @@ function drawGrassAtlasCanvas() {
     {
       const rp = [], rcl = [];
       const cL = new THREE.Color(0.6, 1.0, 1.0), cR = new THREE.Color(1.0, 0.9, 0.45);
-      const RO = 8.9, RH = 1.1, dim = 0.25;
+      const RO = HWd + 1.9, RH = 1.1, dim = 0.25;
       for (let s2 = 0; s2 < SEGS; s2++) {
         const i0 = s2 * STEP, i1 = ((s2 + 1) * STEP) % TRK_N;
         for (const sg of [1, -1]) {
@@ -3318,7 +3328,7 @@ function drawGrassAtlasCanvas() {
       trackNearest(rover.position.x, rover.position.z, race.idx, 60);
       const ni = nrIdx, rnx = -trkTZ[ni], rnz = trkTX[ni];
       const lat = (rover.position.x - trkX[ni]) * rnx + (rover.position.z - trkZ[ni]) * rnz;
-      const over = Math.abs(lat) - 6.6;
+      const over = Math.abs(lat) - (TRK_W / 2 - 0.4);      // rail at half-width + 1.9 m, minus the rover's half width
       if (over > 0) {
         const sg = lat > 0 ? 1 : -1;
         rover.position.x -= rnx * sg * over; rover.position.z -= rnz * sg * over;
