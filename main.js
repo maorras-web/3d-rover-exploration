@@ -76,7 +76,8 @@ function initGame() {
   const SNOW_NX = 0.40, SNOW_NZ = 0.60;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0xe9c9a2, 0.0040);   // denser haze = depth + everything past ~500 m is fully hidden
+  scene.background = new THREE.Color(0x03040b);   // OUTER SPACE: no ground, no grass, no trees - just the road, stars and a planet
+  scene.fog = new THREE.FogExp2(0x03040b, 0.0026);   // denser haze = depth + everything past ~500 m is fully hidden
 
   const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 560);   // far clipping: at 560 m the fog is ~99.5% so nothing visibly pops
   const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
@@ -205,7 +206,53 @@ function initGame() {
         }`
     })
   );
-  scene.add(sky);
+  // (old sky dome is not used any more)
+  const SUN_DIR = new THREE.Vector3(0.72, 0.677, -0.148);      // matches the (frozen) sun light direction
+  const spaceStars = (() => {
+    const n = 1800, p = new Float32Array(n * 3), c = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const u = Math.random() * 2 - 1, a = Math.random() * Math.PI * 2, r = Math.sqrt(1 - u * u);
+      p[i * 3] = Math.cos(a) * r * 480; p[i * 3 + 1] = u * 480; p[i * 3 + 2] = Math.sin(a) * r * 480;
+      const t = Math.random(), k = 0.45 + Math.random() * 0.55;
+      c[i * 3] = k * (t < 0.2 ? 1.0 : 0.85); c[i * 3 + 1] = k * (t < 0.2 ? 0.85 : 0.92); c[i * 3 + 2] = k * (t < 0.5 ? 1.0 : 0.8);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+    g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+    const pts = new THREE.Points(g, new THREE.PointsMaterial({ size: 1.9, sizeAttenuation: false, vertexColors: true, fog: false, depthWrite: false }));
+    pts.frustumCulled = false;
+    scene.add(pts);
+    return pts;
+  })();
+  const planetDir = new THREE.Vector3(-0.38, 0.20, -0.9).normalize(), moonDir = new THREE.Vector3(0.62, 0.34, 0.71).normalize();
+  const spacePlanet = (() => {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128;
+    const x = cv.getContext('2d');
+    const bands = ['#c9783c', '#e8b074', '#a8552e', '#f0d2a0', '#b9663a', '#7a3d28', '#dba06a', '#e9c48e'];
+    for (let y = 0; y < 128; y += 4) { x.fillStyle = bands[(y / 4 + (y > 60 ? 3 : 0)) % bands.length]; x.fillRect(0, y, 256, 4); }
+    for (let k = 0; k < 900; k++) { x.fillStyle = 'rgba(' + (Math.random() < 0.5 ? '255,235,200' : '90,40,20') + ',0.10)'; x.fillRect(Math.random() * 256, Math.random() * 128, 10 + Math.random() * 30, 1 + Math.random() * 3); }
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(95, 32, 16), new THREE.MeshLambertMaterial({ map: tex, fog: false }));
+    m.rotation.z = 0.35;
+    scene.add(m);
+    return m;
+  })();
+  const spaceMoon = (() => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(22, 20, 12), new THREE.MeshLambertMaterial({ color: 0xb9bcc4, fog: false }));
+    scene.add(m);
+    return m;
+  })();
+  const spaceSun = (() => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(16, 16, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.96, 0.82), fog: false, toneMapped: false }));
+    scene.add(m);
+    return m;
+  })();
+  function spaceSync(p) {
+    spaceStars.position.copy(p);
+    spacePlanet.position.copy(p).addScaledVector(planetDir, 420);
+    spaceMoon.position.copy(p).addScaledVector(moonDir, 400);
+    spaceSun.position.copy(p).addScaledVector(SUN_DIR, 450);
+  }
 
   // ============ Lights ============
   const ambientLight = new THREE.AmbientLight(0x8899bb, 0.22);
@@ -309,19 +356,20 @@ function initGame() {
     for (let ix = 0; ix <= GSEG; ix++) {
       const x = -HALF + ix * GCELL;
       const z = -HALF + iz * GCELL;
-      HGRID[iz * (GSEG + 1) + ix] = hangarFlat(x, z, (fbm(x, z) - 0.5) * 5.4 + (smoothNoise(x + 300, z - 120, 75) - 0.5) * 4.2 - pathMask(x, z) * 0.15 + moundH(x, z));
+      HGRID[iz * (GSEG + 1) + ix] = hangarFlat(x, z, 0);     // space: flat; only the road (and the garage pad) have any height
     }
   }
-  // ============ RACE TRACK: a closed circuit (~800 m) levelled into the terrain ============
-  // The centre line is a smooth closed curve (min corner radius ~69 m, so it can be driven fast). The ground is flattened along it
+  // ============ RACE TRACK: a closed circuit (~1170 m) levelled into the terrain ============
+  // The centre line is a smooth closed curve (min corner radius ~48 m, so it can be driven fast). The ground is flattened along it
   // BEFORE any colours / objects are computed, so the road, the physics and the trees all agree on the same height grid.
-  const TRK_N = 600, TRK_W = 14, TRK_FLAT = 9.5, TRK_BLEND = 20;
+  const TRK_N = 1000, TRK_W = 14, TRK_FLAT = 9.5, TRK_BLEND = 20;
   const trkX = new Float32Array(TRK_N), trkZ = new Float32Array(TRK_N), trkY = new Float32Array(TRK_N);
   const trkTX = new Float32Array(TRK_N), trkTZ = new Float32Array(TRK_N);      // unit tangent (direction of travel)
   for (let i = 0; i < TRK_N; i++) {
-    const a = Math.PI / 2 + (i / TRK_N) * Math.PI * 2;                            // sample 0 = the start/finish line, on the far north side
-    const r = 128 + 24 * Math.sin(2 * a + 0.6) + 10 * Math.sin(3 * a + 1.9);
-    trkX[i] = r * Math.cos(a); trkZ[i] = 0.92 * r * Math.sin(a);
+    const a = 4.668407 + (i / TRK_N) * Math.PI * 2;                              // sample 0 = the start/finish line (on the longest straight)
+    const r = 142.8938 + 24.0551 * Math.sin(2 * a + 3.73077) + 0.8946 * Math.sin(3 * a + 1.77384) + 12.62307 * Math.sin(4 * a + 4.27967) +
+      7.11314 * Math.sin(5 * a + 2.87526) + 5.96864 * Math.sin(6 * a + 0.37914) + 2.25186 * Math.sin(7 * a + 2.03318);
+    trkX[i] = r * Math.cos(a) * 1.2387078; trkZ[i] = r * Math.sin(a) * 1.1650364;
   }
   for (let i = 0; i < TRK_N; i++) {
     const p = (i + TRK_N - 1) % TRK_N, q = (i + 1) % TRK_N;
@@ -331,12 +379,12 @@ function initGame() {
   {
     // road height profile = terrain under the centre line, smoothed (3 passes) so the road rolls gently instead of copying every bump
     let a = new Float32Array(TRK_N), b = new Float32Array(TRK_N);
-    for (let i = 0; i < TRK_N; i++) a[i] = getGroundHeight(trkX[i], trkZ[i]);
-    for (let pass = 0; pass < 3; pass++) {
+    for (let i = 0; i < TRK_N; i++) { const q = (i / TRK_N) * Math.PI * 2; a[i] = 2.4 * Math.sin(q * 3 + 0.8) + 1.2 * Math.sin(q * 5 + 2.0); }   // gentle rolling road (max slope ~7%)
+    for (let pass = 0; pass < 1; pass++) {
       for (let i = 0; i < TRK_N; i++) {
         let s = 0;
-        for (let k = -16; k <= 16; k++) s += a[(i + k + TRK_N) % TRK_N];
-        b[i] = s / 33;
+        for (let k = -24; k <= 24; k++) s += a[(i + k + TRK_N) % TRK_N];
+        b[i] = s / 49;
       }
       const tmp = a; a = b; b = tmp;
     }
@@ -378,6 +426,19 @@ function initGame() {
       if (d2 < best) { best = d2; bi = i; }
     }
     nrIdx = bi; nrDist = Math.sqrt(best);
+  }
+
+  // Content far from the road is almost never seen (fog + the camera looks along the track), so it is thinned out / not created at all:
+  // full density within 40 m of the road (and around the garage showroom), 25% from 40 to 90 m, nothing beyond 90 m.
+  const TRK_SUB = [];
+  for (let i = 0; i < TRK_N; i += 8) TRK_SUB.push(i);
+  function culledOut(x, z) {
+    if (Math.hypot(x - HG_X, z - HG_Z) < 45) return false;
+    let b = 1e12;
+    for (let k = 0; k < TRK_SUB.length; k++) { const i = TRK_SUB[k], dx = trkX[i] - x, dz = trkZ[i] - z, d2 = dx * dx + dz * dz; if (d2 < b) b = d2; }
+    if (b < 1600) return false;
+    if (b > 8100) return true;
+    return Math.random() > 0.25;
   }
 
   function getGroundHeight(x, z) {
@@ -629,7 +690,7 @@ function initGame() {
   // camera frustum / far plane on its own, so only the part of the terrain you actually see is sent to the GPU.
   const ground = new THREE.Group();
   ground.rotation.x = -Math.PI / 2;
-  scene.add(ground);
+  // (space: the ground is not added to the scene)
   {
     const S = 44, nC = GSEG / S, W1 = S + 1;
     const gP = groundGeo.attributes.position.array, gN = groundGeo.attributes.normal.array;
@@ -905,7 +966,6 @@ function drawGrassAtlasCanvas() {
     const x0 = -HALF + cI * FG_CH, z0 = -HALF + cJ * FG_CH;
     const hr = heightRange(x0, z0, x0 + FG_CH, z0 + FG_CH);
     grassChunks.push({ mesh: m, sphere: sphereFromBox(x0 - 1.5, hr[0] - 0.3, z0 - 1.5, x0 + FG_CH + 1.5, hr[1] + 1.4, z0 + FG_CH + 1.5) });
-    scene.add(m);
   }
   const grassLayers = [];
 
@@ -1255,7 +1315,7 @@ function drawGrassAtlasCanvas() {
     if (Math.hypot(x, z) < 8) continue;
     rockPlans.push({ x, z, s: 0.85 + Math.random() * 0.45 });
   }
-  for (let i = rockPlans.length - 1; i >= 0; i--) if (inGarageZone(rockPlans[i].x, rockPlans[i].z) || nearTrack(rockPlans[i].x, rockPlans[i].z)) rockPlans.splice(i, 1);
+  for (let i = rockPlans.length - 1; i >= 0; i--) if (inGarageZone(rockPlans[i].x, rockPlans[i].z) || nearTrack(rockPlans[i].x, rockPlans[i].z) || culledOut(rockPlans[i].x, rockPlans[i].z)) rockPlans.splice(i, 1);
   const rockIM = new THREE.InstancedMesh(
     withGradient(new THREE.DodecahedronGeometry(0.8, 0), 0.62, 1.08),
     new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.95, flatShading: true }),
@@ -1302,7 +1362,7 @@ function drawGrassAtlasCanvas() {
         plan.parts.push({ ox: Math.cos(ang) * Math.cos(el) * dist, oy: Math.sin(el) * dist, oz: Math.sin(ang) * Math.cos(el) * dist, r: rk });
       }
     }
-    if (inGarageZone(x, z) || nearTrack(x, z)) continue;
+    if (inGarageZone(x, z) || nearTrack(x, z) || culledOut(x, z)) continue;
     treePlans.push(plan);
     colliders.push({ x, z, r: 0.45 * plan.s, tree: true });
   }
@@ -1397,7 +1457,7 @@ function drawGrassAtlasCanvas() {
     const n = 2 + Math.floor(Math.random() * 3);
     for (let k = 0; k < n; k++) {
       const x = cx + (Math.random() - 0.5) * 3.2, z = cz + (Math.random() - 0.5) * 3.2;
-      if (pathMask(x, z) > 0.2 || inGarageZone(x, z) || nearTrack(x, z)) continue;
+      if (pathMask(x, z) > 0.2 || inGarageZone(x, z) || nearTrack(x, z) || culledOut(x, z)) continue;
       bushPlans.push({ x, z, s: 0.45 + Math.random() * 0.65 });
     }
   }
@@ -1497,7 +1557,6 @@ function drawGrassAtlasCanvas() {
       }`
   }));
   pollen.frustumCulled = false;
-  scene.add(pollen);
 
   // ============ Rolling hills (two hazy layers) ============
   function addHills(count, ringR, rMin, rMax, hMin, hMax, color, segW, segH, drivable) {
@@ -1520,12 +1579,12 @@ function drawGrassAtlasCanvas() {
     im.instanceMatrix.needsUpdate = true;
     scene.add(im);
   }
-  addHills(20, 262, 48, 74, 14, 24, 0x5f8a3a, 24, 14, true);
-  addHills(20, 376, 80, 115, 29, 45, 0x7d9c86);
+  // (space: no hills)
 
-  // ============ GARAGE: a real building the rover drives into to repaint itself (almost free: ~6 draw calls) ============
+  // ============ GARAGE: now the HOME SCREEN showroom (only visible there; hidden while racing) ============
+  let garageGrp = null;
   {
-    const boxes = { wall: [], roof: [], floor: [], accent: [], glow: [] };
+    const boxes = { wall: [], floor: [], accent: [], glow: [] };   // (no roof: the sun lights the showroom)
     const bx = (k, x, y, z, w, h, d) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); boxes[k].push(g); };
     bx('floor', 0, -0.12, 0, 16.6, 0.3, 18.6);
     bx('wall', -8, 3.4, 0, 0.6, 7.2, 18);                       // back wall
@@ -1534,15 +1593,11 @@ function drawGrassAtlasCanvas() {
     bx('wall', 8, 3.4, -7.25, 0.6, 7.2, 3.5);                   // front, either side of the door
     bx('wall', 8, 3.4, 7.25, 0.6, 7.2, 3.5);
     bx('wall', 8, 6.1, 0, 0.6, 1.8, 11);                      // above the door
-    bx('roof', 0, 7.25, 0, 17.2, 0.5, 19.2);
     bx('accent', 8.05, 5.1, 0, 0.7, 0.4, 11.2);               // yellow door frame
     bx('accent', 8.05, 2.4, -5.6, 0.8, 5.2, 0.5);
     bx('accent', 8.05, 2.4, 5.6, 0.8, 5.2, 0.5);
     bx('accent', 0, 0.04, 0, 7.4, 0.05, 7.4);                 // paint-bay square on the floor
     bx('glow', 0, 0.075, 0, 6.6, 0.05, 6.6);
-    bx('glow', -3, 6.9, 0, 0.5, 0.15, 14);                    // ceiling light strips
-    bx('glow', 0, 6.9, 0, 0.5, 0.15, 14);
-    bx('glow', 3, 6.9, 0, 0.5, 0.15, 14);
     const mats = {
       wall: new THREE.MeshStandardMaterial({ color: 0x8e9ba4, roughness: 0.7, metalness: 0.3, flatShading: true }),
       roof: new THREE.MeshStandardMaterial({ color: 0x55616a, roughness: 0.8, metalness: 0.2, flatShading: true }),
@@ -1572,18 +1627,16 @@ function drawGrassAtlasCanvas() {
     sign.rotation.y = Math.PI / 2;
     sign.position.set(8.4, 8.9, 0);
     grp.add(sign);
+    grp.visible = false;
     scene.add(grp);
-    // solid walls (circles along each wall; the door stays open)
-    for (let z = -8.5; z <= 8.5; z += 2) colliders.push({ x: HG_X - 8, z: HG_Z + z, r: 0.9 });
-    for (let x = -7; x <= 7; x += 2) { colliders.push({ x: HG_X + x, z: HG_Z - 9, r: 0.9 }); colliders.push({ x: HG_X + x, z: HG_Z + 9, r: 0.9 }); }
-    for (let z = 5.9; z <= 8.9; z += 1.5) { colliders.push({ x: HG_X + 8, z: HG_Z - z, r: 0.9 }); colliders.push({ x: HG_X + 8, z: HG_Z + z, r: 0.9 }); }
+    garageGrp = grp;
   }
 
-  // ---- garage menu: colours cost nothing (just material colours) and are remembered ----
+  // ---- paint: colours cost nothing (just material colours) and are remembered ----
   const PAINT_KEY = 'roverPaint1';
   let paint = {};
   try { paint = JSON.parse(localStorage.getItem(PAINT_KEY)) || {}; } catch (e) { paint = {}; }
-  let paintApplied = false, garageStill = 0, garageSuppressed = false, garagePanel = null, garageOpen = false;
+  let paintApplied = false;
   function applyPaint() {
     if (paint.body) { MATS.hullS.color.set(paint.body); MATS.deckS.color.set(paint.body).offsetHSL(0, 0, 0.07); }
     if (paint.accent) { MATS.tanS.color.set(paint.accent); MATS.armS.color.set(paint.accent); }
@@ -1592,55 +1645,55 @@ function drawGrassAtlasCanvas() {
       if (typeof frontHalos !== 'undefined') frontHalos.forEach(h => h.material.color.set(paint.light));
     }
   }
-  function openGarage() {
-    if (!garagePanel) {
-      const palettes = [
-        ['body', 'BODY COLOUR', ['#8fa1ad', '#d9382c', '#f08a1c', '#f2c12e', '#3fae4a', '#2f7fe0', '#8a4fd6', '#e8e8ea', '#2a2d31']],
-        ['accent', 'ARMS & PODS', ['#b5a488', '#222222', '#e8e8ea', '#d9382c', '#f2c12e', '#2fd6ff', '#3fae4a', '#f08a1c']],
-        ['light', 'HEADLIGHTS', ['#e8fbff', '#ffd27a', '#ff4a3a', '#5dff8a', '#4aa8ff', '#c27bff']]
-      ];
-      const p = document.createElement('div');
-      p.style.cssText = 'position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:100001;width:236px;padding:12px 14px;background:rgba(10,18,22,0.78);border:1.5px solid rgba(230,238,240,0.7);border-radius:14px;color:#eaf3f6;font:600 11px sans-serif;letter-spacing:1px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:none;';
-      let h = '<div style="text-align:center;font-size:14px;letter-spacing:3px;margin-bottom:8px;color:#ffd24a">GARAGE</div>';
-      palettes.forEach(([key, label, cols]) => {
-        h += '<div style="margin:8px 0 4px;opacity:.85">' + label + '</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
-        cols.forEach(c => { h += '<button data-k="' + key + '" data-c="' + c + '" style="width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.75);background:' + c + ';padding:0"></button>'; });
-        h += '</div>';
-      });
-      h += '<button id="garage-done" style="margin-top:12px;width:100%;padding:8px;border-radius:9px;border:1.5px solid rgba(230,238,240,.7);background:rgba(255,255,255,.12);color:#fff;font:700 12px sans-serif;letter-spacing:2px">DRIVE OUT</button>';
-      p.innerHTML = h;
-      document.body.appendChild(p);
-      p.addEventListener('click', (e) => {
-        const b = e.target.closest('button');
-        if (!b) return;
-        if (b.id === 'garage-done') { closeGarage(); return; }
-        paint[b.dataset.k] = b.dataset.c;
-        try { localStorage.setItem(PAINT_KEY, JSON.stringify(paint)); } catch (err) {}
-        applyPaint();
-      });
-      p.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
-      garagePanel = p;
-    }
-    garagePanel.style.display = 'block';
-    garageOpen = true;
+  // ---- HOME SCREEN: garage showroom + paint shop + START RACE ----
+  function buildHomeUI() {
+    const st = document.createElement('style');
+    st.textContent =
+      'body.home-mode #ui-container,body.home-mode #steer-left,body.home-mode #pedals-right,body.home-mode #cam-controls,body.home-mode #status-bars,body.home-mode #race-hud,body.home-mode #rc-count{display:none !important}' +
+      'body:not(.home-mode) #home-ui{display:none}' +
+      '#home-title{position:fixed;left:calc(22px + env(safe-area-inset-left));top:calc(16px + env(safe-area-inset-top));z-index:100001;pointer-events:none;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.55)}' +
+      '#home-title b{display:block;font:900 30px/1 system-ui,Arial,sans-serif;letter-spacing:4px}' +
+      '#home-title i{display:block;font:700 12px system-ui,Arial,sans-serif;font-style:normal;letter-spacing:4px;color:#ffd24a;margin-top:6px}' +
+      '#home-best{position:fixed;left:calc(22px + env(safe-area-inset-left));top:calc(76px + env(safe-area-inset-top));z-index:100001;pointer-events:none;color:#eaf6f8;font:700 11px system-ui,Arial,sans-serif;letter-spacing:2px;text-shadow:0 1px 4px rgba(0,0,0,0.6)}' +
+      '#home-panel{position:fixed;right:calc(14px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);z-index:100001;width:230px;padding:11px 14px;background:rgba(10,18,22,0.62);border:1.5px solid rgba(230,238,240,0.6);border-radius:14px;color:#eaf3f6;font:600 11px system-ui,Arial,sans-serif;letter-spacing:1px}' +
+      '#home-panel .hp-h{text-align:center;font-size:13px;letter-spacing:3px;margin-bottom:4px;color:#ffd24a}' +
+      '#home-panel .hp-l{margin:7px 0 4px;opacity:0.85}' +
+      '#home-panel .hp-row{display:flex;flex-wrap:wrap;gap:6px}' +
+      '#home-panel button.sw{width:27px;height:27px;border-radius:50%;border:2px solid rgba(255,255,255,0.7);padding:0;outline:none}' +
+      '#home-hint{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:100001;pointer-events:none;color:#fff;opacity:0.7;font:600 10px system-ui,Arial,sans-serif;letter-spacing:2px;text-shadow:0 1px 4px rgba(0,0,0,0.7);white-space:nowrap}' +
+      '#home-start{position:fixed;left:calc(22px + env(safe-area-inset-left));bottom:calc(22px + env(safe-area-inset-bottom));z-index:100001;width:210px;padding:15px 0;border-radius:14px;border:2px solid #ffe08a;background:linear-gradient(#f6b21c,#d9820c);color:#2a1700;font:900 19px system-ui,Arial,sans-serif;letter-spacing:4px;box-shadow:0 4px 14px rgba(0,0,0,0.45);outline:none}' +
+      '#home-start:active{transform:scale(0.97)}';
+    document.head.appendChild(st);
+    const palettes = [
+      ['body', 'BODY COLOUR', ['#8fa1ad', '#d9382c', '#f08a1c', '#f2c12e', '#3fae4a', '#2f7fe0', '#8a4fd6', '#e8e8ea', '#2a2d31']],
+      ['accent', 'ARMS & PODS', ['#b5a488', '#222222', '#e8e8ea', '#d9382c', '#f2c12e', '#2fd6ff', '#3fae4a', '#f08a1c']],
+      ['light', 'HEADLIGHTS', ['#e8fbff', '#ffd27a', '#ff4a3a', '#5dff8a', '#4aa8ff', '#c27bff']]
+    ];
+    const root = document.createElement('div');
+    root.id = 'home-ui';
+    let h = '<div id="home-title"><b>ROVER RACING</b><i>GARAGE</i></div><div id="home-best"></div><div id="home-panel"><div class="hp-h">PAINT SHOP</div>';
+    palettes.forEach(([key, label, cols]) => {
+      h += '<div class="hp-l">' + label + '</div><div class="hp-row">';
+      cols.forEach(c => { h += '<button class="sw" data-k="' + key + '" data-c="' + c + '" style="background:' + c + '"></button>'; });
+      h += '</div>';
+    });
+    h += '</div><button id="home-start">START RACE</button><div id="home-hint">DRAG TO LOOK AROUND</div>';
+    root.innerHTML = h;
+    document.body.appendChild(root);
+    root.querySelector('#home-panel').addEventListener('click', (e) => {
+      const b = e.target.closest('button.sw');
+      if (!b) return;
+      paint[b.dataset.k] = b.dataset.c;
+      try { localStorage.setItem(PAINT_KEY, JSON.stringify(paint)); } catch (err) { }
+      applyPaint();
+    });
+    root.querySelector('#home-start').addEventListener('click', () => startRace());
+    // the panel / buttons must not start a camera drag
+    root.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
   }
-  function closeGarage() {
-    if (garagePanel) garagePanel.style.display = 'none';
-    garageOpen = false;
-    garageSuppressed = true;      // do not reopen until the rover has left and come back
-  }
-  function garageTick(dt, spd) {
+  buildHomeUI();
+  function garageTick() {
     if (!paintApplied) { paintApplied = true; applyPaint(); }
-    const gx = rover.position.x - HG_X, gz = rover.position.z - HG_Z;
-    const inside = gx > -6.5 && gx < 6.5 && Math.abs(gz) < 7;
-    if (!inside) {
-      garageStill = 0; garageSuppressed = false;
-      if (garageOpen) { garagePanel.style.display = 'none'; garageOpen = false; }
-      return;
-    }
-    if (garageOpen || garageSuppressed) return;
-    garageStill = spd < 1.2 ? garageStill + dt : 0;
-    if (garageStill > 0.5) openGarage();
   }
 
   // ============ Standing stones (the POI) ============
@@ -1657,15 +1710,12 @@ function drawGrassAtlasCanvas() {
     stone.position.set(sx, getGroundHeight(sx, sz) - 0.3 + sh / 2, sz);
     stone.rotation.set((Math.random() - 0.5) * 0.12, -ang + Math.PI / 2, (Math.random() - 0.5) * 0.12);
     stone.castShadow = true;
-    scene.add(stone);
-    colliders.push({ x: sx, z: sz, r: 0.8 });
   }
   const lintel = new THREE.Mesh(withGradient(new THREE.BoxGeometry(3.4, 0.8, 1.0), 0.8, 1.05), stoneMat);
   lintel.receiveShadow = true;
   lintel.position.set(POI_X + 5, getGroundHeight(POI_X + 5, POI_Z) - 0.3 + 5.4, POI_Z);
   lintel.rotation.y = Math.PI / 2;
   lintel.castShadow = true;
-  scene.add(lintel);
 
   const poiCv = document.createElement('canvas');
   poiCv.width = 128; poiCv.height = 192;
@@ -1685,7 +1735,6 @@ function drawGrassAtlasCanvas() {
   const poiBaseY = poiGround + 11;
   poi.position.set(POI_X, poiBaseY, POI_Z);
   poi.renderOrder = 10;
-  scene.add(poi);
 
   // ============================================================
   // ============ 🚜 THE ROVER ============
@@ -2244,9 +2293,9 @@ function drawGrassAtlasCanvas() {
       // ---- wind (grows with speed) ----
       const ws = actx.createBufferSource(); ws.buffer = noiseBuf; ws.loop = true; ws.playbackRate.value = 0.6;
       const wf = actx.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 420;
-      const wg = actx.createGain(); wg.gain.value = 0.04;
+      const wg = actx.createGain(); wg.gain.value = 0;
       const wl = actx.createOscillator(); wl.frequency.value = 0.15;
-      const wlg = actx.createGain(); wlg.gain.value = 0.02;
+      const wlg = actx.createGain(); wlg.gain.value = 0;
       wl.connect(wlg); wlg.connect(wg.gain); wl.start();
       ws.connect(wf); wf.connect(wg); wg.connect(mix); ws.start();
 
@@ -2297,10 +2346,10 @@ function drawGrassAtlasCanvas() {
     eng.whG.gain.setTargetAtTime(sp * 0.016 * (throttle ? 1 : 0.6) * ENGINE_K, t0, 0.1);
     // ground
     eng.gSrc.playbackRate.setTargetAtTime(0.45 + sp * 1.25, t0, 0.1);
-    eng.gG.gain.setTargetAtTime(Math.pow(sp, 1.1) * (onPath ? 0.30 : 0.04) * GRAVEL_K, t0, 0.12);
-    eng.sG.gain.setTargetAtTime(sp * (onPath ? 0.02 : 0.10), t0, 0.15);
+    eng.gG.gain.setTargetAtTime(Math.pow(sp, 1.1) * 0.12 * GRAVEL_K, t0, 0.12);
+    eng.sG.gain.setTargetAtTime(sp * 0.03, t0, 0.15);
     eng.hG.gain.setTargetAtTime(sp * 0.16, t0, 0.15);
-    eng.wg.gain.setTargetAtTime(0.03 + sp * 0.06, t0, 0.2);
+    eng.wg.gain.setTargetAtTime(0, t0, 0.2);      // space: no wind
     eng.wf.frequency.setTargetAtTime(380 + sp * 900, t0, 0.2);
   }
   function thud(strength) {
@@ -2355,7 +2404,7 @@ function drawGrassAtlasCanvas() {
   dust.frustumCulled = false;
   scene.add(dust);
   let dustNext = 0, dustAcc = 0;
-  const dustTrail = new THREE.Color(0xc9a678), dustGrass = new THREE.Color(0x9fb06a);
+  const dustTrail = new THREE.Color(0x9fdcff), dustGrass = new THREE.Color(0x9fdcff);
   function updateDust(dt, spd, rx, rz, cosR, sinR, onPath) {
     dustMat.uniforms.uPR.value = renderer.getPixelRatio();
     dustMat.uniforms.uCol.value.lerp(onPath ? dustTrail : dustGrass, 0.1);
@@ -2475,7 +2524,7 @@ function drawGrassAtlasCanvas() {
   let lastTimeText = '', lastBiomeText = '';
 
   function updateDayNight(dt) {
-    gameTime = (gameTime + dt * 0.0004) % 1;
+    gameTime = 0.12;      // space: the sun never moves
     const ang = gameTime * Math.PI * 2;
     const sh = Math.sin(ang);
     _shLd.set(Math.cos(ang) * 80, Math.max(sh * 80, -25), -12).normalize();
@@ -2503,15 +2552,15 @@ function drawGrassAtlasCanvas() {
     tmpB.copy(tmpA).lerp(horDay, day);
     skyUniforms.horizon.value.copy(tmpB);
 
-    scene.fog.color.copy(skyUniforms.horizon.value);
+    scene.fog.color.setRGB(0.012, 0.016, 0.04);
     skyUniforms.cloudAmt.value = 0.15 + day * 0.85;
     skyUniforms.nightAmt.value = 1 - THREE.MathUtils.smoothstep(sh, -0.3, 0.02);
     skyUniforms.cloudCol.value.setRGB(0.25 + dusk * 0.55 + day * 0.72, 0.25 + dusk * 0.30 + day * 0.68, 0.35 + dusk * 0.20 + day * 0.55);
-    if (sunGlowEl) sunGlowEl.style.opacity = (day * 0.95).toFixed(2);
-    sunLight.intensity = 0.4 + day * 2.2 + dusk * 0.6;
-    sunLight.color.setRGB(1.0, 0.75 + day * 0.15, 0.55 + day * 0.25);
-    ambientLight.intensity = 0.12 + day * 0.2;
-    hemiLight.intensity = 0.25 + day * 0.5;
+    if (sunGlowEl) sunGlowEl.style.opacity = '0';
+    sunLight.intensity = 2.7;
+    sunLight.color.setRGB(1.0, 0.97, 0.9);
+    ambientLight.intensity = 0.26;
+    hemiLight.intensity = 0.34;
 
     const clockH = (gameTime * 24 + 6) % 24;
     const hours = Math.floor(clockH);
@@ -2994,10 +3043,48 @@ function drawGrassAtlasCanvas() {
       gantry.traverse(o => { if (o.isMesh && o.material === steel) { o.castShadow = true; } });
       scene.add(gantry);
     }
+
+    // --- neon guard rails (left = cyan, right = gold): the road floats in space, so these keep you on it
+    {
+      const rp = [], rcl = [];
+      const cL = new THREE.Color(0.6, 1.0, 1.0), cR = new THREE.Color(1.0, 0.9, 0.45);
+      const RO = 8.9, RH = 1.1, dim = 0.25;
+      for (let s2 = 0; s2 < SEGS; s2++) {
+        const i0 = s2 * STEP, i1 = ((s2 + 1) * STEP) % TRK_N;
+        for (const sg of [1, -1]) {
+          const col = sg > 0 ? cL : cR;
+          const P = (i, y) => { const o = sg * RO, x = trkX[i] + -trkTZ[i] * o, z = trkZ[i] + trkTX[i] * o; return [x, g0(x, z, y), z]; };
+          const A = P(i0, 0.05), B = P(i0, RH), C = P(i1, 0.05), D = P(i1, RH);
+          for (const [p, k] of [[A, dim], [B, 1], [C, dim], [B, 1], [D, 1], [C, dim]]) { rp.push(p[0], p[1], p[2]); rcl.push(col.r * k, col.g * k, col.b * k); }
+        }
+      }
+      const rgm = new THREE.BufferGeometry();
+      rgm.setAttribute('position', new THREE.Float32BufferAttribute(rp, 3));
+      rgm.setAttribute('color', new THREE.Float32BufferAttribute(rcl, 3));
+      const rails = new THREE.Mesh(rgm, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, toneMapped: false }));
+      rails.frustumCulled = false;
+      scene.add(rails);
+
+      // glowing gates over the road every ~58 m: they give the sense of speed that trees used to give
+      const NA = 19;
+      const ai = new THREE.InstancedMesh(new THREE.TorusGeometry(RO, 0.16, 5, 24, Math.PI), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 1.0, 1.0), toneMapped: false }), NA);
+      const dm = new THREE.Object3D();
+      for (let k = 0; k < NA; k++) {
+        const i = 40 + k * 50;
+        dm.position.set(trkX[i], g0(trkX[i], trkZ[i], 0.05), trkZ[i]);
+        dm.rotation.set(0, Math.atan2(-trkTX[i], -trkTZ[i]), 0);
+        dm.updateMatrix();
+        ai.setMatrixAt(k, dm.matrix);
+      }
+      ai.frustumCulled = false;
+      scene.add(ai);
+    }
   }
+  // SPACE: nothing from the old world may keep colliding with / bumping the rover
+  colliders.length = 0; smallRocks.length = 0; hillRecs.length = 0; rockGrid.clear();
   buildRaceTrack();
 
-  const race = { state: 'countdown', cd: 4.0, shown: -1, lap: 1, lapT: 0, totalT: 0, last: 0, best: 0, prog: 0, idx: 0, cut: false, wrongT: 0, hudT: 0, cdHide: 0, lastKmh: -1 };
+  const race = { state: 'home', cd: 4.0, shown: -1, lap: 1, lapT: 0, totalT: 0, last: 0, best: 0, prog: 0, idx: 0, cut: false, wrongT: 0, hudT: 0, cdHide: 0, lastKmh: -1 };
   try { race.best = parseFloat(localStorage.getItem('roverBestLap1')) || 0; } catch (e) { }
   const fmtT = (s) => { if (!(s > 0)) return '--'; const m = Math.floor(s / 60), r = s - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(2); };
   {
@@ -3010,8 +3097,8 @@ function drawGrassAtlasCanvas() {
       '#race-hud .rc-speed i{font-size:10px;font-style:normal;margin-left:4px;opacity:0.75;letter-spacing:1.4px}' +
       '#race-hud b{color:#ffe08a;font-weight:700}' +
       '#rc-warn{display:none;color:#ff9a7a;margin-top:2px;letter-spacing:1.6px}' +
-      '#rc-restart{pointer-events:auto;margin-top:5px;padding:3px 12px;border-radius:8px;border:1px solid rgba(126,240,255,0.35);background:rgba(126,240,255,0.12);color:#d8f7ff;font:700 10px system-ui,Arial,sans-serif;letter-spacing:1.4px;outline:none}' +
-      '#rc-restart:active{background:rgba(126,240,255,0.4)}' +
+      '#rc-restart,#rc-garage{pointer-events:auto;margin:5px 3px 0;padding:3px 12px;border-radius:8px;border:1px solid rgba(126,240,255,0.35);background:rgba(126,240,255,0.12);color:#d8f7ff;font:700 10px system-ui,Arial,sans-serif;letter-spacing:1.4px;outline:none}' +
+      '#rc-restart:active,#rc-garage:active{background:rgba(126,240,255,0.4)}' +
       '#rc-count{position:absolute;left:50%;top:30%;transform:translate(-50%,-50%);z-index:70;font:900 76px/1 system-ui,Arial,sans-serif;color:#fff;text-align:center;white-space:nowrap;' +
       'text-shadow:0 0 18px rgba(255,170,60,0.9),0 3px 6px rgba(0,0,0,0.6);pointer-events:none;opacity:0;transition:opacity 0.15s}' +
       '#rc-count small{display:block;font-size:20px;font-weight:700;letter-spacing:2px;margin-top:8px}';
@@ -3023,7 +3110,7 @@ function drawGrassAtlasCanvas() {
     '<div class="rc-row"><span id="rc-lap">LAP 1/' + RACE_LAPS + '</span><span id="rc-time">0:00.00</span></div>' +
     '<div class="rc-speed"><span id="rc-kmh">0</span><i>km/h</i></div>' +
     '<div class="rc-row"><span>LAST <b id="rc-last">--</b></span><span>BEST <b id="rc-best">--</b></span></div>' +
-    '<div id="rc-warn"></div><button id="rc-restart">RESTART</button>';
+    '<div id="rc-warn"></div><button id="rc-restart">RESTART</button><button id="rc-garage">GARAGE</button>';
   document.body.appendChild(raceEl);
   const countEl = document.createElement('div');
   countEl.id = 'rc-count';
@@ -3033,7 +3120,7 @@ function drawGrassAtlasCanvas() {
   function bigText(html, secs) { countEl.innerHTML = html; countEl.style.opacity = '1'; race.cdHide = secs; }
 
   function resetRace() {
-    const si = TRK_N - 6;                                    // grid slot: a few metres behind the line
+    const si = TRK_N - 8;                                    // grid slot: a few metres behind the line
     const sx = trkX[si], sz = trkZ[si];
     currentRot = Math.atan2(-trkTX[si], -trkTZ[si]);
     rover.position.set(sx, getGroundHeight(sx, sz) + 0.6, sz);
@@ -3043,15 +3130,40 @@ function drawGrassAtlasCanvas() {
     health = 100; fuel = 100; repairT = 0;
     camera.position.set(sx + Math.sin(currentRot) * 9, rover.position.y + 3.5, sz + Math.cos(currentRot) * 9);
     race.state = 'countdown'; race.cd = 4.0; race.shown = -1;
-    race.lap = 1; race.lapT = 0; race.totalT = 0; race.last = 0; race.prog = -6; race.idx = si; race.cut = false; race.wrongT = 0;
+    race.lap = 1; race.lapT = 0; race.totalT = 0; race.last = 0; race.prog = -8; race.idx = si; race.cut = false; race.wrongT = 0;
     countEl.style.opacity = '0';
   }
   document.getElementById('rc-restart').addEventListener('click', resetRace);
-  window.addEventListener('keydown', (e) => { if (e.code === 'KeyR') resetRace(); });
+  document.getElementById('rc-garage').addEventListener('click', () => showHome());
+  let snapCam = false, homeAuto = 0.7;
+  function showHome() {                       // HOME SCREEN: the rover sits in the garage, the camera circles it
+    document.body.classList.add('home-mode');
+    race.state = 'home';
+    if (garageGrp) garageGrp.visible = true;
+    currentRot = -Math.PI / 2;
+    rover.position.set(HG_X, HG_Y + 0.6, HG_Z);
+    rover.rotation.set(0, currentRot, 0);
+    camYaw = currentRot;
+    velocity = 0; prevVelocity = 0; steerSmooth = 0; pitch = 0; roll = 0; orbitYaw = 0; orbitPitch = 0;
+    health = 100; fuel = 100; repairT = 0;
+    homeAuto = 0.7; snapCam = true;
+    countEl.style.opacity = '0';
+    shadowDirty = true;
+    const hb = document.getElementById('home-best');
+    if (hb) hb.textContent = race.best > 0 ? 'BEST LAP  ' + fmtT(race.best) : 'NO LAP TIME YET';
+  }
+  function startRace() {
+    document.body.classList.remove('home-mode');
+    if (garageGrp) garageGrp.visible = false;
+    resetRace();
+    shadowDirty = true;
+  }
+  window.addEventListener('keydown', (e) => { if (e.code === 'KeyR' && race.state !== 'home') resetRace(); });
 
   function raceTick(dt, rx, rz, spd) {
+    if (race.state === 'home') return;
     // where are we on the circuit? A windowed search around the last known spot: cheap, and shortcuts across the grass earn no progress
-    trackNearest(rx, rz, race.idx, 45);
+    trackNearest(rx, rz, race.idx, 60);
     const onCircuit = nrDist < 26;
     if (onCircuit) {
       let d = nrIdx - race.idx;
@@ -3099,16 +3211,9 @@ function drawGrassAtlasCanvas() {
       elRcWarn.textContent = w; elRcWarn.style.display = w ? 'block' : 'none';
     }
   }
-  resetRace();
+  showHome();
 
-  function getBiomeName(x, z) {
-    const nx = (x + HALF) / WORLD_SIZE, nz = (z + HALF) / WORLD_SIZE;
-    const dist = Math.sqrt(x * x + z * z);
-    if (dist < 22) return '🌿 Green Field';
-    if (nx > 0.7 && nz < 0.3) return '🏜️ Desert';
-    if (nx > 0.7 && nz > 0.7) return '🌾 Swamp';
-    return '🌱 Grassland';
-  }
+  function getBiomeName(x, z) { return '🌌 Deep Space'; }
 
   let lastRenderAt = 0;
   function animate() {
@@ -3125,7 +3230,7 @@ function drawGrassAtlasCanvas() {
     // ---- Throttle: a racing drivetrain (strong launch, thinning acceleration near top speed, real brakes, drag) ----
     const onRoadNow = trackDist(rover.position.x, rover.position.z) < TRK_W / 2 + 1.2;
     const surfTop = onRoadNow ? maxSpeed : (pathMask(rover.position.x, rover.position.z) > 0.35 ? maxSpeed * 0.75 : maxSpeed * 0.55);   // grass slows you down
-    const lockedGrid = race.state === 'countdown';
+    const lockedGrid = race.state === 'countdown' || race.state === 'home';
     if (repairT > 0 || lockedGrid) {
       velocity = THREE.MathUtils.damp(velocity, 0, 4, dt);                       // being repaired / waiting on the grid
     } else {
@@ -3208,6 +3313,25 @@ function drawGrassAtlasCanvas() {
     }
     if (hit && spd > 2) { velocity *= 0.7; thud(speedNorm); }
 
+    // ---- Guard rails (the road floats in space: there is nothing outside it). The rover slides along the rail and loses some speed ----
+    if (race.state !== 'home') {
+      trackNearest(rover.position.x, rover.position.z, race.idx, 60);
+      const ni = nrIdx, rnx = -trkTZ[ni], rnz = trkTX[ni];
+      const lat = (rover.position.x - trkX[ni]) * rnx + (rover.position.z - trkZ[ni]) * rnz;
+      const over = Math.abs(lat) - 6.6;
+      if (over > 0) {
+        const sg = lat > 0 ? 1 : -1;
+        rover.position.x -= rnx * sg * over; rover.position.z -= rnz * sg * over;
+        if (velocity > 0) {                                           // slide along the rail: turn towards the road direction, lose speed
+          const dAlign = Math.atan2(Math.sin(Math.atan2(-trkTX[ni], -trkTZ[ni]) - currentRot), Math.cos(Math.atan2(-trkTX[ni], -trkTZ[ni]) - currentRot));
+          currentRot += dAlign * Math.min(1, 3 * dt);
+          rover.rotation.y = currentRot;
+        }
+        velocity *= 1 - Math.min(0.9, 1.6 * dt);
+        if (spd > 10) thud(0.25);
+      }
+    }
+
     // ---- TRUE 3D SUSPENSION: sample ground under EACH wheel ----
     const rx = rover.position.x, rz = rover.position.z;
     const cosR = Math.cos(currentRot), sinR = Math.sin(currentRot);
@@ -3280,7 +3404,6 @@ function drawGrassAtlasCanvas() {
 
     updateSuspension();
     uRover.value.set(rover.position.x, rover.position.y, rover.position.z);
-    updateNearGrass(rover.position.x, rover.position.z);
     const limit = HALF - 6;
     rover.position.x = THREE.MathUtils.clamp(rover.position.x, -limit, limit);
     rover.position.z = THREE.MathUtils.clamp(rover.position.z, -limit, limit);
@@ -3306,7 +3429,7 @@ function drawGrassAtlasCanvas() {
     }
 
     // ---- Orbit view eases back behind the rover when you drive or let go for a few seconds ----
-    if (orbitTouch === null) {
+    if (orbitTouch === null && race.state !== 'home') {
       const drivingNow = keys.forward || keys.backward || keys.left || keys.right;
       if (drivingNow || performance.now() - lastOrbitMs > 4000) {
         orbitYaw = Math.atan2(Math.sin(orbitYaw), Math.cos(orbitYaw));
@@ -3321,8 +3444,13 @@ function drawGrassAtlasCanvas() {
     camYaw += dAng * (1 - Math.exp(-4.0 * dt));
     const cfX = -Math.sin(camYaw), cfZ = -Math.cos(camYaw);
 
-    sky.position.copy(camera.position);
-    if (camMode === 0) {
+    spaceSync(camera.position);
+    if (race.state === 'home') {
+      if (orbitTouch === null && performance.now() - lastOrbitMs > 2500) homeAuto += dt * 0.32;     // slow turntable, drag to look around
+      const ha = homeAuto + orbitYaw;
+      _camPos.set(rx + Math.sin(ha) * 6.4, rover.position.y + 2.3 + orbitPitch * 2.2, rz + Math.cos(ha) * 6.4);
+      _look.set(rx + Math.cos(ha) * 1.6, rover.position.y + 1.0, rz - Math.sin(ha) * 1.6);          // rover sits left of centre, the paint panel is on the right
+    } else if (camMode === 0) {
       const camDist = (5.0 + spd * 0.10) * camZoom;
       const camH = (2.0 + spd * 0.035) * camZoom;
       _camPos.set(rx - cfX * camDist, rover.position.y + camH, rz - cfZ * camDist);
@@ -3334,7 +3462,7 @@ function drawGrassAtlasCanvas() {
       _camPos.set(rx + cfX * camDist, rover.position.y + camH, rz + cfZ * camDist);
       _look.set(rx, rover.position.y + 1.2, rz);
     }
-    if (orbitYaw !== 0 || orbitPitch !== 0) {
+    if ((orbitYaw !== 0 || orbitPitch !== 0) && race.state !== 'home') {
       const odx = _camPos.x - rx, odz = _camPos.z - rz;
       const oc = Math.cos(orbitYaw), os = Math.sin(orbitYaw);
       _camPos.x = rx + odx * oc + odz * os;
@@ -3360,6 +3488,7 @@ function drawGrassAtlasCanvas() {
         if (tMin < 1) { _camPos.x = rx + sdx * tMin; _camPos.z = rz + sdz * tMin; }
       }
     }
+    if (snapCam) { camera.position.copy(_camPos); snapCam = false; }
     camera.position.lerp(_camPos, 1 - Math.exp(-(4.5 + spd * 0.45) * dt));      // stiffer follow at speed, otherwise the camera trails far behind
     // keep the camera out of tree trunks / boulders...
     for (let i = 0; i < colliders.length; i++) {
@@ -3403,7 +3532,7 @@ function drawGrassAtlasCanvas() {
       const sw = window.innerWidth, sh = window.innerHeight;
       const ex = THREE.MathUtils.clamp((pnx * 0.5 + 0.5) * sw, 60, sw - 60);
       const ey = THREE.MathUtils.clamp((1 - (pny * 0.5 + 0.5)) * sh, 70, sh - 120);
-      poiArrow.style.display = 'block';
+      poiArrow.style.display = 'none';      // (racing game: no more treasure arrow)
       poiArrow.style.transform = 'translate(' + (ex - 22) + 'px,' + (ey - 26) + 'px)';
       poiArrowSvg.style.transform = 'rotate(' + (Math.atan2(pnx, pny) * 180 / Math.PI) + 'deg)';
       poiArrowTxt.textContent = Math.round(poiDist) + ' m';
@@ -3415,8 +3544,6 @@ function drawGrassAtlasCanvas() {
 
     chunkTick++;
     pollenU.uC.value.copy(rover.position);
-    if (chunkTick === 1) updateChunks(rx, rz, true); else if ((chunkTick & 7) === 0) updateChunks(rx, rz, false);
-    cullGrass(rx, rz);
     shadowFrame++;
     renderer.shadowMap.needsUpdate = shadowDirty || !((shadowHalf || shadowForceHalf) && (shadowFrame & 1));
     shadowDirty = false;
