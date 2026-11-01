@@ -312,6 +312,74 @@ function initGame() {
       HGRID[iz * (GSEG + 1) + ix] = hangarFlat(x, z, (fbm(x, z) - 0.5) * 5.4 + (smoothNoise(x + 300, z - 120, 75) - 0.5) * 4.2 - pathMask(x, z) * 0.15 + moundH(x, z));
     }
   }
+  // ============ RACE TRACK: a closed circuit (~800 m) levelled into the terrain ============
+  // The centre line is a smooth closed curve (min corner radius ~69 m, so it can be driven fast). The ground is flattened along it
+  // BEFORE any colours / objects are computed, so the road, the physics and the trees all agree on the same height grid.
+  const TRK_N = 600, TRK_W = 14, TRK_FLAT = 9.5, TRK_BLEND = 20;
+  const trkX = new Float32Array(TRK_N), trkZ = new Float32Array(TRK_N), trkY = new Float32Array(TRK_N);
+  const trkTX = new Float32Array(TRK_N), trkTZ = new Float32Array(TRK_N);      // unit tangent (direction of travel)
+  for (let i = 0; i < TRK_N; i++) {
+    const a = Math.PI / 2 + (i / TRK_N) * Math.PI * 2;                            // sample 0 = the start/finish line, on the far north side
+    const r = 128 + 24 * Math.sin(2 * a + 0.6) + 10 * Math.sin(3 * a + 1.9);
+    trkX[i] = r * Math.cos(a); trkZ[i] = 0.92 * r * Math.sin(a);
+  }
+  for (let i = 0; i < TRK_N; i++) {
+    const p = (i + TRK_N - 1) % TRK_N, q = (i + 1) % TRK_N;
+    const dx = trkX[q] - trkX[p], dz = trkZ[q] - trkZ[p], l = Math.hypot(dx, dz) || 1;
+    trkTX[i] = dx / l; trkTZ[i] = dz / l;
+  }
+  {
+    // road height profile = terrain under the centre line, smoothed (3 passes) so the road rolls gently instead of copying every bump
+    let a = new Float32Array(TRK_N), b = new Float32Array(TRK_N);
+    for (let i = 0; i < TRK_N; i++) a[i] = getGroundHeight(trkX[i], trkZ[i]);
+    for (let pass = 0; pass < 3; pass++) {
+      for (let i = 0; i < TRK_N; i++) {
+        let s = 0;
+        for (let k = -16; k <= 16; k++) s += a[(i + k + TRK_N) % TRK_N];
+        b[i] = s / 33;
+      }
+      const tmp = a; a = b; b = tmp;
+    }
+    trkY.set(a);
+  }
+  const TDIST = new Float32Array(HGRID.length).fill(1e9);                          // distance from every height-grid vertex to the centre line
+  {
+    const TIDX = new Int16Array(HGRID.length);
+    const rc = Math.ceil(TRK_BLEND / GCELL) + 1;
+    for (let i = 0; i < TRK_N; i++) {
+      const cx = (trkX[i] + HALF) / GCELL, cz = (trkZ[i] + HALF) / GCELL;
+      const x0 = Math.max(0, Math.floor(cx) - rc), x1 = Math.min(GSEG, Math.ceil(cx) + rc);
+      const z0 = Math.max(0, Math.floor(cz) - rc), z1 = Math.min(GSEG, Math.ceil(cz) + rc);
+      for (let iz = z0; iz <= z1; iz++) for (let ix = x0; ix <= x1; ix++) {
+        const d = Math.hypot(-HALF + ix * GCELL - trkX[i], -HALF + iz * GCELL - trkZ[i]);
+        const k = iz * (GSEG + 1) + ix;
+        if (d < TDIST[k]) { TDIST[k] = d; TIDX[k] = i; }
+      }
+    }
+    for (let k = 0; k < HGRID.length; k++) {
+      if (TDIST[k] >= TRK_BLEND) continue;
+      const tt = 1 - THREE.MathUtils.smoothstep(TDIST[k], TRK_FLAT, TRK_BLEND);
+      HGRID[k] += (trkY[TIDX[k]] - HGRID[k]) * tt;
+    }
+  }
+  function trackDist(x, z) {      // distance to the centre line (only accurate within ~20 m of it; 1e9 further away)
+    const ix = Math.round((x + HALF) / GCELL), iz = Math.round((z + HALF) / GCELL);
+    if (ix < 0 || iz < 0 || ix > GSEG || iz > GSEG) return 1e9;
+    return TDIST[iz * (GSEG + 1) + ix];
+  }
+  function nearTrack(x, z) { return trackDist(x, z) < 16; }                        // trees / rocks / bushes keep out of this strip
+  let nrIdx = 0, nrDist = 0;
+  function trackNearest(x, z, hint, win) {   // nearest centre-line sample; searches only +-win samples around `hint` (or everywhere if hint < 0)
+    let best = 1e12, bi = 0;
+    const n = hint < 0 ? TRK_N : win * 2 + 1;
+    for (let k = 0; k < n; k++) {
+      const i = hint < 0 ? k : (hint - win + k + TRK_N * 4) % TRK_N;
+      const dx = trkX[i] - x, dz = trkZ[i] - z, d2 = dx * dx + dz * dz;
+      if (d2 < best) { best = d2; bi = i; }
+    }
+    nrIdx = bi; nrDist = Math.sqrt(best);
+  }
+
   function getGroundHeight(x, z) {
     const gx = THREE.MathUtils.clamp((x + HALF) / GCELL, 0, GSEG - 0.0001);
     const gz = THREE.MathUtils.clamp((z + HALF) / GCELL, 0, GSEG - 0.0001);
@@ -331,7 +399,7 @@ function initGame() {
   const GP1 = GSEG + 1;
   const colors = new Float32Array(pos.count * 3);
   const col = new THREE.Color();
-  const tmpRock = new THREE.Color(0.42, 0.40, 0.30), tmpSun = new THREE.Color(0.62, 0.62, 0.30);
+  const tmpRock = new THREE.Color(0.42, 0.40, 0.30), tmpSun = new THREE.Color(0.62, 0.62, 0.30), tmpGravel = new THREE.Color(0.46, 0.42, 0.33);
   for (let i = 0; i < pos.count; i++) {
     const ix = i % GP1, iy = Math.floor(i / GP1);
     const x = -HALF + ix * GCELL;
@@ -379,6 +447,9 @@ function initGame() {
       col.lerp(tmpSun, THREE.MathUtils.smoothstep(hv, 1.0, 4.0) * 0.25);
       col.multiplyScalar(ao);
     }
+
+    // gravel run-off strip along the race track (the asphalt itself is a separate mesh laid on top)
+    { const td = TDIST[i]; if (td < 16) col.lerp(tmpGravel, (1 - THREE.MathUtils.smoothstep(td, 8.5, 16)) * 0.8); }
 
     colors[i * 3] = col.r; colors[i * 3 + 1] = col.g; colors[i * 3 + 2] = col.b;
   }
@@ -1184,7 +1255,7 @@ function drawGrassAtlasCanvas() {
     if (Math.hypot(x, z) < 8) continue;
     rockPlans.push({ x, z, s: 0.85 + Math.random() * 0.45 });
   }
-  for (let i = rockPlans.length - 1; i >= 0; i--) if (inGarageZone(rockPlans[i].x, rockPlans[i].z)) rockPlans.splice(i, 1);
+  for (let i = rockPlans.length - 1; i >= 0; i--) if (inGarageZone(rockPlans[i].x, rockPlans[i].z) || nearTrack(rockPlans[i].x, rockPlans[i].z)) rockPlans.splice(i, 1);
   const rockIM = new THREE.InstancedMesh(
     withGradient(new THREE.DodecahedronGeometry(0.8, 0), 0.62, 1.08),
     new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.95, flatShading: true }),
@@ -1231,7 +1302,7 @@ function drawGrassAtlasCanvas() {
         plan.parts.push({ ox: Math.cos(ang) * Math.cos(el) * dist, oy: Math.sin(el) * dist, oz: Math.sin(ang) * Math.cos(el) * dist, r: rk });
       }
     }
-    if (inGarageZone(x, z)) continue;
+    if (inGarageZone(x, z) || nearTrack(x, z)) continue;
     treePlans.push(plan);
     colliders.push({ x, z, r: 0.45 * plan.s, tree: true });
   }
@@ -1326,7 +1397,7 @@ function drawGrassAtlasCanvas() {
     const n = 2 + Math.floor(Math.random() * 3);
     for (let k = 0; k < n; k++) {
       const x = cx + (Math.random() - 0.5) * 3.2, z = cz + (Math.random() - 0.5) * 3.2;
-      if (pathMask(x, z) > 0.2 || inGarageZone(x, z)) continue;
+      if (pathMask(x, z) > 0.2 || inGarageZone(x, z) || nearTrack(x, z)) continue;
       bushPlans.push({ x, z, s: 0.45 + Math.random() * 0.65 });
     }
   }
@@ -2339,6 +2410,22 @@ function drawGrassAtlasCanvas() {
       mmCtx.beginPath(); mmCtx.moveTo(0, i * h / 8); mmCtx.lineTo(w, i * h / 8); mmCtx.stroke();
     }
 
+    // race circuit + start/finish tick
+    mmCtx.save();
+    mmCtx.strokeStyle = 'rgba(205,212,222,0.85)'; mmCtx.lineWidth = 3.2; mmCtx.lineJoin = 'round';
+    mmCtx.beginPath();
+    for (let i = 0; i < TRK_N; i += 10) {
+      const px = ((trkX[i] + HALF) / WORLD_SIZE) * w, py = ((trkZ[i] + HALF) / WORLD_SIZE) * h;
+      if (i === 0) mmCtx.moveTo(px, py); else mmCtx.lineTo(px, py);
+    }
+    mmCtx.closePath(); mmCtx.stroke();
+    {
+      const sx = ((trkX[0] + HALF) / WORLD_SIZE) * w, sy = ((trkZ[0] + HALF) / WORLD_SIZE) * h;
+      mmCtx.strokeStyle = '#ffffff'; mmCtx.lineWidth = 2.4;
+      mmCtx.beginPath(); mmCtx.moveTo(sx - trkTZ[0] * 5, sy + trkTX[0] * 5); mmCtx.lineTo(sx + trkTZ[0] * 5, sy - trkTX[0] * 5); mmCtx.stroke();
+    }
+    mmCtx.restore();
+
     mmCtx.save();
     mmCtx.strokeStyle = 'rgba(255,214,150,0.9)'; mmCtx.lineWidth = 2.6;
     mmCtx.shadowColor = 'rgba(255,200,120,0.8)'; mmCtx.shadowBlur = 5;
@@ -2710,7 +2797,7 @@ function drawGrassAtlasCanvas() {
     dmgCool = Math.max(0, dmgCool - dt);
     // crashes damage the rover
     if (hit && spd > 2 && dmgCool <= 0 && repairT <= 0) {
-      health = Math.max(0, health - (4 + (spd - 2) * 2.2));
+      health = Math.max(0, health - (4 + (spd - 2) * 0.6));     // (racing speeds: a crash hurts, but one hit does not wreck the car)
       dmgCool = 0.7;
       if (health <= 0) { repairT = 3; showMsg('ROVER DAMAGED - REPAIRING...', 3); }
     }
@@ -2719,7 +2806,7 @@ function drawGrassAtlasCanvas() {
       if (repairT <= 0) health = 40;
     }
     // fuel: burns while driving, slowly recharges (solar) while parked
-    if (throttle) fuel -= (0.12 + speedNorm * 0.26) * dt;
+    if (throttle) fuel -= (0.04 + speedNorm * 0.09) * dt;
     else if (spd < 0.6) {
       fuel += 0.6 * (0.25 + 0.75 * dayFactor) * dt;
       if (repairT <= 0 && health < 100) health = Math.min(100, health + 0.3 * dt);
@@ -2748,7 +2835,7 @@ function drawGrassAtlasCanvas() {
 
   // ============ Main loop ============
   const clock = new THREE.Clock();
-  const maxSpeed = 9.0;
+  const maxSpeed = 46.0;      // m/s  (~165 km/h; the old rover topped out at 9 m/s = 32 km/h)
   let velocity = 0, prevVelocity = 0;
   let steerSmooth = 0;          // smoothed steering input (-1..1)
   let camYaw = 0;               // independent smoothed camera yaw
@@ -2795,6 +2882,225 @@ function drawGrassAtlasCanvas() {
   const _camPos = new THREE.Vector3();
   const _look = new THREE.Vector3();
 
+  // ============ RACE: asphalt, kerbs, start gantry, laps + timer + speedometer ============
+  const RACE_LAPS = 3;
+  function buildRaceTrack() {
+    const STEP = 2, SEGS = TRK_N / STEP, LAT = 6;
+    const g0 = (x, z, up) => getGroundHeight(x, z) + up;
+    // --- asphalt ribbon (one mesh, ~4k triangles), laid 7 cm above the levelled ground
+    const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+    const cx = cv.getContext('2d');
+    cx.fillStyle = '#4b4e53'; cx.fillRect(0, 0, 256, 256);
+    cx.fillStyle = 'rgba(18,18,20,0.20)';
+    cx.fillRect(256 * 0.20, 0, 256 * 0.15, 256); cx.fillRect(256 * 0.65, 0, 256 * 0.15, 256);   // rubbered-in racing lines
+    for (let k = 0; k < 5200; k++) {
+      const g = 70 + Math.random() * 60 | 0;
+      cx.fillStyle = 'rgba(' + g + ',' + g + ',' + (g + 4) + ',' + (0.22 + Math.random() * 0.35) + ')';
+      cx.fillRect(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 2, 1 + Math.random() * 2);
+    }
+    const asTex = new THREE.CanvasTexture(cv);
+    asTex.wrapS = asTex.wrapT = THREE.RepeatWrapping;
+    asTex.colorSpace = THREE.SRGBColorSpace;
+    asTex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+    const pos = new Float32Array((SEGS + 1) * (LAT + 1) * 3), uv = new Float32Array((SEGS + 1) * (LAT + 1) * 2);
+    const ind = [];
+    let dist = 0;
+    for (let s = 0; s <= SEGS; s++) {
+      const i = (s * STEP) % TRK_N, ip = ((s - 1) * STEP + TRK_N) % TRK_N;
+      if (s > 0) dist += Math.hypot(trkX[i] - trkX[ip], trkZ[i] - trkZ[ip]);
+      const nx = -trkTZ[i], nz = trkTX[i];
+      for (let l = 0; l <= LAT; l++) {
+        const o = (l / LAT - 0.5) * TRK_W, x = trkX[i] + nx * o, z = trkZ[i] + nz * o, v = s * (LAT + 1) + l;
+        pos[v * 3] = x; pos[v * 3 + 1] = g0(x, z, 0.07); pos[v * 3 + 2] = z;
+        uv[v * 2] = l / LAT; uv[v * 2 + 1] = dist / 7;
+      }
+    }
+    for (let s = 0; s < SEGS; s++) for (let l = 0; l < LAT; l++) {
+      const a = s * (LAT + 1) + l, b = a + 1, c = a + LAT + 1, d = c + 1;
+      ind.push(a, b, c, b, d, c);
+    }
+    const rg = new THREE.BufferGeometry();
+    rg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    rg.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    rg.setIndex(ind);
+    rg.computeVertexNormals();
+    const road = new THREE.Mesh(rg, new THREE.MeshStandardMaterial({ map: asTex, roughness: 0.9, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    road.receiveShadow = true;
+    scene.add(road);
+
+    // --- kerbs (red/white) + dashed centre line, one vertex-coloured mesh
+    const mp = [], mc = [];
+    const cRed = new THREE.Color(0xd2322d), cWhite = new THREE.Color(0xf1f1f1), cLine = new THREE.Color(0xe6e6e6);
+    const strip = (i0, i1, o0, o1, up, col) => {
+      const P = (i, o) => { const x = trkX[i] + -trkTZ[i] * o, z = trkZ[i] + trkTX[i] * o; return [x, g0(x, z, up), z]; };
+      const A = P(i0, o0), B = P(i0, o1), C = P(i1, o0), D = P(i1, o1);
+      for (const p of [A, B, C, B, D, C]) { mp.push(p[0], p[1], p[2]); mc.push(col.r, col.g, col.b); }
+    };
+    for (let s = 0; s < SEGS; s++) {
+      const i0 = s * STEP, i1 = ((s + 1) * STEP) % TRK_N, kc = (s & 1) ? cRed : cWhite;
+      strip(i0, i1, 7.0, 8.2, 0.09, kc);
+      strip(i0, i1, -8.2, -7.0, 0.09, kc);
+      if (!(s & 1)) strip(i0, i1, -0.14, 0.14, 0.09, cLine);
+    }
+    const mg = new THREE.BufferGeometry();
+    mg.setAttribute('position', new THREE.Float32BufferAttribute(mp, 3));
+    mg.setAttribute('color', new THREE.Float32BufferAttribute(mc, 3));
+    mg.computeVertexNormals();
+    const marks = new THREE.Mesh(mg, new THREE.MeshLambertMaterial({ vertexColors: true, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+    marks.receiveShadow = true;
+    scene.add(marks);
+
+    // --- start / finish: chequered line + gantry
+    {
+      const ck = document.createElement('canvas'); ck.width = 224; ck.height = 32;
+      const kx = ck.getContext('2d');
+      for (let cxI = 0; cxI < 14; cxI++) for (let cyI = 0; cyI < 2; cyI++) { kx.fillStyle = ((cxI + cyI) & 1) ? '#101010' : '#f4f4f4'; kx.fillRect(cxI * 16, cyI * 16, 16, 16); }
+      const kt = new THREE.CanvasTexture(ck); kt.colorSpace = THREE.SRGBColorSpace; kt.magFilter = THREE.NearestFilter; kt.generateMipmaps = false; kt.minFilter = THREE.LinearFilter;
+      const nx = -trkTZ[0], nz = trkTX[0], tx = trkTX[0], tz = trkTZ[0], hw = TRK_W / 2, hl = 1.2;
+      const Q = (o, d) => { const x = trkX[0] + nx * o + tx * d, z = trkZ[0] + nz * o + tz * d; return [x, g0(x, z, 0.085), z]; };
+      const A = Q(-hw, -hl), B = Q(hw, -hl), C = Q(-hw, hl), D = Q(hw, hl);
+      const sg = new THREE.BufferGeometry();
+      sg.setAttribute('position', new THREE.Float32BufferAttribute([...A, ...B, ...C, ...B, ...D, ...C], 3));
+      sg.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1], 2));
+      sg.computeVertexNormals();
+      const sline = new THREE.Mesh(sg, new THREE.MeshLambertMaterial({ map: kt, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+      scene.add(sline);
+
+      const bn = document.createElement('canvas'); bn.width = 512; bn.height = 96;
+      const bx = bn.getContext('2d');
+      bx.fillStyle = '#12171c'; bx.fillRect(0, 0, 512, 96);
+      bx.fillStyle = '#d2322d'; bx.fillRect(0, 0, 512, 8); bx.fillRect(0, 88, 512, 8);
+      bx.fillStyle = '#ffffff'; bx.font = '800 54px system-ui, Arial, sans-serif'; bx.textAlign = 'center'; bx.textBaseline = 'middle';
+      bx.fillText('START / FINISH', 256, 50);
+      const bt = new THREE.CanvasTexture(bn); bt.colorSpace = THREE.SRGBColorSpace;
+      const gantry = new THREE.Group();
+      const steel = new THREE.MeshStandardMaterial({ color: 0x2b3036, roughness: 0.6, metalness: 0.4, flatShading: true });
+      const gy = getGroundHeight(trkX[0], trkZ[0]);
+      const postX = hw + 2.0;
+      for (const sgn of [-1, 1]) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.7, 8.0, 0.7), steel);
+        post.position.set(sgn * postX, 3.5, 0); gantry.add(post);
+        colliders.push({ x: trkX[0] + nx * sgn * postX, z: trkZ[0] + nz * sgn * postX, r: 0.7 });
+      }
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(postX * 2 + 0.7, 2.2, 0.6), steel);
+      beam.position.set(0, 6.6, 0); gantry.add(beam);
+      const bm = new THREE.MeshBasicMaterial({ map: bt });
+      for (const sd of [1, -1]) {
+        const pl = new THREE.Mesh(new THREE.PlaneGeometry(postX * 2 - 0.4, 1.9), bm);
+        pl.position.set(0, 6.6, sd * 0.32); if (sd < 0) pl.rotation.y = Math.PI; gantry.add(pl);
+      }
+      gantry.position.set(trkX[0], gy, trkZ[0]);
+      gantry.rotation.y = Math.atan2(-nz, nx);
+      gantry.traverse(o => { if (o.isMesh && o.material === steel) { o.castShadow = true; } });
+      scene.add(gantry);
+    }
+  }
+  buildRaceTrack();
+
+  const race = { state: 'countdown', cd: 4.0, shown: -1, lap: 1, lapT: 0, totalT: 0, last: 0, best: 0, prog: 0, idx: 0, cut: false, wrongT: 0, hudT: 0, cdHide: 0, lastKmh: -1 };
+  try { race.best = parseFloat(localStorage.getItem('roverBestLap1')) || 0; } catch (e) { }
+  const fmtT = (s) => { if (!(s > 0)) return '--'; const m = Math.floor(s / 60), r = s - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(2); };
+  {
+    const st = document.createElement('style');
+    st.textContent =
+      '#race-hud{position:absolute;top:calc(40px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:55;min-width:176px;padding:5px 14px 7px;border-radius:12px;' +
+      'background:rgba(10,18,22,0.38);border:1px solid rgba(126,240,255,0.28);color:#eaf6f8;font:700 11px/1.3 system-ui,Arial,sans-serif;letter-spacing:1.2px;text-align:center;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,0.6)}' +
+      '#race-hud .rc-row{display:flex;justify-content:space-between;gap:16px}' +
+      '#race-hud .rc-speed{font-size:30px;line-height:1.05;letter-spacing:0;font-weight:800;margin:1px 0 2px}' +
+      '#race-hud .rc-speed i{font-size:10px;font-style:normal;margin-left:4px;opacity:0.75;letter-spacing:1.4px}' +
+      '#race-hud b{color:#ffe08a;font-weight:700}' +
+      '#rc-warn{display:none;color:#ff9a7a;margin-top:2px;letter-spacing:1.6px}' +
+      '#rc-restart{pointer-events:auto;margin-top:5px;padding:3px 12px;border-radius:8px;border:1px solid rgba(126,240,255,0.35);background:rgba(126,240,255,0.12);color:#d8f7ff;font:700 10px system-ui,Arial,sans-serif;letter-spacing:1.4px;outline:none}' +
+      '#rc-restart:active{background:rgba(126,240,255,0.4)}' +
+      '#rc-count{position:absolute;left:50%;top:30%;transform:translate(-50%,-50%);z-index:70;font:900 76px/1 system-ui,Arial,sans-serif;color:#fff;text-align:center;white-space:nowrap;' +
+      'text-shadow:0 0 18px rgba(255,170,60,0.9),0 3px 6px rgba(0,0,0,0.6);pointer-events:none;opacity:0;transition:opacity 0.15s}' +
+      '#rc-count small{display:block;font-size:20px;font-weight:700;letter-spacing:2px;margin-top:8px}';
+    document.head.appendChild(st);
+  }
+  const raceEl = document.createElement('div');
+  raceEl.id = 'race-hud';
+  raceEl.innerHTML =
+    '<div class="rc-row"><span id="rc-lap">LAP 1/' + RACE_LAPS + '</span><span id="rc-time">0:00.00</span></div>' +
+    '<div class="rc-speed"><span id="rc-kmh">0</span><i>km/h</i></div>' +
+    '<div class="rc-row"><span>LAST <b id="rc-last">--</b></span><span>BEST <b id="rc-best">--</b></span></div>' +
+    '<div id="rc-warn"></div><button id="rc-restart">RESTART</button>';
+  document.body.appendChild(raceEl);
+  const countEl = document.createElement('div');
+  countEl.id = 'rc-count';
+  document.body.appendChild(countEl);
+  const elRcLap = document.getElementById('rc-lap'), elRcTime = document.getElementById('rc-time'), elRcKmh = document.getElementById('rc-kmh');
+  const elRcLast = document.getElementById('rc-last'), elRcBest = document.getElementById('rc-best'), elRcWarn = document.getElementById('rc-warn');
+  function bigText(html, secs) { countEl.innerHTML = html; countEl.style.opacity = '1'; race.cdHide = secs; }
+
+  function resetRace() {
+    const si = TRK_N - 6;                                    // grid slot: a few metres behind the line
+    const sx = trkX[si], sz = trkZ[si];
+    currentRot = Math.atan2(-trkTX[si], -trkTZ[si]);
+    rover.position.set(sx, getGroundHeight(sx, sz) + 0.6, sz);
+    rover.rotation.set(0, currentRot, 0);
+    camYaw = currentRot;
+    velocity = 0; prevVelocity = 0; steerSmooth = 0; pitch = 0; roll = 0; orbitYaw = 0; orbitPitch = 0;
+    health = 100; fuel = 100; repairT = 0;
+    camera.position.set(sx + Math.sin(currentRot) * 9, rover.position.y + 3.5, sz + Math.cos(currentRot) * 9);
+    race.state = 'countdown'; race.cd = 4.0; race.shown = -1;
+    race.lap = 1; race.lapT = 0; race.totalT = 0; race.last = 0; race.prog = -6; race.idx = si; race.cut = false; race.wrongT = 0;
+    countEl.style.opacity = '0';
+  }
+  document.getElementById('rc-restart').addEventListener('click', resetRace);
+  window.addEventListener('keydown', (e) => { if (e.code === 'KeyR') resetRace(); });
+
+  function raceTick(dt, rx, rz, spd) {
+    // where are we on the circuit? A windowed search around the last known spot: cheap, and shortcuts across the grass earn no progress
+    trackNearest(rx, rz, race.idx, 45);
+    const onCircuit = nrDist < 26;
+    if (onCircuit) {
+      let d = nrIdx - race.idx;
+      if (d > TRK_N / 2) d -= TRK_N; else if (d < -TRK_N / 2) d += TRK_N;
+      race.idx = nrIdx;
+      if (race.state === 'racing') race.prog += d;
+    }
+    race.cut = !onCircuit;
+    const fwd = -Math.sin(currentRot) * trkTX[nrIdx] - Math.cos(currentRot) * trkTZ[nrIdx];
+    if (onCircuit && spd > 4 && fwd * (velocity < 0 ? -1 : 1) < -0.4) race.wrongT += dt; else race.wrongT = 0;
+
+    if (race.state === 'countdown') {
+      race.cd -= dt;
+      const n = Math.ceil(race.cd);
+      if (n !== race.shown) { race.shown = n; if (n >= 1 && n <= 3) bigText(String(n), 1.1); }
+      if (race.cd <= 0) { race.state = 'racing'; race.lapT = 0; race.totalT = 0; bigText('GO!', 0.9); }
+    } else if (race.state === 'racing') {
+      race.lapT += dt; race.totalT += dt;
+      if (race.prog >= TRK_N) {
+        race.prog -= TRK_N;
+        const lt = race.lapT; race.last = lt; race.lapT = 0;
+        const isBest = !(race.best > 0) || lt < race.best;
+        if (isBest) { race.best = lt; try { localStorage.setItem('roverBestLap1', String(lt)); } catch (e) { } }
+        if (race.lap >= RACE_LAPS) {
+          race.state = 'finished';
+          bigText('FINISH!<small>TOTAL ' + fmtT(race.totalT) + '  -  BEST LAP ' + fmtT(race.best) + '</small>', 6);
+        } else {
+          race.lap++;
+          showMsg(isBest ? 'NEW BEST LAP  ' + fmtT(lt) : 'LAP TIME  ' + fmtT(lt), 2.5);
+        }
+      }
+    }
+    if (race.cdHide > 0) { race.cdHide -= dt; if (race.cdHide <= 0) countEl.style.opacity = '0'; }
+
+    // HUD
+    const kmh = Math.round(spd * 3.6);
+    if (kmh !== race.lastKmh) { race.lastKmh = kmh; elRcKmh.textContent = kmh; }
+    race.hudT -= dt;
+    if (race.hudT <= 0) {
+      race.hudT = 0.08;
+      elRcLap.textContent = race.state === 'finished' ? 'FINISHED' : 'LAP ' + race.lap + '/' + RACE_LAPS;
+      elRcTime.textContent = race.state === 'finished' ? fmtT(race.totalT) : fmtT(race.lapT + 0.0001);
+      elRcLast.textContent = fmtT(race.last); elRcBest.textContent = fmtT(race.best);
+      const w = race.state === 'racing' ? (race.cut ? 'RETURN TO THE TRACK' : (race.wrongT > 1.2 ? 'WRONG WAY' : '')) : '';
+      elRcWarn.textContent = w; elRcWarn.style.display = w ? 'block' : 'none';
+    }
+  }
+  resetRace();
+
   function getBiomeName(x, z) {
     const nx = (x + HALF) / WORLD_SIZE, nz = (z + HALF) / WORLD_SIZE;
     const dist = Math.sqrt(x * x + z * z);
@@ -2816,25 +3122,44 @@ function drawGrassAtlasCanvas() {
     uTime.value = t;
     skyUniforms.uT.value = t;
 
-    // ---- Throttle ----
-    let target = keys.forward ? maxSpeed : (keys.backward ? -maxSpeed * 0.5 : 0);
-    if (repairT > 0) target = 0;            // rover is being repaired
-    else if (fuel <= 0) target *= 0.25;     // out of fuel: crawl only
-    velocity = THREE.MathUtils.damp(velocity, target, 2.2, dt);
-    if (target === 0 && Math.abs(velocity) < 0.02) velocity = 0;
+    // ---- Throttle: a racing drivetrain (strong launch, thinning acceleration near top speed, real brakes, drag) ----
+    const onRoadNow = trackDist(rover.position.x, rover.position.z) < TRK_W / 2 + 1.2;
+    const surfTop = onRoadNow ? maxSpeed : (pathMask(rover.position.x, rover.position.z) > 0.35 ? maxSpeed * 0.75 : maxSpeed * 0.55);   // grass slows you down
+    const lockedGrid = race.state === 'countdown';
+    if (repairT > 0 || lockedGrid) {
+      velocity = THREE.MathUtils.damp(velocity, 0, 4, dt);                       // being repaired / waiting on the grid
+    } else {
+      const top = fuel <= 0 ? maxSpeed * 0.25 : surfTop;
+      if (keys.forward) {
+        if (velocity < top) {
+          const k = velocity / maxSpeed;
+          velocity = Math.min(top, velocity + (velocity < 0 ? 30 : 15 * (1 - 0.85 * k * k)) * dt);
+        } else velocity = THREE.MathUtils.damp(velocity, top, 1.6, dt);
+      } else if (keys.backward) {
+        if (velocity > 0.6) velocity -= 32 * dt;                                 // brakes
+        else velocity = Math.max(-maxSpeed * 0.25, velocity - 9 * dt);           // then reverse
+      } else if (velocity !== 0) {
+        const drag = (0.9 + 0.0016 * velocity * velocity) * dt;                  // rolling + air resistance
+        velocity = Math.abs(velocity) <= drag ? 0 : velocity - Math.sign(velocity) * drag;
+        if (velocity > top) velocity = THREE.MathUtils.damp(velocity, top, 1.6, dt);
+      }
+    }
+    if (Math.abs(velocity) < 0.02 && !keys.forward && !keys.backward) velocity = 0;
 
     const spd = Math.abs(velocity);
-    const speedNorm = spd / maxSpeed;
+    const speedNorm = Math.min(1, spd / maxSpeed);
 
-    // ---- SMOOTH steering: damped input + speed-sensitive rate ----
+    // ---- Steering: the stick asks for a fraction of the tyres' grip. Slow = limited by wheel lock, fast = limited by grip (so the car
+    //      understeers wide when you carry too much speed into a corner, like a real one) ----
     const steerTarget = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
-    steerSmooth = THREE.MathUtils.damp(steerSmooth, steerTarget, 6.0, dt);
+    steerSmooth = THREE.MathUtils.damp(steerSmooth, steerTarget, steerTarget === 0 ? 10 : 5.5, dt);
     if (steerTarget === 0 && Math.abs(steerSmooth) < 0.01) steerSmooth = 0;
-    // Car-like steering: turning needs movement, steering angle shrinks with speed, reverse behaves like a real car
-    const maxSteerAngle = 0.6 / (1 + spd * 0.25);
-    const steerAngle = steerSmooth * maxSteerAngle;
     const WHEELBASE = 2.4;
-    currentRot += (velocity * Math.tan(steerAngle) / WHEELBASE) * dt;
+    const lockYaw = spd * Math.tan(0.58) / WHEELBASE;                            // yaw rate with the wheels at full lock
+    const gripYaw = (onRoadNow ? 17 : 11) / Math.max(spd, 3);                    // yaw rate at which lateral acceleration hits the grip limit (m/s^2)
+    const yawRate = steerSmooth * Math.min(lockYaw, gripYaw) * (velocity < 0 ? -1 : 1);
+    const steerAngle = steerSmooth * 0.58 / (1 + spd * 0.05);                    // (only drives the visible front wheels)
+    currentRot += yawRate * dt;
     rover.rotation.y = currentRot;
 
     // ---- Move ----
@@ -2848,7 +3173,7 @@ function drawGrassAtlasCanvas() {
     }
     rover.position.x += fwdX * velocity * dt;
     rover.position.z += fwdZ * velocity * dt;
-    wheelSpin += (velocity * dt) / 0.7;
+    wheelSpin += THREE.MathUtils.clamp((velocity * dt) / 0.7, -0.45, 0.45);   // (capped per frame so fast wheels do not look like they spin backwards)
 
     // ---- Collisions: the rover's footprint (wheels included) is a rectangle, so nothing can pass through a wheel ----
     let hit = false;
@@ -2972,6 +3297,7 @@ function drawGrassAtlasCanvas() {
     updateAudio(speedNorm, keys.forward || keys.backward, onPathNow, dt, velocity < -0.2);
     updateDust(dt, spd, rx, rz, cosR, sinR, onPathNow);
     updateVitals(dt, spd, speedNorm, keys.forward || keys.backward, hit);
+    raceTick(dt, rx, rz, spd);
 
     const biomeTxt = getBiomeName(rx, rz);
     if (biomeTxt !== lastBiomeText) {
@@ -2997,10 +3323,10 @@ function drawGrassAtlasCanvas() {
 
     sky.position.copy(camera.position);
     if (camMode === 0) {
-      const camDist = (4.4 + spd * 0.14) * camZoom;
-      const camH = (1.9 + spd * 0.05) * camZoom;
+      const camDist = (5.0 + spd * 0.10) * camZoom;
+      const camH = (2.0 + spd * 0.035) * camZoom;
       _camPos.set(rx - cfX * camDist, rover.position.y + camH, rz - cfZ * camDist);
-      const lookAhead = (2.2 + spd * 0.25) * (1 + Math.cos(orbitYaw)) / 2;
+      const lookAhead = (2.4 + spd * 0.38) * (1 + Math.cos(orbitYaw)) / 2;      // look further down the road the faster you go
       _look.set(rx + cfX * lookAhead, rover.position.y + 1.3, rz + cfZ * lookAhead);
     } else {
       const camDist = (4.6 + spd * 0.1) * camZoom;
@@ -3034,7 +3360,7 @@ function drawGrassAtlasCanvas() {
         if (tMin < 1) { _camPos.x = rx + sdx * tMin; _camPos.z = rz + sdz * tMin; }
       }
     }
-    camera.position.lerp(_camPos, 1 - Math.exp(-4.5 * dt));
+    camera.position.lerp(_camPos, 1 - Math.exp(-(4.5 + spd * 0.45) * dt));      // stiffer follow at speed, otherwise the camera trails far behind
     // keep the camera out of tree trunks / boulders...
     for (let i = 0; i < colliders.length; i++) {
       const c = colliders[i];
@@ -3055,7 +3381,7 @@ function drawGrassAtlasCanvas() {
     camLight.position.set(camera.position.x, camera.position.y + 3, camera.position.z);
     camLight.target.position.set(rx, rover.position.y + 1, rz);
     camLight.intensity = 0.05 + Math.min(0.14, sunLight.intensity * 0.05);
-    const targetFov = 58 + spd * 1.1;
+    const targetFov = 58 + Math.min(spd, 50) * 0.5;      // up to ~81 degrees at top speed (sense of speed without a fish-eye)
     if (Math.abs(camera.fov - targetFov) > 0.05) {
       camera.fov = THREE.MathUtils.damp(camera.fov, targetFov, 3, dt);
       camera.updateProjectionMatrix();
