@@ -1773,6 +1773,7 @@ function drawGrassAtlasCanvas() {
     rim:   new THREE.MeshStandardMaterial({ color: 0x2b3036, metalness: 0.55, roughness: 0.40, flatShading: true })
   };
 
+  const BODY_LIFT = 0.55;
   const buckets = {};
   const _q = new THREE.Quaternion();
   const _e = new THREE.Euler();
@@ -1894,16 +1895,16 @@ function drawGrassAtlasCanvas() {
 
   // ---- Silhouette like the target: wide chunky rear block, narrow spine in the middle, small low nose ----
   // low nose + spine (charcoal)
-  hexBlock('hullS', [[-0.55, 0.46, -1.95], [0.55, 0.46, -1.95], [0.60, 0.45, -1.00], [-0.60, 0.45, -1.00], [-0.50, 0.88, -1.95], [0.50, 0.88, -1.95], [0.58, 0.92, -1.00], [-0.58, 0.92, -1.00]]);
-  hexBlock('hullS', [[-0.60, 0.45, -1.00], [0.60, 0.45, -1.00], [0.56, 0.45, 0.40], [-0.56, 0.45, 0.40], [-0.58, 0.92, -1.00], [0.58, 0.92, -1.00], [0.54, 1.05, 0.40], [-0.54, 1.05, 0.40]]);
+  hexBlock('hullS', [[-0.62, 0.46, -1.95], [0.62, 0.46, -1.95], [0.75, 0.45, -1.00], [-0.75, 0.45, -1.00], [-0.55, 0.90, -1.95], [0.55, 0.90, -1.95], [0.72, 0.98, -1.00], [-0.72, 0.98, -1.00]]);
+  hexBlock('hullS', [[-0.75, 0.45, -1.00], [0.75, 0.45, -1.00], [0.90, 0.45, 0.40], [-0.90, 0.45, 0.40], [-0.72, 0.98, -1.00], [0.72, 0.98, -1.00], [0.85, 1.15, 0.40], [-0.85, 1.15, 0.40]]);
   // sloping hood (light)
-  hexBlock('deckS', [[-0.50, 0.88, -1.90], [0.50, 0.88, -1.90], [0.58, 0.98, -0.20], [-0.58, 0.98, -0.20], [-0.40, 0.97, -1.85], [0.40, 0.97, -1.85], [0.50, 1.38, -0.20], [-0.50, 1.38, -0.20]]);
+  hexBlock('deckS', [[-0.55, 0.90, -1.90], [0.55, 0.90, -1.90], [0.72, 1.00, -0.20], [-0.72, 1.00, -0.20], [-0.45, 0.99, -1.85], [0.45, 0.99, -1.85], [0.58, 1.38, -0.20], [-0.58, 1.38, -0.20]]);
   // rear lower body: centre + angled wings (the lamps sit on the wings)
   hexBlock('hullS', [[-0.50, 0.45, 0.20], [0.50, 0.45, 0.20], [0.50, 0.45, 1.78], [-0.50, 0.45, 1.78], [-0.50, 1.15, 0.20], [0.50, 1.15, 0.20], [0.50, 1.15, 1.78], [-0.50, 1.15, 1.78]]);
   hexSym('hullS', [[0.45, 0.45, 0.20], [1.10, 0.45, 0.20], [1.10, 0.45, 1.50], [0.50, 0.45, 1.78], [0.45, 1.15, 0.20], [1.10, 1.15, 0.20], [1.10, 1.15, 1.50], [0.50, 1.15, 1.78]]);
   // big light rear block with chamfered top (octagon-like cross section)
-  hexBlock('deckS', [[-0.62, 1.05, 0.20], [0.62, 1.05, 0.20], [1.10, 1.15, 1.70], [-1.10, 1.15, 1.70], [-0.52, 1.42, 0.20], [0.52, 1.42, 0.20], [1.00, 1.62, 1.62], [-1.00, 1.62, 1.62]]);
-  hexBlock('deckS', [[-0.52, 1.42, 0.20], [0.52, 1.42, 0.20], [1.00, 1.62, 1.62], [-1.00, 1.62, 1.62], [-0.36, 1.50, 0.25], [0.36, 1.50, 0.25], [0.80, 1.84, 1.52], [-0.80, 1.84, 1.52]]);
+  hexBlock('deckS', [[-0.85, 1.12, 0.20], [0.85, 1.12, 0.20], [1.10, 1.15, 1.70], [-1.10, 1.15, 1.70], [-0.58, 1.42, 0.20], [0.58, 1.42, 0.20], [1.00, 1.62, 1.62], [-1.00, 1.62, 1.62]]);
+  hexBlock('deckS', [[-0.58, 1.42, 0.20], [0.58, 1.42, 0.20], [1.00, 1.62, 1.62], [-1.00, 1.62, 1.62], [-0.40, 1.50, 0.25], [0.40, 1.50, 0.25], [0.80, 1.84, 1.52], [-0.80, 1.84, 1.52]]);
   // dark underbody + front splitter
   hexBlock('darkS', [[-0.65, 0.40, -1.70], [0.65, 0.40, -1.70], [0.85, 0.40, 1.70], [-0.85, 0.40, 1.70], [-0.65, 0.48, -1.70], [0.65, 0.48, -1.70], [0.85, 0.48, 1.70], [-0.85, 0.48, 1.70]]);
   hexBlock('darkS', [[-0.80, 0.42, -2.25], [0.80, 0.42, -2.25], [0.75, 0.42, -1.85], [-0.75, 0.42, -1.85], [-0.80, 0.50, -2.25], [0.80, 0.50, -2.25], [0.75, 0.50, -1.85], [-0.75, 0.50, -1.85]]);
@@ -1918,7 +1919,7 @@ function drawGrassAtlasCanvas() {
   partRB('neon', 0, 0.45, -2.26, 1.55, 0.03, 0.025, 0.008);                                  // splitter edge
   partRB('neon', 0, 1.69, 0.90, 0.15, 0.03, 0.15, 0.008);                                    // little square light on the roof
   [-1, 1].forEach(s => {
-    partBeam('neon', s * 0.615, 0.62, -0.6, s * 0.585, 0.62, 0.3, 0.05);                     // spine side
+    partBeam('neon', s * 0.82, 0.62, -0.6, s * 0.915, 0.62, 0.3, 0.05);                     // spine side
     partBeam('neon', s * 1.125, 0.83, 0.45, s * 1.125, 0.83, 1.30, 0.05);                    // rear wing side
     partBeam('neon', s * 0.26, 0.985, -1.80, s * 0.44, 1.385, -0.28, 0.035);                 // hood line
   });
@@ -1960,7 +1961,7 @@ function drawGrassAtlasCanvas() {
   const WZ = 1.2;           // wheel centre distance from the middle (front/back)
   const CAP_TIP = TRACK - 0.55;   // inner end of each hub
   const wheelSlots = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
-  const MOUNT_X = [[0.66, 0.64, 0.62], [1.09, 1.06, 1.03]];   // [front, rear] x of the upper / lower / spring mounts: long arms at the front, short at the back
+  const MOUNT_X = [[0.92, 0.90, 0.88], [1.09, 1.06, 1.03]];   // [front, rear] x of the upper / lower / spring mounts: long arms at the front, short at the back
   wheelSlots.forEach(([sx, sz]) => {
     const mx = MOUNT_X[sz < 0 ? 0 : 1];
     partRB('darkS', sx * mx[0], 1.05, sz * 0.80, 0.26, 0.16, 0.38, 0.03);     // upper mount
@@ -1982,7 +1983,7 @@ function drawGrassAtlasCanvas() {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({
       map: haloTex, color: 0xff3322, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4, fog: false
     }));
-    s.position.set(side * 0.86, 0.92, 1.85);
+    s.position.set(side * 0.86, 0.92 + BODY_LIFT, 1.85);
     s.scale.set(1.1, 0.6, 1);
     rover.add(s);
     return s;
@@ -2003,7 +2004,7 @@ function drawGrassAtlasCanvas() {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({
       map: fhTex, color: 0xcfeeff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4, fog: false
     }));
-    s.position.set(side * 0.30, 0.72, -2.08);
+    s.position.set(side * 0.30, 0.72 + BODY_LIFT, -2.08);
     s.scale.set(0.8, 0.36, 1);
     rover.add(s);
     return s;
@@ -2012,6 +2013,7 @@ function drawGrassAtlasCanvas() {
   Object.keys(buckets).forEach(key => {
     const merged = mergeSafe(buckets[key], false);
     if (!merged) return;
+    merged.translate(0, BODY_LIFT, 0);   // the body rides clearly above the wheels, like the target
     const mesh = new THREE.Mesh(merged, MATS[key]);
     if (OUTLINE_KEYS.includes(key)) rover.add(new THREE.Mesh(makeOutlineGeo(merged), OUTLINE_MAT));
     mesh.castShadow = true;
@@ -2090,9 +2092,9 @@ function drawGrassAtlasCanvas() {
       upper: unitBeam(0.28, 0.16, MATS.darkS, 0.04, true),
       lower: unitBeam(0.28, 0.16, MATS.darkS, 0.04, true),
       rod, spring, joint,
-      U: new THREE.Vector3(sx * MOUNT_X[sz < 0 ? 0 : 1][0], 1.05, sz * 0.80),
-      L: new THREE.Vector3(sx * MOUNT_X[sz < 0 ? 0 : 1][1], 0.62, sz * 0.80),
-      T: new THREE.Vector3(sx * MOUNT_X[sz < 0 ? 0 : 1][2], 1.14, sz * 0.62)
+      U: new THREE.Vector3(sx * MOUNT_X[sz < 0 ? 0 : 1][0], 1.05 + BODY_LIFT, sz * 0.80),
+      L: new THREE.Vector3(sx * MOUNT_X[sz < 0 ? 0 : 1][1], 0.62 + BODY_LIFT, sz * 0.80),
+      T: new THREE.Vector3(sx * MOUNT_X[sz < 0 ? 0 : 1][2], 1.14 + BODY_LIFT, sz * 0.62)
     };
   });
   const _sa = new THREE.Vector3(), _sb = new THREE.Vector3(), _sd = new THREE.Vector3();
@@ -2121,7 +2123,7 @@ function drawGrassAtlasCanvas() {
   updateSuspension();
 
   const headLight = new THREE.SpotLight(0xe6f4ff, 2.4, 18, Math.PI / 6, 0.35);
-  headLight.position.set(0, 0.9, -1.9);
+  headLight.position.set(0, 0.9 + BODY_LIFT, -1.9);
   headLight.target.position.set(0, 0, -12);
   rover.add(headLight); rover.add(headLight.target);
 
