@@ -1950,7 +1950,7 @@ function drawGrassAtlasCanvas() {
     rim:   new THREE.MeshStandardMaterial({ color: 0x2b3036, metalness: 0.55, roughness: 0.40, flatShading: true })
   };
 
-  const BODY_LIFT = 0.55;
+  const BODY_LIFT = 0.85;
   const buckets = {};
   const _q = new THREE.Quaternion();
   const _e = new THREE.Euler();
@@ -2311,8 +2311,8 @@ function drawGrassAtlasCanvas() {
   partDisc('glow', 0.84, 2.68, 1.30, 0.06, 0.07, 0, 1, 0, 8);
 
   // ---- Static suspension mounts (bolted onto the sides of the body). The arms and springs are dynamic (updateSuspension). ----
-  const WHEEL_R = 0.84;     // tyre radius
-  const TRACK = 2.70;       // wheel centre distance from the centre line (wide track, arms clearly visible)
+  const WHEEL_R = 0.96;     // tyre radius (taller tyres: round and big like the target)
+  const TRACK = 3.05;       // wheel centre distance from the centre line (wide track, arms clearly visible)
   const WZ = 2.05;          // wheel centre distance from the middle (front/back): wheels at the four corners, like the target
   const CAP_TIP = TRACK - 0.77;   // inner end of each hub
   const wheelSlots = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
@@ -2380,7 +2380,7 @@ function drawGrassAtlasCanvas() {
     return mergeGeometries(list.map(g => (g.index ? g.toNonIndexed() : g)), groups);
   }
   function buildWheelGeo() {
-    const prof = [[0.34, -0.78], [0.66, -0.78], [0.79, -0.72], [0.84, -0.56], [0.84, 0.56], [0.79, 0.72], [0.66, 0.78], [0.34, 0.78]]
+    const prof = [[0.34, -0.78], [0.76, -0.78], [0.91, -0.72], [0.96, -0.56], [0.96, 0.56], [0.91, 0.72], [0.76, 0.78], [0.34, 0.78]]
       .map(p => new THREE.Vector2(p[0], p[1]));
     const tyre0 = new THREE.LatheGeometry(prof, 12);
     tyre0.rotateZ(Math.PI / 2);
@@ -2391,7 +2391,7 @@ function drawGrassAtlasCanvas() {
       [-1, 1].forEach(sd => {
         const lg = new THREE.BoxGeometry(0.40, 0.085, 0.15);
         lg.rotateY(sd * 0.5);
-        lg.translate(sd * 0.25, 0.835, 0);
+        lg.translate(sd * 0.25, 0.952, 0);
         lg.rotateX(th);
         lugs.push(lg);
       });
@@ -2399,7 +2399,7 @@ function drawGrassAtlasCanvas() {
     const tyre = mergeSafe(lugs, false);
     const arcs = [];
     [1, -1].forEach((sgn, k) => {
-      const arc = new THREE.TorusGeometry(0.62, 0.09, 5, 24);   // full glowing ring on each sidewall
+      const arc = new THREE.TorusGeometry(0.71, 0.10, 5, 24);   // full glowing ring on each sidewall
       arc.rotateY(Math.PI / 2);
       arc.rotateX(k * 2.6);
       arc.translate(sgn * 0.78, 0, 0);
@@ -2416,10 +2416,10 @@ function drawGrassAtlasCanvas() {
   wheelSlots.forEach(([sx, sz]) => {
     const w = new THREE.Mesh(wheelGeo, [MATS.tyre, MATS.neon, MATS.rim]);
     w.add(new THREE.Mesh(wheelOutlineGeo, OUTLINE_MAT));
-    w.position.set(sx * TRACK, 0.74, sz * WZ);
+    w.position.set(sx * TRACK, 0.86, sz * WZ);
     w.castShadow = true;
     rover.add(w);
-    wheels.push({ mesh: w, baseY: 0.74, y: 0.74, phase: Math.random() * 6.28, lx: sx * TRACK, lz: sz * WZ });
+    wheels.push({ mesh: w, baseY: 0.86, y: 0.86, phase: Math.random() * 6.28, lx: sx * TRACK, lz: sz * WZ });
   });
 
   // ---- Dynamic suspension: dark wishbones with a neon strip + glowing springs follow each wheel's travel ----
@@ -3659,7 +3659,7 @@ function drawGrassAtlasCanvas() {
 
     // ---- Collisions: the rover's footprint (wheels included) is a rectangle, so nothing can pass through a wheel ----
     let hit = false;
-    const RV_HX = 3.52, RV_HZ = 2.9;   // half width / half length of the footprint (wheels outer edge)
+    const RV_HX = 3.87, RV_HZ = 3.02;   // half width / half length of the footprint (wheels outer edge)
     for (let pass = 0; pass < 2; pass++) {
       const cR = Math.cos(currentRot), sR = Math.sin(currentRot);
       for (let i = 0; i < colliders.length; i++) {
@@ -3968,7 +3968,7 @@ function drawGrassAtlasCanvas() {
     if (perfOn && nowMs > overlayAt) {
       overlayAt = nowMs + 500;
       const inf = renderer.info.render;
-      perfEl.textContent = 'JS ' + jsEma.toFixed(1) + ' | submit ' + subEma.toFixed(1) + ' | wait ' + Math.max(0, emaMs - jsEma - subEma).toFixed(1) + ' ms\n' + Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + ' | ' + autoTune.label() + '\nBUILD 104 | ' + autoTune.info();
+      perfEl.textContent = 'JS ' + jsEma.toFixed(1) + ' | submit ' + subEma.toFixed(1) + ' | wait ' + Math.max(0, emaMs - jsEma - subEma).toFixed(1) + ' ms\n' + Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + ' | ' + autoTune.label() + '\nBUILD 108 | ' + autoTune.info();
     }
 
     perfFrames++; perfAcc += dt;
