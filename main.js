@@ -3376,6 +3376,114 @@ function drawGrassAtlasCanvas() {
   colliders.length = 0; smallRocks.length = 0; hillRecs.length = 0; rockGrid.clear();
   buildRaceTrack();
 
+  // ============ DRIVING FEEL (all cheap: 3 extra draw calls in total) ============
+  scene.add(camera);                                    // the speed streaks ride on the camera
+  let boostT = 0, camShake = 0, camRoll = 0, streakOff = 0, lastBuzz = 0;
+  const buzz = (ms) => { const n = performance.now(); if (n - lastBuzz < 180) return; lastBuzz = n; try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { } };
+
+  // 1) speed streaks: 48 thin light streaks flying past the camera. Positions are computed in the vertex shader, so the CPU only sets 3 uniforms.
+  const streakMat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+    uniforms: { uOff: { value: 0 }, uLen: { value: 4 }, uW: { value: 0.035 }, uAlpha: { value: 0 } },
+    vertexShader:
+      'uniform float uOff,uLen,uW; attribute vec3 aS; varying float vA;' +
+      'void main(){' +
+      ' float z=mod(aS.z*70.0-uOff,70.0);' +
+      ' float zz=z+position.x*uLen;' +
+      ' float ca=cos(aS.x),sa=sin(aS.x);' +
+      ' vec3 p=vec3(ca*aS.y-sa*position.y*uW*(0.4+zz*0.12), sa*aS.y*0.8+ca*position.y*uW*(0.4+zz*0.12), -(zz+2.5));' +
+      ' vA=(1.0-position.x*0.85)*smoothstep(3.0,12.0,z)*(1.0-smoothstep(38.0,70.0,z));' +
+      ' gl_Position=projectionMatrix*vec4(p,1.0);}',
+    fragmentShader: 'uniform float uAlpha; varying float vA; void main(){ gl_FragColor=vec4(0.62,0.86,1.0,vA*uAlpha); }'
+  });
+  const streakMesh = (() => {
+    const N = 48, pos = new Float32Array(N * 4 * 3), aS = new Float32Array(N * 4 * 3), ind = [];
+    for (let k = 0; k < N; k++) {
+      const ang = (k * 2.399963 + 0.4) % (Math.PI * 2), rad = 4.6 + ((k * 0.618) % 1) * 8.5, ph = (k * 0.381966 + 0.11) % 1;
+      const cs = [[0, -1], [0, 1], [1, -1], [1, 1]];
+      for (let c = 0; c < 4; c++) {
+        const v = k * 4 + c;
+        pos[v * 3] = cs[c][0]; pos[v * 3 + 1] = cs[c][1];
+        aS[v * 3] = ang; aS[v * 3 + 1] = rad; aS[v * 3 + 2] = ph;
+      }
+      ind.push(k * 4, k * 4 + 1, k * 4 + 2, k * 4 + 1, k * 4 + 3, k * 4 + 2);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('aS', new THREE.BufferAttribute(aS, 3));
+    g.setIndex(ind);
+    const m = new THREE.Mesh(g, streakMat);
+    m.frustumCulled = false; m.renderOrder = 5; m.visible = false;
+    camera.add(m);
+    return m;
+  })();
+
+  // 2) boost pads: glowing chevrons on the road. Drive over one for a burst of speed (one mesh, one draw call)
+  const BOOST_PADS = [];
+  const boostTex = (() => {
+    const c = document.createElement('canvas'); c.width = 128; c.height = 128;
+    const x = c.getContext('2d');
+    x.fillStyle = 'rgba(0,0,0,0)'; x.clearRect(0, 0, 128, 128);
+    for (let k = 0; k < 2; k++) {
+      const y0 = k * 64 + 8;
+      const gr = x.createLinearGradient(0, y0, 0, y0 + 46);
+      gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(126,240,255,0.35)');
+      x.fillStyle = gr;
+      x.beginPath(); x.moveTo(6, y0 + 40); x.lineTo(64, y0); x.lineTo(122, y0 + 40); x.lineTo(122, y0 + 52); x.lineTo(64, y0 + 12); x.lineTo(6, y0 + 52); x.closePath(); x.fill();
+    }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.repeat.set(1, 4);
+    return t;
+  })();
+  (function buildBoostPads() {
+    const lanes = [1, -3, 3, -1, 3, -3, 1, -1], PH = 7, PS = 8, PW = 3.4;       // 8 pads, each ~16 m long, 6.8 m wide, in the middle of a lane
+    const pp = [], pu = [];
+    const gh = (x, z) => getGroundHeight(x, z) + 0.11;
+    for (let k = 0; k < lanes.length; k++) {
+      const ic = 110 + k * 118, off = lanes[k] * TRK_W / 8;
+      BOOST_PADS.push({ i: ic % TRK_N, o: off });
+      const P = (i, o) => { const ii = ((i % TRK_N) + TRK_N) % TRK_N, x = trkX[ii] - trkTZ[ii] * (off + o), z = trkZ[ii] + trkTX[ii] * (off + o); return [x, gh(x, z), z]; };
+      for (let s = 0; s < PS; s++) {
+        const a = ic - PH + s * (2 * PH / PS) | 0, b = ic - PH + (s + 1) * (2 * PH / PS) | 0;
+        const v0 = s / PS, v1 = (s + 1) / PS;
+        const A = P(a, -PW), B = P(a, PW), C = P(b, -PW), D = P(b, PW);
+        for (const [p, u, v] of [[A, 0, v0], [B, 1, v0], [C, 0, v1], [B, 1, v0], [D, 1, v1], [C, 0, v1]]) { pp.push(p[0], p[1], p[2]); pu.push(u, v); }
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pp, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(pu, 2));
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: boostTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 }));
+    m.frustumCulled = false; m.renderOrder = 2;
+    scene.add(m);
+  })();
+
+  // 3) sparks when the car scrapes a rail (24-point pool, only updated while alive)
+  const SPK_N = 24, spkPos = new Float32Array(SPK_N * 3), spkVel = new Float32Array(SPK_N * 3), spkLife = new Float32Array(SPK_N);
+  for (let k = 0; k < SPK_N; k++) spkPos[k * 3 + 1] = -999;
+  const spkGeo = new THREE.BufferGeometry(); spkGeo.setAttribute('position', new THREE.BufferAttribute(spkPos, 3));
+  const sparks = new THREE.Points(spkGeo, new THREE.PointsMaterial({ color: 0xffb040, size: 0.16, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }));
+  sparks.frustumCulled = false; scene.add(sparks);
+  let spkAlive = 0, spkNext = 0;
+  function emitSpark(x, y, z, vx, vy, vz) {
+    const k = spkNext; spkNext = (spkNext + 1) % SPK_N;
+    spkPos[k * 3] = x; spkPos[k * 3 + 1] = y; spkPos[k * 3 + 2] = z;
+    spkVel[k * 3] = vx; spkVel[k * 3 + 1] = vy; spkVel[k * 3 + 2] = vz; spkLife[k] = 0.45 + Math.random() * 0.3; spkAlive = SPK_N;
+  }
+  function updateSparks(dt) {
+    if (!spkAlive) return;
+    let any = false;
+    for (let k = 0; k < SPK_N; k++) {
+      if (spkLife[k] <= 0) continue;
+      spkLife[k] -= dt;
+      if (spkLife[k] <= 0) { spkPos[k * 3 + 1] = -999; continue; }
+      any = true;
+      spkVel[k * 3 + 1] -= 14 * dt;
+      spkPos[k * 3] += spkVel[k * 3] * dt; spkPos[k * 3 + 1] += spkVel[k * 3 + 1] * dt; spkPos[k * 3 + 2] += spkVel[k * 3 + 2] * dt;
+    }
+    spkGeo.attributes.position.needsUpdate = true;
+    if (!any) spkAlive = 0;
+  }
+
   const race = { state: 'home', cd: 4.0, shown: -1, lap: 1, lapT: 0, totalT: 0, last: 0, best: 0, prog: 0, idx: 0, cut: false, wrongT: 0, hudT: 0, cdHide: 0, lastKmh: -1 };
   try { race.best = parseFloat(localStorage.getItem('roverBestLap1')) || 0; } catch (e) { }
   const fmtT = (s) => { if (!(s > 0)) return '--'; const m = Math.floor(s / 60), r = s - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(2); };
@@ -3612,8 +3720,10 @@ function drawGrassAtlasCanvas() {
     if (repairT > 0 || lockedGrid) {
       velocity = THREE.MathUtils.damp(velocity, 0, 4, dt);                       // being repaired / waiting on the grid
     } else {
-      const top = fuel <= 0 ? maxSpeed * 0.25 : surfTop;
-      if (keys.forward) {
+      const top = fuel <= 0 ? maxSpeed * 0.25 : (boostT > 0 ? maxSpeed * 1.36 : surfTop);
+      if (boostT > 0 && !keys.backward) {
+        velocity = Math.min(top, Math.max(velocity, 0) + 26 * dt);                     // boost pad: strong push even without throttle
+      } else if (keys.forward) {
         if (velocity < top) {
           const k = velocity / maxSpeed;
           velocity = Math.min(top, velocity + (velocity < 0 ? 30 : 15 * (1 - 0.85 * k * k)) * dt);
@@ -3628,6 +3738,7 @@ function drawGrassAtlasCanvas() {
       }
     }
     if (Math.abs(velocity) < 0.02 && !keys.forward && !keys.backward) velocity = 0;
+    boostT = Math.max(0, boostT - dt);
 
     const spd = Math.abs(velocity);
     const speedNorm = Math.min(1, spd / maxSpeed);
@@ -3689,7 +3800,7 @@ function drawGrassAtlasCanvas() {
       }
       if (!hit) break;
     }
-    if (hit && spd > 2) { velocity *= 0.7; thud(speedNorm); }
+    if (hit && spd > 2) { velocity *= 0.7; thud(speedNorm); camShake = Math.max(camShake, 0.3 + 0.5 * speedNorm); buzz(35); }
 
     // ---- Guard rails (the road floats in space: there is nothing outside it). The rover slides along the rail and loses some speed ----
     if (race.state !== 'home') {
@@ -3710,8 +3821,27 @@ function drawGrassAtlasCanvas() {
           velocity *= 1 - Math.min(0.9, (0.4 + 2.0 * Math.abs(dAlign)) * dt);     // shallow scrape = small loss, head-on = big loss
         } else velocity *= 1 - Math.min(0.9, 1.6 * dt);
         if (spd > 10) thud(0.25);
+        if (spd > 6) {                                                // scrape: sparks fly back from the contact point, the screen shudders
+          const cxp = rover.position.x + rnx * sg * ext * 0.95, czp = rover.position.z + rnz * sg * ext * 0.95;
+          for (let q = 0; q < 2; q++) emitSpark(cxp + fwdX * (Math.random() * 2 - 1) * 1.6, rover.position.y + 0.35, czp + fwdZ * (Math.random() * 2 - 1) * 1.6,
+            -fwdX * spd * 0.25 - rnx * sg * (1 + Math.random() * 3) + (Math.random() - 0.5) * 3, 1.5 + Math.random() * 3, -fwdZ * spd * 0.25 - rnz * sg * (1 + Math.random() * 3) + (Math.random() - 0.5) * 3);
+          camShake = Math.max(camShake, 0.12 + 0.12 * speedNorm); buzz(20);
+        }
+      }
+      // boost pads
+      if (boostT < 0.35 && !lockedGrid && repairT <= 0) {
+        for (let b = 0; b < BOOST_PADS.length; b++) {
+          let di = Math.abs(ni - BOOST_PADS[b].i); if (di > TRK_N / 2) di = TRK_N - di;
+          if (di < 7 && Math.abs(lat - BOOST_PADS[b].o) < 3.6) {
+            boostT = 1.5; camShake = Math.max(camShake, 0.5);
+            if (velocity < maxSpeed) velocity = Math.min(maxSpeed, velocity + 8);
+            bigText('<span style="font-size:44px;color:#9ff3ff;letter-spacing:3px">BOOST!</span>', 0.7); buzz(45);
+            break;
+          }
+        }
       }
     }
+    updateSparks(dt);
 
     // ---- TRUE 3D SUSPENSION: sample ground under EACH wheel ----
     const rx = rover.position.x, rz = rover.position.z;
@@ -3789,9 +3919,21 @@ function drawGrassAtlasCanvas() {
     rover.position.x = THREE.MathUtils.clamp(rover.position.x, -limit, limit);
     rover.position.z = THREE.MathUtils.clamp(rover.position.z, -limit, limit);
 
+    {
+      // speed streaks: appear above ~50% speed, stronger and longer on a boost
+      const sa = Math.max(0, (speedNorm - 0.45) / 0.55) * 0.5 + Math.min(1, boostT * 1.5) * 0.35;
+      streakMat.uniforms.uAlpha.value = sa;
+      streakMesh.visible = sa > 0.02 && race.state !== 'home';
+      if (streakMesh.visible) {
+        streakOff = (streakOff + velocity * dt) % 70;
+        streakMat.uniforms.uOff.value = streakOff;
+        streakMat.uniforms.uLen.value = 3 + speedNorm * 9 + boostT * 4;
+      }
+      boostTex.offset.y = (boostTex.offset.y - dt * 1.6) % 1;      // chevrons run along the pads
+    }
     const braking = velocity < -0.2 || hit;
     MATS.tail.emissiveIntensity = braking ? 2.6 : 0.9;
-    MATS.tailHot.emissiveIntensity = braking ? 3.0 : 1.4;
+    MATS.tailHot.emissiveIntensity = braking ? 3.0 : (boostT > 0 ? 4.2 : 1.4);
     MATS.revLamp.emissiveIntensity = velocity < -0.2 ? 2.4 : 0.1;
     tailHalos.forEach(s => { s.material.opacity = braking ? 0.95 : 0.4; });
     const darkness = Math.max(0, 1.6 - sunLight.intensity);
@@ -3831,10 +3973,10 @@ function drawGrassAtlasCanvas() {
       _camPos.set(rx + Math.sin(ha) * 8.6, rover.position.y + 2.8 + orbitPitch * 2.6, rz + Math.cos(ha) * 8.6);
       _look.set(rx + Math.cos(ha) * 2.0, rover.position.y + 1.0, rz - Math.sin(ha) * 2.0);          // rover sits left of centre, the paint panel is on the right
     } else if (camMode === 0) {
-      const camDist = (7.2 + spd * 0.10) * camZoom;   // the rover is longer now (wheels at the corners)
-      const camH = (2.6 + spd * 0.035) * camZoom;
+      const camDist = (7.0 + Math.min(spd, maxSpeed) * 0.05) * camZoom;   // stays close at speed: the car keeps its size on screen, the FOV and streaks carry the speed
+      const camH = (2.25 + Math.min(spd, maxSpeed) * 0.02) * camZoom;
       _camPos.set(rx - cfX * camDist, rover.position.y + camH, rz - cfZ * camDist);
-      const lookAhead = (2.4 + spd * 0.38) * (1 + Math.cos(orbitYaw)) / 2;      // look further down the road the faster you go
+      const lookAhead = (2.4 + spd * 0.30) * (1 + Math.cos(orbitYaw)) / 2;      // look further down the road the faster you go
       _look.set(rx + cfX * lookAhead, rover.position.y + 1.3, rz + cfZ * lookAhead);
     } else {
       const camDist = (6.6 + spd * 0.1) * camZoom;
@@ -3887,10 +4029,19 @@ function drawGrassAtlasCanvas() {
     const camGround = driveHeight(camera.position.x, camera.position.z) + 0.7;
     if (camera.position.y < camGround) camera.position.y = camGround;
     camera.lookAt(_look);
+    {
+      // camera banks into the corner, hums with speed and shudders on impacts (rotation only, so it never feeds back into the follow)
+      const rollT = race.state === 'home' ? 0 : steerSmooth * speedNorm * 0.05;
+      camRoll = THREE.MathUtils.damp(camRoll, rollT, 5, dt);
+      camShake *= Math.exp(-6 * dt);
+      const amp = (0.0016 * speedNorm * speedNorm * (1 + boostT * 0.8) + camShake * 0.03) * (race.state === 'home' ? 0 : 1);
+      camera.rotateZ(camRoll + Math.sin(t * 61) * amp * 0.6);
+      if (amp > 0.0002) { camera.rotateX(Math.sin(t * 47 + 1.3) * amp); camera.rotateY(Math.sin(t * 53) * amp); }
+    }
     camLight.position.set(camera.position.x, camera.position.y + 3, camera.position.z);
     camLight.target.position.set(rx, rover.position.y + 1, rz);
     camLight.intensity = 0.05 + Math.min(0.14, sunLight.intensity * 0.05);
-    const targetFov = 58 + Math.min(spd, 50) * 0.5;      // up to ~81 degrees at top speed (sense of speed without a fish-eye)
+    const targetFov = 58 + Math.min(spd, maxSpeed) * 0.5 + Math.min(1, boostT * 2) * 9 + Math.max(0, spd - maxSpeed) * 0.4;   // ~81 degrees at top speed, widening further on a boost
     if (Math.abs(camera.fov - targetFov) > 0.05) {
       camera.fov = THREE.MathUtils.damp(camera.fov, targetFov, 3, dt);
       camera.updateProjectionMatrix();
@@ -3969,7 +4120,7 @@ function drawGrassAtlasCanvas() {
     if (perfOn && nowMs > overlayAt) {
       overlayAt = nowMs + 500;
       const inf = renderer.info.render;
-      perfEl.textContent = 'JS ' + jsEma.toFixed(1) + ' | submit ' + subEma.toFixed(1) + ' | wait ' + Math.max(0, emaMs - jsEma - subEma).toFixed(1) + ' ms\n' + Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + ' | ' + autoTune.label() + '\nBUILD 109 | ' + autoTune.info();
+      perfEl.textContent = 'JS ' + jsEma.toFixed(1) + ' | submit ' + subEma.toFixed(1) + ' | wait ' + Math.max(0, emaMs - jsEma - subEma).toFixed(1) + ' ms\n' + Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + ' | ' + autoTune.label() + '\nBUILD 110 | ' + autoTune.info();
     }
 
     perfFrames++; perfAcc += dt;
