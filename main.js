@@ -1674,8 +1674,8 @@ function drawGrassAtlasCanvas() {
       '#home-start:active{transform:scale(0.97)}';
     document.head.appendChild(st);
     const palettes = [
-      ['body', 'BODY COLOUR', ['#b9c3ca', '#d9382c', '#f08a1c', '#f2c12e', '#3fae4a', '#2f7fe0', '#8a4fd6', '#e8e8ea', '#2a2d31']],
-      ['dome', 'DOME COLOUR', ['#3d8fd6', '#a6c4d8', '#d9382c', '#f2c12e', '#3fae4a', '#8a4fd6', '#e8e8ea', '#2a2d31', '#f08a1c']],
+      ['body', 'BODY COLOUR', ['#a2abb3', '#d9382c', '#f08a1c', '#f2c12e', '#3fae4a', '#2f7fe0', '#8a4fd6', '#e8e8ea', '#2a2d31']],
+      ['dome', 'DOME COLOUR', ['#1650b8', '#a6c4d8', '#d9382c', '#f2c12e', '#3fae4a', '#8a4fd6', '#e8e8ea', '#2a2d31', '#f08a1c']],
       ['accent', 'NEON LIGHTS', ['#2fd6ff', '#ff3fd0', '#5dff8a', '#f2c12e', '#ff4a3a', '#c27bff', '#e8e8ea', '#4a7bff']],
       ['light', 'REAR LAMPS', ['#ff3322', '#ffd27a', '#e8fbff', '#5dff8a', '#4aa8ff', '#c27bff']]
     ];
@@ -1755,7 +1755,7 @@ function drawGrassAtlasCanvas() {
   const MATS = {
     light:  new THREE.MeshStandardMaterial({ color: 0xa9b8c2, metalness: 0.20, roughness: 0.60, flatShading: true, envMapIntensity: 0.6 }),
     joint:  new THREE.MeshStandardMaterial({ color: 0x6a717a, metalness: 0.60, roughness: 0.45, flatShading: true }),
-    dome:   new THREE.MeshStandardMaterial({ color: 0x2b72d4, emissive: 0x0a2c66, emissiveIntensity: 0.9, metalness: 0.0, roughness: 0.4, flatShading: true, envMapIntensity: 0.35 }),
+    dome:   new THREE.MeshStandardMaterial({ color: 0x1650b8, emissive: 0x08265a, emissiveIntensity: 0.5, metalness: 0.0, roughness: 0.4, flatShading: true, envMapIntensity: 0.35 }),
     black:  new THREE.MeshStandardMaterial({ color: 0x0c0d0f, roughness: 0.70, flatShading: true }),
     glow:   new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.8, flatShading: true }),
     tail:   new THREE.MeshStandardMaterial({ color: 0xff3322, emissive: 0xff2211, emissiveIntensity: 0.9, flatShading: true }),
@@ -1764,8 +1764,8 @@ function drawGrassAtlasCanvas() {
     amber:   new THREE.MeshStandardMaterial({ color: 0xffa020, emissive: 0xff8a00, emissiveIntensity: 0.5 }),
     headHot: new THREE.MeshStandardMaterial({ color: 0xe8fbff, emissive: 0xbfefff, emissiveIntensity: 1.8 }),
     hullS: new THREE.MeshStandardMaterial({ color: 0x30363c, emissive: 0x0c0f12, metalness: 0.15, roughness: 0.55, envMapIntensity: 0.5, flatShading: true }),
-    deckS: new THREE.MeshStandardMaterial({ color: 0xcdd4da, emissive: 0x2a3036, metalness: 0.05, roughness: 0.55, envMapIntensity: 0.4, flatShading: true }),
-    midS:  new THREE.MeshStandardMaterial({ color: 0x98a2aa, metalness: 0.10, roughness: 0.55, envMapIntensity: 0.5, flatShading: true }),
+    deckS: new THREE.MeshStandardMaterial({ color: 0xa2abb3, emissive: 0x1a1f24, metalness: 0.05, roughness: 0.55, envMapIntensity: 0.4, flatShading: true }),
+    midS:  new THREE.MeshStandardMaterial({ color: 0x7c868e, metalness: 0.10, roughness: 0.55, envMapIntensity: 0.5, flatShading: true }),
     tailDark: new THREE.MeshStandardMaterial({ color: 0x3a0707, emissive: 0x2a0000, emissiveIntensity: 0.8, flatShading: true }),
     darkS: new THREE.MeshStandardMaterial({ color: 0x1f2328, metalness: 0.35, roughness: 0.60, flatShading: true }),
     neon:  new THREE.MeshStandardMaterial({ color: 0x2fd6ff, emissive: 0x2fd6ff, emissiveIntensity: 2.2, flatShading: true }),
