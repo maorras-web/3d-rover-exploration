@@ -2799,13 +2799,13 @@ function drawGrassAtlasCanvas() {
   const LEVELS = [
     { bloom: true,  half: false, gD: 1.00, gQ: 1.00, far: 1e9, bush: true,  res: 1.00 },   // 0  best looks
     { bloom: true,  half: true,  gD: 1.00, gQ: 1.00, far: 1e9, bush: true,  res: 1.00 },   // 1  shadows refreshed every 2nd frame
-    { bloom: false, half: true,  gD: 1.00, gQ: 1.00, far: 1e9, bush: true,  res: 1.00 },   // 2  no glow (measured ~10 ms: the biggest saving that is barely visible)
-    { bloom: false, half: true,  gD: 0.92, gQ: 0.95, far: 300, bush: true,  res: 1.00 },   // 3  grass only just thinned
-    { bloom: false, half: true,  gD: 0.82, gQ: 0.85, far: 240, bush: true,  res: 1.00 },   // 4
-    { bloom: false, half: true,  gD: 0.70, gQ: 0.75, far: 190, bush: false, res: 1.00 },   // 5  no bushes
-    { bloom: false, half: true,  gD: 0.60, gQ: 0.65, far: 150, bush: false, res: 0.85 },   // 6  slightly lower resolution
-    { bloom: false, half: true,  gD: 0.45, gQ: 0.55, far: 120, bush: false, res: 0.70 },   // 7
-    { bloom: false, half: true,  gD: 0.30, gQ: 0.45, far: 90,  bush: false, res: 0.60 }    // 8  weakest phones
+    { bloom: false, half: true,  gD: 1.00, gQ: 1.00, far: 1e9, bush: true,  res: 0.85 },   // 2  no glow (measured ~10 ms: the biggest saving that is barely visible)
+    { bloom: false, half: true,  gD: 0.92, gQ: 0.95, far: 300, bush: true,  res: 0.75 },   // 3  grass only just thinned
+    { bloom: false, half: true,  gD: 0.82, gQ: 0.85, far: 240, bush: true,  res: 0.65 },   // 4
+    { bloom: false, half: true,  gD: 0.70, gQ: 0.75, far: 190, bush: false, res: 0.60 },   // 5  no bushes
+    { bloom: false, half: true,  gD: 0.60, gQ: 0.65, far: 150, bush: false, res: 0.55 },   // 6  lower resolution
+    { bloom: false, half: true,  gD: 0.45, gQ: 0.55, far: 120, bush: false, res: 0.50 },   // 7
+    { bloom: false, half: true,  gD: 0.30, gQ: 0.45, far: 90,  bush: false, res: 0.50 }    // 8  weakest phones
   ];
   function detectDevice() {
     let gpu = '';
@@ -2881,7 +2881,7 @@ function drawGrassAtlasCanvas() {
       frames++;
       if (frames < 100) return false;                       // warm-up: shader compiles, world streaming
       if (!capMs && frames > 150 && ema < 10.5) capMs = 1000 / 60;   // 90/120 Hz phones that are very fast: steady 60 fps
-      if (lvl >= 6) { if (!highSince) highSince = now; } else highSince = 0;   // how long we have been at the cheapest levels
+      if (lvl >= 7) { if (!highSince) highSince = now; } else highSince = 0;   // how long we have been at the cheapest levels
       if (mode30) {                                         // locked to 30 fps: run free for 3 s from time to time; if the phone keeps up, the lock is dropped
         if (!lockProbeAt) lockProbeAt = now + 6000;
         if (!lockProbeEnd && now >= lockProbeAt) { lockProbeEnd = now + 3000; lockProbeT0 = now; lockProbeN = 0; }
@@ -2901,7 +2901,7 @@ function drawGrassAtlasCanvas() {
       const veryBad = ema > (mode30 ? 55 : 33), isBad = ema > (mode30 ? 38 : 21), isGood = ema < (mode30 ? 35.5 : 18.3);   // 21 ms = below ~47 fps: on 60 Hz screens that already feels uneven
       if (isBad) {
         good = 0; bad += veryBad ? 2 : 1;
-        if (bad >= 3 && !mode30 && lvl >= 6 && now - highSince > 10000) {   // only after ~10 s of being slow even at the cheapest levels           // all the cheap tricks are used up: lock to 30 fps and restore the looks instead
+        if (bad >= 3 && !mode30 && lvl >= 7 && now - highSince > 10000) {   // only after ~10 s of being slow even at the cheapest levels           // all the cheap tricks are used up: lock to 30 fps and restore the looks instead
           mode30 = true; lockInfo = Math.round(now / 1000) + 's/' + Math.round(ema) + 'ms'; lvl = 3; apply(lvl); lastChange = now; bad = 0; evalAt = now + 1500; lockProbeAt = now + lockProbeGap; lockProbeGap = Math.min(300000, lockProbeGap * 2);
           return true;
         }
@@ -3795,7 +3795,7 @@ function drawGrassAtlasCanvas() {
     if (perfOn && nowMs > overlayAt) {
       overlayAt = nowMs + 500;
       const inf = renderer.info.render;
-      perfEl.textContent = 'JS ' + jsEma.toFixed(1) + ' | submit ' + subEma.toFixed(1) + ' | wait ' + Math.max(0, emaMs - jsEma - subEma).toFixed(1) + ' ms\n' + Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + ' | ' + autoTune.label() + '\nBUILD 95 | ' + autoTune.info();
+      perfEl.textContent = 'JS ' + jsEma.toFixed(1) + ' | submit ' + subEma.toFixed(1) + ' | wait ' + Math.max(0, emaMs - jsEma - subEma).toFixed(1) + ' ms\n' + Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + ' | ' + autoTune.label() + '\nBUILD 96 | ' + autoTune.info();
     }
 
     perfFrames++; perfAcc += dt;
