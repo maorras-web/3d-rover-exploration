@@ -1764,7 +1764,9 @@ function drawGrassAtlasCanvas() {
     amber:   new THREE.MeshStandardMaterial({ color: 0xffa020, emissive: 0xff8a00, emissiveIntensity: 0.5 }),
     headHot: new THREE.MeshStandardMaterial({ color: 0xe8fbff, emissive: 0xbfefff, emissiveIntensity: 1.8 }),
     hullS: new THREE.MeshStandardMaterial({ color: 0x3a4047, metalness: 0.35, roughness: 0.50, envMapIntensity: 1.0, flatShading: true }),
-    deckS: new THREE.MeshStandardMaterial({ color: 0xb9c3ca, metalness: 0.30, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
+    deckS: new THREE.MeshStandardMaterial({ color: 0xc4ccd3, metalness: 0.30, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
+    midS:  new THREE.MeshStandardMaterial({ color: 0x7d8890, metalness: 0.30, roughness: 0.50, envMapIntensity: 1.0, flatShading: true }),
+    tailDark: new THREE.MeshStandardMaterial({ color: 0x3a0707, emissive: 0x2a0000, emissiveIntensity: 0.8, flatShading: true }),
     darkS: new THREE.MeshStandardMaterial({ color: 0x1f2328, metalness: 0.35, roughness: 0.60, flatShading: true }),
     neon:  new THREE.MeshStandardMaterial({ color: 0x2fd6ff, emissive: 0x2fd6ff, emissiveIntensity: 2.2, flatShading: true }),
     tyre:  new THREE.MeshStandardMaterial({ color: 0x1b1d21, metalness: 0.10, roughness: 0.55, envMapIntensity: 0.8, flatShading: true, side: THREE.DoubleSide }),
@@ -1851,7 +1853,7 @@ function drawGrassAtlasCanvas() {
   const B = new THREE.BoxGeometry(1, 1, 1);
 
   // ---- Dark cartoon outline (inverted hull) like the target image ----
-  const OUTLINE_KEYS = ['hullS', 'deckS', 'darkS', 'dome'];
+  const OUTLINE_KEYS = ['hullS', 'deckS', 'midS', 'darkS', 'dome'];
   const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: 0x15110d, side: THREE.BackSide });
   const OUTLINE_W = { value: 0.03 };   // set from the render resolution in applyPR()
   OUTLINE_MAT.onBeforeCompile = (sh) => {
@@ -1907,21 +1909,35 @@ function drawGrassAtlasCanvas() {
   // ---- Cyan neon ----
   partRB('neon', 0, 0.55, -1.92, 1.00, 0.04, 0.03, 0.01);                                    // nose line
   partRB('neon', 0, 0.45, -2.26, 1.55, 0.03, 0.025, 0.008);                                  // splitter edge
-  partRB('neon', 0, 1.49, 0.95, 0.15, 0.04, 0.15, 0.01);                                     // little square light on the roof
+  partRB('neon', 0, 1.545, 0.85, 0.15, 0.03, 0.15, 0.008);                                  // little square light on the roof
   [-1, 1].forEach(s => {
     partBeam('neon', s * 0.907, 0.62, -0.5, s * 0.962, 0.62, 0.5, 0.05);                     // body side
     partBeam('neon', s * 0.30, 1.045, -1.80, s * 0.50, 1.32, -0.25, 0.035);                  // hood line
   });
 
-  // ---- Rear face (what you see from the chase camera): neon bar, slanted red lamps, black mesh grille ----
-  partRB('neon', 0, 1.36, 1.725, 1.35, 0.07, 0.03, 0.01, -0.12, 0, 0);
+  // ---- Extra facets: side shoulders + a raised mid-grey roof plate (more planes = more like the low-poly target) ----
+  hexSym('midS', [[0.88, 1.14, 0.20], [1.12, 1.16, 0.40], [1.12, 1.16, 1.70], [0.88, 1.14, 1.72], [0.88, 1.40, 0.20], [1.02, 1.32, 0.45], [1.02, 1.46, 1.60], [0.88, 1.52, 1.62]]);
+  hexBlock('midS', [[-0.45, 1.36, 0.30], [0.45, 1.36, 0.30], [0.62, 1.53, 1.45], [-0.62, 1.53, 1.45], [-0.40, 1.42, 0.35], [0.40, 1.42, 0.35], [0.55, 1.59, 1.40], [-0.55, 1.59, 1.40]]);
+
+  // ---- Rear face (what you see from the chase camera): neon bar on a dark band, slanted red lamp frames, big black mesh grille ----
+  partRB('darkS', 0, 1.36, 1.715, 1.62, 0.18, 0.03, 0.01, -0.12, 0, 0);
+  partRB('neon', 0, 1.36, 1.735, 1.25, 0.05, 0.03, 0.01, -0.12, 0, 0);
+  function lampBar(key, cx, cy, cz, w, h, d, ox, oy, roll) {
+    const cr = Math.cos(roll), sr = Math.sin(roll);
+    partRB(key, cx + ox * cr - oy * sr, cy + ox * sr + oy * cr, cz, w, h, d, Math.min(h, d) * 0.3, 0, 0, roll);
+  }
   [-1, 1].forEach(s => {
-    partRB('black', s * 0.66, 0.93, 1.762, 0.60, 0.21, 0.03, 0.01, 0, 0, s * 0.30);          // housing
-    partRB('tail', s * 0.66, 0.93, 1.782, 0.52, 0.12, 0.02, 0.008, 0, 0, s * 0.30);          // lamp
+    const lx = s * 0.76, ly = 0.95, rl = s * 0.30;
+    lampBar('black', lx, ly, 1.762, 0.62, 0.24, 0.03, 0, 0, rl);               // housing
+    lampBar('tailDark', lx, ly, 1.776, 0.54, 0.17, 0.02, 0, 0, rl);            // dark red lens
+    lampBar('tail', lx, ly, 1.79, 0.56, 0.05, 0.02, 0, 0.065, rl);             // bright upper edge
+    lampBar('tail', lx, ly, 1.79, 0.46, 0.03, 0.02, -s * 0.04, -0.06, rl);     // thin lower edge
   });
-  partRB('black', 0, 0.76, 1.762, 0.70, 0.56, 0.03, 0.01);                                   // grille
-  for (let j = 0; j < 7; j++) partRB('joint', 0, 0.52 + j * 0.08, 1.782, 0.64, 0.016, 0.014, 0.004);
-  for (let j = -2; j <= 2; j++) partRB('joint', j * 0.12, 0.76, 1.782, 0.014, 0.50, 0.014, 0.004);
+  hexBlock('darkS', [[-0.50, 0.46, 1.70], [0.50, 0.46, 1.70], [0.42, 0.46, 1.90], [-0.42, 0.46, 1.90], [-0.50, 1.08, 1.70], [0.50, 1.08, 1.70], [0.42, 1.02, 1.90], [-0.42, 1.02, 1.90]]);   // grille box
+  partRB('black', 0, 0.75, 1.905, 0.70, 0.50, 0.02, 0.01);
+  for (let j = 0; j < 7; j++) partRB('midS', 0, 0.54 + j * 0.07, 1.918, 0.66, 0.014, 0.012, 0.004);
+  for (let j = -3; j <= 3; j++) partRB('midS', j * 0.095, 0.75, 1.918, 0.012, 0.46, 0.012, 0.004);
+  partRB('midS', 0, 0.44, 1.80, 0.50, 0.06, 0.2, 0.02);                          // little plate under the grille
 
   // ---- Front: thin white lamp slits ----
   [-1, 1].forEach(s => {
@@ -1959,7 +1975,7 @@ function drawGrassAtlasCanvas() {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({
       map: haloTex, color: 0xff3322, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4, fog: false
     }));
-    s.position.set(side * 0.66, 0.93, 1.9);
+    s.position.set(side * 0.76, 0.95, 1.95);
     s.scale.set(1.1, 0.6, 1);
     rover.add(s);
     return s;
@@ -2055,12 +2071,12 @@ function drawGrassAtlasCanvas() {
   })();
   const hubJointGeo = new THREE.CylinderGeometry(0.21, 0.21, 0.2, 8);
   hubJointGeo.rotateZ(Math.PI / 2);
-  const rodGeo = new THREE.CylinderGeometry(0.055, 0.055, 1, 6);
+  const rodGeo = new THREE.CylinderGeometry(0.07, 0.07, 1, 6);
   rodGeo.rotateX(Math.PI / 2);
 
   const suspension = wheelSlots.map(([sx, sz], i) => {
-    const rod = new THREE.Mesh(rodGeo, MATS.darkS); rod.castShadow = true; rover.add(rod);
-    const spring = new THREE.Mesh(springGeo, MATS.neon); spring.castShadow = true; rover.add(spring);
+    const rod = new THREE.Mesh(rodGeo, MATS.neon); rover.add(rod);
+    const spring = new THREE.Object3D();   // (coil removed: the neon strut is enough)
     const joint = new THREE.Mesh(hubJointGeo, MATS.darkS); joint.castShadow = true; rover.add(joint);
     return {
       sx, sz, wheel: wheels[i],
@@ -2441,7 +2457,8 @@ function drawGrassAtlasCanvas() {
     sunLight.intensity = 2.7;
     sunLight.color.setRGB(1.0, 0.97, 0.9);
     ambientLight.intensity = 0.26;
-    hemiLight.intensity = 0.34;
+    hemiLight.intensity = 0.5;
+    hemiLight.color.setRGB(0.86, 0.9, 1.0); hemiLight.groundColor.setRGB(0.40, 0.44, 0.54);   // cool, neutral fill (no green/tan cast on the car)
 
     const clockH = (gameTime * 24 + 6) % 24;
     const hours = Math.floor(clockH);
@@ -2477,7 +2494,7 @@ function drawGrassAtlasCanvas() {
   // So adaptive resolution only resizes the composer's internal render targets (never the canvas).
   function applyPR(r) {
     curPR = r;
-    OUTLINE_W.value = r >= 1.5 ? 0.03 : 0.02 + Math.max(0, r - 1.0) * 0.02;   // thinner outline at low resolution
+    OUTLINE_W.value = r >= 1.5 ? 0.04 : 0.028 + Math.max(0, r - 1.0) * 0.024;   // thinner outline at low resolution
     pollenU.uSize.value = window.innerHeight * r * 0.045;
     composer.setPixelRatio(r);
     composer.setSize(window.innerWidth, window.innerHeight);
