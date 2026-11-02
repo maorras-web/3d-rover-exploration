@@ -82,6 +82,7 @@ class CheapGlow extends Pass {
    Light on purpose: instanced asteroids / bolts / loot, merged-geometry enemies, shader dust, no post-processing. */
 
 const $ = (id) => document.getElementById(id);
+const BUILD = 5;
 
 // ---------- save ----------
 const SAVE_KEY = 'starCourier2';
@@ -723,6 +724,8 @@ function launchFrom(i) {
 }
 function startGame() { initAudio(); if (actx && actx.state === 'suspended') actx.resume(); $('start').classList.remove('show'); updateMissionHud(); launchFrom(0); offered = genMissions(0); }
 $('go-start').addEventListener('click', startGame);
+$('go-start').textContent = 'LAUNCH';
+{ const b = document.createElement('div'); b.style.cssText = 'margin-top:10px;font-size:10px;opacity:.5;letter-spacing:2px'; b.textContent = 'BUILD ' + BUILD; $('go-start').parentNode.appendChild(b); }
 $('go-launch').addEventListener('click', () => { initAudio(); if (actx && actx.state === 'suspended') actx.resume(); launchFrom(S.station); });
 function wrecked() {
   S.mode = 'wreck'; explode(S.pos, 18); sfx('hit'); buzz(250);

@@ -123,11 +123,21 @@
   <div class="go" id="go-launch">LAUNCH</div>
 </div></div>
 
+<div id="diag" style="position:fixed;left:0;right:0;top:0;z-index:999999;background:rgba(150,0,0,.92);color:#fff;font:12px/1.4 monospace;padding:8px;display:none;direction:ltr;white-space:pre-wrap"></div>
+<script>
+(function(){
+  var d=document.getElementById('diag');
+  function show(t){ d.style.display='block'; d.textContent+=t+'\n'; }
+  window.addEventListener('error',function(e){ show('ERROR: '+e.message+(e.filename?'  ('+e.filename.split('/').pop()+':'+e.lineno+')':'')); });
+  window.addEventListener('unhandledrejection',function(e){ show('ERROR: '+(e.reason&&e.reason.message||e.reason)); });
+  setTimeout(function(){ if(!window.__sc) show('The game did not start.\nCheck that three.module.js and the addons folder are in the same folder as index.html, and that main.js is the new version (BUILD 5).'); },5000);
+})();
+</script>
 <div id="rotate">ROTATE YOUR PHONE<br>TO LANDSCAPE</div>
 
 <script type="importmap">
 { "imports": { "three": "./three.module.js", "three/addons/": "./addons/" } }
 </script>
-<script type="module" src="space.js?v=3"></script>
+<script type="module" src="main.js?v=5"></script>
 </body>
 </html>
