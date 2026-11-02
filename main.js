@@ -1755,7 +1755,7 @@ function drawGrassAtlasCanvas() {
   const MATS = {
     light:  new THREE.MeshStandardMaterial({ color: 0xa9b8c2, metalness: 0.20, roughness: 0.60, flatShading: true, envMapIntensity: 0.6 }),
     joint:  new THREE.MeshStandardMaterial({ color: 0x6a717a, metalness: 0.60, roughness: 0.45, flatShading: true }),
-    dome:   new THREE.MeshStandardMaterial({ color: 0x3d8fd6, emissive: 0x06182c, metalness: 0.25, roughness: 0.18, flatShading: true, envMapIntensity: 1.3 }),
+    dome:   new THREE.MeshStandardMaterial({ color: 0x2b72d4, emissive: 0x0a2c66, emissiveIntensity: 0.9, metalness: 0.0, roughness: 0.4, flatShading: true, envMapIntensity: 0.35 }),
     black:  new THREE.MeshStandardMaterial({ color: 0x0c0d0f, roughness: 0.70, flatShading: true }),
     glow:   new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.8, flatShading: true }),
     tail:   new THREE.MeshStandardMaterial({ color: 0xff3322, emissive: 0xff2211, emissiveIntensity: 0.9, flatShading: true }),
@@ -1763,8 +1763,8 @@ function drawGrassAtlasCanvas() {
     revLamp: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xdfeeff, emissiveIntensity: 0.1 }),
     amber:   new THREE.MeshStandardMaterial({ color: 0xffa020, emissive: 0xff8a00, emissiveIntensity: 0.5 }),
     headHot: new THREE.MeshStandardMaterial({ color: 0xe8fbff, emissive: 0xbfefff, emissiveIntensity: 1.8 }),
-    hullS: new THREE.MeshStandardMaterial({ color: 0x30363c, metalness: 0.15, roughness: 0.55, envMapIntensity: 0.5, flatShading: true }),
-    deckS: new THREE.MeshStandardMaterial({ color: 0xdfe5ea, metalness: 0.05, roughness: 0.55, envMapIntensity: 0.4, flatShading: true }),
+    hullS: new THREE.MeshStandardMaterial({ color: 0x30363c, emissive: 0x0c0f12, metalness: 0.15, roughness: 0.55, envMapIntensity: 0.5, flatShading: true }),
+    deckS: new THREE.MeshStandardMaterial({ color: 0xcdd4da, emissive: 0x2a3036, metalness: 0.05, roughness: 0.55, envMapIntensity: 0.4, flatShading: true }),
     midS:  new THREE.MeshStandardMaterial({ color: 0x98a2aa, metalness: 0.10, roughness: 0.55, envMapIntensity: 0.5, flatShading: true }),
     tailDark: new THREE.MeshStandardMaterial({ color: 0x3a0707, emissive: 0x2a0000, emissiveIntensity: 0.8, flatShading: true }),
     darkS: new THREE.MeshStandardMaterial({ color: 0x1f2328, metalness: 0.35, roughness: 0.60, flatShading: true }),
@@ -1895,21 +1895,21 @@ function drawGrassAtlasCanvas() {
 
   // ---- Compact, chunky silhouette like the target: the body fills the space between the big wheels ----
   // nose + middle (charcoal)
-  hexBlock('hullS', [[-0.75, 0.46, -1.95], [0.75, 0.46, -1.95], [0.90, 0.45, -1.00], [-0.90, 0.45, -1.00], [-0.65, 0.90, -1.95], [0.65, 0.90, -1.95], [0.85, 0.98, -1.00], [-0.85, 0.98, -1.00]]);
-  hexBlock('hullS', [[-0.90, 0.45, -1.00], [0.90, 0.45, -1.00], [1.00, 0.45, 0.40], [-1.00, 0.45, 0.40], [-0.85, 0.98, -1.00], [0.85, 0.98, -1.00], [0.95, 1.15, 0.40], [-0.95, 1.15, 0.40]]);
+  hexBlock('hullS', [[-0.75, 0.46, -1.95], [0.75, 0.46, -1.95], [0.90, 0.45, -1.00], [-0.90, 0.45, -1.00], [-0.52, 0.90, -1.95], [0.52, 0.90, -1.95], [0.68, 0.98, -1.00], [-0.68, 0.98, -1.00]]);
+  hexBlock('hullS', [[-0.90, 0.45, -1.00], [0.90, 0.45, -1.00], [1.00, 0.45, 0.40], [-1.00, 0.45, 0.40], [-0.68, 0.98, -1.00], [0.68, 0.98, -1.00], [0.72, 1.15, 0.40], [-0.72, 1.15, 0.40]]);
   // sloping hood (light)
-  hexBlock('deckS', [[-0.65, 0.90, -1.90], [0.65, 0.90, -1.90], [0.88, 1.00, -0.20], [-0.88, 1.00, -0.20], [-0.50, 0.99, -1.85], [0.50, 0.99, -1.85], [0.70, 1.38, -0.20], [-0.70, 1.38, -0.20]]);
+  hexBlock('deckS', [[-0.52, 0.90, -1.90], [0.52, 0.90, -1.90], [0.72, 1.00, -0.20], [-0.72, 1.00, -0.20], [-0.42, 0.99, -1.85], [0.42, 0.99, -1.85], [0.52, 1.38, -0.20], [-0.52, 1.38, -0.20]]);
   // rear lower body: centre + angled wings (the lamps sit on the wings)
   hexBlock('hullS', [[-0.50, 0.45, 0.20], [0.50, 0.45, 0.20], [0.50, 0.45, 1.78], [-0.50, 0.45, 1.78], [-0.50, 1.15, 0.20], [0.50, 1.15, 0.20], [0.50, 1.15, 1.78], [-0.50, 1.15, 1.78]]);
-  hexSym('hullS', [[0.45, 0.45, 0.20], [1.00, 0.45, 0.20], [1.00, 0.45, 1.50], [0.50, 0.45, 1.78], [0.45, 1.15, 0.20], [1.00, 1.15, 0.20], [1.00, 1.15, 1.50], [0.50, 1.15, 1.78]]);
+  hexSym('hullS', [[0.45, 0.45, 0.20], [1.00, 0.45, 0.20], [1.00, 0.45, 1.50], [0.50, 0.45, 1.78], [0.45, 1.15, 0.20], [0.86, 1.15, 0.20], [0.86, 1.15, 1.50], [0.50, 1.15, 1.78]]);
   // big light rear block with chamfered top (shield shape)
-  hexBlock('deckS', [[-0.95, 1.12, 0.20], [0.95, 1.12, 0.20], [1.00, 1.15, 1.70], [-1.00, 1.15, 1.70], [-0.70, 1.42, 0.20], [0.70, 1.42, 0.20], [0.80, 1.40, 1.62], [-0.80, 1.40, 1.62]]);
-  hexBlock('deckS', [[-0.70, 1.42, 0.20], [0.70, 1.42, 0.20], [0.80, 1.40, 1.62], [-0.80, 1.40, 1.62], [-0.50, 1.48, 0.25], [0.50, 1.48, 0.25], [0.62, 1.58, 1.52], [-0.62, 1.58, 1.52]]);
+  hexBlock('deckS', [[-0.68, 1.10, 0.20], [0.68, 1.10, 0.20], [1.02, 1.15, 1.70], [-1.02, 1.15, 1.70], [-0.46, 1.42, 0.20], [0.46, 1.42, 0.20], [0.70, 1.40, 1.62], [-0.70, 1.40, 1.62]]);
+  hexBlock('deckS', [[-0.46, 1.42, 0.20], [0.46, 1.42, 0.20], [0.70, 1.40, 1.62], [-0.70, 1.40, 1.62], [-0.32, 1.50, 0.25], [0.32, 1.50, 0.25], [0.50, 1.60, 1.52], [-0.50, 1.60, 1.52]]);
   // dark underbody + front splitter
   hexBlock('darkS', [[-0.65, 0.40, -1.70], [0.65, 0.40, -1.70], [0.85, 0.40, 1.70], [-0.85, 0.40, 1.70], [-0.65, 0.48, -1.70], [0.65, 0.48, -1.70], [0.85, 0.48, 1.70], [-0.85, 0.48, 1.70]]);
   hexBlock('darkS', [[-0.90, 0.42, -2.25], [0.90, 0.42, -2.25], [0.85, 0.42, -1.85], [-0.85, 0.42, -1.85], [-0.90, 0.50, -2.25], [0.90, 0.50, -2.25], [0.85, 0.50, -1.85], [-0.85, 0.50, -1.85]]);
   // cockpit cradle + canopy (toward the front, like the target)
-  hexBlock('darkS', [[-0.70, 1.14, -1.20], [0.70, 1.14, -1.20], [0.74, 1.14, 0.50], [-0.74, 1.14, 0.50], [-0.60, 1.44, -1.05], [0.60, 1.44, -1.05], [0.64, 1.44, 0.40], [-0.64, 1.44, 0.40]]);
+  hexBlock('darkS', [[-0.62, 1.14, -1.20], [0.62, 1.14, -1.20], [0.66, 1.14, 0.50], [-0.66, 1.14, 0.50], [-0.52, 1.44, -1.05], [0.52, 1.44, -1.05], [0.56, 1.44, 0.40], [-0.56, 1.44, 0.40]]);
   const domeGeo = new THREE.SphereGeometry(0.5, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2);
   domeGeo.scale(1.15, 1.1, 1.5);
   part(domeGeo, place(0, 1.40, -0.35), 'dome');
@@ -1920,7 +1920,7 @@ function drawGrassAtlasCanvas() {
   partRB('neon', 0, 1.535, 0.90, 0.15, 0.03, 0.15, 0.008);                                   // little square light on the roof
   [-1, 1].forEach(s => {
     partBeam('neon', s * 0.945, 0.62, -0.6, s * 1.015, 0.62, 0.3, 0.05);                     // body side
-    partBeam('neon', s * 1.025, 0.83, 0.45, s * 1.025, 0.83, 1.30, 0.05);                    // rear wing side
+    partBeam('neon', s * 0.95, 0.80, 0.45, s * 0.93, 0.80, 1.30, 0.05);                    // rear wing side
     partBeam('neon', s * 0.30, 1.06, -1.80, s * 0.55, 1.40, -0.28, 0.035);                   // hood line
   });
 
@@ -1933,7 +1933,7 @@ function drawGrassAtlasCanvas() {
     partRB(key, cx + lx * cy2, cy + ly, cz - lx * sy2, w, h, d, Math.min(h, d) * 0.3, 0, yaw, roll);
   }
   [-1, 1].forEach(s => {
-    const lx = s * 0.77, ly = 0.92, lz = 1.65, rl = s * 0.30, yw = s * 0.50;
+    const lx = s * 0.72, ly = 0.92, lz = 1.66, rl = s * 0.30, yw = s * 0.50;
     lampBar('black', lx, ly, lz, 0.56, 0.30, 0.03, 0, 0, rl, yw);               // housing
     lampBar('tailDark', lx, ly, lz + 0.014, 0.49, 0.22, 0.02, 0, 0, rl, yw);    // dark red lens
     lampBar('tail', lx, ly, lz + 0.028, 0.51, 0.065, 0.02, 0, 0.085, rl, yw);   // bright upper edge
