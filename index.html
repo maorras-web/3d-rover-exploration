@@ -98,6 +98,68 @@
   .go{background:linear-gradient(180deg,rgba(95,228,255,.32),rgba(95,228,255,.12))}
   .row{border-left:3px solid rgba(126,240,255,.55);border-radius:4px 12px 12px 4px;background:linear-gradient(90deg,rgba(10,24,40,.85),rgba(10,24,40,.6))}
   #toast{font-size:24px}
+  /* ================= HUD REDESIGN (static CSS + inline SVG only: zero per-frame cost) ================= */
+  :root{--cy:#7ef0ff;--navy1:#16294a;--navy2:#0a1424}
+  .ic{width:1em;height:1em;fill:currentColor;flex:none;display:block}
+  .ics{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block}
+  /* top-left status panel */
+  #top-left{gap:4px;min-width:196px;top:calc(8px + env(safe-area-inset-top))}
+  .pr{display:flex;align-items:center;gap:7px;height:23px;padding:0 8px 0 7px;background:linear-gradient(90deg,rgba(26,48,82,.92),rgba(12,22,40,.8));clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,0 100%);box-shadow:inset 0 0 0 1px rgba(126,240,255,.3),inset 3px 0 0 #5fe4ff;font:800 11px/1 system-ui,Arial,sans-serif;letter-spacing:.4px;color:#dff6ff}
+  .pr.gold{height:26px;box-shadow:inset 0 0 0 1px rgba(255,214,120,.45),inset 3px 0 0 #ffd166;font-size:15px}
+  .pr.gold .ic{color:#ffd166;font-size:17px}
+  .pr.gold b{color:#fff;font-weight:900}
+  .pr.gold small{font-size:11px;color:#ffd166;margin-left:-2px}
+  .pr .sp{flex:1}
+  .pr .ks{font-size:12px;display:flex;align-items:center;gap:4px;color:#cfefff}
+  .pr .ks .ic{font-size:14px;color:#9fe3ff}
+  .pr .nm{width:34px;font-size:10px;font-weight:800;color:#dff6ff;letter-spacing:.3px;text-shadow:0 1px 2px #000}
+  .pbar{position:relative;flex:1;height:10px;background:rgba(4,10,20,.75);clip-path:polygon(5px 0,100% 0,calc(100% - 5px) 100%,0 100%);box-shadow:inset 0 0 0 1px rgba(126,240,255,.25);overflow:hidden}
+  .pbar i{display:block;height:100%;width:100%;transform-origin:left center}
+  .pbar:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 10px,rgba(4,10,20,.8) 10px 12px)}
+  #b-sh{background:linear-gradient(90deg,#2a8fe0,#8fdcff)} #b-hu{background:linear-gradient(90deg,#e0483e,#ff9a6a)} #b-bo{background:linear-gradient(90deg,#e8932a,#ffd86a)}
+  .pr .ri{font-size:14px}
+  #mission{top:calc(134px + env(safe-area-inset-top))}
+  /* speed plate */
+  #speed{top:calc(6px + env(safe-area-inset-top));padding:6px 30px 9px;background:linear-gradient(180deg,#9af3ff,#3aa8d8);clip-path:polygon(0 0,100% 0,calc(100% - 13px) 100%,13px 100%);border:none;border-radius:0;font:900 22px/1 system-ui,Arial,sans-serif;letter-spacing:1px;display:flex;align-items:baseline;gap:5px}
+  #speed:before{content:"";position:absolute;inset:2px 2px 3px;background:linear-gradient(180deg,#17294a,#0a1426);clip-path:polygon(0 0,100% 0,calc(100% - 11px) 100%,11px 100%)}
+  #speed>*{position:relative}
+  #speed small{font-size:10px;font-weight:800;opacity:.85;letter-spacing:1px;margin:0}
+  /* top-right buttons */
+  #top-right{gap:7px}
+  .sbtn{width:36px;height:36px;border-radius:0;border:none;clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px);background:linear-gradient(160deg,#9af3ff,#2f86b8);color:#dff6ff;position:relative;font-size:19px;padding:0;box-shadow:none}
+  .sbtn:before{content:"";position:absolute;inset:2px;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);background:linear-gradient(160deg,#1d355a,#0c172b)}
+  .sbtn>*{position:relative}
+  .sbtn.on:before{background:linear-gradient(160deg,#2c6f9c,#164a70)}
+  .sbtn:active{transform:scale(.92)}
+  /* joystick */
+  #stick .base{border:none;box-shadow:none;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 132 132'%3E%3Cdefs%3E%3CradialGradient id='g' cx='50%25' cy='50%25' r='50%25'%3E%3Cstop offset='0' stop-color='%230a1626' stop-opacity='.25'/%3E%3Cstop offset='1' stop-color='%2310294a' stop-opacity='.75'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='66' cy='66' r='63' fill='url(%23g)'/%3E%3Ccircle cx='66' cy='66' r='62' fill='none' stroke='%238fe8ff' stroke-opacity='.75' stroke-width='3'/%3E%3Ccircle cx='66' cy='66' r='52' fill='none' stroke='%238fe8ff' stroke-opacity='.35' stroke-width='2' stroke-dasharray='3 5'/%3E%3Cg fill='%23a8ecff' fill-opacity='.8'%3E%3Cpath d='M66 10l7 10H59z'/%3E%3Cpath d='M66 122l7-10H59z'/%3E%3Cpath d='M10 66l10-7v14z'/%3E%3Cpath d='M122 66l-10-7v14z'/%3E%3C/g%3E%3C/svg%3E") center/100% 100% no-repeat}
+  #stick .knob{width:58px;height:58px;margin:-29px;border:2px solid rgba(220,250,255,.75);background:radial-gradient(circle at 35% 28%,#e2fbff,#7cc6dc 45%,#2f6f8c);box-shadow:inset 0 0 0 4px rgba(8,22,40,.25),0 2px 8px rgba(0,0,0,.55)}
+  /* radar: a wireframe holo-sphere (static picture); the canvas only draws the blips */
+  #radar{width:116px;height:116px;bottom:calc(6px + env(safe-area-inset-bottom));border:none;border-radius:0;box-shadow:none;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 208 208'%3E%3Cdefs%3E%3CradialGradient id='g' cx='50%25' cy='50%25' r='50%25'%3E%3Cstop offset='0' stop-color='%23123552' stop-opacity='.55'/%3E%3Cstop offset='1' stop-color='%2306101c' stop-opacity='.8'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='104' cy='104' r='101' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%237ef0ff' stroke-opacity='.42' stroke-width='1.6'%3E%3Ccircle cx='104' cy='104' r='101' stroke-opacity='.8' stroke-width='3'/%3E%3Ccircle cx='104' cy='104' r='67'/%3E%3Ccircle cx='104' cy='104' r='34'/%3E%3Cellipse cx='104' cy='104' rx='101' ry='34'/%3E%3Cellipse cx='104' cy='104' rx='101' ry='67'/%3E%3Cellipse cx='104' cy='104' rx='34' ry='101'/%3E%3Cellipse cx='104' cy='104' rx='67' ry='101'/%3E%3Cpath d='M104 3V205M3 104H205'/%3E%3Cpath d='M33 33L175 175M175 33L33 175' stroke-opacity='.22'/%3E%3C/g%3E%3C/svg%3E") center/100% 100% no-repeat}
+  /* action buttons: hexagons */
+  #rb-bg{position:fixed;right:0;bottom:0;width:268px;height:226px;z-index:11;pointer-events:none;background:linear-gradient(200deg,rgba(32,62,108,.5),rgba(10,20,40,.55));clip-path:polygon(36% 0,100% 0,100% 100%,0 100%,0 36%);box-shadow:inset 3px 0 0 rgba(126,240,255,.25)}
+  .hx{--c1:#9fe0ff;--c2:#2d6fa8;--f1:#244d86;--f2:#0f1e3c;border:none;border-radius:0;background:linear-gradient(160deg,var(--c1),var(--c2));clip-path:polygon(50% 0,100% 24%,100% 76%,50% 100%,0 76%,0 24%);flex-direction:column;gap:1px;box-shadow:none;padding:0;color:#eaf8ff}
+  .hx:before{content:"";position:absolute;inset:3px;clip-path:polygon(50% 0,100% 24%,100% 76%,50% 100%,0 76%,0 24%);background:radial-gradient(circle at 50% 35%,var(--f1),var(--f2))}
+  .hx>*{position:relative}
+  .hx .ic{font-size:27px}
+  .hx .tx{font:900 10px/1 system-ui,Arial,sans-serif;letter-spacing:1.2px}
+  #b-fire{--c1:#ff9a8a;--c2:#c5232e;--f1:#b02230;--f2:#4a0c18;right:calc(8px + env(safe-area-inset-right));bottom:calc(8px + env(safe-area-inset-bottom));width:100px;height:112px}
+  #b-fire .ic{font-size:36px;color:#fff}
+  #b-fire .tx{font-size:13px;letter-spacing:2px}
+  #b-miss{right:calc(112px + env(safe-area-inset-right));bottom:calc(12px + env(safe-area-inset-bottom));width:70px;height:80px;border:none}
+  #b-boost{right:calc(92px + env(safe-area-inset-right));bottom:calc(94px + env(safe-area-inset-bottom));width:70px;height:80px}
+  #b-tgt{--c1:#ffd58a;--c2:#d08a2a;--f1:#d8902f;--f2:#7a4614;right:calc(6px + env(safe-area-inset-right));bottom:calc(122px + env(safe-area-inset-bottom));width:112px;height:76px;clip-path:polygon(0 26%,18% 0,100% 0,100% 100%,0 100%);font-size:10px;border-radius:0}
+  #b-tgt:before{clip-path:polygon(0 26%,18% 0,100% 0,100% 100%,0 100%);background:linear-gradient(160deg,var(--f1),var(--f2))}
+  #b-tgt .ic,#b-tgt .ics{font-size:24px}
+  #miss-n{position:absolute;right:11px;top:13px;min-width:15px;padding:1px 3px;font:900 11px/1.1 system-ui,Arial,sans-serif;color:#fff;background:rgba(6,14,28,.9);box-shadow:inset 0 0 0 1px rgba(126,240,255,.5);text-align:center;z-index:2}
+  .rb.down{transform:scale(.93);filter:brightness(1.4)}
+  #b-dock{clip-path:none}
+  #b-fire,#b-miss,#b-boost{background:linear-gradient(160deg,var(--c1),var(--c2))}
+  #b-tgt{background:linear-gradient(160deg,var(--c1),var(--c2));width:104px;right:calc(4px + env(safe-area-inset-right))}
+  #b-boost{right:calc(100px + env(safe-area-inset-right));bottom:calc(94px + env(safe-area-inset-bottom))}
+  #b-miss{--c1:#9fe0ff;--c2:#2d6fa8}
+  #b-boost{--c1:#9fe0ff;--c2:#2d6fa8}
+  @media (max-height:380px){#radar{width:96px;height:96px}}
 </style>
 </head>
 <body>
@@ -114,21 +176,22 @@
 <div id="toast" class="hud"></div>
 
 <div id="top-left" class="hud">
-  <div class="chip">◆ <b id="credits">0</b><span style="flex:1"></span><span id="kills" style="opacity:.75;font-size:10px"></span></div>
-  <div class="chip"><span class="lbl">SHIELD</span><div class="bar"><i id="b-sh"></i></div></div>
-  <div class="chip"><span class="lbl">HULL</span><div class="bar"><i id="b-hu"></i></div></div>
-  <div class="chip"><span class="lbl">BOOST</span><div class="bar"><i id="b-bo"></i></div></div>
+  <div class="pr gold"><svg class="ic" viewBox="0 0 24 24"><path d="M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4z"/></svg><b id="credits">0</b><small>Cr</small><span class="sp"></span><span class="ks"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l8 17-8-4-8 4z"/></svg><span id="kills"></span></span></div>
+  <div class="pr"><span class="nm">Shield</span><div class="pbar"><i id="b-sh"></i></div><svg class="ic ri" style="color:#7fd0ff" viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/></svg></div>
+  <div class="pr"><span class="nm">Hull</span><div class="pbar"><i id="b-hu"></i></div><svg class="ic ri" style="color:#ff8a7a" viewBox="0 0 24 24"><path d="M12 5l3 4 7-3-3 10-4 1-3 3-3-3-4-1L2 6l7 3z"/></svg></div>
+  <div class="pr"><span class="nm">Boost</span><div class="pbar"><i id="b-bo"></i></div><svg class="ic ri" style="color:#ffb35a" viewBox="0 0 24 24"><path d="M12 2s6 6 6 11a6 6 0 0 1-12 0c0-2 1-3.5 2-5 0 2 1 3 2 3 0-4 0-6 2-9z"/></svg></div>
 </div>
 <div id="mission" class="hud"></div>
-<div id="top-right" class="hud"><button class="sbtn" id="b-fs">⛶</button><button class="sbtn" id="b-inv" title="invert up/down">⇅</button><button class="sbtn" id="b-snd">♪</button></div>
+<div id="top-right" class="hud"><button class="sbtn" id="b-fs"><svg class="ics" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button><button class="sbtn" id="b-inv"><svg class="ics" viewBox="0 0 24 24"><path d="M8 4v15M4 8l4-4 4 4M16 20V5M12 16l4 4 4-4"/></svg></button><button class="sbtn" id="b-snd"><svg class="ics" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/></svg></button></div>
 <div id="speed" class="hud"><span id="kmh">0</span><small>m/s</small></div>
 <canvas id="radar" class="hud" width="208" height="208"></canvas>
 
 <div id="stick" class="hud"><div class="base"></div><div class="knob" id="knob"></div></div>
-<button class="rb" id="b-fire">FIRE</button>
-<button class="rb" id="b-miss">MISSILE<span id="miss-n"></span></button>
-<button class="rb" id="b-boost">BOOST</button>
-<button class="rb" id="b-tgt">TARGET</button>
+<div id="rb-bg"></div>
+<button class="rb hx" id="b-fire"><svg class="ic" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg><span class="tx">FIRE</span></button>
+<button class="rb hx" id="b-miss"><svg class="ic" viewBox="0 0 24 24"><path d="M12 2c2 2 3 5 3 8v6H9v-6c0-3 1-6 3-8zM9 16l-3.5 4.5H9zM15 16l3.5 4.5H15zM11 17h2v4h-2z"/></svg><span class="tx">MISSILE</span><span id="miss-n"></span></button>
+<button class="rb hx" id="b-boost"><svg class="ic" viewBox="0 0 24 24"><path d="M12 2c3 2 5 6 5 10l2 3v3l-3-1-1 3h-6l-1-3-3 1v-3l2-3c0-4 2-8 5-10zm0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg><span class="tx">BOOST</span></button>
+<button class="rb hx" id="b-tgt"><svg class="ics" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 1v5M12 18v5M1 12h5M18 12h5"/></svg><span class="tx">TARGET</span></button>
 <button class="rb" id="b-dock">DOCK</button>
 
 <div id="start" class="screen show"><div class="panel">
@@ -165,11 +228,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=113', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=118', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=113'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=118'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>

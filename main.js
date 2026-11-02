@@ -83,7 +83,7 @@ class CheapGlow extends Pass {
    Light on purpose: instanced asteroids / bolts / loot, merged-geometry enemies, shader dust, no post-processing. */
 
 const $ = (id) => document.getElementById(id);
-const BUILD = 10;
+const BUILD = 12;
 
 // ---------- save ----------
 const SAVE_KEY = 'starCourier2';
@@ -160,6 +160,7 @@ applyPR();
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); applyPR(); });
 const sun = new THREE.DirectionalLight(0xfff0d8, 2.6); sun.position.set(0.72, 0.677, -0.148); scene.add(sun);
 scene.add(new THREE.HemisphereLight(0x6f86c8, 0x1a1420, 0.9));
+const fill = new THREE.DirectionalLight(0xffe6cc, 1.5); scene.add(fill);   // soft light from behind the camera, so rocks and the ship are never pure silhouettes
 
 // ---------- helpers ----------
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -829,13 +830,22 @@ const asteroids = [], astMeshes = [];
 {
   const col = new THREE.Color();
   for (let s = 0; s < 3; s++) {
-    const g = new THREE.IcosahedronGeometry(1, 1), p = g.attributes.position, v = V3();
-    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const k = 0.72 + Math.random() * 0.5; p.setXYZ(i, v.x * k * (0.8 + s * 0.15), v.y * k, v.z * k * (1.25 - s * 0.15)); }
+    // round, whole rock: a fine sphere with shared vertices, pushed in and out by smooth low-frequency waves (no spikes) plus a few shallow craters
+    let g = new THREE.IcosahedronGeometry(1, 3); g.deleteAttribute('uv'); g.deleteAttribute('normal'); g = mergeVertices(g);
+    const p = g.attributes.position, v = V3(), ph = [Math.random() * 6.3, Math.random() * 6.3, Math.random() * 6.3, Math.random() * 6.3];
+    const craters = []; for (let c = 0; c < 4; c++) craters.push(V3(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize());
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i).normalize();
+      let k = 1 + 0.07 * Math.sin(v.x * 2.4 + ph[0]) * Math.sin(v.y * 2.1 + ph[1]) + 0.05 * Math.sin(v.z * 3.1 + v.x * 1.7 + ph[2]) + 0.025 * Math.sin(v.y * 5.3 + v.z * 4.1 + ph[3]);
+      for (const c of craters) { const d = v.dot(c); if (d > 0.9) { const t = (d - 0.9) / 0.1; k -= 0.075 * t * t * (3 - 2 * t); } }
+      p.setXYZ(i, v.x * k * (0.88 + s * 0.12), v.y * k * (1.0 - s * 0.04), v.z * k * (1.1 - s * 0.1));
+    }
     g.computeVertexNormals();
-    const m = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0.05, flatShading: true }), AST_PER);
+    { const cc = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const n = 0.82 + 0.18 * Math.sin(v.x * 6.1 + ph[0]) * Math.sin(v.y * 5.3 + ph[1]) * Math.sin(v.z * 6.7 + ph[2]); cc[i * 3] = n; cc[i * 3 + 1] = n * 0.97; cc[i * 3 + 2] = n * 0.93; } g.setAttribute('color', new THREE.BufferAttribute(cc, 3)); }
+    const m = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.9, metalness: 0.05, flatShading: false, emissive: 0x1c1610 }), AST_PER);
     m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     for (let i = 0; i < AST_PER; i++) {
-      col.setHSL(rnd(0.05, 0.1), rnd(0.08, 0.25), rnd(0.22, 0.42)); m.setColorAt(i, col);
+      col.setHSL(rnd(0.05, 0.1), rnd(0.1, 0.28), rnd(0.42, 0.62)); m.setColorAt(i, col);
       asteroids.push({ x: 0, y: -99999, z: 0, r: 1, hp: 1, rx: Math.random() * 6, ry: Math.random() * 6, rz: Math.random() * 6, ax: rnd(-0.4, 0.4), ay: rnd(-0.4, 0.4), mesh: m, idx: i, active: false });
     }
     scene.add(m); astMeshes.push(m);
@@ -979,8 +989,13 @@ function sfx(kind, k) {
   if (!actx || !save.snd || actx.state !== 'running') return; const t = actx.currentTime;
   const tone = (type, f0, f1, dur, vol, delay) => { const o = actx.createOscillator(), g = actx.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t + (delay || 0)); o.frequency.exponentialRampToValueAtTime(f1, t + (delay || 0) + dur); g.gain.setValueAtTime(vol, t + (delay || 0)); g.gain.exponentialRampToValueAtTime(0.001, t + (delay || 0) + dur); o.connect(g); g.connect(eng.master); o.start(t + (delay || 0)); o.stop(t + (delay || 0) + dur + 0.02); };
   const noise = (cut, dur, vol) => { const s = actx.createBufferSource(); s.buffer = eng.nb; const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; const g = actx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); s.connect(f); f.connect(g); g.connect(eng.master); s.start(t); };
-  if (kind === 'laser') { if (t - lastLaser < 0.07) return; lastLaser = t; tone('square', 1100, 260, 0.09, 0.06); }
-  else if (kind === 'elaser') { tone('sawtooth', 600, 180, 0.12, 0.035); }
+  if (kind === 'laser') {
+    if (t - lastLaser < 0.07) return; lastLaser = t; const r = 0.94 + Math.random() * 0.12;
+    // "pew": a bright sine zap that drops fast, a soft triangle body underneath and a tiny high click at the start
+    tone('sine', 2100 * r, 330 * r, 0.16, 0.085); tone('triangle', 1050 * r, 160 * r, 0.2, 0.06);
+    const cs = actx.createBufferSource(); cs.buffer = eng.nb; const cf = actx.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 4200; cf.Q.value = 1.2; const cg = actx.createGain(); cg.gain.setValueAtTime(0.07, t); cg.gain.exponentialRampToValueAtTime(0.001, t + 0.035); cs.connect(cf); cf.connect(cg); cg.connect(eng.master); cs.start(t); cs.stop(t + 0.05);
+  }
+  else if (kind === 'elaser') { tone('triangle', 520, 140, 0.16, 0.05); tone('sine', 1300, 300, 0.1, 0.025); }
   else if (kind === 'hit') noise(900, 0.3, 0.5);
   else if (kind === 'boom') noise(500 + 200 / (k || 1), 0.55, clamp(0.25 + (k || 10) * 0.02, 0.3, 0.8));
   else if (kind === 'pick') tone('sine', 760, 1480, 0.16, 0.2);
@@ -1086,7 +1101,7 @@ function damageEnemy(e, d, at) {
   if (at) sparks(at, 4, 14, 0.4);
   if (e.hull <= 0) {
     e.active = false; e.g.visible = false; explode(e.pos, 16); dropLoot(e.pos, 22 + save.kills % 3 * 6, false, 3);
-    save.kills++; persist(); $('kills').textContent = '☠ ' + save.kills; if (S.target === e) S.target = null;
+    save.kills++; persist(); $('kills').textContent = save.kills; if (S.target === e) S.target = null;
     S.shake = Math.max(S.shake, 0.25);
     if (S.mission && S.mission.type === 'bounty') { S.mission.done++; updateMissionHud(); if (S.mission.done >= S.mission.n) completeMission(); }
   }
@@ -1130,7 +1145,7 @@ function flash(kind) { const f = $('flash'); f.style.background = kind === 'shie
 const buzz = (ms) => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { } };
 const refreshHud = () => { $('credits').textContent = save.credits; };
 const updateMissHud = () => { $('miss-n').textContent = save.missiles; };
-refreshHud(); updateMissHud(); $('kills').textContent = '☠ ' + save.kills;
+refreshHud(); updateMissHud(); $('kills').textContent = save.kills;
 
 let shopTab = 'm';
 function openShop(msg) {
@@ -1235,8 +1250,7 @@ function place(el, worldPos, label, edge, hideIfBehind) {
 function drawRadar() {
   const c = rctx, W = 208, R = 98, cx = 104, cy = 104, range = 1500, k = R / range;
   c.clearRect(0, 0, W, W);
-  c.strokeStyle = 'rgba(126,240,255,.28)'; c.lineWidth = 1.5; c.beginPath(); c.arc(cx, cy, R * 0.5, 0, 7); c.stroke(); c.beginPath(); c.moveTo(cx - R, cy); c.lineTo(cx + R, cy); c.moveTo(cx, cy - R); c.lineTo(cx, cy + R); c.stroke();
-  qInv.copy(S.q).invert();
+    qInv.copy(S.q).invert();
   const dot = (p, col, size, sq) => {
     _c.copy(p).sub(S.pos).applyQuaternion(qInv); let x = _c.x, z = _c.z, y = _c.y; const d = Math.hypot(x, z); let a = 1;
     if (d > range) { x *= range / d; z *= range / d; a = 0.45; }
@@ -1404,6 +1418,7 @@ function frame(now) {
   const wantFov = 64 + clamp(S.speed / 150, 0, 1.4) * 12 + (S.boosting ? 6 : 0);
   if (Math.abs(camera.fov - wantFov) > 0.05) { camera.fov = damp(camera.fov, wantFov, 4, dt); camera.updateProjectionMatrix(); }
   sky.position.copy(camera.position);
+  fill.position.set(0.5, 0.7, 1).applyQuaternion(camera.quaternion);
 
   // ---- world animation ----
   for (let i = 0; i < AST_N; i++) {
