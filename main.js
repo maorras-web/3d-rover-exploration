@@ -208,10 +208,17 @@ function initGame() {
   );
   // (old sky dome is not used any more)
   const SUN_DIR = new THREE.Vector3(0.72, 0.677, -0.148);      // matches the (frozen) sun light direction
+  const BAND_N = new THREE.Vector3(0.35, 0.8, -0.5).normalize();     // the plane of the milky way
   const spaceStars = (() => {
-    const n = 1800, p = new Float32Array(n * 3), c = new Float32Array(n * 3);
+    const n = 3000, p = new Float32Array(n * 3), c = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
-      const u = Math.random() * 2 - 1, a = Math.random() * Math.PI * 2, r = Math.sqrt(1 - u * u);
+      let u, a, r;
+      if (i < 1800) { u = Math.random() * 2 - 1; a = Math.random() * Math.PI * 2; r = Math.sqrt(1 - u * u); }
+      else {                                                            // 1200 stars squeezed towards the milky-way band
+        const v = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize();
+        v.addScaledVector(BAND_N, -v.dot(BAND_N) * 0.88).normalize();
+        u = v.y; a = Math.atan2(v.z, v.x); r = Math.sqrt(1 - u * u);
+      }
       p[i * 3] = Math.cos(a) * r * 480; p[i * 3 + 1] = u * 480; p[i * 3 + 2] = Math.sin(a) * r * 480;
       const t = Math.random(), k = 0.45 + Math.random() * 0.55;
       c[i * 3] = k * (t < 0.2 ? 1.0 : 0.85); c[i * 3 + 1] = k * (t < 0.2 ? 0.85 : 0.92); c[i * 3 + 2] = k * (t < 0.5 ? 1.0 : 0.8);
@@ -255,7 +262,100 @@ function initGame() {
     scene.add(m);
     return m;
   })();
+  // ---- nebula: soft coloured gas clouds, dark dust lanes and a faint milky-way band, painted ONCE into a small texture (no per-frame cost) ----
+  const spaceNebula = (() => {
+    const W = 512, H = 256, data = new Uint8ClampedArray(W * H * 4);
+    const hs = (x, y, z) => { const h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return h - Math.floor(h); };
+    const vn3 = (x, y, z) => {
+      const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+      let fx = x - ix, fy = y - iy, fz = z - iz; fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy); fz = fz * fz * (3 - 2 * fz);
+      const a = hs(ix, iy, iz), b = hs(ix + 1, iy, iz), c = hs(ix, iy + 1, iz), d = hs(ix + 1, iy + 1, iz);
+      const e = hs(ix, iy, iz + 1), f = hs(ix + 1, iy, iz + 1), g = hs(ix, iy + 1, iz + 1), h = hs(ix + 1, iy + 1, iz + 1);
+      return (a + (b - a) * fx) * (1 - fy) * (1 - fz) + (c + (d - c) * fx) * fy * (1 - fz) + (e + (f - e) * fx) * (1 - fy) * fz + (g + (h - g) * fx) * fy * fz;
+    };
+    const fbm = (x, y, z, o) => { let t = 0, am = 0.5; for (let i = 0; i < o; i++) { t += am * vn3(x, y, z); x *= 2.03; y *= 2.03; z *= 2.03; am *= 0.5; } return t; };
+    const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const PUR = [0.62, 0.16, 0.86], TEAL = [0.08, 0.62, 0.92], WARM = [0.95, 0.40, 0.18], BASE = [0.012, 0.016, 0.045];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const lon = x / W * Math.PI * 2, lat = (0.5 - y / H) * Math.PI;
+      const dx = Math.cos(lat) * Math.cos(lon), dy = Math.sin(lat), dz = Math.cos(lat) * Math.sin(lon);
+      const dens = fbm(dx * 1.7 + 5.3, dy * 1.7 + 1.7, dz * 1.7 + 9.1, 5) + 0.06 * Math.cos(lat) * Math.cos(lat);   // a bit more gas around the horizon, where you look while racing
+      const cloud = ss(0.46, 0.78, dens);
+      const t1 = ss(0.35, 0.65, fbm(dx * 0.9 + 2.2, dy * 0.9 + 7.7, dz * 0.9 + 4.4, 2));
+      const t2 = ss(0.58, 0.72, fbm(dx * 1.3 + 8.8, dy * 1.3 + 3.3, dz * 1.3 + 6.6, 2));
+      const dust = ss(0.52, 0.78, fbm(dx * 3.1 + 11.1, dy * 3.1 + 5.5, dz * 3.1 + 1.3, 4));
+      const bd = dx * BAND_N.x + dy * BAND_N.y + dz * BAND_N.z;
+      const band = Math.exp(-(bd / 0.20) * (bd / 0.20)) * (0.45 + 0.9 * fbm(dx * 4 + 3, dy * 4 + 9, dz * 4 + 5, 3));
+      const k = 0.62 * cloud * (1 - 0.55 * dust) * (1 + 0.8 * band);
+      const o = (y * W + x) * 4, nz = (Math.random() - 0.5) / 255;
+      for (let ch = 0; ch < 3; ch++) {
+        let col = PUR[ch] + (TEAL[ch] - PUR[ch]) * t1;
+        col += (WARM[ch] - col) * t2 * 0.75;
+        let v = BASE[ch] + col * k + (0.52 + 0.3 * ch * 0.4) * band * 0.16 * (1 - 0.5 * dust) + nz;
+        data[o + ch] = Math.max(0, Math.min(255, v * 255));
+      }
+      data[o + 3] = 255;
+    }
+    const tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat);
+    tex.colorSpace = THREE.SRGBColorSpace; tex.wrapS = THREE.RepeatWrapping; tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false; tex.needsUpdate = true;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(465, 32, 16), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, depthWrite: false }));
+    m.renderOrder = -100; m.frustumCulled = false;
+    scene.add(m);
+    return m;
+  })();
+  // glowing atmosphere shell (fresnel rim) for planets
+  function planetAtmosphere(radius, color, power) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(radius, 32, 16), new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+      uniforms: { c: { value: new THREE.Color(color[0], color[1], color[2]) }, pw: { value: power } },
+      vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+      fragmentShader: 'uniform vec3 c; uniform float pw; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), pw); gl_FragColor = vec4(c * f, 1.0); }'
+    }));
+    scene.add(m);
+    return m;
+  }
+  const planetAtm = planetAtmosphere(95 * 1.09, [1.0, 0.55, 0.26], 2.6);
+  // rings around the big planet (concentric bands painted into a texture)
+  const planetRing = (() => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+    const x = cv.getContext('2d');
+    for (let r = 128; r > 0; r -= 1.5) {
+      const t = r / 128, inRing = t > 0.62 && t < 0.99;
+      const a = inRing ? 0.25 + 0.55 * Math.abs(Math.sin(r * 0.55) * Math.cos(r * 0.17)) : 0;
+      x.strokeStyle = 'rgba(' + (225 - (r % 7) * 6) + ',' + (190 - (r % 5) * 6) + ',' + (150 - (r % 9) * 4) + ',' + (t > 0.78 && t < 0.82 ? 0.05 : a) + ')';
+      x.lineWidth = 1.7; x.beginPath(); x.arc(128, 128, r, 0, Math.PI * 2); x.stroke();
+    }
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(95 * 4.1, 95 * 4.1), new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false, opacity: 0.85 }));
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), planetDir.clone().negate());
+    m.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 1.12));
+    m.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 0.35));
+    scene.add(m);
+    return m;
+  })();
+  // a second, smaller blue planet with clouds
+  const bluePlanetDir = new THREE.Vector3(0.9, 0.18, -0.45).normalize();
+  const bluePlanet = (() => {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128;
+    const x = cv.getContext('2d');
+    x.fillStyle = '#1a4f9e'; x.fillRect(0, 0, 256, 128);
+    for (let k = 0; k < 26; k++) { x.fillStyle = Math.random() < 0.7 ? 'rgba(66,150,84,0.85)' : 'rgba(196,170,110,0.8)'; x.beginPath(); x.ellipse(Math.random() * 256, 20 + Math.random() * 90, 6 + Math.random() * 22, 3 + Math.random() * 9, Math.random() * 3, 0, Math.PI * 2); x.fill(); }
+    for (let k = 0; k < 70; k++) { x.fillStyle = 'rgba(255,255,255,' + (0.18 + Math.random() * 0.3) + ')'; x.beginPath(); x.ellipse(Math.random() * 256, Math.random() * 128, 10 + Math.random() * 30, 1.5 + Math.random() * 4, 0, 0, Math.PI * 2); x.fill(); }
+    x.fillStyle = 'rgba(240,248,255,0.9)'; x.fillRect(0, 0, 256, 8); x.fillRect(0, 120, 256, 8);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(42, 28, 14), new THREE.MeshLambertMaterial({ map: tex, fog: false }));
+    m.rotation.z = -0.3;
+    scene.add(m);
+    return m;
+  })();
+  const blueAtm = planetAtmosphere(42 * 1.1, [0.28, 0.58, 1.0], 2.2);
   function spaceSync(p) {
+    spaceNebula.position.copy(p);
+    planetAtm.position.copy(p).addScaledVector(planetDir, 420);
+    planetRing.position.copy(p).addScaledVector(planetDir, 420);
+    bluePlanet.position.copy(p).addScaledVector(bluePlanetDir, 430);
+    blueAtm.position.copy(bluePlanet.position);
     spaceStars.position.copy(p);
     spacePlanet.position.copy(p).addScaledVector(planetDir, 420);
     spaceMoon.position.copy(p).addScaledVector(moonDir, 400);
