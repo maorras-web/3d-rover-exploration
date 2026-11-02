@@ -74,6 +74,30 @@
   .earn{font:800 14px system-ui,Arial,sans-serif;margin:2px 0 6px;color:#ffe08a;letter-spacing:1px}
   #rotate{position:fixed;inset:0;z-index:99;background:#02030a;display:none;align-items:center;justify-content:center;font:700 16px system-ui,Arial,sans-serif;letter-spacing:2px;text-align:center}
   @media (orientation:portrait){#rotate{display:flex}}
+  /* ---- UI polish (flat CSS only: no blur filters, no animations, so it costs nothing on weak phones) ---- */
+  .chip{background:linear-gradient(90deg,rgba(10,22,38,.72),rgba(10,22,38,.38));border:1px solid rgba(126,240,255,.22);border-left:3px solid #5fe4ff;border-radius:4px 12px 12px 4px;padding:5px 10px}
+  .chip:first-child{border-left-color:#ffe08a}
+  .chip:first-child b{font-size:14px;letter-spacing:1.5px}
+  .bar{height:7px;border-radius:2px;background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);background-image:repeating-linear-gradient(90deg,transparent 0 17px,rgba(2,6,14,.75) 17px 19px)}
+  .bar i{border-radius:2px}
+  .lbl{font-size:8.5px;letter-spacing:1.6px;opacity:.7;width:38px;font-weight:800}
+  #speed{top:calc(8px + env(safe-area-inset-top));padding:5px 18px 6px;border-radius:0 0 16px 16px;background:linear-gradient(180deg,rgba(10,22,38,.7),rgba(10,22,38,.25));border:1px solid rgba(126,240,255,.2);border-top:none;font-size:22px;letter-spacing:1px}
+  #speed small{font-size:9px;opacity:.7}
+  .sbtn{width:36px;height:36px;background:linear-gradient(160deg,rgba(24,44,66,.8),rgba(8,16,28,.7));border:1px solid rgba(126,240,255,.4);box-shadow:inset 0 0 0 2px rgba(2,6,14,.35)}
+  .sbtn.on{background:linear-gradient(160deg,rgba(95,228,255,.55),rgba(40,120,160,.45));color:#fff}
+  .sbtn:active{transform:scale(.92)}
+  #radar{width:92px;height:92px;bottom:calc(8px + env(safe-area-inset-bottom));background:radial-gradient(circle,rgba(10,30,44,.5),rgba(4,10,18,.7));border:1px solid rgba(126,240,255,.4);box-shadow:0 0 0 3px rgba(2,6,14,.35)}
+  #stick .base{border:2px solid rgba(126,240,255,.38);background:radial-gradient(circle,rgba(8,16,28,.12) 0 38%,rgba(8,16,28,.42) 70%);box-shadow:inset 0 0 0 10px rgba(126,240,255,.05)}
+  #stick .knob{border:2px solid rgba(255,255,255,.55);box-shadow:0 2px 8px rgba(0,0,0,.5)}
+  .rb{border-width:3px;box-shadow:inset 0 0 0 3px rgba(2,6,14,.35),0 3px 10px rgba(0,0,0,.45);font-weight:900}
+  #b-fire{border-color:rgba(255,130,110,.9);background:radial-gradient(circle at 35% 30%,rgba(255,150,120,.75),rgba(190,30,40,.55))}
+  #b-boost{border-color:rgba(140,200,255,.9)}
+  #b-miss{border-color:rgba(255,205,120,.9)}
+  #b-tgt{border-color:rgba(255,130,110,.85);background:rgba(120,30,30,.5)}
+  #b-dock{border-width:2px}
+  .go{background:linear-gradient(180deg,rgba(95,228,255,.32),rgba(95,228,255,.12))}
+  .row{border-left:3px solid rgba(126,240,255,.55);border-radius:4px 12px 12px 4px;background:linear-gradient(90deg,rgba(10,24,40,.85),rgba(10,24,40,.6))}
+  #toast{font-size:24px}
 </style>
 </head>
 <body>
@@ -96,7 +120,7 @@
   <div class="chip"><span class="lbl">BOOST</span><div class="bar"><i id="b-bo"></i></div></div>
 </div>
 <div id="mission" class="hud"></div>
-<div id="top-right" class="hud"><button class="sbtn" id="b-inv">Y</button><button class="sbtn" id="b-snd">♪</button></div>
+<div id="top-right" class="hud"><button class="sbtn" id="b-fs">⛶</button><button class="sbtn" id="b-inv" title="invert up/down">⇅</button><button class="sbtn" id="b-snd">♪</button></div>
 <div id="speed" class="hud"><span id="kmh">0</span><small>m/s</small></div>
 <canvas id="radar" class="hud" width="208" height="208"></canvas>
 
@@ -136,16 +160,16 @@
 <div id="rotate">ROTATE YOUR PHONE<br>TO LANDSCAPE</div>
 
 <script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
 </script>
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=8', 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=113', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=8'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=113'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>

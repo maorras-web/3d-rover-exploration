@@ -83,7 +83,7 @@ class CheapGlow extends Pass {
    Light on purpose: instanced asteroids / bolts / loot, merged-geometry enemies, shader dust, no post-processing. */
 
 const $ = (id) => document.getElementById(id);
-const BUILD = 8;
+const BUILD = 10;
 
 // ---------- save ----------
 const SAVE_KEY = 'starCourier2';
@@ -962,11 +962,17 @@ function initAudio() {
   try {
     actx = new (window.AudioContext || window.webkitAudioContext)();
     const master = actx.createGain(); master.gain.value = save.snd ? 0.5 : 0; master.connect(actx.destination);
-    const o1 = actx.createOscillator(); o1.type = 'sawtooth'; const o2 = actx.createOscillator(); o2.type = 'square';
-    const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500; const g = actx.createGain(); g.gain.value = 0.0;
-    o1.connect(lp); o2.connect(lp); lp.connect(g); g.connect(master); o1.start(); o2.start();
+    // soft engine: a looping deep "rumble" (filtered brown noise) plus a faint low hum - a calm thrust, no buzzy saw/square tone
+    const rb = actx.createBuffer(1, actx.sampleRate * 3, actx.sampleRate), rd = rb.getChannelData(0); let last = 0;
+    for (let i = 0; i < rd.length; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; rd[i] = last * 3.5; }
+    const rs = actx.createBufferSource(); rs.buffer = rb; rs.loop = true;
+    const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220; lp.Q.value = 0.7;
+    const g = actx.createGain(); g.gain.value = 0.0;
+    rs.connect(lp); lp.connect(g); g.connect(master); rs.start();
+    const o1 = actx.createOscillator(); o1.type = 'sine'; o1.frequency.value = 62; const hg = actx.createGain(); hg.gain.value = 0.0; o1.connect(hg); hg.connect(master); o1.start();
+    const o2 = { frequency: { setTargetAtTime() {} } };
     const nb = actx.createBuffer(1, actx.sampleRate * 0.6, actx.sampleRate), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    eng = { master, o1, o2, lp, g, nb };
+    eng = { master, o1, o2, lp, g, hg, nb };
   } catch (e) { actx = null; }
 }
 function sfx(kind, k) {
@@ -985,8 +991,26 @@ function sfx(kind, k) {
 }
 function updateAudio() {
   if (!eng || actx.state !== 'running') return; const t = actx.currentTime, k = clamp(S.speed / 170, 0, 1), on = S.mode === 'fly';
-  eng.o1.frequency.setTargetAtTime(46 + k * 70 + (S.boosting ? 25 : 0), t, 0.08); eng.o2.frequency.setTargetAtTime(23 + k * 35, t, 0.08);
-  eng.lp.frequency.setTargetAtTime(260 + k * 900 + (S.boosting ? 500 : 0), t, 0.1); eng.g.gain.setTargetAtTime(on ? 0.06 + k * 0.08 : 0.0, t, 0.15);
+  eng.lp.frequency.setTargetAtTime(160 + k * 380 + (S.boosting ? 380 : 0), t, 0.12);
+  eng.g.gain.setTargetAtTime(on ? 0.16 + k * 0.20 + (S.boosting ? 0.16 : 0) : 0.0, t, 0.2);
+  eng.o1.frequency.setTargetAtTime(58 + k * 30 + (S.boosting ? 22 : 0), t, 0.2);
+  eng.hg.gain.setTargetAtTime(on ? 0.025 + k * 0.03 : 0.0, t, 0.2);
+}
+
+// ---------- fullscreen (needs a tap; tries again on every tap until it works) ----------
+{
+  const fsBtn = $('b-fs'); let fsOk = false, userExited = false, tries = 0;
+  const isFS = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+  const requestFS = () => {
+    const el = document.documentElement, rq = el.requestFullscreen || el.webkitRequestFullscreen; if (!rq) return;
+    try { const p = rq.call(el, { navigationUI: 'hide' }); if (p && p.then) p.then(() => { try { screen.orientation.lock('landscape').catch(() => {}); } catch (e) {} }).catch(() => {}); } catch (e) {}
+  };
+  const autoFS = () => { if (isFS() || userExited || tries > 10) return; tries++; requestFS(); };
+  const onFS = () => { const on = isFS(); if (fsOk && !on) userExited = true; fsOk = on; if (fsBtn) fsBtn.style.display = on ? 'none' : ''; setTimeout(() => dispatchEvent(new Event('resize')), 80); };
+  document.addEventListener('fullscreenchange', onFS); document.addEventListener('webkitfullscreenchange', onFS);
+  if (fsBtn) fsBtn.addEventListener('click', () => { if (isFS()) { const ex = document.exitFullscreen || document.webkitExitFullscreen; if (ex) ex.call(document); } else { userExited = false; requestFS(); } });
+  document.addEventListener('touchstart', autoFS, { passive: true }); document.addEventListener('pointerdown', autoFS);
+  if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen) && fsBtn) fsBtn.style.display = 'none';
 }
 
 // ---------- input ----------
