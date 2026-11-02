@@ -1951,13 +1951,12 @@ function drawGrassAtlasCanvas() {
   function lampPair(z, dir, x, y, w, h) {   // dir: +1 faces +z (rear), -1 faces -z (front)
     [-1, 1].forEach(s => {
       const rl = s * 0.36 * dir;   // outer end higher -> the two lamps form a V
-      lampBar('black', s * x, y, z, w, h, 0.03, 0, 0, rl, 0);
-      lampBar('tailDark', s * x, y, z + dir * 0.014, w - 0.06, h - 0.07, 0.02, 0, 0, rl, 0);
-      lampBar('tail', s * x, y, z + dir * 0.028, w - 0.04, 0.055, 0.02, 0, h * 0.29, rl, 0);
-      lampBar('tail', s * x, y, z + dir * 0.028, w - 0.16, 0.035, 0.02, -s * dir * 0.05, -h * 0.27, rl, 0);
+      lampBar('black', s * x, y, z, w, h, 0.03, 0, 0, rl, 0);                                   // dark frame
+      lampBar('tail', s * x, y, z + dir * 0.016, w - 0.07, h - 0.08, 0.02, 0, 0, rl, 0);        // glowing red lens
+      lampBar('tailDark', s * x, y, z + dir * 0.03, w - 0.22, h - 0.17, 0.02, 0, 0, rl, 0);      // darker core, so a bright red outline remains
     });
   }
-  lampPair(1.765, 1, 0.74, 0.67, 0.60, 0.26);
+  lampPair(1.765, 1, 0.74, 0.67, 0.64, 0.32);
   hexBlock('darkS', [[-0.46, 0.25, 1.74], [0.46, 0.25, 1.74], [0.42, 0.25, 1.86], [-0.42, 0.25, 1.86], [-0.46, 0.80, 1.74], [0.46, 0.80, 1.74], [0.42, 0.78, 1.86], [-0.42, 0.78, 1.86]]);   // grille frame
   partRB('black', 0, 0.515, 1.865, 0.74, 0.46, 0.02, 0.01);
   for (let j = 0; j < 5; j++) partRB('darkS', 0, 0.34 + j * 0.08, 1.878, 0.70, 0.016, 0.012, 0.004);
