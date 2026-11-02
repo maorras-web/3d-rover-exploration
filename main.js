@@ -5,6 +5,78 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
+
+// ============ Cheap glow (replaces the heavy UnrealBloom): the bright parts are shrunk to 1/4 and 1/8 size, blurred there, and added in the final grading pass ============
+// Only small textures are touched (about 1/16 and 1/64 of the screen), so it costs a fraction of the old bloom, and the neon keeps its glow on weak phones too.
+class CheapGlow extends Pass {
+  constructor(w, h) {
+    super();
+    this.needsSwap = false;
+    this._en = true; this.u = null; this.k = [0.55, 0.75];
+    this.fsq = new FullScreenQuad(null);
+    const mk = () => new THREE.WebGLRenderTarget(8, 8, { type: THREE.UnsignedByteType, depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+    this.A = mk(); this.B = mk(); this.C = mk(); this.D = mk();
+    const vs = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+    this.mBright = new THREE.ShaderMaterial({
+      uniforms: { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() } },
+      vertexShader: vs, depthTest: false, depthWrite: false,
+      fragmentShader: `uniform sampler2D tSrc; uniform vec2 uTexel; varying vec2 vUv;
+        void main(){
+          vec3 s = (texture2D(tSrc, vUv + vec2(-1.0,-1.0) * uTexel).rgb + texture2D(tSrc, vUv + vec2(1.0,-1.0) * uTexel).rgb
+                  + texture2D(tSrc, vUv + vec2(-1.0, 1.0) * uTexel).rgb + texture2D(tSrc, vUv + vec2(1.0, 1.0) * uTexel).rgb) * 0.25;
+          float m = max(s.r, max(s.g, s.b));
+          float k = smoothstep(0.80, 0.98, m);
+          gl_FragColor = vec4(s * k, 1.0);
+        }`
+    });
+    this.mDown = new THREE.ShaderMaterial({
+      uniforms: { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() } },
+      vertexShader: vs, depthTest: false, depthWrite: false,
+      fragmentShader: `uniform sampler2D tSrc; uniform vec2 uTexel; varying vec2 vUv;
+        void main(){
+          vec3 s = (texture2D(tSrc, vUv + vec2(-0.5,-0.5) * uTexel).rgb + texture2D(tSrc, vUv + vec2(0.5,-0.5) * uTexel).rgb
+                  + texture2D(tSrc, vUv + vec2(-0.5, 0.5) * uTexel).rgb + texture2D(tSrc, vUv + vec2(0.5, 0.5) * uTexel).rgb) * 0.25;
+          gl_FragColor = vec4(s, 1.0);
+        }`
+    });
+    this.mBlur = new THREE.ShaderMaterial({
+      uniforms: { tSrc: { value: null }, uStep: { value: new THREE.Vector2() } },
+      vertexShader: vs, depthTest: false, depthWrite: false,
+      fragmentShader: `uniform sampler2D tSrc; uniform vec2 uStep; varying vec2 vUv;
+        void main(){
+          vec3 c = texture2D(tSrc, vUv).rgb * 0.2270270270;
+          c += (texture2D(tSrc, vUv + uStep * 1.3846153846).rgb + texture2D(tSrc, vUv - uStep * 1.3846153846).rgb) * 0.3162162162;
+          c += (texture2D(tSrc, vUv + uStep * 3.2307692308).rgb + texture2D(tSrc, vUv - uStep * 3.2307692308).rgb) * 0.0702702703;
+          gl_FragColor = vec4(c, 1.0);
+        }`
+    });
+    this.setSize(w, h);
+  }
+  get enabled() { return this._en; }
+  set enabled(v) { this._en = v; if (this.u) this.u.uGlow.value.set(v ? this.k[0] : 0, v ? this.k[1] : 0); }
+  setSize(w, h) {
+    const aw = Math.max(16, Math.round(w / 2)), ah = Math.max(16, Math.round(h / 2));
+    const cw = Math.max(8, Math.round(aw / 2)), ch = Math.max(8, Math.round(ah / 2));
+    this.A.setSize(aw, ah); this.B.setSize(aw, ah); this.C.setSize(cw, ch); this.D.setSize(cw, ch);
+  }
+  attach(uniforms) { this.u = uniforms; uniforms.tGlow.value = this.A.texture; uniforms.tGlow2.value = this.C.texture; this.enabled = this._en; }
+  _pass(renderer, mat, src, dst) {
+    this.fsq.material = mat; mat.uniforms.tSrc.value = src.texture;
+    if (mat.uniforms.uTexel) mat.uniforms.uTexel.value.set(1 / src.width, 1 / src.height);
+    renderer.setRenderTarget(dst); this.fsq.render(renderer);
+  }
+  render(renderer, writeBuffer, readBuffer) {
+    const A = this.A, B = this.B, C = this.C, D = this.D;
+    this._pass(renderer, this.mBright, readBuffer, A);
+    this.mBlur.uniforms.uStep.value.set(1 / A.width, 0); this._pass(renderer, this.mBlur, A, B);
+    this.mBlur.uniforms.uStep.value.set(0, 1 / A.height); this._pass(renderer, this.mBlur, B, A);
+    this._pass(renderer, this.mDown, A, C);
+    this.mBlur.uniforms.uStep.value.set(1 / C.width, 0); this._pass(renderer, this.mBlur, C, D);
+    this.mBlur.uniforms.uStep.value.set(0, 1 / C.height); this._pass(renderer, this.mBlur, D, C);
+  }
+  dispose() { [this.A, this.B, this.C, this.D].forEach(t => t.dispose()); [this.mBright, this.mDown, this.mBlur].forEach(m => m.dispose()); this.fsq.dispose(); }
+}
 
 // ============ Error display (shows crashes on screen) ============
 window.addEventListener('error', (e) => {
@@ -111,17 +183,18 @@ function initGame() {
   })();
   const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { type: USE_HDR ? THREE.HalfFloatType : THREE.UnsignedByteType, samples: MSAA_SAMPLES }));
   composer.addPass(new RenderPass(scene, camera));
-  const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.30, 0.7, 0.85);
+  const OLD_BLOOM = /[?&]oldbloom/.test(location.search);   // A/B test: add ?oldbloom to the page address to compare with the previous (heavier) glow
+  const bloomPass = OLD_BLOOM ? new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.30, 0.7, 0.85) : new CheapGlow(window.innerWidth / 2, window.innerHeight / 2);
   composer.addPass(bloomPass);
-  bloomPass.nMips = 3;   // fewer blur passes = a cheaper glow (the widest, faintest halo is dropped)
-  composer.addPass(new ShaderPass({
-    uniforms: { tDiffuse: { value: null } },
+  bloomPass.nMips = 3;   // (old bloom only) fewer blur passes = a cheaper glow
+  const gradePass = new ShaderPass({
+    uniforms: { tDiffuse: { value: null }, tGlow: { value: null }, tGlow2: { value: null }, uGlow: { value: new THREE.Vector2(0, 0) } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: `
-      uniform sampler2D tDiffuse; varying vec2 vUv;
+      uniform sampler2D tDiffuse; uniform sampler2D tGlow; uniform sampler2D tGlow2; uniform vec2 uGlow; varying vec2 vUv;
       float hh(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       void main(){
-        vec3 c = texture2D(tDiffuse, vUv).rgb;
+        vec3 c = texture2D(tDiffuse, vUv).rgb + texture2D(tGlow, vUv).rgb * uGlow.x + texture2D(tGlow2, vUv).rgb * uGlow.y;
         c = pow(max(c, vec3(0.0)), vec3(0.92));
         float g = dot(c, vec3(0.299, 0.587, 0.114));
         c = mix(vec3(g), c, 1.10);
@@ -140,7 +213,9 @@ function initGame() {
         c += (hh(gl_FragCoord.xy) - 0.5) / 160.0;
         gl_FragColor = vec4(c, 1.0);
       }`
-  }));
+  });
+  composer.addPass(gradePass);
+  if (!OLD_BLOOM) bloomPass.attach(gradePass.uniforms);
 
   // ============ Sky ============
   const skyUniforms = {
@@ -2831,8 +2906,8 @@ function drawGrassAtlasCanvas() {
   const QUALITY = {
     high:   { pr: 2.0, bloom: true,  shadow: 2048, shR: 40, half: false, grassQ: 1.0,  grassD: 1.0, far: 1e9, bushes: true,
               note: 'Best looks. The resolution adjusts itself if the phone struggles.' },
-    medium: { pr: 2.0, bloom: false, shadow: 1024, shR: 40, half: false, grassQ: 0.75, grassD: 0.8, far: 170, bushes: true,
-              note: 'Balanced. Slightly softer image, no glow, a bit less grass.' },
+    medium: { pr: 2.0, bloom: true,  shadow: 1024, shR: 40, half: false, grassQ: 0.75, grassD: 0.8, far: 170, bushes: true,
+              note: 'Balanced. Slightly softer image, a bit less grass.' },
     low:    { pr: 1.5, bloom: false, shadow: 1024, shR: 30, half: true,  grassQ: 0.5,  grassD: 0.6, far: 120, bushes: false,
               note: 'Fastest. Soft image, simpler shadows, much less grass.' }
   };
@@ -2896,12 +2971,12 @@ function drawGrassAtlasCanvas() {
   const LEVELS = [
     { bloom: true,  half: false, gD: 1.00, gQ: 1.00, far: 1e9, bush: true,  res: 1.00 },   // 0  best looks
     { bloom: true,  half: true,  gD: 1.00, gQ: 1.00, far: 1e9, bush: true,  res: 1.00 },   // 1  shadows refreshed every 2nd frame
-    { bloom: false, half: true,  gD: 1.00, gQ: 1.00, far: 1e9, bush: true,  res: 0.85 },   // 2  no glow (measured ~10 ms: the biggest saving that is barely visible)
-    { bloom: false, half: true,  gD: 0.92, gQ: 0.95, far: 300, bush: true,  res: 0.75 },   // 3  grass only just thinned
-    { bloom: false, half: true,  gD: 0.82, gQ: 0.85, far: 240, bush: true,  res: 0.65 },   // 4
-    { bloom: false, half: true,  gD: 0.70, gQ: 0.75, far: 190, bush: false, res: 0.60 },   // 5  no bushes
-    { bloom: false, half: true,  gD: 0.60, gQ: 0.65, far: 150, bush: false, res: 0.55 },   // 6  lower resolution
-    { bloom: false, half: true,  gD: 0.45, gQ: 0.55, far: 120, bush: false, res: 0.50 },   // 7
+    { bloom: true,  half: true,  gD: 1.00, gQ: 1.00, far: 1e9, bush: true,  res: 0.88 },   // 2  (the glow is now cheap, so it stays on down to level 6)
+    { bloom: true,  half: true,  gD: 0.92, gQ: 0.95, far: 300, bush: true,  res: 0.78 },   // 3  grass only just thinned
+    { bloom: true,  half: true,  gD: 0.82, gQ: 0.85, far: 240, bush: true,  res: 0.70 },   // 4
+    { bloom: true,  half: true,  gD: 0.70, gQ: 0.75, far: 190, bush: false, res: 0.65 },   // 5  no bushes
+    { bloom: true,  half: true,  gD: 0.60, gQ: 0.65, far: 150, bush: false, res: 0.60 },   // 6  lower resolution
+    { bloom: false, half: true,  gD: 0.45, gQ: 0.55, far: 120, bush: false, res: 0.55 },   // 7  no glow
     { bloom: false, half: true,  gD: 0.30, gQ: 0.45, far: 90,  bush: false, res: 0.50 }    // 8  weakest phones
   ];
   function detectDevice() {
@@ -2964,6 +3039,7 @@ function drawGrassAtlasCanvas() {
       let start = estimateLevel(dev, px);
       if (/[?&]reset/.test(location.search)) { store.set(key, ''); store.set(keyM, ''); }   // add ?reset to the page address: forget the saved level
       const stored = parseInt(store.get(key), 10);
+      const forced = location.search.match(/[?&]lvl=(\d)/); if (forced) start = Math.min(MAXL, +forced[1]);   // test only: ?lvl=0 starts at that level
       if (!isNaN(stored) && stored >= 0 && stored <= MAXL) start = stored;     // this phone was tuned before
       if (store.get(keyM)) store.set(keyM, '');       // the 30 fps lock is NOT remembered any more: it used to get stuck for good after one slow moment (e.g. while screen-recording)
       if (isNaN(stored) && start >= 6) { mode30 = true; lockInfo = 'weak-phone'; start = 3; }   // weak phone: steady 30 fps with nicer looks
@@ -2998,7 +3074,7 @@ function drawGrassAtlasCanvas() {
       const veryBad = ema > (mode30 ? 55 : 33), isBad = ema > (mode30 ? 38 : 21), isGood = ema < (mode30 ? 35.5 : 18.3);   // 21 ms = below ~47 fps: on 60 Hz screens that already feels uneven
       if (isBad) {
         good = 0; bad += veryBad ? 2 : 1;
-        if (bad >= 3 && !mode30 && lvl >= 7 && now - highSince > 10000) {   // only after ~10 s of being slow even at the cheapest levels           // all the cheap tricks are used up: lock to 30 fps and restore the looks instead
+        if (bad >= 3 && !mode30 && lvl >= 7 && ema > 30 && now - highSince > 10000) {   // lock to 30 only when the phone is really below ~33 fps even at the cheapest level (42-57 fps unlocked looks better than a locked 30)   // only after ~10 s of being slow even at the cheapest levels           // all the cheap tricks are used up: lock to 30 fps and restore the looks instead
           mode30 = true; lockInfo = Math.round(now / 1000) + 's/' + Math.round(ema) + 'ms'; lvl = 3; apply(lvl); lastChange = now; bad = 0; evalAt = now + 1500; lockProbeAt = now + lockProbeGap; lockProbeGap = Math.min(300000, lockProbeGap * 2);
           return true;
         }
@@ -3892,7 +3968,7 @@ function drawGrassAtlasCanvas() {
     if (perfOn && nowMs > overlayAt) {
       overlayAt = nowMs + 500;
       const inf = renderer.info.render;
-      perfEl.textContent = 'JS ' + jsEma.toFixed(1) + ' | submit ' + subEma.toFixed(1) + ' | wait ' + Math.max(0, emaMs - jsEma - subEma).toFixed(1) + ' ms\n' + Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + ' | ' + autoTune.label() + '\nBUILD 103 | ' + autoTune.info();
+      perfEl.textContent = 'JS ' + jsEma.toFixed(1) + ' | submit ' + subEma.toFixed(1) + ' | wait ' + Math.max(0, emaMs - jsEma - subEma).toFixed(1) + ' ms\n' + Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + ' | ' + autoTune.label() + '\nBUILD 104 | ' + autoTune.info();
     }
 
     perfFrames++; perfAcc += dt;
