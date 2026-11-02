@@ -2853,6 +2853,7 @@ function drawGrassAtlasCanvas() {
     msgT = secs;
   }
   function updateVitals(dt, spd, speedNorm, throttle, hit) {
+    health = 100; fuel = 100; repairT = 0;      // the dashboard is gone: no damage / fuel mechanic any more (only the message timer below still runs)
     dmgCool = Math.max(0, dmgCool - dt);
     // crashes damage the rover
     if (hit && spd > 2 && dmgCool <= 0 && repairT <= 0) {
@@ -3100,7 +3101,7 @@ function drawGrassAtlasCanvas() {
   {
     const st = document.createElement('style');
     st.textContent =
-      '#race-hud{position:absolute;top:calc(40px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:55;min-width:176px;padding:5px 14px 7px;border-radius:12px;' +
+      '#race-hud{position:absolute;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:55;min-width:176px;padding:5px 14px 7px;border-radius:12px;' +
       'background:rgba(10,18,22,0.38);border:1px solid rgba(126,240,255,0.28);color:#eaf6f8;font:700 11px/1.3 system-ui,Arial,sans-serif;letter-spacing:1.2px;text-align:center;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,0.6)}' +
       '#race-hud .rc-row{display:flex;justify-content:space-between;gap:16px}' +
       '#race-hud .rc-speed{font-size:30px;line-height:1.05;letter-spacing:0;font-weight:800;margin:1px 0 2px}' +
@@ -3118,13 +3119,20 @@ function drawGrassAtlasCanvas() {
   raceEl.id = 'race-hud';
   raceEl.innerHTML =
     '<div class="rc-row"><span id="rc-lap">LAP 1/' + RACE_LAPS + '</span><span id="rc-time">0:00.00</span></div>' +
-    '<div class="rc-speed"><span id="rc-kmh">0</span><i>km/h</i></div>' +
     '<div class="rc-row"><span>LAST <b id="rc-last">--</b></span><span>BEST <b id="rc-best">--</b></span></div>' +
-    '<div id="rc-warn"></div><button id="rc-restart">RESTART</button><button id="rc-garage">GARAGE</button>';
+    '<div id="rc-warn"></div>';
   document.body.appendChild(raceEl);
+  // speedometer: sits where the old dashboard panel was (bottom centre)
+  {
+    const sp = document.createElement('div');
+    sp.id = 'speedo';
+    sp.innerHTML = '<div class="sp-num"><b id="rc-kmh">0</b><i>km/h</i></div><div id="sp-bar"><div id="sp-fill"></div></div>';
+    document.body.appendChild(sp);
+  }
   const countEl = document.createElement('div');
   countEl.id = 'rc-count';
   document.body.appendChild(countEl);
+  const elSpFill = document.getElementById('sp-fill');
   const elRcLap = document.getElementById('rc-lap'), elRcTime = document.getElementById('rc-time'), elRcKmh = document.getElementById('rc-kmh');
   const elRcLast = document.getElementById('rc-last'), elRcBest = document.getElementById('rc-best'), elRcWarn = document.getElementById('rc-warn');
   function bigText(html, secs) { countEl.innerHTML = html; countEl.style.opacity = '1'; race.cdHide = secs; }
@@ -3143,8 +3151,6 @@ function drawGrassAtlasCanvas() {
     race.lap = 1; race.lapT = 0; race.totalT = 0; race.last = 0; race.prog = -8; race.idx = si; race.cut = false; race.wrongT = 0;
     countEl.style.opacity = '0';
   }
-  document.getElementById('rc-restart').addEventListener('click', resetRace);
-  document.getElementById('rc-garage').addEventListener('click', () => showHome());
   let snapCam = false, homeAuto = 0.7;
   function showHome() {                       // HOME SCREEN: the rover sits in the garage, the camera circles it
     document.body.classList.add('home-mode');
@@ -3210,7 +3216,7 @@ function drawGrassAtlasCanvas() {
 
     // HUD
     const kmh = Math.round(spd * 3.6);
-    if (kmh !== race.lastKmh) { race.lastKmh = kmh; elRcKmh.textContent = kmh; }
+    if (kmh !== race.lastKmh) { race.lastKmh = kmh; elRcKmh.textContent = kmh; elSpFill.style.transform = 'scaleX(' + Math.min(1, spd / maxSpeed).toFixed(3) + ')'; }
     race.hudT -= dt;
     if (race.hudT <= 0) {
       race.hudT = 0.08;
@@ -3221,6 +3227,85 @@ function drawGrassAtlasCanvas() {
       elRcWarn.textContent = w; elRcWarn.style.display = w ? 'block' : 'none';
     }
   }
+  // ---- PAUSE button (top right, where the clock used to be) + pause menu with every button in one place ----
+  let gamePaused = false;
+  {
+    const st2 = document.createElement('style');
+    st2.textContent =
+      '#status-bars,#current-biome,#time-display,#btn-fullscreen,#btn-settings,#btn-sound{display:none !important}' +
+      'body.home-mode #speedo,body.home-mode #btn-pause{display:none !important}' +
+      '#hud-msg{top:calc(76px + env(safe-area-inset-top)) !important}' +
+      '#speedo{position:absolute;left:50%;bottom:calc(10px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:55;width:250px;padding:6px 18px 9px;border-radius:18px 18px 8px 8px;' +
+      'background:rgba(10,18,22,0.42);border:1px solid rgba(126,240,255,0.30);text-align:center;color:#fff;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,0.6)}' +
+      '#speedo .sp-num b{font:800 44px/1 system-ui,Arial,sans-serif;letter-spacing:0}' +
+      '#speedo .sp-num i{font:700 11px system-ui,Arial,sans-serif;font-style:normal;margin-left:6px;opacity:0.75;letter-spacing:1.6px}' +
+      '#sp-bar{height:6px;border-radius:3px;background:rgba(255,255,255,0.14);margin-top:6px;overflow:hidden}' +
+      '#sp-fill{height:100%;width:100%;transform-origin:left center;transform:scaleX(0);background:linear-gradient(90deg,#4ff0ff,#ffe08a 65%,#ff6a4a)}' +
+      '#btn-pause{width:44px;height:44px}' +
+      '#pause-menu{position:fixed;left:0;top:0;right:0;bottom:0;z-index:100002;display:none;align-items:center;justify-content:center;background:rgba(0,0,6,0.62)}' +
+      '#pause-menu .pm-box{width:300px;max-width:88vw;padding:14px 16px 16px;border-radius:16px;background:rgba(14,22,28,0.94);border:1.5px solid rgba(230,238,240,0.55);color:#eaf3f6;font:700 12px system-ui,Arial,sans-serif;letter-spacing:2px;text-align:center}' +
+      '#pause-menu .pm-title{font-size:15px;letter-spacing:5px;color:#ffd24a;margin-bottom:12px}' +
+      '#pause-menu .pm-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}' +
+      '#pause-menu button{min-height:42px;border-radius:11px;border:1.5px solid rgba(230,238,240,0.5);background:rgba(255,255,255,0.10);color:#fff;font:700 11px system-ui,Arial,sans-serif;letter-spacing:1.6px;outline:none}' +
+      '#pause-menu button:active{background:rgba(126,240,255,0.35)}' +
+      '#pause-menu button.pm-main{width:100%;min-height:48px;border-color:#ffe08a;background:linear-gradient(#f6b21c,#d9820c);color:#2a1700;font-size:14px;letter-spacing:4px;font-weight:900}';
+    document.head.appendChild(st2);
+
+    const pb = document.createElement('button');
+    pb.id = 'btn-pause'; pb.className = 'cam-btn';
+    pb.innerHTML = '<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4.2" height="14" rx="1.2"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.2"/></svg>';
+    const chips = document.getElementById('hud-chips');
+    if (chips) chips.insertBefore(pb, chips.firstChild); else document.body.appendChild(pb);
+
+    const pm = document.createElement('div');
+    pm.id = 'pause-menu';
+    pm.innerHTML =
+      '<div class="pm-box"><div class="pm-title">PAUSED</div>' +
+      '<button class="pm-main" data-a="resume">RESUME</button>' +
+      '<div class="pm-grid">' +
+      '<button data-a="restart">RESTART</button><button data-a="garage">GARAGE</button>' +
+      '<button data-a="settings">SETTINGS</button><button data-a="fs">FULLSCREEN</button>' +
+      '<button data-a="sound" id="pm-sound">SOUND: ON</button><button data-a="cam">CAMERA VIEW</button>' +
+      '</div></div>';
+    document.body.appendChild(pm);
+
+    const setPaused = (on) => {
+      gamePaused = on;
+      pm.style.display = on ? 'flex' : 'none';
+      if (on) {
+        keys.forward = keys.backward = keys.left = keys.right = false;
+        const sb = document.getElementById('btn-sound');
+        document.getElementById('pm-sound').textContent = 'SOUND: ' + (sb && sb.classList.contains('off') ? 'OFF' : 'ON');
+        if (actx && actx.state === 'running') actx.suspend();
+      } else if (actx && soundOn && actx.state === 'suspended') actx.resume();
+    };
+    pb.addEventListener('click', () => setPaused(true));
+    pm.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+    pm.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      const a = b.dataset.a;
+      if (a === 'resume') setPaused(false);
+      else if (a === 'restart') { setPaused(false); resetRace(); }
+      else if (a === 'garage') { setPaused(false); showHome(); }
+      else if (a === 'settings') { pm.style.display = 'none'; document.getElementById('btn-settings').click(); }
+      else if (a === 'fs') document.getElementById('btn-fullscreen').click();
+      else if (a === 'cam') document.getElementById('cam-view').click();
+      else if (a === 'sound') {
+        const sb = document.getElementById('btn-sound');
+        if (sb) sb.click();
+        b.textContent = 'SOUND: ' + (sb && sb.classList.contains('off') ? 'OFF' : 'ON');
+        if (gamePaused && actx && actx.state === 'running') actx.suspend();
+      }
+    });
+    // closing the settings panel brings the pause menu back; starting a speed test needs the game running
+    const spPanel = document.getElementById('settings-panel');
+    if (spPanel) {
+      new MutationObserver(() => { if (gamePaused && !spPanel.classList.contains('show')) pm.style.display = 'flex'; }).observe(spPanel, { attributes: true, attributeFilter: ['class'] });
+      ['diag-btn', 'diag-btn2'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('click', () => setPaused(false)); });
+    }
+  }
+
   showHome();
 
   function getBiomeName(x, z) { return '🌌 Deep Space'; }
@@ -3228,6 +3313,7 @@ function drawGrassAtlasCanvas() {
   let lastRenderAt = 0;
   function animate() {
     requestAnimationFrame(animate);
+    if (gamePaused) { clock.getDelta(); return; }       // PAUSED: nothing runs, the last frame stays on screen
     const rafNow = performance.now();
     if (autoTune.capMs && rafNow - lastRenderAt < autoTune.capMs - 2) return;   // 120 Hz phones: render at a steady 60 fps
     lastRenderAt = rafNow;
