@@ -545,7 +545,7 @@ function initGame() {
   // ============ RACE TRACK: a closed circuit (~1170 m) levelled into the terrain ============
   // The centre line is a smooth closed curve (min corner radius ~48 m, so it can be driven fast). The ground is flattened along it
   // BEFORE any colours / objects are computed, so the road, the physics and the trees all agree on the same height grid.
-  const TRK_N = 1000, TRK_W = 22, TRK_FLAT = 15, TRK_BLEND = 26;
+  const TRK_N = 1000, TRK_W = 38, TRK_FLAT = 24, TRK_BLEND = 36;   // 4 lanes (9.5 m each)
   const trkX = new Float32Array(TRK_N), trkZ = new Float32Array(TRK_N), trkY = new Float32Array(TRK_N);
   const trkTX = new Float32Array(TRK_N), trkTZ = new Float32Array(TRK_N);      // unit tangent (direction of travel)
   for (let i = 0; i < TRK_N; i++) {
@@ -598,7 +598,7 @@ function initGame() {
     if (ix < 0 || iz < 0 || ix > GSEG || iz > GSEG) return 1e9;
     return TDIST[iz * (GSEG + 1) + ix];
   }
-  function nearTrack(x, z) { return trackDist(x, z) < 16; }                        // trees / rocks / bushes keep out of this strip
+  function nearTrack(x, z) { return trackDist(x, z) < 26; }                        // trees / rocks / bushes keep out of this strip
   let nrIdx = 0, nrDist = 0;
   function trackNearest(x, z, hint, win) {   // nearest centre-line sample; searches only +-win samples around `hint` (or everywhere if hint < 0)
     let best = 1e12, bi = 0;
@@ -2735,7 +2735,7 @@ function drawGrassAtlasCanvas() {
 
     // race circuit + start/finish tick
     mmCtx.save();
-    mmCtx.strokeStyle = 'rgba(205,212,222,0.85)'; mmCtx.lineWidth = 3.2; mmCtx.lineJoin = 'round';
+    mmCtx.strokeStyle = 'rgba(205,212,222,0.85)'; mmCtx.lineWidth = 4.4; mmCtx.lineJoin = 'round';
     mmCtx.beginPath();
     for (let i = 0; i < TRK_N; i += 10) {
       const px = ((trkX[i] + HALF) / WORLD_SIZE) * w, py = ((trkZ[i] + HALF) / WORLD_SIZE) * h;
@@ -3233,7 +3233,7 @@ function drawGrassAtlasCanvas() {
     const cx = cv.getContext('2d');
     cx.fillStyle = '#4b4e53'; cx.fillRect(0, 0, 256, 256);
     cx.fillStyle = 'rgba(18,18,20,0.20)';
-    cx.fillRect(256 * 0.20, 0, 256 * 0.15, 256); cx.fillRect(256 * 0.65, 0, 256 * 0.15, 256);   // rubbered-in racing lines
+    for (let ln = 0; ln < 4; ln++) { const uc = (ln + 0.5) / 4; cx.fillRect(256 * (uc - 0.085), 0, 256 * 0.05, 256); cx.fillRect(256 * (uc + 0.035), 0, 256 * 0.05, 256); }   // rubbered-in tyre tracks in each of the 4 lanes
     for (let k = 0; k < 5200; k++) {
       const g = 70 + Math.random() * 60 | 0;
       cx.fillStyle = 'rgba(' + g + ',' + g + ',' + (g + 4) + ',' + (0.22 + Math.random() * 0.35) + ')';
@@ -3281,7 +3281,7 @@ function drawGrassAtlasCanvas() {
       const i0 = s * STEP, i1 = ((s + 1) * STEP) % TRK_N, kc = (s & 1) ? cRed : cWhite;
       strip(i0, i1, HWd, HWd + 1.2, 0.09, kc);
       strip(i0, i1, -HWd - 1.2, -HWd, 0.09, kc);
-      if (!(s & 1)) strip(i0, i1, -0.14, 0.14, 0.09, cLine);
+      if (!(s & 1)) { strip(i0, i1, -0.14, 0.14, 0.09, cLine); strip(i0, i1, -TRK_W / 4 - 0.12, -TRK_W / 4 + 0.12, 0.09, cLine); strip(i0, i1, TRK_W / 4 - 0.12, TRK_W / 4 + 0.12, 0.09, cLine); }   // dashed lane dividers (4 lanes)
     }
     const mg = new THREE.BufferGeometry();
     mg.setAttribute('position', new THREE.Float32BufferAttribute(mp, 3));
@@ -3293,9 +3293,9 @@ function drawGrassAtlasCanvas() {
 
     // --- start / finish: chequered line + gantry
     {
-      const ck = document.createElement('canvas'); ck.width = 22 * 16; ck.height = 32;
+      const KCOLS = Math.round(TRK_W), ck = document.createElement('canvas'); ck.width = KCOLS * 16; ck.height = 32;
       const kx = ck.getContext('2d');
-      for (let cxI = 0; cxI < 22; cxI++) for (let cyI = 0; cyI < 2; cyI++) { kx.fillStyle = ((cxI + cyI) & 1) ? '#101010' : '#f4f4f4'; kx.fillRect(cxI * 16, cyI * 16, 16, 16); }
+      for (let cxI = 0; cxI < KCOLS; cxI++) for (let cyI = 0; cyI < 2; cyI++) { kx.fillStyle = ((cxI + cyI) & 1) ? '#101010' : '#f4f4f4'; kx.fillRect(cxI * 16, cyI * 16, 16, 16); }
       const kt = new THREE.CanvasTexture(ck); kt.colorSpace = THREE.SRGBColorSpace; kt.magFilter = THREE.NearestFilter; kt.generateMipmaps = false; kt.minFilter = THREE.LinearFilter;
       const nx = -trkTZ[0], nz = trkTX[0], tx = trkTX[0], tz = trkTZ[0], hw = TRK_W / 2, hl = 1.2;
       const Q = (o, d) => { const x = trkX[0] + nx * o + tx * d, z = trkZ[0] + nz * o + tz * d; return [x, g0(x, z, 0.085), z]; };
@@ -3307,12 +3307,12 @@ function drawGrassAtlasCanvas() {
       const sline = new THREE.Mesh(sg, new THREE.MeshLambertMaterial({ map: kt, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
       scene.add(sline);
 
-      const bn = document.createElement('canvas'); bn.width = 512; bn.height = 96;
+      const bn = document.createElement('canvas'); bn.width = 1024; bn.height = 96;
       const bx = bn.getContext('2d');
-      bx.fillStyle = '#12171c'; bx.fillRect(0, 0, 512, 96);
-      bx.fillStyle = '#d2322d'; bx.fillRect(0, 0, 512, 8); bx.fillRect(0, 88, 512, 8);
+      bx.fillStyle = '#12171c'; bx.fillRect(0, 0, 1024, 96);
+      bx.fillStyle = '#d2322d'; bx.fillRect(0, 0, 1024, 8); bx.fillRect(0, 88, 1024, 8);
       bx.fillStyle = '#ffffff'; bx.font = '800 54px system-ui, Arial, sans-serif'; bx.textAlign = 'center'; bx.textBaseline = 'middle';
-      bx.fillText('START / FINISH', 256, 50);
+      bx.save(); bx.translate(512, 50); bx.scale(1.25, 1); bx.fillText('START / FINISH', 0, 0); bx.restore();
       const bt = new THREE.CanvasTexture(bn); bt.colorSpace = THREE.SRGBColorSpace;
       const gantry = new THREE.Group();
       const steel = new THREE.MeshStandardMaterial({ color: 0x2b3036, roughness: 0.6, metalness: 0.4, flatShading: true });
@@ -3420,7 +3420,8 @@ function drawGrassAtlasCanvas() {
 
   function resetRace() {
     const si = TRK_N - 8;                                    // grid slot: a few metres behind the line
-    const sx = trkX[si], sz = trkZ[si];
+    const laneO = TRK_W / 8;                                // start in the middle of a lane, not on the dashed divider
+    const sx = trkX[si] - trkTZ[si] * laneO, sz = trkZ[si] + trkTX[si] * laneO;
     currentRot = Math.atan2(-trkTX[si], -trkTZ[si]);
     rover.position.set(sx, getGroundHeight(sx, sz) + 0.6, sz);
     rover.rotation.set(0, currentRot, 0);
@@ -3698,7 +3699,7 @@ function drawGrassAtlasCanvas() {
       // the rail stands at half-width + 1.9 m; the rover's wheels must stop at it. Footprint (a box RV_HX x RV_HZ) projected on the rail normal:
       const _cR = Math.cos(currentRot), _sR = Math.sin(currentRot);
       const ext = RV_HX * Math.abs(rnx * _cR - rnz * _sR) + RV_HZ * Math.abs(rnx * _sR + rnz * _cR);
-      const over = Math.abs(lat) + ext - (TRK_W / 2 + 1.9 - 0.12);
+      const over = Math.abs(lat) + ext - (TRK_W / 2 + 1.9 - 0.30);   // the tyres stop 30 cm before the rail plane, so no part of the car ever goes into it
       if (over > 0) {
         const sg = lat > 0 ? 1 : -1;
         rover.position.x -= rnx * sg * over; rover.position.z -= rnz * sg * over;
@@ -3968,7 +3969,7 @@ function drawGrassAtlasCanvas() {
     if (perfOn && nowMs > overlayAt) {
       overlayAt = nowMs + 500;
       const inf = renderer.info.render;
-      perfEl.textContent = 'JS ' + jsEma.toFixed(1) + ' | submit ' + subEma.toFixed(1) + ' | wait ' + Math.max(0, emaMs - jsEma - subEma).toFixed(1) + ' ms\n' + Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + ' | ' + autoTune.label() + '\nBUILD 108 | ' + autoTune.info();
+      perfEl.textContent = 'JS ' + jsEma.toFixed(1) + ' | submit ' + subEma.toFixed(1) + ' | wait ' + Math.max(0, emaMs - jsEma - subEma).toFixed(1) + ' ms\n' + Math.round(1000 / emaMs) + ' fps | ' + emaMs.toFixed(1) + ' ms | res x' + curPR.toFixed(2) + ' | ' + inf.calls + ' calls | ' + Math.round(inf.triangles / 1000) + 'k tris' + ' | ' + autoTune.label() + '\nBUILD 109 | ' + autoTune.info();
     }
 
     perfFrames++; perfAcc += dt;
