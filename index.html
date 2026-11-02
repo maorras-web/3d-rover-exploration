@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Star Courier</title>
+<style>
+  html,body{margin:0;height:100%;background:#02030a;overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#e8f6ff}
+  canvas#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+  .hud{position:fixed;pointer-events:none;z-index:10;text-shadow:0 1px 4px rgba(0,0,0,.8)}
+  #top-left{top:calc(10px + env(safe-area-inset-top));left:calc(12px + env(safe-area-inset-left));display:flex;flex-direction:column;gap:5px;min-width:160px}
+  .chip{display:flex;align-items:center;gap:8px;padding:4px 10px;border-radius:10px;background:rgba(8,16,28,.45);border:1px solid rgba(126,240,255,.25);font:700 12px/1 system-ui,Arial,sans-serif;letter-spacing:1px}
+  .chip b{color:#ffe08a}
+  .bar{flex:1;height:6px;border-radius:4px;background:rgba(255,255,255,.14);overflow:hidden;min-width:90px}
+  .bar i{display:block;height:100%;width:100%;transform-origin:left center;border-radius:4px}
+  #b-sh{background:linear-gradient(90deg,#3fb6ff,#9be7ff)} #b-hu{background:linear-gradient(90deg,#ff6a5a,#ffb36a)} #b-bo{background:linear-gradient(90deg,#ffb347,#ffe27a)}
+  .lbl{font-size:9px;letter-spacing:1.5px;opacity:.8;width:36px}
+  #mission{top:calc(122px + env(safe-area-inset-top));left:calc(12px + env(safe-area-inset-left));max-width:230px;font:700 11px/1.3 system-ui,Arial,sans-serif;letter-spacing:1px;color:#ffe08a;display:none}
+  #top-right{top:calc(10px + env(safe-area-inset-top));right:calc(12px + env(safe-area-inset-right));display:flex;gap:8px;pointer-events:auto}
+  .sbtn{pointer-events:auto;width:38px;height:38px;border-radius:50%;border:1px solid rgba(126,240,255,.4);background:rgba(8,16,28,.5);color:#cfefff;font:800 13px system-ui,Arial,sans-serif;display:flex;align-items:center;justify-content:center}
+  .sbtn.on{background:rgba(126,240,255,.35)}
+  #speed{top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);text-align:center;font:800 20px/1 system-ui,Arial,sans-serif}
+  #speed small{font-size:9px;letter-spacing:2px;opacity:.75;margin-left:4px}
+  #toast{top:20%;left:50%;transform:translateX(-50%);font:900 26px/1 system-ui,Arial,sans-serif;letter-spacing:3px;text-align:center;opacity:0;transition:opacity .2s;white-space:nowrap;color:#fff;text-shadow:0 0 16px rgba(120,220,255,.9),0 2px 6px #000}
+  .mk{left:0;top:0;transform:translate(-50%,-50%);text-align:center;font:800 10px/1.2 system-ui,Arial,sans-serif;letter-spacing:1.4px;color:#9ff3ff;display:none;white-space:nowrap}
+  .mk i{display:block;width:22px;height:22px;margin:0 auto 3px;border:2px solid currentColor;border-radius:50%;box-shadow:0 0 10px currentColor, inset 0 0 6px currentColor}
+  .mk svg{display:none;width:20px;height:20px;margin:0 auto 3px;fill:currentColor;filter:drop-shadow(0 0 5px currentColor)}
+  .mk.st{color:#8fe8ff} .mk.wp{color:#ffd166}
+  #tgt{left:0;top:0;transform:translate(-50%,-50%);display:none;color:#ff6a5a;text-align:center;font:800 10px/1.2 system-ui,Arial,sans-serif;letter-spacing:1.2px}
+  #tgt .br{width:54px;height:54px;margin:0 auto;border:2px solid currentColor;border-radius:6px;box-shadow:0 0 8px currentColor, inset 0 0 8px rgba(255,80,60,.25)}
+  #tgt .hb{width:54px;height:4px;margin:3px auto 2px;background:rgba(255,255,255,.2);border-radius:2px;overflow:hidden}
+  #tgt .hb i{display:block;height:100%;width:100%;background:#ff6a5a;transform-origin:left}
+  #tgt .hb i.s{background:#5fd2ff;height:100%}
+  #lead{left:0;top:0;width:18px;height:18px;margin:-9px;border:2px solid #ffe27a;border-radius:50%;display:none;box-shadow:0 0 8px #ffe27a}
+  #lead:after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:#ffe27a;border-radius:50%}
+  #cross{left:50%;top:50%;width:22px;height:22px;margin:-11px;border:2px solid rgba(159,243,255,.5);border-radius:50%;display:none;box-sizing:border-box}
+  #cross:after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:rgba(159,243,255,.8);border-radius:50%}
+  #flash{inset:0;opacity:0;transition:opacity .25s}
+  #stick{left:calc(18px + env(safe-area-inset-left));bottom:calc(16px + env(safe-area-inset-bottom));width:132px;height:132px;pointer-events:none}
+  #stick .base{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(126,240,255,.35);background:rgba(8,16,28,.28)}
+  #stick .knob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(190,250,255,.85),rgba(60,160,200,.55));border:1px solid rgba(255,255,255,.5)}
+  .rb{position:fixed;z-index:12;pointer-events:auto;border-radius:50%;border:2px solid rgba(255,255,255,.4);color:#fff;font:900 11px system-ui,Arial,sans-serif;letter-spacing:1.2px;display:flex;align-items:center;justify-content:center;touch-action:none;text-shadow:0 1px 3px #000;padding:0}
+  .rb.down{transform:scale(.92);filter:brightness(1.5)}
+  #b-fire{right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));width:96px;height:96px;background:radial-gradient(circle at 35% 30%,rgba(255,150,120,.7),rgba(220,40,40,.45));font-size:14px}
+  #b-miss{right:calc(122px + env(safe-area-inset-right));bottom:calc(20px + env(safe-area-inset-bottom));width:64px;height:64px;background:radial-gradient(circle at 35% 30%,rgba(255,220,130,.6),rgba(220,130,30,.4))}
+  #b-boost{right:calc(30px + env(safe-area-inset-right));bottom:calc(122px + env(safe-area-inset-bottom));width:64px;height:64px;background:radial-gradient(circle at 35% 30%,rgba(150,210,255,.6),rgba(50,100,220,.4))}
+  #b-tgt{right:calc(110px + env(safe-area-inset-right));bottom:calc(98px + env(safe-area-inset-bottom));width:50px;height:50px;background:rgba(255,106,90,.28);font-size:10px}
+  #b-dock{left:50%;transform:translateX(-50%);top:calc(48px + env(safe-area-inset-top));border-radius:26px;width:auto;height:auto;padding:10px 26px;font-size:15px;letter-spacing:4px;background:rgba(95,255,176,.28);border-color:#59ffb0;display:none;box-shadow:0 0 18px rgba(89,255,176,.5)}
+  #miss-n{position:absolute;right:6px;top:2px;font-size:11px;color:#ffe08a}
+  #radar{left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));width:104px;height:104px;border-radius:50%;background:rgba(6,16,26,.55);border:1px solid rgba(126,240,255,.35)}
+  .screen{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(4,10,24,.6),rgba(2,3,10,.93));text-align:center;padding:10px;box-sizing:border-box}
+  .screen.show{display:flex}
+  .panel{max-width:620px;width:100%;max-height:100%;overflow:auto}
+  #shop .panel{display:flex;flex-direction:column;overflow:hidden}
+  #shop-list{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y}
+  #shop .go{margin-top:6px;flex:none;align-self:center}
+  #shop h1{margin-bottom:0}
+  h1{margin:0 0 4px;font:900 38px/1.05 system-ui,Arial,sans-serif;letter-spacing:6px;background:linear-gradient(90deg,#8ff0ff,#ffe08a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{opacity:.8;font-size:13px;letter-spacing:2px;margin-bottom:12px}
+  .go{display:inline-block;margin:8px 4px 0;padding:11px 36px;border-radius:30px;border:2px solid #9ff3ff;background:rgba(95,228,255,.18);color:#fff;font:900 15px system-ui,Arial,sans-serif;letter-spacing:4px;box-shadow:0 0 18px rgba(95,228,255,.4)}
+  .go:active{background:rgba(95,228,255,.45)}
+  .how{font-size:12px;opacity:.88;line-height:1.6;margin:8px auto 4px;max-width:480px}
+  .tabs{display:flex;gap:8px;justify-content:center;margin:6px 0 8px}
+  .tab{padding:7px 18px;border-radius:18px;border:1px solid rgba(126,240,255,.4);background:rgba(10,24,40,.7);color:#cfefff;font:800 12px system-ui,Arial,sans-serif;letter-spacing:2px}
+  .tab.on{background:rgba(126,240,255,.35);color:#fff}
+  .row{display:flex;align-items:center;gap:10px;margin:5px 0;padding:7px 12px;border-radius:12px;background:rgba(10,24,40,.7);border:1px solid rgba(126,240,255,.22);text-align:left}
+  .row .nm{flex:1;font:800 13px system-ui,Arial,sans-serif;letter-spacing:1px}
+  .row .nm span{display:block;font-weight:500;font-size:11px;opacity:.72;letter-spacing:.4px;margin-top:2px}
+  .row .lv{font:700 10px monospace;letter-spacing:1px;color:#8fe8ff}
+  .buy{padding:7px 14px;border-radius:18px;border:1px solid #ffe08a;background:rgba(255,224,138,.15);color:#ffe08a;font:800 12px system-ui,Arial,sans-serif;min-width:74px}
+  .buy[disabled]{opacity:.35;border-color:#888;color:#aaa}
+  .earn{font:800 14px system-ui,Arial,sans-serif;margin:2px 0 6px;color:#ffe08a;letter-spacing:1px}
+  #rotate{position:fixed;inset:0;z-index:99;background:#02030a;display:none;align-items:center;justify-content:center;font:700 16px system-ui,Arial,sans-serif;letter-spacing:2px;text-align:center}
+  @media (orientation:portrait){#rotate{display:flex}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="mk-s0" class="mk st hud"><i></i><svg viewBox="0 0 24 24"><path d="M12 3 L21 20 L12 15 L3 20 Z"/></svg><span></span></div>
+<div id="mk-s1" class="mk st hud"><i></i><svg viewBox="0 0 24 24"><path d="M12 3 L21 20 L12 15 L3 20 Z"/></svg><span></span></div>
+<div id="mk-s2" class="mk st hud"><i></i><svg viewBox="0 0 24 24"><path d="M12 3 L21 20 L12 15 L3 20 Z"/></svg><span></span></div>
+<div id="mk-wp" class="mk wp hud"><i></i><svg viewBox="0 0 24 24"><path d="M12 3 L21 20 L12 15 L3 20 Z"/></svg><span></span></div>
+<div id="tgt" class="hud"><div class="br"></div><div class="hb"><i class="s" id="t-sh"></i></div><div class="hb" style="margin-top:0"><i id="t-hu"></i></div><span id="t-txt"></span></div>
+<div id="lead" class="hud"></div>
+<div id="cross" class="hud"></div>
+<div id="flash" class="hud"></div>
+<div id="toast" class="hud"></div>
+
+<div id="top-left" class="hud">
+  <div class="chip">◆ <b id="credits">0</b><span style="flex:1"></span><span id="kills" style="opacity:.75;font-size:10px"></span></div>
+  <div class="chip"><span class="lbl">SHIELD</span><div class="bar"><i id="b-sh"></i></div></div>
+  <div class="chip"><span class="lbl">HULL</span><div class="bar"><i id="b-hu"></i></div></div>
+  <div class="chip"><span class="lbl">BOOST</span><div class="bar"><i id="b-bo"></i></div></div>
+</div>
+<div id="mission" class="hud"></div>
+<div id="top-right" class="hud"><button class="sbtn" id="b-inv">Y</button><button class="sbtn" id="b-snd">♪</button></div>
+<div id="speed" class="hud"><span id="kmh">0</span><small>m/s</small></div>
+<canvas id="radar" class="hud" width="208" height="208"></canvas>
+
+<div id="stick" class="hud"><div class="base"></div><div class="knob" id="knob"></div></div>
+<button class="rb" id="b-fire">FIRE</button>
+<button class="rb" id="b-miss">MISSILE<span id="miss-n"></span></button>
+<button class="rb" id="b-boost">BOOST</button>
+<button class="rb" id="b-tgt">TARGET</button>
+<button class="rb" id="b-dock">DOCK</button>
+
+<div id="start" class="screen show"><div class="panel">
+  <h1>STAR COURIER</h1>
+  <div class="sub">SPACE COMBAT · MISSIONS · UPGRADES</div>
+  <div class="how">Left thumb steers the ship (pitch &amp; yaw). <b>FIRE</b> lasers, <b>MISSILE</b> for locked targets, <b>TARGET</b> picks the next enemy, <b>BOOST</b> to outrun.<br>
+  Take missions at stations, hunt pirates, mine asteroids with your lasers, and spend credits on upgrades.<br>Fly close to a station and press <b>DOCK</b>.</div>
+  <div class="go" id="go-start">LAUNCH</div>
+</div></div>
+
+<div id="shop" class="screen"><div class="panel">
+  <h1 style="font-size:26px" id="shop-title">DOCKED</h1>
+  <div class="earn" id="shop-earn"></div>
+  <div class="tabs"><button class="tab on" id="tab-m">MISSIONS</button><button class="tab" id="tab-u">SHIP</button></div>
+  <div id="shop-list"></div>
+  <div class="go" id="go-launch">LAUNCH</div>
+</div></div>
+
+<div id="diag" style="position:fixed;left:0;right:0;top:0;z-index:999999;background:rgba(150,0,0,.92);color:#fff;font:12px/1.4 monospace;padding:8px;display:none;direction:ltr;white-space:pre-wrap"></div>
+<script>
+(function(){
+  var d=document.getElementById('diag');
+  function show(t){ d.style.display='block'; d.textContent+=t+'\n'; }
+  window.addEventListener('error',function(e){ show('ERROR: '+e.message+(e.filename?'  ('+e.filename.split('/').pop()+':'+e.lineno+')':'')); });
+  window.addEventListener('unhandledrejection',function(e){ show('ERROR: '+(e.reason&&e.reason.message||e.reason)); });
+  setTimeout(function(){ if(!window.__sc) show('The game did not start (see the lines above for the reason).'); },5000);
+})();
+</script>
+<div id="rotate">ROTATE YOUR PHONE<br>TO LANDSCAPE</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+<script type="module">
+const d = document.getElementById('diag');
+const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
+const need = ['main.js?v=8', 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js'];
+const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
+const bad = res.filter(Boolean);
+if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
+else { try { await import('./main.js?v=8'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+</script>
+</body>
+</html>
