@@ -79,7 +79,7 @@ function initGame() {
   scene.background = new THREE.Color(0x03040b);   // OUTER SPACE: no ground, no grass, no trees - just the road, stars and a planet
   scene.fog = new THREE.FogExp2(0x03040b, 0.0026);   // denser haze = depth + everything past ~500 m is fully hidden
 
-  const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 560);   // far clipping: at 560 m the fog is ~99.5% so nothing visibly pops
+  const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.4, 560);   // far clipping: at 560 m the fog is ~99.5% so nothing visibly pops
   const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -1759,16 +1759,16 @@ function drawGrassAtlasCanvas() {
     joint:  new THREE.MeshStandardMaterial({ color: 0x6a717a, metalness: 0.60, roughness: 0.45, flatShading: true }),
     dome:   new THREE.MeshStandardMaterial({ color: 0x4ea2ec, emissive: 0x0c3470, emissiveIntensity: 0.45, metalness: 0.0, roughness: 0.1, flatShading: true, envMapIntensity: 1.2, transparent: true, opacity: 0.42, depthWrite: false }),
     black:  new THREE.MeshStandardMaterial({ color: 0x0c0d0f, roughness: 0.70, flatShading: true }),
-    glow:   new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.8, flatShading: true }),
-    tail:   new THREE.MeshStandardMaterial({ color: 0xff3322, emissive: 0xff2211, emissiveIntensity: 0.9, flatShading: true }),
+    glow:   new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.8, flatShading: true , polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+    tail:   new THREE.MeshStandardMaterial({ color: 0xff3322, emissive: 0xff2211, emissiveIntensity: 0.9, flatShading: true , polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     tailHot: new THREE.MeshStandardMaterial({ color: 0xffc8bb, emissive: 0xff6a55, emissiveIntensity: 1.4 }),
     revLamp: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xdfeeff, emissiveIntensity: 0.1 }),
     amber:   new THREE.MeshStandardMaterial({ color: 0xffa020, emissive: 0xff8a00, emissiveIntensity: 0.5 }),
-    headHot: new THREE.MeshStandardMaterial({ color: 0xe8fbff, emissive: 0xbfefff, emissiveIntensity: 1.8 }),
+    headHot: new THREE.MeshStandardMaterial({ color: 0xe8fbff, emissive: 0xbfefff, emissiveIntensity: 1.8 , polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     hullS: new THREE.MeshStandardMaterial({ color: 0x23282d, emissive: 0x080a0c, metalness: 0.15, roughness: 0.55, envMapIntensity: 0.5, flatShading: true }),
     deckS: new THREE.MeshStandardMaterial({ color: 0xdfe3e7, emissive: 0x1a1f24, metalness: 0.05, roughness: 0.55, envMapIntensity: 0.4, flatShading: true }),
     midS:  new THREE.MeshStandardMaterial({ color: 0x7c868e, metalness: 0.10, roughness: 0.55, envMapIntensity: 0.5, flatShading: true }),
-    tailDark: new THREE.MeshStandardMaterial({ color: 0x3a0707, emissive: 0x2a0000, emissiveIntensity: 0.8, flatShading: true }),
+    tailDark: new THREE.MeshStandardMaterial({ color: 0x3a0707, emissive: 0x2a0000, emissiveIntensity: 0.8, flatShading: true , polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     darkS: new THREE.MeshStandardMaterial({ color: 0x1f2328, metalness: 0.35, roughness: 0.60, flatShading: true }),
     neon:  new THREE.MeshStandardMaterial({ color: 0x2fd6ff, emissive: 0x2fd6ff, emissiveIntensity: 2.2, flatShading: true }),
     tyre:  new THREE.MeshStandardMaterial({ color: 0x1b1d21, metalness: 0.10, roughness: 0.55, envMapIntensity: 0.8, flatShading: true, side: THREE.DoubleSide }),
@@ -1943,12 +1943,12 @@ function drawGrassAtlasCanvas() {
   armour(-1.95, -0.15, 0.80, 0.40, 0.13);     // front plate (continues into the nose band)
   armour(0.20, 1.45, 0.62, 0.30, 0.13);       // rear wedge plate
   // nose band across the front edge (the base of the "C")
-  hexBlock('deckS', [[-1.60, 0.78, -2.20], [1.60, 0.78, -2.20], [1.50, 0.86, -1.80], [-1.50, 0.86, -1.80], [-1.55, 0.93, -2.20], [1.55, 0.93, -2.20], [1.45, 0.99, -1.80], [-1.45, 0.99, -1.80]]);
+  hexBlock('deckS', [[-1.60, 0.78, -2.17], [1.60, 0.78, -2.17], [1.50, 0.86, -1.80], [-1.50, 0.86, -1.80], [-1.55, 0.93, -2.17], [1.55, 0.93, -2.17], [1.45, 0.99, -1.80], [-1.45, 0.99, -1.80]]);
   const RS = SECT[SECT.length - 1][1];
   const sideW = y => y < RS[2] ? RS[1] + (y - RS[0]) / (RS[2] - RS[0]) * (RS[3] - RS[1]) : RS[3];   // rear half-width at height y
   // charcoal trapezoids on the rear and front faces between the light-grey bevel corners
   hexBlock('hullS', [[-1.15, 1.00, 1.74], [1.15, 1.00, 1.74], [1.15, 1.00, 1.775], [-1.15, 1.00, 1.775], [-0.62, 1.30, 1.74], [0.62, 1.30, 1.74], [0.62, 1.30, 1.775], [-0.62, 1.30, 1.775]]);
-  hexBlock('hullS', [[-1.25, 0.82, -2.175], [1.25, 0.82, -2.175], [1.25, 0.82, -2.14], [-1.25, 0.82, -2.14], [-0.56, 1.00, -2.175], [0.56, 1.00, -2.175], [0.56, 1.00, -2.14], [-0.56, 1.00, -2.14]]);
+  hexBlock('hullS', [[-1.25, 0.82, -2.16], [1.25, 0.82, -2.16], [1.25, 0.82, -2.14], [-1.25, 0.82, -2.14], [-0.56, 1.00, -2.16], [0.56, 1.00, -2.16], [0.56, 1.00, -2.14], [-0.56, 1.00, -2.14]]);
   // hump behind the canopy with the little cyan light, and the seat / head rest
   hexBlock('darkS', [[-0.30, 1.28, 1.05], [0.30, 1.28, 1.05], [0.30, 1.30, 1.60], [-0.30, 1.30, 1.60], [-0.20, 1.48, 1.10], [0.20, 1.48, 1.10], [0.20, 1.48, 1.52], [-0.20, 1.48, 1.52]]);
   // dark underbody plate + front splitter
@@ -2008,7 +2008,7 @@ function drawGrassAtlasCanvas() {
   [-1, 1].forEach(s => partBeam('neon', s * (sideW(0.38) + 0.015), 0.38, 1.05, s * (sideW(0.38) + 0.015), 0.38, 1.60, 0.05));   // low side strip at the back
 
   // ---- Rear face (what the chase camera sees): narrow neon bar on a dark band near the top, V-slanted red lamps, big dark grille, light bumper ----
-  partRB('darkS', 0, 0.90, 1.765, 2.20, 0.15, 0.03, 0.01);
+  partRB('darkS', 0, 0.90, 1.760, 2.20, 0.15, 0.02, 0.008);
   partRB('neon', 0, 0.90, 1.785, 1.30, 0.06, 0.03, 0.01);
   function lampBar(key, cx, cy, cz, w, h, d, ox, oy, roll, yaw) {
     const cr = Math.cos(roll), sr = Math.sin(roll), cy2 = Math.cos(yaw), sy2 = Math.sin(yaw);
@@ -2035,8 +2035,8 @@ function drawGrassAtlasCanvas() {
   [-1, 1].forEach(s => partRB('deckS', s * 0.46, 0.29, 1.88, 0.07, 0.18, 0.08, 0.02));
 
   // ---- Front face (the target's front mirrors the back): neon bar, V lamps, dark grille ----
-  partRB('darkS', 0, 0.80, -2.165, 1.30, 0.12, 0.03, 0.01);
-  partRB('neon', 0, 0.80, -2.185, 0.80, 0.05, 0.03, 0.01);
+  partRB('darkS', 0, 0.80, -2.175, 1.30, 0.12, 0.03, 0.01);
+  partRB('neon', 0, 0.80, -2.192, 0.80, 0.05, 0.03, 0.01);
   // HEADLIGHTS: ALWAYS white (own materials, the paint shop never touches them). Angry eyes: the inner end is low, the outer end sweeps up into a point, with a dark brow above.
   slash('black',   0.50, 1.46, 0.28, 0.58, 0.56, 0.92, -2.17, -1, 0.03);        // swept dark housing + brow
   slash('headHot', 0.58, 1.38, 0.38, 0.50, 0.62, 0.82, -2.186, -1, 0.02);       // main white blade
@@ -3407,7 +3407,10 @@ function drawGrassAtlasCanvas() {
       trackNearest(rover.position.x, rover.position.z, race.idx, 60);
       const ni = nrIdx, rnx = -trkTZ[ni], rnz = trkTX[ni];
       const lat = (rover.position.x - trkX[ni]) * rnx + (rover.position.z - trkZ[ni]) * rnz;
-      const over = Math.abs(lat) - (TRK_W / 2 - 0.4);      // rail at half-width + 1.9 m, minus the rover's half width
+      // the rail stands at half-width + 1.9 m; the rover's wheels must stop at it. Footprint (a box RV_HX x RV_HZ) projected on the rail normal:
+      const _cR = Math.cos(currentRot), _sR = Math.sin(currentRot);
+      const ext = 3.35 * Math.abs(rnx * _cR - rnz * _sR) + 2.9 * Math.abs(rnx * _sR + rnz * _cR);
+      const over = Math.abs(lat) + ext - (TRK_W / 2 + 1.9 - 0.12);
       if (over > 0) {
         const sg = lat > 0 ? 1 : -1;
         rover.position.x -= rnx * sg * over; rover.position.z -= rnz * sg * over;
