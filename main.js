@@ -1641,13 +1641,13 @@ function drawGrassAtlasCanvas() {
   }
 
   // ---- paint: colours cost nothing (just material colours) and are remembered ----
-  const PAINT_KEY = 'roverPaint1';
+  const PAINT_KEY = 'roverPaint2';
   let paint = {};
   try { paint = JSON.parse(localStorage.getItem(PAINT_KEY)) || {}; } catch (e) { paint = {}; }
   let paintApplied = false;
   function applyPaint() {
-    if (paint.body) { MATS.hullS.color.set(paint.body); MATS.deckS.color.set(paint.body).offsetHSL(0, 0, 0.07); }
-    if (paint.accent) { MATS.tanS.color.set(paint.accent); MATS.armS.color.set(paint.accent); }
+    if (paint.body) { MATS.deckS.color.set(paint.body); MATS.hullS.color.set(paint.body).multiplyScalar(0.28); }
+    if (paint.accent) { MATS.neon.color.set(paint.accent); MATS.neon.emissive.set(paint.accent); }
     if (paint.dome) MATS.dome.color.set(paint.dome);
     if (paint.light) {
       MATS.headHot.color.set(paint.light); MATS.headHot.emissive.set(paint.light);
@@ -1674,10 +1674,10 @@ function drawGrassAtlasCanvas() {
       '#home-start:active{transform:scale(0.97)}';
     document.head.appendChild(st);
     const palettes = [
-      ['body', 'BODY COLOUR', ['#8fa1ad', '#d9382c', '#f08a1c', '#f2c12e', '#3fae4a', '#2f7fe0', '#8a4fd6', '#e8e8ea', '#2a2d31']],
-      ['dome', 'DOME COLOUR', ['#a6c4d8', '#d9382c', '#f2c12e', '#3fae4a', '#2f7fe0', '#8a4fd6', '#e8e8ea', '#2a2d31', '#f08a1c']],
-      ['accent', 'ARMS & PODS', ['#b5a488', '#222222', '#e8e8ea', '#d9382c', '#f2c12e', '#2fd6ff', '#3fae4a', '#f08a1c']],
-      ['light', 'HEADLIGHTS', ['#e8fbff', '#ffd27a', '#ff4a3a', '#5dff8a', '#4aa8ff', '#c27bff']]
+      ['body', 'BODY COLOUR', ['#b9c3ca', '#d9382c', '#f08a1c', '#f2c12e', '#3fae4a', '#2f7fe0', '#8a4fd6', '#e8e8ea', '#2a2d31']],
+      ['dome', 'DOME COLOUR', ['#3d8fd6', '#a6c4d8', '#d9382c', '#f2c12e', '#3fae4a', '#8a4fd6', '#e8e8ea', '#2a2d31', '#f08a1c']],
+      ['accent', 'NEON LIGHTS', ['#2fd6ff', '#ff3fd0', '#5dff8a', '#f2c12e', '#ff4a3a', '#c27bff', '#e8e8ea', '#4a7bff']],
+      ['light', 'HEADLIGHTS', ['#ff3a2c', '#ffd27a', '#e8fbff', '#5dff8a', '#4aa8ff', '#c27bff']]
     ];
     const root = document.createElement('div');
     root.id = 'home-ui';
@@ -1754,27 +1754,21 @@ function drawGrassAtlasCanvas() {
 
   const MATS = {
     light:  new THREE.MeshStandardMaterial({ color: 0xa9b8c2, metalness: 0.20, roughness: 0.60, flatShading: true, envMapIntensity: 0.6 }),
-    mid:    new THREE.MeshStandardMaterial({ color: 0xa89f8a, metalness: 0.30, roughness: 0.55, flatShading: true, envMapIntensity: 0.7 }),
-    arm:    new THREE.MeshStandardMaterial({ color: 0xb5afa0, metalness: 0.35, roughness: 0.50, flatShading: true, envMapIntensity: 0.6 }),
-    joint:  new THREE.MeshStandardMaterial({ color: 0x5e584d, metalness: 0.60, roughness: 0.50, flatShading: true }),
-    under:  new THREE.MeshStandardMaterial({ color: 0x3a352d, metalness: 0.30, roughness: 0.80, flatShading: true }),
-    rubber: new THREE.MeshStandardMaterial({ color: 0x24211e, roughness: 0.9, flatShading: true }),
-    dome:   new THREE.MeshStandardMaterial({ color: 0xa6c4d8, metalness: 0.05, roughness: 0.5, flatShading: true, envMapIntensity: 0.55 }),
-    black:  new THREE.MeshStandardMaterial({ color: 0x141210, roughness: 0.70, flatShading: true }),
-    copper: new THREE.MeshStandardMaterial({ color: 0x8a5a34, metalness: 0.30, roughness: 0.60, flatShading: true }),
-    crate:  new THREE.MeshStandardMaterial({ color: 0x4c463a, roughness: 0.80, flatShading: true }),
-    glow:   new THREE.MeshStandardMaterial({ color: 0xffffcc, emissive: 0xffeeaa, emissiveIntensity: 1.6, flatShading: true }),
+    joint:  new THREE.MeshStandardMaterial({ color: 0x6a717a, metalness: 0.60, roughness: 0.45, flatShading: true }),
+    dome:   new THREE.MeshStandardMaterial({ color: 0x3d8fd6, emissive: 0x06182c, metalness: 0.25, roughness: 0.18, flatShading: true, envMapIntensity: 1.3 }),
+    black:  new THREE.MeshStandardMaterial({ color: 0x0c0d0f, roughness: 0.70, flatShading: true }),
+    glow:   new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.8, flatShading: true }),
     tail:   new THREE.MeshStandardMaterial({ color: 0xff3322, emissive: 0xff2211, emissiveIntensity: 0.9, flatShading: true }),
     tailHot: new THREE.MeshStandardMaterial({ color: 0xffc8bb, emissive: 0xff6a55, emissiveIntensity: 1.4 }),
     revLamp: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xdfeeff, emissiveIntensity: 0.1 }),
     amber:   new THREE.MeshStandardMaterial({ color: 0xffa020, emissive: 0xff8a00, emissiveIntensity: 0.5 }),
-    headHot: new THREE.MeshStandardMaterial({ color: 0xe8fbff, emissive: 0xbfefff, emissiveIntensity: 1.8 }),
-    hullS: new THREE.MeshStandardMaterial({ color: 0x8fa1ad, metalness: 0.35, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
-    deckS: new THREE.MeshStandardMaterial({ color: 0xa8b8c2, metalness: 0.30, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
-    tanS:  new THREE.MeshStandardMaterial({ color: 0xb5a488, metalness: 0.15, roughness: 0.60, flatShading: true }),
-    armS:  new THREE.MeshStandardMaterial({ color: 0xb8b2a2, metalness: 0.35, roughness: 0.50, envMapIntensity: 0.6, flatShading: true }),
-    darkS: new THREE.MeshStandardMaterial({ color: 0x2a2723, metalness: 0.30, roughness: 0.65, flatShading: true }),
-    tread: new THREE.MeshStandardMaterial({ color: 0x5a4e42, roughness: 0.85, flatShading: true })
+    headHot: new THREE.MeshStandardMaterial({ color: 0xff3a2c, emissive: 0xff2418, emissiveIntensity: 1.8 }),
+    hullS: new THREE.MeshStandardMaterial({ color: 0x3a4047, metalness: 0.35, roughness: 0.50, envMapIntensity: 1.0, flatShading: true }),
+    deckS: new THREE.MeshStandardMaterial({ color: 0xb9c3ca, metalness: 0.30, roughness: 0.45, envMapIntensity: 1.1, flatShading: true }),
+    darkS: new THREE.MeshStandardMaterial({ color: 0x1f2328, metalness: 0.35, roughness: 0.60, flatShading: true }),
+    neon:  new THREE.MeshStandardMaterial({ color: 0x2fd6ff, emissive: 0x2fd6ff, emissiveIntensity: 2.2, flatShading: true }),
+    tyre:  new THREE.MeshStandardMaterial({ color: 0x0d0e10, metalness: 0.10, roughness: 0.38, envMapIntensity: 0.9, side: THREE.DoubleSide }),
+    rim:   new THREE.MeshStandardMaterial({ color: 0x2b3036, metalness: 0.55, roughness: 0.40, flatShading: true })
   };
 
   const buckets = {};
@@ -1857,7 +1851,7 @@ function drawGrassAtlasCanvas() {
   const B = new THREE.BoxGeometry(1, 1, 1);
 
   // ---- Dark cartoon outline (inverted hull) like the target image ----
-  const OUTLINE_KEYS = ['hullS', 'deckS', 'tanS', 'armS', 'darkS', 'dome'];
+  const OUTLINE_KEYS = ['hullS', 'deckS', 'darkS', 'dome'];
   const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: 0x15110d, side: THREE.BackSide });
   const OUTLINE_W = { value: 0.03 };   // set from the render resolution in applyPR()
   OUTLINE_MAT.onBeforeCompile = (sh) => {
@@ -1873,110 +1867,90 @@ function drawGrassAtlasCanvas() {
     return m;
   }
 
-  // ---- Body: rounded, layered, solid (no scaleLast: positions are real) ----
-  partRB('hullS', 0, 0.98, 0.05, 2.15, 0.72, 2.25, 0.22);                 // lower hull
-  partRB('deckS', 0, 1.40, 0.30, 1.75, 0.30, 2.25, 0.12);                 // upper deck
-  partRB('hullS', 0, 1.02, -1.18, 1.95, 0.50, 0.75, 0.20, -0.38, 0, 0);   // sloped nose
-  partRB('darkS', 0, 0.62, 0.05, 1.85, 0.22, 2.10, 0.08);                 // skid plate
-  partRB('tanS', -1.14, 1.02, 0.05, 0.14, 0.50, 1.50, 0.06);              // side armor
-  partRB('tanS',  1.14, 1.02, 0.05, 0.14, 0.50, 1.50, 0.06);
-  partRB('hullS', 0, 1.0, 1.2, 1.95, 0.55, 0.20, 0.08);                   // rear plate
-  for (let i = 0; i < 4; i++) partRB('darkS', 0, 0.86 + i * 0.1, 1.31, 1.05, 0.05, 0.03, 0.01); // vent slats
+  // ---- Angular racing body (low-poly, faceted). Each block = 8 corners: bottom ring (front-left, front-right, back-right, back-left) then the top ring. Front is -z. ----
+  const HEX_T = [[0,1,2],[0,2,3],[4,6,5],[4,7,6],[0,5,1],[0,4,5],[1,6,2],[1,5,6],[2,7,3],[2,6,7],[3,4,0],[3,7,4]];
+  function hexBlock(key, P, mirror) {
+    if (mirror) P = P.map(p => [-p[0], p[1], p[2]]);
+    let cx = 0, cy = 0, cz = 0;
+    P.forEach(p => { cx += p[0] / 8; cy += p[1] / 8; cz += p[2] / 8; });
+    const pos = [];
+    HEX_T.forEach(t => {
+      const a = P[t[0]]; let b = P[t[1]], c = P[t[2]];
+      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const fx = (a[0] + b[0] + c[0]) / 3 - cx, fy = (a[1] + b[1] + c[1]) / 3 - cy, fz = (a[2] + b[2] + c[2]) / 3 - cz;
+      if (nx * fx + ny * fy + nz * fz < 0) { const s = b; b = c; c = s; }   // always face outwards
+      pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+    });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3 * 2), 2));
+    g.computeVertexNormals();
+    (buckets[key] = buckets[key] || []).push(g);
+  }
+  function hexSym(key, P) { hexBlock(key, P, false); hexBlock(key, P, true); }
 
-  // ---- Dome + eyes + emblem ----
-  const domeGeo = new THREE.SphereGeometry(0.85, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2);
-  domeGeo.scale(1, 0.92, 1);
-  part(domeGeo, place(0, 1.55, 0), 'dome');
-  part(new THREE.TorusGeometry(0.85, 0.08, 8, 16), place(0, 1.56, 0, Math.PI / 2, 0, 0), 'tanS');
-  part(new THREE.BoxGeometry(0.42, 0.08, 0.05), place(-0.3, 1.69, -0.78, -0.2, 0.37, 0), 'black');
-  part(new THREE.BoxGeometry(0.42, 0.08, 0.05), place(0.3, 1.69, -0.78, -0.2, -0.37, 0), 'black');
-  partDisc('joint', 0, 2.07, -0.675, 0.17, 0.03, 0, 0.82, -0.9, 10);
-  partDisc('light', 0, 2.08, -0.69, 0.09, 0.03, 0, 0.82, -0.9, 8);
+  // charcoal lower body: main tub + low nose
+  hexBlock('hullS', [[-0.70, 0.50, -1.50], [0.70, 0.50, -1.50], [0.95, 0.50, 1.75], [-0.95, 0.50, 1.75], [-0.70, 0.86, -1.50], [0.70, 0.86, -1.50], [1.00, 0.90, 1.75], [-1.00, 0.90, 1.75]]);
+  hexBlock('hullS', [[-0.55, 0.52, -2.00], [0.55, 0.52, -2.00], [0.70, 0.50, -1.50], [-0.70, 0.50, -1.50], [-0.62, 0.82, -2.00], [0.62, 0.82, -2.00], [0.70, 0.86, -1.50], [-0.70, 0.86, -1.50]]);
+  // light grey upper panels: sloping hood, rear deck, side pods
+  hexBlock('deckS', [[-0.60, 0.82, -2.00], [0.60, 0.82, -2.00], [0.92, 0.87, -0.10], [-0.92, 0.87, -0.10], [-0.55, 0.92, -1.98], [0.55, 0.92, -1.98], [0.82, 1.14, -0.10], [-0.82, 1.14, -0.10]]);
+  hexBlock('deckS', [[-0.92, 0.87, -0.10], [0.92, 0.87, -0.10], [1.00, 0.90, 1.75], [-1.00, 0.90, 1.75], [-0.82, 1.14, -0.10], [0.82, 1.14, -0.10], [0.88, 1.00, 1.72], [-0.88, 1.00, 1.72]]);
+  hexSym('deckS', [[0.78, 0.50, -0.42], [1.40, 0.55, -0.30], [1.40, 0.55, 0.42], [0.78, 0.50, 0.52], [0.78, 0.90, -0.42], [1.34, 0.86, -0.25], [1.34, 0.96, 0.42], [0.78, 1.00, 0.52]]);
+  // dark underbody + front splitter
+  hexBlock('darkS', [[-0.60, 0.44, -1.60], [0.60, 0.44, -1.60], [0.80, 0.44, 1.70], [-0.80, 0.44, 1.70], [-0.60, 0.52, -1.60], [0.60, 0.52, -1.60], [0.80, 0.52, 1.70], [-0.80, 0.52, 1.70]]);
+  hexBlock('darkS', [[-0.78, 0.46, -2.28], [0.78, 0.46, -2.28], [0.70, 0.46, -1.70], [-0.70, 0.46, -1.70], [-0.78, 0.52, -2.28], [0.78, 0.52, -2.28], [0.70, 0.52, -1.70], [-0.70, 0.52, -1.70]]);
 
-  // ---- Side sensor pods (tan housing, grille top, lens) ----
-  [-1, 1].forEach(side => {
-    const px = side * 1.08;
-    partRB('hullS', side * 1.05, 1.42, -0.25, 0.56, 0.18, 0.46, 0.05);
-    partRB('tanS', px, 1.62, -0.25, 0.44, 0.55, 0.55, 0.1);
-    partRB('darkS', px, 1.92, -0.25, 0.40, 0.1, 0.46, 0.02);
-    for (let j = -1.5; j <= 1.5; j++) { partRB('armS', px + j * 0.09, 1.975, -0.25, 0.022, 0.02, 0.44, 0.004); partRB('armS', px, 1.975, -0.25 + j * 0.1, 0.38, 0.02, 0.022, 0.004); }
-    partDisc('darkS', px, 1.66, -0.54, 0.12, 0.06, 0, 0, 1, 12);
-    partDisc('armS', px, 1.66, -0.56, 0.06, 0.03, 0, 0, 1, 10);
+  // ---- Cyan neon strips on the body ----
+  partRB('neon', 0, 0.49, -2.29, 1.50, 0.03, 0.025, 0.008);                                  // splitter edge
+  [-1, 1].forEach(s => {
+    partBeam('neon', s * 0.50, 0.64, -1.98, s * 0.66, 0.68, -1.45, 0.04);                    // nose side
+    partBeam('neon', s * 1.415, 0.70, -0.22, s * 1.415, 0.72, 0.36, 0.045);                  // side pod
+    partBeam('neon', s * 0.29, 0.945, -1.55, s * 0.49, 1.135, -0.15, 0.035);                 // hood line
   });
 
-  // ---- Rear equipment: black case, tan backpack, antenna ----
-  partRB('darkS', -0.5, 1.775, 1.16, 0.8, 0.45, 0.46, 0.08);
-  partRB('armS', -0.5, 2.02, 1.16, 0.5, 0.04, 0.34, 0.015);
-  partDisc('tanS', 0.34, 1.85, 1.16, 0.17, 0.6, 0, 1, 0, 12);
-  partDisc('tanS', 0.68, 1.85, 1.16, 0.17, 0.6, 0, 1, 0, 12);
-  partDisc('armS', 0.34, 2.17, 1.16, 0.09, 0.06, 0, 1, 0, 10);
-  partDisc('armS', 0.68, 2.17, 1.16, 0.09, 0.06, 0, 1, 0, 10);
-  partBeam('joint', -0.72, 2.0, 1.31, -0.72, 2.95, 1.31, 0.035);
-  partDisc('glow', -0.72, 2.97, 1.31, 0.05, 0.05, 0, 1, 0, 8);
-  // radar mast on top of the dome: a collar sits on the dome surface, the mast rises clearly above it and the dish floats on top
-  partDisc('tanS', -0.18, 2.27, 0.12, 0.10, 0.07, 0, 1, 0, 10);
-  partBeam('joint', -0.18, 2.27, 0.12, -0.18, 2.62, 0.12, 0.03);
-  partDisc('armS', -0.18, 2.68, 0.12, 0.27, 0.04, 0.2, 1, -0.5, 14);
+  // ---- Front face: slanted red lamps with a black mesh grille between them ----
+  [-1, 1].forEach(s => {
+    partRB('black', s * 0.39, 0.67, -2.012, 0.46, 0.17, 0.03, 0.01, 0, 0, s * 0.28);         // housing
+    partRB('headHot', s * 0.39, 0.67, -2.03, 0.40, 0.085, 0.02, 0.008, 0, 0, s * 0.28);       // main slit
+    partRB('headHot', s * 0.37, 0.595, -2.03, 0.30, 0.028, 0.02, 0.005, 0, 0, s * 0.28);      // lower accent
+  });
+  partRB('black', 0, 0.66, -2.012, 0.32, 0.24, 0.03, 0.01);                                  // grille
+  for (let j = 0; j < 4; j++) partRB('joint', 0, 0.57 + j * 0.06, -2.03, 0.28, 0.015, 0.014, 0.004);
+  for (let j = -1; j <= 1; j++) partRB('joint', j * 0.085, 0.66, -2.03, 0.014, 0.21, 0.014, 0.004);
 
-  // ---- Suspension brackets: mounted ON the outside of the hull (never buried) ----
-  // The arms and air springs themselves are dynamic (see updateSuspension) and follow each wheel.
-  const WHEEL_R = 0.84;     // outer radius of the tire incl. teeth
-  const TRACK = 1.95;      // wheel centre distance from the body centre line (a bit wider so the suspension is visible)
-  const CAP_TIP = TRACK - 0.45;   // inner end of each hub cap
+  // ---- Rear: tail lamps, neon bar, wing ----
+  [-1, 1].forEach(s => {
+    partRB('black', s * 0.64, 0.72, 1.762, 0.46, 0.17, 0.03, 0.01, 0, 0, -s * 0.28);
+    partRB('tail', s * 0.64, 0.72, 1.78, 0.40, 0.085, 0.02, 0.008, 0, 0, -s * 0.28);
+    partRB('tailHot', s * 0.64, 0.72, 1.795, 0.30, 0.03, 0.01, 0.005, 0, 0, -s * 0.28);
+    partRB('darkS', s * 0.60, 1.08, 1.62, 0.07, 0.34, 0.12, 0.01);                          // wing posts
+    partRB('darkS', s * 1.00, 1.27, 1.78, 0.04, 0.20, 0.60, 0.01);                          // wing end plates
+  });
+  partRB('neon', 0, 0.72, 1.775, 0.60, 0.05, 0.02, 0.008);
+  partRB('deckS', 0, 1.27, 1.78, 2.00, 0.045, 0.55, 0.012, -0.10, 0, 0);
+  partRB('neon', 0, 1.28, 2.06, 1.96, 0.03, 0.025, 0.008);
+
+  // ---- Small blue canopy, far back ----
+  const domeGeo = new THREE.SphereGeometry(0.5, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2);
+  domeGeo.scale(0.95, 0.72, 1.4);
+  part(domeGeo, place(0, 1.03, 0.95), 'dome');
+
+  // ---- Antenna with a white lamp ----
+  partBeam('joint', -0.62, 1.0, 1.4, -0.62, 2.15, 1.4, 0.03);
+  partDisc('glow', -0.62, 2.17, 1.4, 0.05, 0.06, 0, 1, 0, 8);
+
+  // ---- Static suspension mounts (bolted onto the sides of the body). The arms and springs are dynamic (updateSuspension). ----
+  const WHEEL_R = 0.84;     // tyre radius
+  const TRACK = 2.0;        // wheel centre distance from the centre line (wide track, arms clearly visible)
+  const WZ = 1.2;           // wheel centre distance from the middle (front/back)
+  const CAP_TIP = TRACK - 0.45;   // inner end of each hub
   const wheelSlots = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
   wheelSlots.forEach(([sx, sz]) => {
-    partRB('darkS', sx * 0.80, 1.60, sz * 0.74, 0.34, 0.12, 0.38, 0.03);
-    partDisc('darkS', sx * 0.80, 1.64, sz * 0.74, 0.17, 0.38, 0, 0, 1, 8);   // hinge knuckle   // upper mount, sits on top of the deck
-    partRB('darkS', sx * 1.25, 0.86, sz * 0.5, 0.12, 0.28, 0.38, 0.03);
-    partDisc('darkS', sx * 1.29, 0.86, sz * 0.5, 0.15, 0.38, 0, 0, 1, 8);   // hinge knuckle   // lower mount, bolted to the side armor
-    partRB('darkS', sx * 1.14, 1.31, sz * 0.40, 0.16, 0.09, 0.22, 0.02);   // air-spring mount, on top of the side armor
+    partRB('darkS', sx * 1.00, 0.98, sz * 0.80, 0.22, 0.13, 0.34, 0.03);     // upper mount
+    partRB('darkS', sx * 0.95, 0.60, sz * 0.80, 0.22, 0.13, 0.34, 0.03);     // lower mount
+    partRB('darkS', sx * 0.96, 1.04, sz * 0.62, 0.18, 0.10, 0.20, 0.02);     // spring mount
   });
-
-  // ---- Copper cables ----
-  const cable1 = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-0.95, 1.62, -0.35), new THREE.Vector3(-0.4, 1.5, -0.95),
-    new THREE.Vector3(0.4, 1.5, -0.95), new THREE.Vector3(0.95, 1.62, -0.35)
-  ]);
-  part(new THREE.TubeGeometry(cable1, 16, 0.03, 5), new THREE.Matrix4(), 'copper');
-  const cable3 = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-0.1, 1.72, 1.16), new THREE.Vector3(0.05, 1.62, 1.16),
-    new THREE.Vector3(0.2, 1.66, 1.16)
-  ]);
-  part(new THREE.TubeGeometry(cable3, 12, 0.022, 5), new THREE.Matrix4(), 'copper');
-
-  // ---- Lights ----
-  // Angry headlights: slanted LED slits with a brow line, a dark fang and an amber corner light.
-  // (coordinates are on the tilted nose face: lx = across, ox/ov = offset in the face plane, ld = out of the face)
-  const NOSE_TILT = -0.38;
-  function noseLamp(key, lx, ox, ov, ld, w, h, dd, r, roll) {
-    const cr = Math.cos(roll), sr = Math.sin(roll);
-    const wx = lx + ox * cr - ov * sr;
-    const v = ov * cr + ox * sr;
-    const zl = -(0.375 + ld);
-    const wy = 1.02 + v * Math.cos(NOSE_TILT) - zl * Math.sin(NOSE_TILT);
-    const wz = -1.18 + v * Math.sin(NOSE_TILT) + zl * Math.cos(NOSE_TILT);
-    partRB(key, wx, wy, wz, w, h, dd, r, NOSE_TILT, 0, roll);
-  }
-  [-1, 1].forEach(s => {
-    const lx = s * 0.64, roll = s * 0.3;
-    noseLamp('darkS', lx, 0, 0, 0.02, 0.58, 0.25, 0.07, 0.05, roll);                 // housing
-    noseLamp('headHot', lx, 0, -0.01, 0.06, 0.48, 0.06, 0.03, 0.012, roll);            // main LED slit
-    noseLamp('headHot', lx, 0, 0.085, 0.06, 0.40, 0.025, 0.03, 0.008, roll);           // brow line
-    noseLamp('headHot', lx, s * 0.08, -0.085, 0.06, 0.30, 0.025, 0.03, 0.008, roll);   // lower accent
-    noseLamp('darkS', lx, -s * 0.28, -0.12, 0.05, 0.07, 0.2, 0.05, 0.02, s * 0.5);      // fang
-    noseLamp('amber', lx, s * 0.26, 0.02, 0.05, 0.05, 0.12, 0.03, 0.01, roll);          // corner indicator
-    partDisc('headHot', s * 0.75, 0.76, -1.72, 0.07, 0.03, 0, 0, 1, 10);               // bumper fog lamp
-  });
-  partRB('headHot', 0, 0.80, -1.715, 1.1, 0.03, 0.02, 0.01);                          // bumper LED strip
-  [-1, 1].forEach(side => {
-    const lx = side * 0.8;
-    partRB('darkS', lx, 1.04, 1.325, 0.42, 0.28, 0.06, 0.04);          // housing frame
-    partRB('tail', lx, 1.04, 1.36, 0.34, 0.2, 0.04, 0.05);             // red lens
-    for (let j = 0; j < 3; j++) partRB('tailHot', lx, 1.11 - j * 0.07, 1.385, 0.28, 0.025, 0.02, 0.008); // LED strips
-    partRB('amber', lx, 1.225, 1.36, 0.2, 0.04, 0.04, 0.015);          // turn signal
-    partRB('revLamp', lx, 0.885, 1.36, 0.16, 0.06, 0.04, 0.02);        // reverse lamp
-  });
-  partRB('tailHot', 0, 1.22, 1.32, 1.0, 0.03, 0.03, 0.01);              // light bar between the lamps
 
   const haloCv = document.createElement('canvas');
   haloCv.width = 64; haloCv.height = 64;
@@ -1992,33 +1966,32 @@ function drawGrassAtlasCanvas() {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({
       map: haloTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4, fog: false
     }));
-    s.position.set(side * 0.8, 1.04, 1.45);
-    s.scale.set(0.95, 0.7, 1);
+    s.position.set(side * 0.64, 0.72, 1.86);
+    s.scale.set(0.95, 0.6, 1);
     rover.add(s);
     return s;
   });
 
-  // cool white glow in front of the headlights
+  // soft glow in front of the lamps (colour follows the HEADLIGHTS paint)
   const fhCv = document.createElement('canvas');
   fhCv.width = 64; fhCv.height = 64;
   const fhc = fhCv.getContext('2d');
   const fhg = fhc.createRadialGradient(32, 32, 2, 32, 32, 32);
-  fhg.addColorStop(0, 'rgba(235,250,255,0.95)');
-  fhg.addColorStop(0.4, 'rgba(150,215,255,0.35)');
-  fhg.addColorStop(1, 'rgba(120,200,255,0)');
+  fhg.addColorStop(0, 'rgba(255,255,255,0.95)');
+  fhg.addColorStop(0.4, 'rgba(255,255,255,0.35)');
+  fhg.addColorStop(1, 'rgba(255,255,255,0)');
   fhc.fillStyle = fhg; fhc.fillRect(0, 0, 64, 64);
   const fhTex = new THREE.CanvasTexture(fhCv);
   fhTex.colorSpace = THREE.SRGBColorSpace;
   const frontHalos = [-1, 1].map(side => {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: fhTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4, fog: false
+      map: fhTex, color: 0xff3a2c, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4, fog: false
     }));
-    s.position.set(side * 0.64, 0.88, -1.72);
-    s.scale.set(1.0, 0.6, 1);
+    s.position.set(side * 0.39, 0.67, -2.12);
+    s.scale.set(1.0, 0.55, 1);
     rover.add(s);
     return s;
   });
-  partRB('darkS', 0, 0.78, -1.62, 1.9, 0.2, 0.18, 0.07);
 
   Object.keys(buckets).forEach(key => {
     const merged = mergeSafe(buckets[key], false);
@@ -2029,74 +2002,58 @@ function drawGrassAtlasCanvas() {
     rover.add(mesh);
   });
 
-  // ---- Wheels with DEEP treads for strong silhouette ----
+  // ---- Wheels: very wide, smooth, glossy black tyres with a glowing neon arc on each sidewall ----
   function mergeSafe(list, groups) {
     return mergeGeometries(list.map(g => (g.index ? g.toNonIndexed() : g)), groups);
   }
   function buildWheelGeo() {
-    const carcass = new THREE.CylinderGeometry(0.62, 0.62, 0.74, 18);
-    carcass.rotateZ(Math.PI / 2);
-    // Grip teeth: two staggered rows of angled (herringbone) lugs + knobs on both sidewalls
-    const tp = [];
-    const N = 14;
-    for (let i = 0; i < N; i++) {
-      for (let row = 0; row < 2; row++) {
-        const a = ((i + row * 0.5) / N) * Math.PI * 2;
-        const sgn = row === 0 ? 1 : -1;
-        const lug = new RoundedBoxGeometry(0.34, 0.28, 0.3, 1, 0.04);
-        lug.rotateY(sgn * 0.45);
-        lug.translate(sgn * 0.19, 0.72, 0);
-        lug.applyMatrix4(new THREE.Matrix4().makeRotationX(a));
-        tp.push(lug);
-      }
-    }
-    for (let i = 0; i < 10; i++) {
-      for (let s = 0; s < 2; s++) {
-        const sgn = s === 0 ? 1 : -1;
-        const a = ((i + s * 0.5) / 10) * Math.PI * 2;
-        const knob = new RoundedBoxGeometry(0.09, 0.24, 0.22, 1, 0.03);
-        knob.translate(sgn * 0.385, 0.5, 0);
-        knob.applyMatrix4(new THREE.Matrix4().makeRotationX(a));
-        tp.push(knob);
-      }
-    }
-    const treads = mergeGeometries(tp, false);
+    const prof = [[0.34, -0.47], [0.70, -0.47], [0.79, -0.44], [0.84, -0.36], [0.84, 0.36], [0.79, 0.44], [0.70, 0.47], [0.34, 0.47]]
+      .map(p => new THREE.Vector2(p[0], p[1]));
+    const tyre = new THREE.LatheGeometry(prof, 28);
+    tyre.rotateZ(Math.PI / 2);
+    const arcs = [];
+    [1, -1].forEach((sgn, k) => {
+      const arc = new THREE.TorusGeometry(0.60, 0.032, 5, 24, Math.PI * 1.3);
+      arc.rotateY(Math.PI / 2);
+      arc.rotateX(k * 2.4);
+      arc.translate(sgn * 0.47, 0, 0);
+      arcs.push(arc);
+    });
     const hp = [];
-    const hub = new THREE.CylinderGeometry(0.4, 0.4, 0.82, 10); hub.rotateZ(Math.PI / 2); hp.push(hub);
-    const cap = new THREE.CylinderGeometry(0.2, 0.2, 0.9, 8); cap.rotateZ(Math.PI / 2); hp.push(cap);
+    const hub = new THREE.CylinderGeometry(0.30, 0.30, 0.96, 14); hub.rotateZ(Math.PI / 2); hp.push(hub);
+    const cap = new THREE.CylinderGeometry(0.12, 0.12, 1.02, 8); cap.rotateZ(Math.PI / 2); hp.push(cap);
     for (let s = 0; s < 2; s++) {
-      const ring = new THREE.TorusGeometry(0.47, 0.045, 6, 18);
-      ring.rotateY(Math.PI / 2);
-      ring.translate((s === 0 ? 1 : -1) * 0.385, 0, 0);
-      hp.push(ring);
+      for (let i = 0; i < 6; i++) {
+        const sp = new THREE.BoxGeometry(0.03, 0.24, 0.06);
+        sp.translate((s === 0 ? 1 : -1) * 0.475, 0.46, 0);
+        sp.applyMatrix4(new THREE.Matrix4().makeRotationX((i / 6) * Math.PI * 2));
+        hp.push(sp);
+      }
     }
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      const bolt = new THREE.CylinderGeometry(0.04, 0.04, 0.88, 5);
-      bolt.rotateZ(Math.PI / 2);
-      bolt.translate(0, Math.cos(a) * 0.3, Math.sin(a) * 0.3);
-      hp.push(bolt);
-    }
-    return mergeSafe([carcass, treads, mergeGeometries(hp, false)], true);
+    return mergeSafe([tyre, mergeSafe(arcs, false), mergeSafe(hp, false)], true);
   }
   const wheelGeo = buildWheelGeo();
   const wheelOutlineGeo = makeOutlineGeo(wheelGeo);
   const wheels = [];
   wheelSlots.forEach(([sx, sz]) => {
-    const w = new THREE.Mesh(wheelGeo, [MATS.rubber, MATS.tread, MATS.armS]);
+    const w = new THREE.Mesh(wheelGeo, [MATS.tyre, MATS.neon, MATS.rim]);
     w.add(new THREE.Mesh(wheelOutlineGeo, OUTLINE_MAT));
-    w.position.set(sx * TRACK, 0.74, sz * 1.0);
+    w.position.set(sx * TRACK, 0.74, sz * WZ);
     w.castShadow = true;
     rover.add(w);
-    wheels.push({ mesh: w, baseY: 0.74, y: 0.74, phase: Math.random() * 6.28, lx: sx * TRACK, lz: sz * 1.0 });
+    wheels.push({ mesh: w, baseY: 0.74, y: 0.74, phase: Math.random() * 6.28, lx: sx * TRACK, lz: sz * WZ });
   });
 
-  // ---- Dynamic suspension: arms + air springs follow each wheel's travel ----
+  // ---- Dynamic suspension: dark wishbones with a neon strip + glowing springs follow each wheel's travel ----
   const _ZA = new THREE.Vector3(0, 0, 1);
+  const stripGeo = new THREE.BoxGeometry(0.05, 0.03, 0.8);
   function unitBeam(w, t, mat, r, outline) {
     const g = new RoundedBoxGeometry(w, t, 1, 1, r);
     const m = new THREE.Mesh(g, mat);
     if (outline) m.add(new THREE.Mesh(makeOutlineGeo(g), OUTLINE_MAT));
+    const strip = new THREE.Mesh(stripGeo, MATS.neon);
+    strip.position.y = t / 2 + 0.012;
+    m.add(strip);
     m.castShadow = true;
     rover.add(m);
     return m;
@@ -2118,16 +2075,16 @@ function drawGrassAtlasCanvas() {
 
   const suspension = wheelSlots.map(([sx, sz], i) => {
     const rod = new THREE.Mesh(rodGeo, MATS.darkS); rod.castShadow = true; rover.add(rod);
-    const spring = new THREE.Mesh(springGeo, MATS.armS); spring.castShadow = true; rover.add(spring);
+    const spring = new THREE.Mesh(springGeo, MATS.neon); spring.castShadow = true; rover.add(spring);
     const joint = new THREE.Mesh(hubJointGeo, MATS.darkS); joint.castShadow = true; rover.add(joint);
     return {
       sx, sz, wheel: wheels[i],
-      upper: unitBeam(0.34, 0.2, MATS.armS, 0.05, true),
-      lower: unitBeam(0.32, 0.17, MATS.armS, 0.05, true),
+      upper: unitBeam(0.22, 0.12, MATS.darkS, 0.03, true),
+      lower: unitBeam(0.22, 0.12, MATS.darkS, 0.03, true),
       rod, spring, joint,
-      U: new THREE.Vector3(sx * 0.80, 1.62, sz * 0.74),
-      L: new THREE.Vector3(sx * 1.28, 0.86, sz * 0.5),
-      T: new THREE.Vector3(sx * 1.14, 1.34, sz * 0.40)
+      U: new THREE.Vector3(sx * 1.00, 0.98, sz * 0.80),
+      L: new THREE.Vector3(sx * 0.95, 0.60, sz * 0.80),
+      T: new THREE.Vector3(sx * 0.96, 1.04, sz * 0.62)
     };
   });
   const _sa = new THREE.Vector3(), _sb = new THREE.Vector3(), _sd = new THREE.Vector3();
@@ -2143,20 +2100,20 @@ function drawGrassAtlasCanvas() {
     for (let i = 0; i < suspension.length; i++) {
       const q = suspension[i];
       const wy = q.wheel.mesh.position.y;
-      _Ht.set(q.sx * CAP_TIP, wy + 0.12, q.sz * 1.0);
-      _Hb.set(q.sx * CAP_TIP, wy - 0.12, q.sz * 1.0);
+      _Ht.set(q.sx * CAP_TIP, wy + 0.13, q.sz * WZ);
+      _Hb.set(q.sx * CAP_TIP, wy - 0.13, q.sz * WZ);
       placeBeam(q.upper, q.U, _Ht);
       placeBeam(q.lower, q.L, _Hb);
       _Bp.lerpVectors(q.L, _Hb, 0.5); _Bp.y += 0.1; _Bp.z = q.sz * 0.62;
       placeBeam(q.spring, q.T, _Bp);
       placeBeam(q.rod, q.T, _Bp);
-      q.joint.position.set(q.sx * CAP_TIP, wy, q.sz * 1.0);
+      q.joint.position.set(q.sx * CAP_TIP, wy, q.sz * WZ);
     }
   }
   updateSuspension();
 
   const headLight = new THREE.SpotLight(0xe6f4ff, 2.4, 18, Math.PI / 6, 0.35);
-  headLight.position.set(0, 1.0, -1.2);
+  headLight.position.set(0, 0.9, -1.9);
   headLight.target.position.set(0, 0, -12);
   rover.add(headLight); rover.add(headLight.target);
 
@@ -2165,7 +2122,7 @@ function drawGrassAtlasCanvas() {
     new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
     new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false, opacity: 0.7, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })
   );
-  roverBlob.scale.set(5.4, 1, 6.2);
+  roverBlob.scale.set(6.2, 1, 6.0);
   roverBlob.position.set(0, -0.03, 0.05);
   roverBlob.renderOrder = 2;
   rover.add(roverBlob);
@@ -2287,10 +2244,6 @@ function drawGrassAtlasCanvas() {
       oscs.forEach(o => o.start()); wob.start(); lfo.start(); inSrc.start(); wh.start();
 
       // ---- tires: gravel grains (trail), swish (grass), low hum ----
-      const gSrc = actx.createBufferSource(); gSrc.buffer = makeGravelBuffer(actx); gSrc.loop = true;
-      const gHp = actx.createBiquadFilter(); gHp.type = 'highpass'; gHp.frequency.value = 650;
-      const gG = actx.createGain(); gG.gain.value = 0;
-      gSrc.connect(gHp); gHp.connect(gG); gG.connect(mix); gSrc.start();
       const sSrc = actx.createBufferSource(); sSrc.buffer = noiseBuf; sSrc.loop = true; sSrc.playbackRate.value = 0.9;
       const sF = actx.createBiquadFilter(); sF.type = 'bandpass'; sF.frequency.value = 1500; sF.Q.value = 0.5;
       const sG = actx.createGain(); sG.gain.value = 0;
@@ -2309,7 +2262,7 @@ function drawGrassAtlasCanvas() {
       wl.connect(wlg); wlg.connect(wg.gain); wl.start();
       ws.connect(wf); wf.connect(wg); wg.connect(mix); ws.start();
 
-      eng = { bus, lp, oscs, lfo, inG, inF, wh, whG, gSrc, gG, sG, hG, wg, wf };
+      eng = { bus, lp, oscs, lfo, inG, inF, wh, whG, sG, hG, wg, wf };
       if (actx.state === 'suspended') actx.resume();
     } catch (e) { actx = null; eng = null; }
   }
@@ -2355,8 +2308,6 @@ function drawGrassAtlasCanvas() {
     eng.wh.frequency.setTargetAtTime((260 + sp * 760) * (reversing ? 1.25 : 1), t0, 0.08);
     eng.whG.gain.setTargetAtTime(sp * 0.016 * (throttle ? 1 : 0.6) * ENGINE_K, t0, 0.1);
     // ground
-    eng.gSrc.playbackRate.setTargetAtTime(0.45 + sp * 1.25, t0, 0.1);
-    eng.gG.gain.setTargetAtTime(Math.pow(sp, 1.1) * 0.12 * GRAVEL_K, t0, 0.12);
     eng.sG.gain.setTargetAtTime(sp * 0.03, t0, 0.15);
     eng.hG.gain.setTargetAtTime(sp * 0.16, t0, 0.15);
     eng.wg.gain.setTargetAtTime(0, t0, 0.2);      // space: no wind
@@ -2381,71 +2332,6 @@ function drawGrassAtlasCanvas() {
     g.gain.setValueAtTime(0.35 * k, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
     s.connect(f); f.connect(g); g.connect(mix);
     s.start(now); s.stop(now + 0.16);
-  }
-
-  // ============ Dust kicked up by the wheels ============
-  const DUST_N = 80;
-  const dustPos = new Float32Array(DUST_N * 3), dustLife = new Float32Array(DUST_N), dustSize = new Float32Array(DUST_N);
-  const dustVel = new Float32Array(DUST_N * 3);
-  const dustGeo = new THREE.BufferGeometry();
-  dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-  dustGeo.setAttribute('aLife', new THREE.BufferAttribute(dustLife, 1));
-  dustGeo.setAttribute('aSize', new THREE.BufferAttribute(dustSize, 1));
-  const dustMat = new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false,
-    uniforms: { uCol: { value: new THREE.Color(0xc9a678) }, uPR: { value: 1 } },
-    vertexShader: `
-      attribute float aLife; attribute float aSize; uniform float uPR; varying float vA;
-      void main(){
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        gl_Position = projectionMatrix * mv;
-        gl_PointSize = aSize * (1.0 + (1.0 - aLife) * 1.8) * (260.0 / max(0.5, -mv.z)) * uPR;
-        vA = aLife;
-      }`,
-    fragmentShader: `
-      uniform vec3 uCol; varying float vA;
-      void main(){
-        float d = length(gl_PointCoord - 0.5);
-        if (d > 0.5) discard;
-        gl_FragColor = vec4(uCol, smoothstep(0.5, 0.05, d) * vA * 0.38);
-      }`
-  });
-  const dust = new THREE.Points(dustGeo, dustMat);
-  dust.frustumCulled = false;
-  scene.add(dust);
-  let dustNext = 0, dustAcc = 0;
-  const dustTrail = new THREE.Color(0x9fdcff), dustGrass = new THREE.Color(0x9fdcff);
-  function updateDust(dt, spd, rx, rz, cosR, sinR, onPath) {
-    dustMat.uniforms.uPR.value = renderer.getPixelRatio();
-    dustMat.uniforms.uCol.value.lerp(onPath ? dustTrail : dustGrass, 0.1);
-    if (spd > 1.2) {
-      dustAcc += spd * dt * 5;
-      while (dustAcc >= 1) {
-        dustAcc -= 1;
-        const i = dustNext; dustNext = (dustNext + 1) % DUST_N;
-        const sx = Math.random() < 0.5 ? -1 : 1;
-        const lx = sx * 1.95, lz = 1.0;
-        const wx = rx + lx * cosR + lz * sinR + (Math.random() - 0.5) * 0.4;
-        const wz = rz - lx * sinR + lz * cosR + (Math.random() - 0.5) * 0.4;
-        dustPos[i * 3] = wx; dustPos[i * 3 + 1] = getGroundHeight(wx, wz) + 0.15; dustPos[i * 3 + 2] = wz;
-        dustVel[i * 3] = (Math.random() - 0.5) * 0.6 + sinR * spd * 0.12;
-        dustVel[i * 3 + 1] = 0.5 + Math.random() * 0.7;
-        dustVel[i * 3 + 2] = (Math.random() - 0.5) * 0.6 + cosR * spd * 0.12;
-        dustLife[i] = 1; dustSize[i] = 0.5 + Math.random() * 0.5;
-      }
-    }
-    for (let i = 0; i < DUST_N; i++) {
-      if (dustLife[i] <= 0) continue;
-      dustLife[i] -= dt * 1.1;
-      if (dustLife[i] < 0) dustLife[i] = 0;
-      dustPos[i * 3] += dustVel[i * 3] * dt;
-      dustPos[i * 3 + 1] += dustVel[i * 3 + 1] * dt;
-      dustPos[i * 3 + 2] += dustVel[i * 3 + 2] * dt;
-      dustVel[i * 3 + 1] *= 0.97;
-    }
-    dustGeo.attributes.position.needsUpdate = true;
-    dustGeo.attributes.aLife.needsUpdate = true;
-    dustGeo.attributes.aSize.needsUpdate = true;
   }
 
   // ============ Minimap ============
@@ -3378,7 +3264,7 @@ function drawGrassAtlasCanvas() {
 
     // ---- Collisions: the rover's footprint (wheels included) is a rectangle, so nothing can pass through a wheel ----
     let hit = false;
-    const RV_HX = 2.3, RV_HZ = 1.85;   // half width / half length of the footprint (wheels outer edge)
+    const RV_HX = 2.5, RV_HZ = 2.3;   // half width / half length of the footprint (wheels outer edge)
     for (let pass = 0; pass < 2; pass++) {
       const cR = Math.cos(currentRot), sR = Math.sin(currentRot);
       for (let i = 0; i < colliders.length; i++) {
@@ -3472,13 +3358,13 @@ function drawGrassAtlasCanvas() {
     // ---- Hull clearance: probe the body footprint, lift the rover if any point would touch the ground ----
     {
       const sP = Math.sin(pitch), sRl = Math.sin(roll);
-      const probes = [[-1.0, -1.6], [1.0, -1.6], [-1.0, 1.3], [1.0, 1.3], [0, -1.6], [0, 1.3], [-1.1, 0], [1.1, 0], [0, 0]];
+      const probes = [[-0.7, -2.2], [0.7, -2.2], [-0.9, 1.7], [0.9, 1.7], [0, -2.2], [0, 1.9], [-1.3, 0], [1.3, 0], [0, 0]];
       let lift = 0;
       for (let k = 0; k < probes.length; k++) {
         const px = probes[k][0], pz = probes[k][1];
         const gx2 = rx + px * cosR + pz * sinR;
         const gz2 = rz - px * sinR + pz * cosR;
-        const need = driveHeight(gx2, gz2) + 0.06 - (rover.position.y + 0.52 - pz * sP + px * sRl);
+        const need = driveHeight(gx2, gz2) + 0.06 - (rover.position.y + 0.44 - pz * sP + px * sRl);
         if (need > lift) lift = need;
       }
       if (lift > 0) rover.position.y += lift;
@@ -3514,7 +3400,6 @@ function drawGrassAtlasCanvas() {
     frontHalos.forEach(s => { s.material.opacity = Math.min(0.9, 0.25 + darkness * 0.45); });
     const onPathNow = pathMask(rx, rz) > 0.35;
     updateAudio(speedNorm, keys.forward || keys.backward, onPathNow, dt, velocity < -0.2);
-    updateDust(dt, spd, rx, rz, cosR, sinR, onPathNow);
     updateVitals(dt, spd, speedNorm, keys.forward || keys.backward, hit);
     raceTick(dt, rx, rz, spd);
 
