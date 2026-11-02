@@ -1641,7 +1641,7 @@ function drawGrassAtlasCanvas() {
   }
 
   // ---- paint: colours cost nothing (just material colours) and are remembered ----
-  const PAINT_KEY = 'roverPaint3';
+  const PAINT_KEY = 'roverPaint4';   // new key: old saved colours (e.g. a white body) are reset to the target colours
   let paint = {};
   try { paint = JSON.parse(localStorage.getItem(PAINT_KEY)) || {}; } catch (e) { paint = {}; }
   let paintApplied = false;
@@ -1674,8 +1674,8 @@ function drawGrassAtlasCanvas() {
       '#home-start:active{transform:scale(0.97)}';
     document.head.appendChild(st);
     const palettes = [
-      ['body', 'BODY COLOUR', ['#a2abb3', '#d9382c', '#f08a1c', '#f2c12e', '#3fae4a', '#2f7fe0', '#8a4fd6', '#e8e8ea', '#2a2d31']],
-      ['dome', 'DOME COLOUR', ['#1650b8', '#a6c4d8', '#d9382c', '#f2c12e', '#3fae4a', '#8a4fd6', '#e8e8ea', '#2a2d31', '#f08a1c']],
+      ['body', 'BODY COLOUR', ['#c4cad0', '#d9382c', '#f08a1c', '#f2c12e', '#3fae4a', '#2f7fe0', '#8a4fd6', '#e8e8ea', '#2a2d31']],
+      ['dome', 'DOME COLOUR', ['#4ea2ec', '#a6c4d8', '#d9382c', '#f2c12e', '#3fae4a', '#8a4fd6', '#e8e8ea', '#2a2d31', '#f08a1c']],
       ['accent', 'NEON LIGHTS', ['#2fd6ff', '#ff3fd0', '#5dff8a', '#f2c12e', '#ff4a3a', '#c27bff', '#e8e8ea', '#4a7bff']],
       ['light', 'REAR LAMPS', ['#ff3322', '#ffd27a', '#e8fbff', '#5dff8a', '#4aa8ff', '#c27bff']]
     ];
@@ -1755,7 +1755,7 @@ function drawGrassAtlasCanvas() {
   const MATS = {
     light:  new THREE.MeshStandardMaterial({ color: 0xa9b8c2, metalness: 0.20, roughness: 0.60, flatShading: true, envMapIntensity: 0.6 }),
     joint:  new THREE.MeshStandardMaterial({ color: 0x6a717a, metalness: 0.60, roughness: 0.45, flatShading: true }),
-    dome:   new THREE.MeshStandardMaterial({ color: 0x1650b8, emissive: 0x08265a, emissiveIntensity: 0.5, metalness: 0.0, roughness: 0.4, flatShading: true, envMapIntensity: 0.35 }),
+    dome:   new THREE.MeshStandardMaterial({ color: 0x4ea2ec, emissive: 0x0c3470, emissiveIntensity: 0.5, metalness: 0.0, roughness: 0.4, flatShading: true, envMapIntensity: 0.35 }),
     black:  new THREE.MeshStandardMaterial({ color: 0x0c0d0f, roughness: 0.70, flatShading: true }),
     glow:   new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.8, flatShading: true }),
     tail:   new THREE.MeshStandardMaterial({ color: 0xff3322, emissive: 0xff2211, emissiveIntensity: 0.9, flatShading: true }),
@@ -1763,8 +1763,8 @@ function drawGrassAtlasCanvas() {
     revLamp: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xdfeeff, emissiveIntensity: 0.1 }),
     amber:   new THREE.MeshStandardMaterial({ color: 0xffa020, emissive: 0xff8a00, emissiveIntensity: 0.5 }),
     headHot: new THREE.MeshStandardMaterial({ color: 0xe8fbff, emissive: 0xbfefff, emissiveIntensity: 1.8 }),
-    hullS: new THREE.MeshStandardMaterial({ color: 0x30363c, emissive: 0x0c0f12, metalness: 0.15, roughness: 0.55, envMapIntensity: 0.5, flatShading: true }),
-    deckS: new THREE.MeshStandardMaterial({ color: 0xa2abb3, emissive: 0x1a1f24, metalness: 0.05, roughness: 0.55, envMapIntensity: 0.4, flatShading: true }),
+    hullS: new THREE.MeshStandardMaterial({ color: 0x23282d, emissive: 0x080a0c, metalness: 0.15, roughness: 0.55, envMapIntensity: 0.5, flatShading: true }),
+    deckS: new THREE.MeshStandardMaterial({ color: 0xc4cad0, emissive: 0x1a1f24, metalness: 0.05, roughness: 0.55, envMapIntensity: 0.4, flatShading: true }),
     midS:  new THREE.MeshStandardMaterial({ color: 0x7c868e, metalness: 0.10, roughness: 0.55, envMapIntensity: 0.5, flatShading: true }),
     tailDark: new THREE.MeshStandardMaterial({ color: 0x3a0707, emissive: 0x2a0000, emissiveIntensity: 0.8, flatShading: true }),
     darkS: new THREE.MeshStandardMaterial({ color: 0x1f2328, metalness: 0.35, roughness: 0.60, flatShading: true }),
@@ -1893,80 +1893,102 @@ function drawGrassAtlasCanvas() {
   }
   function hexSym(key, P) { hexBlock(key, P, false); hexBlock(key, P, true); }
 
-  // ---- Compact, chunky silhouette like the target: the body fills the space between the big wheels ----
-  // nose + middle (charcoal)
-  hexBlock('hullS', [[-0.75, 0.46, -1.95], [0.75, 0.46, -1.95], [0.90, 0.45, -1.00], [-0.90, 0.45, -1.00], [-0.52, 0.90, -1.95], [0.52, 0.90, -1.95], [0.68, 0.98, -1.00], [-0.68, 0.98, -1.00]]);
-  hexBlock('hullS', [[-0.90, 0.45, -1.00], [0.90, 0.45, -1.00], [1.00, 0.45, 0.40], [-1.00, 0.45, 0.40], [-0.68, 0.98, -1.00], [0.68, 0.98, -1.00], [0.72, 1.15, 0.40], [-0.72, 1.15, 0.40]]);
-  // sloping hood (light)
-  hexBlock('deckS', [[-0.52, 0.90, -1.90], [0.52, 0.90, -1.90], [0.72, 1.00, -0.20], [-0.72, 1.00, -0.20], [-0.42, 0.99, -1.85], [0.42, 0.99, -1.85], [0.52, 1.38, -0.20], [-0.52, 1.38, -0.20]]);
-  // rear lower body: centre + angled wings (the lamps sit on the wings)
-  hexBlock('hullS', [[-0.50, 0.45, 0.20], [0.50, 0.45, 0.20], [0.50, 0.45, 1.78], [-0.50, 0.45, 1.78], [-0.50, 1.15, 0.20], [0.50, 1.15, 0.20], [0.50, 1.15, 1.78], [-0.50, 1.15, 1.78]]);
-  hexSym('hullS', [[0.45, 0.45, 0.20], [1.00, 0.45, 0.20], [1.00, 0.45, 1.50], [0.50, 0.45, 1.78], [0.45, 1.15, 0.20], [0.86, 1.15, 0.20], [0.86, 1.15, 1.50], [0.50, 1.15, 1.78]]);
-  // big light rear block with chamfered top (shield shape)
-  hexBlock('deckS', [[-0.68, 1.10, 0.20], [0.68, 1.10, 0.20], [1.02, 1.15, 1.70], [-1.02, 1.15, 1.70], [-0.46, 1.42, 0.20], [0.46, 1.42, 0.20], [0.70, 1.40, 1.62], [-0.70, 1.40, 1.62]]);
-  hexBlock('deckS', [[-0.46, 1.42, 0.20], [0.46, 1.42, 0.20], [0.70, 1.40, 1.62], [-0.70, 1.40, 1.62], [-0.32, 1.50, 0.25], [0.32, 1.50, 0.25], [0.50, 1.60, 1.52], [-0.50, 1.60, 1.52]]);
-  // dark underbody + front splitter
-  hexBlock('darkS', [[-0.65, 0.40, -1.70], [0.65, 0.40, -1.70], [0.85, 0.40, 1.70], [-0.85, 0.40, 1.70], [-0.65, 0.48, -1.70], [0.65, 0.48, -1.70], [0.85, 0.48, 1.70], [-0.85, 0.48, 1.70]]);
-  hexBlock('darkS', [[-0.90, 0.42, -2.25], [0.90, 0.42, -2.25], [0.85, 0.42, -1.85], [-0.85, 0.42, -1.85], [-0.90, 0.50, -2.25], [0.90, 0.50, -2.25], [0.85, 0.50, -1.85], [-0.85, 0.50, -1.85]]);
-  // cockpit cradle + canopy (toward the front, like the target)
-  hexBlock('darkS', [[-0.62, 1.14, -1.20], [0.62, 1.14, -1.20], [0.66, 1.14, 0.50], [-0.66, 1.14, 0.50], [-0.52, 1.44, -1.05], [0.52, 1.44, -1.05], [0.56, 1.44, 0.40], [-0.56, 1.44, 0.40]]);
-  const domeGeo = new THREE.SphereGeometry(0.5, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2);
-  domeGeo.scale(1.15, 1.1, 1.5);
-  part(domeGeo, place(0, 1.40, -0.35), 'dome');
+  // ---- Racing body built from the multi-view target sheet (front / back / sides / top). Pre-lift coords (BODY_LIFT added later).
+  //      Front is -z (front face z = -2.15), rear face is the plane z = 1.75. The wheels sit at the four corners (WZ); between them the side pods bulge out wide.
+  //      Section: [bottom y, bottom half-w, waist y, waist half-w, top y, top half-w, bevel-top y, bevel-top half-w]
+  const SECT = [
+    [-2.15, [0.26, 0.66, 0.55, 0.98, 0.82, 1.04, 1.02, 0.55]],   // front face
+    [-1.05, [0.22, 0.80, 0.56, 1.34, 0.86, 1.34, 1.06, 0.62]],   // pods start (behind the front wheels)
+    [-0.55, [0.22, 0.86, 0.56, 1.64, 0.88, 1.56, 1.08, 0.64]],   // pods widest
+    [ 0.45, [0.22, 0.86, 0.58, 1.64, 0.92, 1.54, 1.16, 0.62]],
+    [ 1.05, [0.22, 0.78, 0.58, 1.12, 0.98, 1.12, 1.30, 0.58]],   // pods end (in front of the rear wheels)
+    [ 1.75, [0.22, 0.75, 0.58, 1.05, 1.00, 1.10, 1.32, 0.58]]    // rear face
+  ];
+  const SEG_KEYS = [['hullS', 'deckS'], ['deckS', 'hullS'], ['hullS', 'hullS'], ['deckS', 'hullS'], ['hullS', 'deckS']];   // [upper sides, bevel] per segment: light-grey nose + pod ends, charcoal middle / back
+  function loft(key, zA, A, zB, B, i0, i1) {   // block between two sections, from level i0 to level i1 (0 bottom, 1 waist, 2 top, 3 bevel top)
+    hexBlock(key, [[-A[i0 * 2 + 1], A[i0 * 2], zA], [A[i0 * 2 + 1], A[i0 * 2], zA], [B[i0 * 2 + 1], B[i0 * 2], zB], [-B[i0 * 2 + 1], B[i0 * 2], zB],
+                   [-A[i1 * 2 + 1], A[i1 * 2], zA], [A[i1 * 2 + 1], A[i1 * 2], zA], [B[i1 * 2 + 1], B[i1 * 2], zB], [-B[i1 * 2 + 1], B[i1 * 2], zB]]);
+  }
+  for (let k = 0; k < SECT.length - 1; k++) {
+    const [zA, A] = SECT[k], [zB, B] = SECT[k + 1];
+    loft('hullS', zA, A, zB, B, 0, 1);              // lower sides: charcoal, tapering in toward the bottom
+    loft(SEG_KEYS[k][0], zA, A, zB, B, 1, 2);       // upper sides
+    loft(SEG_KEYS[k][1], zA, A, zB, B, 2, 3);       // bevelled shoulders
+    // dark centre strip on top (the light-grey only shows on the shoulders)
+    hexBlock('hullS', [[-0.42, A[6] - 0.02, zA], [0.42, A[6] - 0.02, zA], [0.42, B[6] - 0.02, zB], [-0.42, B[6] - 0.02, zB],
+                       [-0.40, A[6] + 0.03, zA], [0.40, A[6] + 0.03, zA], [0.40, B[6] + 0.03, zB], [-0.40, B[6] + 0.03, zB]]);
+    // cyan bar along the outer edge of the pods (waist line)
+    if (k >= 1 && k <= 3) [-1, 1].forEach(s => partBeam('neon', s * (A[3] + 0.02), A[2] + 0.01, zA + 0.05, s * (B[3] + 0.02), B[2] + 0.01, zB - 0.05, 0.075));
+  }
+  const RS = SECT[SECT.length - 1][1];
+  const sideW = y => y < RS[2] ? RS[1] + (y - RS[0]) / (RS[2] - RS[0]) * (RS[3] - RS[1]) : RS[3];   // rear half-width at height y
+  // charcoal trapezoids on the rear and front faces between the light-grey bevel corners
+  hexBlock('hullS', [[-0.78, 1.00, 1.74], [0.78, 1.00, 1.74], [0.78, 1.00, 1.775], [-0.78, 1.00, 1.775], [-0.56, 1.30, 1.74], [0.56, 1.30, 1.74], [0.56, 1.30, 1.775], [-0.56, 1.30, 1.775]]);
+  hexBlock('hullS', [[-0.76, 0.82, -2.175], [0.76, 0.82, -2.175], [0.76, 0.82, -2.14], [-0.76, 0.82, -2.14], [-0.52, 1.00, -2.175], [0.52, 1.00, -2.175], [0.52, 1.00, -2.14], [-0.52, 1.00, -2.14]]);
+  // hump behind the canopy with the little cyan light, and the seat / head rest
+  hexBlock('darkS', [[-0.30, 1.28, 1.05], [0.30, 1.28, 1.05], [0.30, 1.30, 1.60], [-0.30, 1.30, 1.60], [-0.20, 1.48, 1.10], [0.20, 1.48, 1.10], [0.20, 1.48, 1.52], [-0.20, 1.48, 1.52]]);
+  hexBlock('black', [[-0.38, 1.12, 0.62], [0.12, 1.12, 0.62], [0.12, 1.14, 0.92], [-0.38, 1.14, 0.92], [-0.32, 1.50, 0.68], [0.06, 1.50, 0.68], [0.06, 1.47, 0.88], [-0.32, 1.47, 0.88]]);
+  // dark underbody plate + front splitter
+  hexBlock('darkS', [[-0.52, 0.16, -2.05], [0.52, 0.16, -2.05], [0.62, 0.16, 1.72], [-0.62, 0.16, 1.72], [-0.52, 0.24, -2.05], [0.52, 0.24, -2.05], [0.62, 0.24, 1.72], [-0.62, 0.24, 1.72]]);
+  hexBlock('darkS', [[-0.70, 0.20, -2.40], [0.70, 0.20, -2.40], [0.64, 0.20, -2.10], [-0.64, 0.20, -2.10], [-0.70, 0.27, -2.40], [0.70, 0.27, -2.40], [0.64, 0.27, -2.10], [-0.64, 0.27, -2.10]]);
+  // big teardrop glass canopy over the middle
+  const domeGeo = new THREE.SphereGeometry(0.5, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2);
+  domeGeo.scale(1.6, 1.25, 2.4);
+  part(domeGeo, place(0, 1.02, -0.25), 'dome');
 
   // ---- Cyan neon ----
-  partRB('neon', 0, 0.55, -1.97, 0.95, 0.04, 0.03, 0.01);                                    // nose line
-  partRB('neon', 0, 0.45, -2.26, 1.70, 0.03, 0.025, 0.008);                                  // splitter edge
-  partRB('neon', 0, 1.535, 0.90, 0.15, 0.03, 0.15, 0.008);                                   // little square light on the roof
-  [-1, 1].forEach(s => {
-    partBeam('neon', s * 0.945, 0.62, -0.6, s * 1.015, 0.62, 0.3, 0.05);                     // body side
-    partBeam('neon', s * 0.95, 0.80, 0.45, s * 0.93, 0.80, 1.30, 0.05);                    // rear wing side
-    partBeam('neon', s * 0.30, 1.06, -1.80, s * 0.55, 1.40, -0.28, 0.035);                   // hood line
-  });
+  partRB('neon', 0, 1.40, 1.62, 0.16, 0.12, 0.03, 0.01);                                    // little square light on the hump
+  [-1, 1].forEach(s => partBeam('neon', s * (sideW(0.38) + 0.015), 0.38, 1.05, s * (sideW(0.38) + 0.015), 0.38, 1.60, 0.05));   // low side strip at the back
 
-  // ---- Rear (what you see from the chase camera): neon bar on a dark band, slanted lamp frames on angled wings, big mesh grille ----
-  partRB('darkS', 0, 1.28, 1.665, 1.60, 0.20, 0.03, 0.01, -0.17, 0, 0);
-  partRB('neon', 0, 1.28, 1.685, 1.30, 0.06, 0.03, 0.01, -0.17, 0, 0);
+  // ---- Rear face (what the chase camera sees): narrow neon bar on a dark band near the top, V-slanted red lamps, big dark grille, light bumper ----
+  partRB('darkS', 0, 0.90, 1.765, 1.50, 0.15, 0.03, 0.01);
+  partRB('neon', 0, 0.90, 1.785, 0.98, 0.06, 0.03, 0.01);
   function lampBar(key, cx, cy, cz, w, h, d, ox, oy, roll, yaw) {
     const cr = Math.cos(roll), sr = Math.sin(roll), cy2 = Math.cos(yaw), sy2 = Math.sin(yaw);
     const lx = ox * cr - oy * sr, ly = ox * sr + oy * cr;
     partRB(key, cx + lx * cy2, cy + ly, cz - lx * sy2, w, h, d, Math.min(h, d) * 0.3, 0, yaw, roll);
   }
-  [-1, 1].forEach(s => {
-    const lx = s * 0.72, ly = 0.92, lz = 1.66, rl = s * 0.30, yw = s * 0.50;
-    lampBar('black', lx, ly, lz, 0.56, 0.30, 0.03, 0, 0, rl, yw);               // housing
-    lampBar('tailDark', lx, ly, lz + 0.014, 0.49, 0.22, 0.02, 0, 0, rl, yw);    // dark red lens
-    lampBar('tail', lx, ly, lz + 0.028, 0.51, 0.065, 0.02, 0, 0.085, rl, yw);   // bright upper edge
-    lampBar('tail', lx, ly, lz + 0.028, 0.42, 0.04, 0.02, -s * 0.04, -0.08, rl, yw);   // thin lower edge
-  });
-  hexBlock('darkS', [[-0.58, 0.46, 1.70], [0.58, 0.46, 1.70], [0.48, 0.46, 1.92], [-0.48, 0.46, 1.92], [-0.58, 1.12, 1.70], [0.58, 1.12, 1.70], [0.48, 1.06, 1.92], [-0.48, 1.06, 1.92]]);   // grille box
-  partRB('black', 0, 0.77, 1.925, 0.88, 0.54, 0.02, 0.01);
-  for (let j = 0; j < 8; j++) partRB('midS', 0, 0.53 + j * 0.065, 1.938, 0.84, 0.014, 0.012, 0.004);
-  for (let j = -4; j <= 4; j++) partRB('midS', j * 0.1, 0.77, 1.938, 0.012, 0.50, 0.012, 0.004);
-  partRB('midS', 0, 0.44, 1.82, 0.60, 0.06, 0.24, 0.02);                          // little plate under the grille
+  function lampPair(z, dir, x, y, w, h) {   // dir: +1 faces +z (rear), -1 faces -z (front)
+    [-1, 1].forEach(s => {
+      const rl = s * 0.36 * dir;   // outer end higher -> the two lamps form a V
+      lampBar('black', s * x, y, z, w, h, 0.03, 0, 0, rl, 0);
+      lampBar('tailDark', s * x, y, z + dir * 0.014, w - 0.06, h - 0.07, 0.02, 0, 0, rl, 0);
+      lampBar('tail', s * x, y, z + dir * 0.028, w - 0.04, 0.055, 0.02, 0, h * 0.29, rl, 0);
+      lampBar('tail', s * x, y, z + dir * 0.028, w - 0.16, 0.035, 0.02, -s * dir * 0.05, -h * 0.27, rl, 0);
+    });
+  }
+  lampPair(1.765, 1, 0.74, 0.67, 0.60, 0.26);
+  hexBlock('darkS', [[-0.46, 0.25, 1.74], [0.46, 0.25, 1.74], [0.42, 0.25, 1.86], [-0.42, 0.25, 1.86], [-0.46, 0.80, 1.74], [0.46, 0.80, 1.74], [0.42, 0.78, 1.86], [-0.42, 0.78, 1.86]]);   // grille frame
+  partRB('black', 0, 0.515, 1.865, 0.74, 0.46, 0.02, 0.01);
+  for (let j = 0; j < 5; j++) partRB('darkS', 0, 0.34 + j * 0.08, 1.878, 0.70, 0.016, 0.012, 0.004);
+  partRB('deckS', 0, 0.20, 1.84, 0.98, 0.07, 0.20, 0.02);                          // light bumper bar under the grille
+  [-1, 1].forEach(s => partRB('deckS', s * 0.46, 0.29, 1.88, 0.07, 0.18, 0.08, 0.02));
 
-  // ---- Front: thin white lamp slits ----
-  [-1, 1].forEach(s => {
-    partRB('black', s * 0.30, 0.72, -1.962, 0.34, 0.10, 0.03, 0.01, 0, 0, -s * 0.22);
-    partRB('headHot', s * 0.30, 0.72, -1.98, 0.30, 0.04, 0.02, 0.006, 0, 0, -s * 0.22);
-  });
+  // ---- Front face (the target's front mirrors the back): neon bar, V lamps, dark grille ----
+  partRB('darkS', 0, 0.73, -2.165, 1.56, 0.13, 0.03, 0.01);
+  partRB('neon', 0, 0.73, -2.185, 0.86, 0.055, 0.03, 0.01);
+  lampPair(-2.165, -1, 0.66, 0.55, 0.50, 0.22);
+  hexBlock('darkS', [[-0.38, 0.27, -2.26], [0.38, 0.27, -2.26], [0.40, 0.27, -2.14], [-0.40, 0.27, -2.14], [-0.38, 0.64, -2.25], [0.38, 0.64, -2.25], [0.40, 0.66, -2.14], [-0.40, 0.66, -2.14]]);   // grille frame
+  partRB('black', 0, 0.455, -2.265, 0.62, 0.30, 0.02, 0.01);
+  for (let j = 0; j < 4; j++) partRB('darkS', 0, 0.35 + j * 0.07, -2.278, 0.58, 0.014, 0.012, 0.004);
+  partRB('neon', 0, 0.275, -2.405, 1.36, 0.03, 0.025, 0.008);                                // splitter edge
 
-  // ---- Tall antenna on the rear left with a white lamp ----
-  partBeam('joint', -0.78, 1.45, 1.30, -0.78, 2.75, 1.30, 0.035);
-  partDisc('glow', -0.78, 2.78, 1.30, 0.06, 0.07, 0, 1, 0, 8);
+  // ---- Tall antenna at the rear-right shoulder with a white lamp ----
+  partBeam('joint', 0.80, 1.10, 1.30, 0.80, 2.65, 1.30, 0.035);
+  partDisc('glow', 0.80, 2.68, 1.30, 0.06, 0.07, 0, 1, 0, 8);
 
   // ---- Static suspension mounts (bolted onto the sides of the body). The arms and springs are dynamic (updateSuspension). ----
   const WHEEL_R = 0.84;     // tyre radius
   const TRACK = 1.85;       // wheel centre distance from the centre line (wide track, arms clearly visible)
-  const WZ = 1.2;           // wheel centre distance from the middle (front/back)
-  const CAP_TIP = TRACK - 0.55;   // inner end of each hub
+  const WZ = 2.05;          // wheel centre distance from the middle (front/back): wheels at the four corners, like the target
+  const CAP_TIP = TRACK - 0.62;   // inner end of each hub
   const wheelSlots = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
-  const MOUNT_X = [[0.98, 0.96, 0.94], [1.04, 1.02, 1.00]];   // [front, rear] x of the upper / lower / spring mounts: long arms at the front, short at the back
+  const MOUNT_X = [[1.02, 0.80, 1.02], [1.00, 0.82, 1.00]];   // [front, rear] x of the upper / lower / spring mounts: long arms at the front, short at the back
   wheelSlots.forEach(([sx, sz]) => {
     const mx = MOUNT_X[sz < 0 ? 0 : 1];
-    partRB('darkS', sx * mx[0], 1.05, sz * 0.80, 0.26, 0.16, 0.38, 0.03);     // upper mount
-    partRB('darkS', sx * mx[1], 0.62, sz * 0.80, 0.26, 0.16, 0.38, 0.03);     // lower mount
-    partRB('darkS', sx * mx[2], 1.14, sz * 0.62, 0.20, 0.12, 0.22, 0.02);     // spring mount
+    partRB('darkS', sx * mx[0], 0.62, sz * 1.70, 0.26, 0.16, 0.38, 0.03);     // upper mount
+    partRB('darkS', sx * mx[1], 0.32, sz * 1.70, 0.26, 0.16, 0.38, 0.03);     // lower mount
+    partRB('darkS', sx * mx[2], 0.66, sz * 1.45, 0.20, 0.12, 0.22, 0.02);     // spring mount
   });
 
   const haloCv = document.createElement('canvas');
@@ -1983,7 +2005,7 @@ function drawGrassAtlasCanvas() {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({
       map: haloTex, color: 0xff3322, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4, fog: false
     }));
-    s.position.set(side * 0.77, 0.92 + BODY_LIFT, 1.80);
+    s.position.set(side * 0.74, 0.67 + BODY_LIFT, 1.88);
     s.scale.set(1.1, 0.6, 1);
     rover.add(s);
     return s;
@@ -2002,9 +2024,9 @@ function drawGrassAtlasCanvas() {
   fhTex.colorSpace = THREE.SRGBColorSpace;
   const frontHalos = [-1, 1].map(side => {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: fhTex, color: 0xcfeeff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4, fog: false
+      map: fhTex, color: 0xff3322, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4, fog: false
     }));
-    s.position.set(side * 0.30, 0.72 + BODY_LIFT, -2.08);
+    s.position.set(side * 0.66, 0.55 + BODY_LIFT, -2.27);
     s.scale.set(0.8, 0.36, 1);
     rover.add(s);
     return s;
@@ -2025,21 +2047,21 @@ function drawGrassAtlasCanvas() {
     return mergeGeometries(list.map(g => (g.index ? g.toNonIndexed() : g)), groups);
   }
   function buildWheelGeo() {
-    const prof = [[0.34, -0.575], [0.66, -0.575], [0.78, -0.53], [0.84, -0.40], [0.84, 0.40], [0.78, 0.53], [0.66, 0.575], [0.34, 0.575]]
+    const prof = [[0.34, -0.65], [0.64, -0.65], [0.78, -0.60], [0.84, -0.46], [0.84, 0.46], [0.78, 0.60], [0.64, 0.65], [0.34, 0.65]]
       .map(p => new THREE.Vector2(p[0], p[1]));
     const tyre = new THREE.LatheGeometry(prof, 12);
     tyre.rotateZ(Math.PI / 2);
     const arcs = [];
     [1, -1].forEach((sgn, k) => {
-      const arc = new THREE.TorusGeometry(0.70, 0.045, 5, 20, Math.PI * 1.15);
+      const arc = new THREE.TorusGeometry(0.64, 0.07, 5, 24);   // full glowing ring on each sidewall
       arc.rotateY(Math.PI / 2);
       arc.rotateX(k * 2.6);
-      arc.translate(sgn * 0.575, 0, 0);
+      arc.translate(sgn * 0.65, 0, 0);
       arcs.push(arc);
     });
     const hp = [];
-    const hub = new THREE.CylinderGeometry(0.30, 0.30, 1.14, 12); hub.rotateZ(Math.PI / 2); hp.push(hub);
-    const cap = new THREE.CylinderGeometry(0.14, 0.14, 1.20, 8); cap.rotateZ(Math.PI / 2); hp.push(cap);
+    const hub = new THREE.CylinderGeometry(0.30, 0.30, 1.28, 12); hub.rotateZ(Math.PI / 2); hp.push(hub);
+    const cap = new THREE.CylinderGeometry(0.14, 0.14, 1.34, 8); cap.rotateZ(Math.PI / 2); hp.push(cap);
     return mergeSafe([tyre, mergeSafe(arcs, false), mergeSafe(hp, false)], true);
   }
   const wheelGeo = buildWheelGeo();
@@ -2056,7 +2078,7 @@ function drawGrassAtlasCanvas() {
 
   // ---- Dynamic suspension: dark wishbones with a neon strip + glowing springs follow each wheel's travel ----
   const _ZA = new THREE.Vector3(0, 0, 1);
-  const stripGeo = new THREE.BoxGeometry(0.07, 0.035, 0.8);
+  const stripGeo = new THREE.BoxGeometry(0.17, 0.06, 0.8);
   function unitBeam(w, t, mat, r, outline) {
     const g = new RoundedBoxGeometry(w, t, 1, 1, r);
     const m = new THREE.Mesh(g, mat);
@@ -2092,9 +2114,9 @@ function drawGrassAtlasCanvas() {
       upper: unitBeam(0.28, 0.16, MATS.darkS, 0.04, true),
       lower: unitBeam(0.28, 0.16, MATS.darkS, 0.04, true),
       rod, spring, joint,
-      U: new THREE.Vector3(sx * MOUNT_X[sz < 0 ? 0 : 1][0], 1.05 + BODY_LIFT, sz * 0.80),
-      L: new THREE.Vector3(sx * MOUNT_X[sz < 0 ? 0 : 1][1], 0.62 + BODY_LIFT, sz * 0.80),
-      T: new THREE.Vector3(sx * MOUNT_X[sz < 0 ? 0 : 1][2], 1.14 + BODY_LIFT, sz * 0.62)
+      U: new THREE.Vector3(sx * MOUNT_X[sz < 0 ? 0 : 1][0], 0.62 + BODY_LIFT, sz * 1.70),
+      L: new THREE.Vector3(sx * MOUNT_X[sz < 0 ? 0 : 1][1], 0.32 + BODY_LIFT, sz * 1.70),
+      T: new THREE.Vector3(sx * MOUNT_X[sz < 0 ? 0 : 1][2], 0.66 + BODY_LIFT, sz * 1.45)
     };
   });
   const _sa = new THREE.Vector3(), _sb = new THREE.Vector3(), _sd = new THREE.Vector3();
@@ -2114,7 +2136,7 @@ function drawGrassAtlasCanvas() {
       _Hb.set(q.sx * CAP_TIP, wy - 0.13, q.sz * WZ);
       placeBeam(q.upper, q.U, _Ht);
       placeBeam(q.lower, q.L, _Hb);
-      _Bp.lerpVectors(q.L, _Hb, 0.5); _Bp.y += 0.1; _Bp.z = q.sz * 0.62;
+      _Bp.lerpVectors(q.L, _Hb, 0.5); _Bp.y += 0.1; _Bp.z = q.sz * (WZ - 0.30);
       placeBeam(q.spring, q.T, _Bp);
       placeBeam(q.rod, q.T, _Bp);
       q.joint.position.set(q.sx * CAP_TIP, wy, q.sz * WZ);
@@ -3275,7 +3297,7 @@ function drawGrassAtlasCanvas() {
 
     // ---- Collisions: the rover's footprint (wheels included) is a rectangle, so nothing can pass through a wheel ----
     let hit = false;
-    const RV_HX = 2.5, RV_HZ = 2.3;   // half width / half length of the footprint (wheels outer edge)
+    const RV_HX = 2.5, RV_HZ = 2.9;   // half width / half length of the footprint (wheels outer edge)
     for (let pass = 0; pass < 2; pass++) {
       const cR = Math.cos(currentRot), sR = Math.sin(currentRot);
       for (let i = 0; i < colliders.length; i++) {
@@ -3443,13 +3465,13 @@ function drawGrassAtlasCanvas() {
       _camPos.set(rx + Math.sin(ha) * 6.4, rover.position.y + 2.3 + orbitPitch * 2.2, rz + Math.cos(ha) * 6.4);
       _look.set(rx + Math.cos(ha) * 1.6, rover.position.y + 1.0, rz - Math.sin(ha) * 1.6);          // rover sits left of centre, the paint panel is on the right
     } else if (camMode === 0) {
-      const camDist = (5.0 + spd * 0.10) * camZoom;
-      const camH = (2.0 + spd * 0.035) * camZoom;
+      const camDist = (7.2 + spd * 0.10) * camZoom;   // the rover is longer now (wheels at the corners)
+      const camH = (2.6 + spd * 0.035) * camZoom;
       _camPos.set(rx - cfX * camDist, rover.position.y + camH, rz - cfZ * camDist);
       const lookAhead = (2.4 + spd * 0.38) * (1 + Math.cos(orbitYaw)) / 2;      // look further down the road the faster you go
       _look.set(rx + cfX * lookAhead, rover.position.y + 1.3, rz + cfZ * lookAhead);
     } else {
-      const camDist = (4.6 + spd * 0.1) * camZoom;
+      const camDist = (6.6 + spd * 0.1) * camZoom;
       const camH = 1.2 * camZoom;
       _camPos.set(rx + cfX * camDist, rover.position.y + camH, rz + cfZ * camDist);
       _look.set(rx, rover.position.y + 1.2, rz);
