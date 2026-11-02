@@ -2851,6 +2851,7 @@ function drawGrassAtlasCanvas() {
     const MAXL = LEVELS.length - 1;
     let lvl = 0, minLvl = 0, bad = 0, good = 0, lastChange = 0, evalAt = 0, frames = 0;
     let probeUntil = 0, probeFails = 0, probeBlockUntil = 0, saved = -1, capMs = 0, startLvl = 0, mode30 = false;
+    let lockProbeAt = 0, lockProbeEnd = 0, lockProbeT0 = 0, lockProbeN = 0, lockProbeGap = 40000;   // 30 fps lock: now and then the cap is lifted for 3 s to see whether the phone really needs it
     function apply(i) {
       const L = LEVELS[i];
       bloomPass.enabled = L.bloom;
@@ -2867,8 +2868,8 @@ function drawGrassAtlasCanvas() {
       if (/[?&]reset/.test(location.search)) { store.set(key, ''); store.set(keyM, ''); }   // add ?reset to the page address: forget the saved level
       const stored = parseInt(store.get(key), 10);
       if (!isNaN(stored) && stored >= 0 && stored <= MAXL) start = stored;     // this phone was tuned before
-      if (store.get(keyM) === '1') mode30 = true;
-      else if (isNaN(stored) && start >= 6) { mode30 = true; start = 3; }   // weak phone: steady 30 fps with nicer looks
+      if (store.get(keyM)) store.set(keyM, '');       // the 30 fps lock is NOT remembered any more: it used to get stuck for good after one slow moment (e.g. while screen-recording)
+      if (isNaN(stored) && start >= 6) { mode30 = true; start = 3; }   // weak phone: steady 30 fps with nicer looks
       lvl = startLvl = start;
       // very weak phones also start with a lighter shadow map / smaller canvas (decided once, before playing)
       applyQuality(mode30 ? 'low' : (start <= 3 ? 'high' : (start <= 5 ? 'medium' : 'low')), false);
@@ -2880,6 +2881,19 @@ function drawGrassAtlasCanvas() {
       frames++;
       if (frames < 100) return false;                       // warm-up: shader compiles, world streaming
       if (!capMs && frames > 150 && ema < 10.5) capMs = 1000 / 60;   // 90/120 Hz phones that are very fast: steady 60 fps
+      if (mode30) {                                         // locked to 30 fps: run free for 3 s from time to time; if the phone keeps up, the lock is dropped
+        if (!lockProbeAt) lockProbeAt = now + 6000;
+        if (!lockProbeEnd && now >= lockProbeAt) { lockProbeEnd = now + 3000; lockProbeT0 = now; lockProbeN = 0; }
+        if (lockProbeEnd) {
+          lockProbeN++;
+          if (now >= lockProbeEnd) {
+            const avg = (now - lockProbeT0) / lockProbeN;
+            lockProbeEnd = 0; lockProbeAt = now + lockProbeGap;
+            if (avg < 21) { mode30 = false; apply(lvl); bad = 0; good = 0; lastChange = now; evalAt = now + 2000; return true; }
+          }
+          return false;
+        }
+      }
       if (now < evalAt) return false;
       evalAt = now + 500;
       let changed = false;
@@ -2887,7 +2901,7 @@ function drawGrassAtlasCanvas() {
       if (isBad) {
         good = 0; bad += veryBad ? 2 : 1;
         if (bad >= 3 && !mode30 && lvl >= 6) {           // all the cheap tricks are used up: lock to 30 fps and restore the looks instead
-          mode30 = true; store.set(keyM, '1'); lvl = 3; apply(lvl); lastChange = now; bad = 0; evalAt = now + 1500;
+          mode30 = true; lvl = 3; apply(lvl); lastChange = now; bad = 0; evalAt = now + 1500; lockProbeAt = now + lockProbeGap; lockProbeGap = Math.min(300000, lockProbeGap * 2);
           return true;
         }
         if (bad >= 3 && lvl < MAXL) {                       // about 1.5 s of slow frames
@@ -2911,7 +2925,7 @@ function drawGrassAtlasCanvas() {
       init, tick, dev,
       forceLevel(i) { apply(i); },
       restoreLevel() { apply(lvl); },
-      get capMs() { return mode30 ? 1000 / 30 : capMs; },
+      get capMs() { return mode30 ? (lockProbeEnd ? 0 : 1000 / 30) : capMs; },
       get level() { return lvl; },
       label() { return 'auto L' + lvl + (mode30 ? ' | 30fps lock' : (capMs ? ' | 60fps cap' : '')); },
       info() { return (dev.gpu || 'gpu?').slice(0, 38) + ' | ' + dev.cores + ' cores' + (dev.mem ? ' | ' + dev.mem + ' GB' : '') + ' | start L' + startLvl + ' | ' + (USE_HDR ? 'RT16' : 'RT8') + (MSAA_SAMPLES ? ' msaa' + MSAA_SAMPLES : ' nomsaa'); }
