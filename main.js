@@ -83,7 +83,7 @@ class CheapGlow extends Pass {
    Light on purpose: instanced asteroids / bolts / loot, merged-geometry enemies, shader dust, no post-processing. */
 
 const $ = (id) => document.getElementById(id);
-const BUILD = 34;
+const BUILD = 36;
 
 // ---------- save ----------
 const SAVE_KEY = 'starCourier2';
@@ -334,447 +334,66 @@ spaceMoon.position.copy(moonDir).multiplyScalar(400); spaceSun.position.copy(SUN
 // ---------- player ship ----------
 const ship = new THREE.Group(); scene.add(ship);
 const shipBody = new THREE.Group(); ship.add(shipBody);
-// the racing rover body, wheels removed: it hovers in space
+// ---- the ship: a real fighter built from simple solids (one merged vertex-coloured mesh + a glass canopy + a glowing-accent mesh) ----
 const roverBody = (() => {
-  const rover = new THREE.Group();
-  const mergeSafe = (list, groups) => mergeGeometries(list.map(g => (g.index ? g.toNonIndexed() : g)), groups);
-  rover.rotation.order = 'YXZ';
-
-  const MATS = {
-    light:  new THREE.MeshStandardMaterial({ color: 0xa9b8c2, metalness: 0.20, roughness: 0.60, flatShading: true, envMapIntensity: 0.6 }),
-    joint:  new THREE.MeshStandardMaterial({ color: 0x6a717a, metalness: 0.60, roughness: 0.45, flatShading: true }),
-    dome:   new THREE.MeshStandardMaterial({ color: 0x4ea2ec, emissive: 0x0c3470, emissiveIntensity: 0.45, metalness: 0.0, roughness: 0.1, flatShading: true, envMapIntensity: 1.2, transparent: true, opacity: 0.42, depthWrite: false }),
-    black:  new THREE.MeshStandardMaterial({ color: 0x0c0d0f, roughness: 0.70, flatShading: true }),
-    glow:   new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.8, flatShading: true , polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
-    tail:   new THREE.MeshStandardMaterial({ color: 0xff3322, emissive: 0xff2211, emissiveIntensity: 0.9, flatShading: true , polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
-    tailHot: new THREE.MeshStandardMaterial({ color: 0xffc8bb, emissive: 0xff6a55, emissiveIntensity: 1.4 }),
-    revLamp: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xdfeeff, emissiveIntensity: 0.1 }),
-    amber:   new THREE.MeshStandardMaterial({ color: 0xffa020, emissive: 0xff8a00, emissiveIntensity: 0.5 }),
-    headHot: new THREE.MeshStandardMaterial({ color: 0xe8fbff, emissive: 0xbfefff, emissiveIntensity: 1.8 , polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
-    hullS: new THREE.MeshStandardMaterial({ color: 0x23282d, emissive: 0x080a0c, metalness: 0.15, roughness: 0.55, envMapIntensity: 0.5, flatShading: true }),
-    deckS: new THREE.MeshStandardMaterial({ color: 0xdfe3e7, emissive: 0x1a1f24, metalness: 0.05, roughness: 0.55, envMapIntensity: 0.4, flatShading: true }),
-    midS:  new THREE.MeshStandardMaterial({ color: 0x7c868e, metalness: 0.10, roughness: 0.55, envMapIntensity: 0.5, flatShading: true }),
-    tailDark: new THREE.MeshStandardMaterial({ color: 0x3a0707, emissive: 0x2a0000, emissiveIntensity: 0.8, flatShading: true , polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
-    darkS: new THREE.MeshStandardMaterial({ color: 0x1f2328, metalness: 0.35, roughness: 0.60, flatShading: true }),
-    neon:  new THREE.MeshStandardMaterial({ color: 0x2fd6ff, emissive: 0x2fd6ff, emissiveIntensity: 2.2, flatShading: true }),
-    tyre:  new THREE.MeshStandardMaterial({ color: 0x1b1d21, metalness: 0.10, roughness: 0.55, envMapIntensity: 0.8, flatShading: true, side: THREE.DoubleSide }),
-    rim:   new THREE.MeshStandardMaterial({ color: 0x2b3036, metalness: 0.55, roughness: 0.40, flatShading: true })
+  const grp = new THREE.Group(), Yc = -0.1;
+  const HULL = 0xdde3ec, HULL2 = 0xb4bfcf, DARK = 0x39414d, DARK2 = 0x262c36, RED = 0xd0432e, CY = 0x35d4ff;
+  const body = [], glow = [], glass = [];
+  const E = new THREE.Euler(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), Sc = new THREE.Vector3(), M4 = new THREE.Matrix4();
+  const put = (list, geo, color, pos, rot, scl) => {
+    const g = geo.index ? geo.toNonIndexed() : geo; E.set(rot ? rot[0] : 0, rot ? rot[1] : 0, rot ? rot[2] : 0); Q.setFromEuler(E);
+    M4.compose(P.set(pos[0], pos[1], pos[2]), Q, Sc.set(scl ? scl[0] : 1, scl ? scl[1] : 1, scl ? scl[2] : 1)); g.applyMatrix4(M4); g.computeVertexNormals();
+    const c = new THREE.Color(color), n = g.attributes.position.count, col = new Float32Array(n * 3); for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.deleteAttribute('uv'); list.push(g);
   };
-
-  const BODY_LIFT = 0.85;
-  const buckets = {};
-  const _q = new THREE.Quaternion();
-  const _e = new THREE.Euler();
-  const _v = new THREE.Vector3();
-  const _s = new THREE.Vector3();
-  const _va = new THREE.Vector3();
-  const _vb = new THREE.Vector3();
-  const _vd = new THREE.Vector3();
-  const ZAXIS = new THREE.Vector3(0, 0, 1);
-  const YAXIS = new THREE.Vector3(0, 1, 0);
-
-  function place(px, py, pz, rx, ry, rz) {
-    _q.setFromEuler(_e.set(rx || 0, ry || 0, rz || 0));
-    return new THREE.Matrix4().compose(_v.set(px, py, pz), _q, _s.set(1, 1, 1));
+  const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+  const CYL = (r0, r1, h, seg) => new THREE.CylinderGeometry(r1, r0, h, seg || 10);   // r0 = front (-z) radius, r1 = rear (+z) radius once rotated along z
+  const RX = Math.PI / 2;
+  // fuselage: flattened, slightly oval sections, tapering to a long nose
+  put(body, CYL(0.98, 0.86, 2.4, 10), HULL, [0, Yc, 1.3], [RX, 0, 0], [1.25, 1, 0.74]);
+  put(body, CYL(0.52, 0.98, 2.7, 10), HULL, [0, Yc, -1.2], [RX, 0, 0], [1.25, 1, 0.74]);
+  put(body, new THREE.ConeGeometry(0.52, 1.5, 10), HULL2, [0, Yc, -3.3], [-RX, 0, 0], [1.25, 1, 0.74]);
+  put(body, B(0.05, 0.05, 0.9), DARK2, [0, Yc, -4.35], 0);                                                         // sensor needle
+  // belly + dorsal spine + side intakes
+  put(body, B(1.5, 0.22, 3.4), DARK, [0, Yc - 0.5, 0.5]);
+  put(body, B(0.2, 0.2, 2.2), HULL2, [0, Yc + 0.62, 1.3]);
+  for (const s of [-1, 1]) {
+    put(body, B(0.42, 0.42, 1.2), DARK, [s * 0.98, Yc - 0.02, -0.3]);                                              // intake
+    put(body, B(0.3, 0.3, 0.1), DARK2, [s * 0.98, Yc - 0.02, -0.92]);
+    put(body, B(0.5, 0.08, 1.5), RED, [s * 0.74, Yc + 0.36, 0.7], [0, 0, s * -0.35]);                           // red hull stripe
+    // vertical stabilisers, canted outwards
+    put(body, B(0.1, 1.25, 1.5), HULL, [s * 1.0, Yc + 0.95, 1.9], [0, 0, s * -0.22]);
+    put(body, B(0.12, 0.3, 0.7), RED, [s * 1.08, Yc + 1.5, 2.1], [0, 0, s * -0.22]);
+    // wing-to-engine pylon and wing cannon (the lasers leave from x = +-2.6)
+    put(body, B(0.22, 0.32, 1.6), DARK, [s * 2.6, Yc - 0.12, 0.2]);
+    put(body, new THREE.CylinderGeometry(0.1, 0.1, 2.7, 8), DARK2, [s * 2.6, Yc, -0.35], [RX, 0, 0]);
+    put(body, new THREE.CylinderGeometry(0.17, 0.12, 0.45, 8), HULL2, [s * 2.6, Yc, -1.45], [RX, 0, 0]);
+    put(glow, new THREE.CylinderGeometry(0.07, 0.07, 0.12, 8), 0xffffff, [s * 2.6, Yc, -1.72], [RX, 0, 0]);       // muzzle
+    put(glow, B(0.06, 0.06, 2.0), CY, [s * 0.92, Yc + 0.1, -0.6]);                                                // neon strip along the nose
+    put(glow, B(0.05, 0.05, 1.3), CY, [s * 2.05, Yc - 0.08, 1.45]);                                                // wing edge light strip
   }
-  function part(geo, matrix, key) {
-    const g = geo.clone();
-    g.applyMatrix4(matrix);
-    (buckets[key] = buckets[key] || []).push(g);
-  }
-  function scaleLast(key, sx, sy, sz) {
-    buckets[key][buckets[key].length - 1].scale(sx, sy, sz);
-  }
-  function partBeam(key, fx, fy, fz, tx, ty, tz, t) {
-    _va.set(fx, fy, fz); _vb.set(tx, ty, tz);
-    _vd.subVectors(_vb, _va);
-    const len = _vd.length(); _vd.normalize();
-    _q.setFromUnitVectors(ZAXIS, _vd);
-    const g = new THREE.BoxGeometry(t, t, len);
-    const m = new THREE.Matrix4().compose(
-      _v.copy(_va).addScaledVector(_vd, len / 2), _q, _s.set(1, 1, 1));
-    g.applyMatrix4(m);
-    (buckets[key] = buckets[key] || []).push(g);
-  }
-  function partDisc(key, x, y, z, r, h, ax, ay, az, segs) {
-    _vd.set(ax, ay, az).normalize();
-    _q.setFromUnitVectors(YAXIS, _vd);
-    const g = new THREE.CylinderGeometry(r, r, h, segs || 10);
-    const m = new THREE.Matrix4().compose(_v.set(x, y, z), _q, _s.set(1, 1, 1));
-    g.applyMatrix4(m);
-    (buckets[key] = buckets[key] || []).push(g);
-  }
-  function partCoil(key, fx, fy, fz, tx, ty, tz, turns, radius, tube) {
-    _va.set(fx, fy, fz); _vb.set(tx, ty, tz);
-    _vd.subVectors(_vb, _va);
-    const len = _vd.length(); _vd.normalize();
-    _q.setFromUnitVectors(ZAXIS, _vd);
-    for (let i = 0; i < turns; i++) {
-      const tt = (i + 0.5) / turns;
-      const g = new THREE.TorusGeometry(radius, tube, 6, 12);
-      const m = new THREE.Matrix4().compose(
-        _v.copy(_va).addScaledVector(_vd, len * tt), _q, _s.set(1, 1, 1));
-      g.applyMatrix4(m);
-      (buckets[key] = buckets[key] || []).push(g);
-    }
-  }
-
-  function partPiston(fx, fy, fz, tx, ty, tz) {
-    const mx = fx + (tx - fx) * 0.55, my = fy + (ty - fy) * 0.55, mz = fz + (tz - fz) * 0.55;
-    const l1 = Math.hypot(mx - fx, my - fy, mz - fz), l2 = Math.hypot(tx - mx, ty - my, tz - mz);
-    partDisc('darkS', (fx + mx) / 2, (fy + my) / 2, (fz + mz) / 2, 0.12, l1, tx - fx, ty - fy, tz - fz, 8);
-    partDisc('armS', (mx + tx) / 2, (my + ty) / 2, (mz + tz) / 2, 0.07, l2, tx - fx, ty - fy, tz - fz, 6);
-  }
-
-  function partRB(key, x, y, z, w, h, d, r, rx, ry, rz) {
-    part(new RoundedBoxGeometry(w, h, d, 1, r), place(x, y, z, rx, ry, rz), key);
-  }
-  function partPlate(key, fx, fy, fz, tx, ty, tz, w, t) {
-    _va.set(fx, fy, fz); _vb.set(tx, ty, tz);
-    _vd.subVectors(_vb, _va);
-    const len = _vd.length(); _vd.normalize();
-    _q.setFromUnitVectors(ZAXIS, _vd);
-    const g = new RoundedBoxGeometry(w, t, len + 0.1, 1, Math.min(w, t) * 0.35);
-    g.applyMatrix4(new THREE.Matrix4().compose(_v.copy(_va).addScaledVector(_vd, len / 2), _q, _s.set(1, 1, 1)));
-    (buckets[key] = buckets[key] || []).push(g);
-  }
-
-  const B = new THREE.BoxGeometry(1, 1, 1);
-
-  // ---- Dark cartoon outline (inverted hull) like the target image ----
-  const OUTLINE_KEYS = ['hullS', 'deckS', 'midS', 'darkS'];
-  const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: 0x15110d, side: THREE.BackSide });
-  const OUTLINE_W = { value: 0.03 };   // set from the render resolution in applyPR()
-  OUTLINE_MAT.onBeforeCompile = (sh) => {
-    sh.uniforms.uOutlineW = OUTLINE_W;
-    sh.vertexShader = 'uniform float uOutlineW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed += normalize(normal) * uOutlineW;');
+  // swept, tapered wings
+  const wing = (s) => {
+    const g = new THREE.BoxGeometry(1, 1, 1), p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) { const u = p.getX(i) + 0.5, y = p.getY(i), z = p.getZ(i), ch = 3.0 - 1.8 * u, zc = 0.55 + 1.45 * u, th = 0.3 - 0.18 * u; p.setXYZ(i, s * (0.6 + u * 3.55), Yc - 0.12 + y * th - 0.1 * u, zc + z * ch); }
+    let ng = g.toNonIndexed(); if (s < 0) { const q = ng.attributes.position; for (let i = 0; i < q.count; i += 3) { const x = q.getX(i + 1), y = q.getY(i + 1), z = q.getZ(i + 1); q.setXYZ(i + 1, q.getX(i + 2), q.getY(i + 2), q.getZ(i + 2)); q.setXYZ(i + 2, x, y, z); } }
+    return ng;
   };
-  function makeOutlineGeo(src) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', src.attributes.position.clone());
-    if (src.index) g.setIndex(src.index.clone());
-    const m = mergeVertices(g, 1e-3);
-    m.computeVertexNormals();
-    return m;
+  for (const s of [-1, 1]) {
+    put(body, wing(s), HULL, [0, 0, 0]);
+    put(body, B(1.6, 0.03, 0.55), DARK, [s * 2.1, Yc - 0.03, 1.35]);                                                // panel
+    put(body, B(0.5, 0.2, 1.05), RED, [s * 4.1, Yc - 0.2, 1.85]);                                                    // wingtip fin
   }
-
-  // ---- Angular racing body (low-poly, faceted). Each block = 8 corners: bottom ring (front-left, front-right, back-right, back-left) then the top ring. Front is -z. ----
-  const HEX_T = [[0,1,2],[0,2,3],[4,6,5],[4,7,6],[0,5,1],[0,4,5],[1,6,2],[1,5,6],[2,7,3],[2,6,7],[3,4,0],[3,7,4]];
-  function hexBlock(key, P, mirror) {
-    if (mirror) P = P.map(p => [-p[0], p[1], p[2]]);
-    let cx = 0, cy = 0, cz = 0;
-    P.forEach(p => { cx += p[0] / 8; cy += p[1] / 8; cz += p[2] / 8; });
-    const pos = [];
-    HEX_T.forEach(t => {
-      const a = P[t[0]]; let b = P[t[1]], c = P[t[2]];
-      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
-      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
-      const fx = (a[0] + b[0] + c[0]) / 3 - cx, fy = (a[1] + b[1] + c[1]) / 3 - cy, fz = (a[2] + b[2] + c[2]) / 3 - cz;
-      if (nx * fx + ny * fy + nz * fz < 0) { const s = b; b = c; c = s; }   // always face outwards
-      pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
-    });
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3 * 2), 2));
-    g.computeVertexNormals();
-    (buckets[key] = buckets[key] || []).push(g);
-  }
-  function hexSym(key, P) { hexBlock(key, P, false); hexBlock(key, P, true); }
-  // ---- Rounded (chamfered) solids: convex hull of a point cloud, built with a tiny hull routine (no extra libraries) ----
-  function hullGeo(pts) {
-    const n = pts.length, planes = new Map(), EPS = 1e-5;
-    let cx = 0, cy = 0, cz = 0; pts.forEach(p => { cx += p[0] / n; cy += p[1] / n; cz += p[2] / n; });
-    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) for (let k = j + 1; k < n; k++) {
-      const a = pts[i], b = pts[j], c = pts[k];
-      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
-      let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
-      const l = Math.hypot(nx, ny, nz); if (l < 1e-9) continue;
-      nx /= l; ny /= l; nz /= l;
-      let d = nx * a[0] + ny * a[1] + nz * a[2];
-      if (nx * cx + ny * cy + nz * cz - d > 0) { nx = -nx; ny = -ny; nz = -nz; d = -d; }   // make the normal point away from the middle
-      let ok = true;
-      for (let m = 0; m < n; m++) { if (nx * pts[m][0] + ny * pts[m][1] + nz * pts[m][2] - d > EPS) { ok = false; break; } }
-      if (!ok) continue;
-      const key = [nx, ny, nz, d].map(v => Math.round(v * 2000)).join(',');
-      if (!planes.has(key)) {
-        const idx = [];
-        for (let m = 0; m < n; m++) if (Math.abs(nx * pts[m][0] + ny * pts[m][1] + nz * pts[m][2] - d) <= EPS) idx.push(m);
-        planes.set(key, { n: [nx, ny, nz], idx });
-      }
-    }
-    const pos = [];
-    planes.forEach(({ n: nn, idx }) => {
-      let px = 0, py = 0, pz = 0; idx.forEach(m => { px += pts[m][0] / idx.length; py += pts[m][1] / idx.length; pz += pts[m][2] / idx.length; });
-      let ex = pts[idx[0]][0] - px, ey = pts[idx[0]][1] - py, ez = pts[idx[0]][2] - pz;
-      const el = Math.hypot(ex, ey, ez) || 1; ex /= el; ey /= el; ez /= el;
-      const fx = nn[1] * ez - nn[2] * ey, fy = nn[2] * ex - nn[0] * ez, fz = nn[0] * ey - nn[1] * ex;   // n x e
-      const ord = idx.map(m => { const dx = pts[m][0] - px, dy = pts[m][1] - py, dz = pts[m][2] - pz; return { m, a: Math.atan2(dx * fx + dy * fy + dz * fz, dx * ex + dy * ey + dz * ez) }; }).sort((p, q) => p.a - q.a);
-      for (let t = 1; t < ord.length - 1; t++) [ord[0].m, ord[t].m, ord[t + 1].m].forEach(m => pos.push(pts[m][0], pts[m][1], pts[m][2]));
-    });
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3 * 2), 2));
-    g.computeVertexNormals();
-    return g;
-  }
-  function hullBlock(key, pts) { (buckets[key] = buckets[key] || []).push(hullGeo(pts)); }
-  // like hexBlock (same 8 corners) but every edge and corner is chamfered by about r
-  function hexR(key, P, r, mirror) {
-    if (mirror) P = P.map(p => [-p[0], p[1], p[2]]);
-    const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-    const lu = (dist(P[0], P[1]) + dist(P[3], P[2]) + dist(P[4], P[5]) + dist(P[7], P[6])) / 4;
-    const lv = (dist(P[0], P[4]) + dist(P[1], P[5]) + dist(P[2], P[6]) + dist(P[3], P[7])) / 4;
-    const lw = (dist(P[0], P[3]) + dist(P[1], P[2]) + dist(P[4], P[7]) + dist(P[5], P[6])) / 4;
-    const a = Math.min(0.4, r / lu), b = Math.min(0.4, r / lv), c = Math.min(0.4, r / lw);
-    const tri = (u, v, w) => {
-      const f = (i, j, k, l) => [0, 1, 2].map(q => (1 - w) * ((1 - u) * P[i][q] + u * P[j][q]) + w * ((1 - u) * P[l][q] + u * P[k][q]));
-      const bo = f(0, 1, 2, 3), to = f(4, 5, 6, 7);
-      return [0, 1, 2].map(q => (1 - v) * bo[q] + v * to[q]);
-    };
-    const pts = [];
-    [a, 1 - a].forEach(u => [b, 1 - b].forEach(v => [0, 1].forEach(w => pts.push(tri(u, v, w)))));
-    [a, 1 - a].forEach(u => [0, 1].forEach(v => [c, 1 - c].forEach(w => pts.push(tri(u, v, w)))));
-    [0, 1].forEach(u => [b, 1 - b].forEach(v => [c, 1 - c].forEach(w => pts.push(tri(u, v, w)))));
-    hullBlock(key, pts);
-  }
-  function hexRSym(key, P, r) { hexR(key, P, r, false); hexR(key, P, r, true); }
-  // rounded body section: the cross-section ring with every corner cut off (like a soft-edged hull instead of a box)
-  const RING_CUT = [0.20, 0.12, 0.22, 0.22];
-  function ringPts(S, z) {
-    const P = [[0, S[0]], [S[1], S[0]], [S[3], S[2]], [S[5], S[4]], [S[7], S[6]], [0, S[6]]];
-    const right = [];
-    for (let i = 1; i <= 4; i++) {
-      const c = P[i], p = P[i - 1], q = P[i + 1];
-      const lp = Math.hypot(p[0] - c[0], p[1] - c[1]), lq = Math.hypot(q[0] - c[0], q[1] - c[1]);
-      const dp = Math.min(RING_CUT[i - 1], lp * 0.45), dq = Math.min(RING_CUT[i - 1], lq * 0.45);
-      right.push([c[0] + (p[0] - c[0]) / lp * dp, c[1] + (p[1] - c[1]) / lp * dp, z], [c[0] + (q[0] - c[0]) / lq * dq, c[1] + (q[1] - c[1]) / lq * dq, z]);
-    }
-    return right.concat(right.map(q => [-q[0], q[1], z]));
-  }
-
-  // ---- Racing body built from the multi-view target sheet (front / back / sides / top). Pre-lift coords (BODY_LIFT added later).
-  //      Front is -z (front face z = -2.15), rear face is the plane z = 1.75. The wheels sit at the four corners (WZ); between them the side pods bulge out wide.
-  //      Section: [bottom y, bottom half-w, waist y, waist half-w, top y, top half-w, bevel-top y, bevel-top half-w]
-  const SECT = [
-    [-2.15, [0.26, 0.95, 0.55, 1.55, 0.82, 1.56, 1.02, 0.62]],   // front face
-    [-1.05, [0.22, 1.60, 0.56, 1.90, 0.86, 1.86, 1.06, 0.70]],   // pods start (behind the front wheels)
-    [-0.55, [0.22, 1.85, 0.56, 2.15, 0.88, 2.08, 1.08, 0.72]],   // pods widest
-    [ 0.45, [0.22, 1.85, 0.58, 2.15, 0.92, 2.06, 1.16, 0.70]],
-    [ 1.05, [0.22, 1.05, 0.58, 1.66, 0.98, 1.66, 1.30, 0.66]],   // pods end (in front of the rear wheels)
-    [ 1.75, [0.22, 1.00, 0.58, 1.62, 1.00, 1.64, 1.32, 0.66]]    // rear face
-  ];
-  const SEG_KEYS = [['hullS', 'hullS'], ['hullS', 'hullS'], ['hullS', 'hullS'], ['hullS', 'hullS'], ['hullS', 'hullS']];   // [upper sides, bevel] per segment: light-grey nose + pod ends, charcoal middle / back
-  function loft(key, zA, A, zB, B, i0, i1) {   // block between two sections, from level i0 to level i1 (0 bottom, 1 waist, 2 top, 3 bevel top)
-    hexBlock(key, [[-A[i0 * 2 + 1], A[i0 * 2], zA], [A[i0 * 2 + 1], A[i0 * 2], zA], [B[i0 * 2 + 1], B[i0 * 2], zB], [-B[i0 * 2 + 1], B[i0 * 2], zB],
-                   [-A[i1 * 2 + 1], A[i1 * 2], zA], [A[i1 * 2 + 1], A[i1 * 2], zA], [B[i1 * 2 + 1], B[i1 * 2], zB], [-B[i1 * 2 + 1], B[i1 * 2], zB]]);
-  }
-  for (let k = 0; k < SECT.length - 1; k++) {
-    const [zA, A] = SECT[k], [zB, B] = SECT[k + 1];
-    hullBlock('hullS', ringPts(A, zA).concat(ringPts(B, zB)));   // one soft-edged hull segment (lower sides, upper sides and shoulders)
-    // dark centre strip on top (the light-grey only shows on the shoulders)
-    hexBlock('hullS', [[-0.42, A[6] - 0.02, zA], [0.42, A[6] - 0.02, zA], [0.42, B[6] - 0.02, zB], [-0.42, B[6] - 0.02, zB],
-                       [-0.40, A[6] + 0.03, zA], [0.40, A[6] + 0.03, zA], [0.40, B[6] + 0.03, zB], [-0.40, B[6] + 0.03, zB]]);
-    // thick cyan sill bar low on the pod sides, between the wheels (like the target's side view)
-    if (k >= 1 && k <= 3) [-1, 1].forEach(s => partBeam('neon', s * (A[1] + 0.5 * (A[3] - A[1]) + 0.03), 0.40, zA + 0.05, s * (B[1] + 0.5 * (B[3] - B[1]) + 0.03), 0.40, zB - 0.05, 0.17));
-  }
-  // ---- White armour plates (target side/top views): a big front plate + a nose band forming the front "C", a separate wedge plate at the back, dark gap with the antenna between.
-  //      Each plate = a slab on the pod wall + a slab on the shoulder (they wrap the upper corner), wide at the start and narrowing along +z.
-  function secAt(z) {
-    let k = 0; while (k < SECT.length - 2 && z > SECT[k + 1][0]) k++;
-    const [za, A] = SECT[k], [zb, B] = SECT[k + 1], t = Math.max(0, Math.min(1, (z - za) / (zb - za)));
-    return A.map((v, i) => v + (B[i] - v) * t);
-  }
-  function armour(zA, zB, wA, wB, th) {
-    const A = secAt(zA), B = secAt(zB);
-    const ys = (S, h) => S[4] + (S[5] - h) / (S[5] - S[7]) * (S[6] - S[4]);       // height of the shoulder surface at half-width h
-    // wall slab (waist -> shoulder edge), pushed out by th
-    hexRSym('deckS', [[A[3] - 0.05, A[2] + 0.04, zA], [A[3] + th, A[2] + 0.04, zA], [B[3] + th, B[2] + 0.04, zB], [B[3] - 0.05, B[2] + 0.04, zB],
-                     [A[5] - 0.05, A[4] + 0.10, zA], [A[5] + th, A[4] + 0.10, zA], [B[5] + th, B[4] + 0.10, zB], [B[5] - 0.05, B[4] + 0.10, zB]], 0.06);
-    // shoulder slab (lies on the sloped shoulder, wide -> narrow)
-    const hiA = A[5] - wA, hiB = B[5] - wB;
-    hexRSym('deckS', [[hiA, ys(A, hiA) - 0.02, zA], [A[5] + th, A[4] + 0.06, zA], [B[5] + th, B[4] + 0.06, zB], [hiB, ys(B, hiB) - 0.02, zB],
-                     [hiA, ys(A, hiA) + 0.13, zA], [A[5] + th, A[4] + 0.16, zA], [B[5] + th, B[4] + 0.16, zB], [hiB, ys(B, hiB) + 0.13, zB]], 0.06);
-  }
-  armour(-1.95, -0.15, 0.80, 0.40, 0.13);     // front plate (continues into the nose band)
-  armour(0.20, 1.45, 0.62, 0.30, 0.13);       // rear wedge plate
-  // nose band across the front edge (the base of the "C")
-  hexR('deckS', [[-1.60, 0.78, -2.17], [1.60, 0.78, -2.17], [1.50, 0.86, -1.80], [-1.50, 0.86, -1.80], [-1.55, 0.93, -2.17], [1.55, 0.93, -2.17], [1.45, 0.99, -1.80], [-1.45, 0.99, -1.80]], 0.07);
-  const RS = SECT[SECT.length - 1][1];
-  const sideW = y => y < RS[2] ? RS[1] + (y - RS[0]) / (RS[2] - RS[0]) * (RS[3] - RS[1]) : RS[3];   // rear half-width at height y
-  // charcoal trapezoids on the rear and front faces between the light-grey bevel corners
-  hexBlock('hullS', [[-1.15, 1.00, 1.74], [1.15, 1.00, 1.74], [1.15, 1.00, 1.775], [-1.15, 1.00, 1.775], [-0.62, 1.30, 1.74], [0.62, 1.30, 1.74], [0.62, 1.30, 1.775], [-0.62, 1.30, 1.775]]);
-  hexBlock('hullS', [[-1.25, 0.82, -2.16], [1.25, 0.82, -2.16], [1.25, 0.82, -2.14], [-1.25, 0.82, -2.14], [-0.56, 1.00, -2.16], [0.56, 1.00, -2.16], [0.56, 1.00, -2.14], [-0.56, 1.00, -2.14]]);
-  // hump behind the canopy with the little cyan light, and the seat / head rest
-  // raised dark tail deck behind the canopy (sloping down to the rear, like the target) with two little cyan lights at its front
-  hexR('darkS', [[-0.72, 1.27, 1.00], [0.72, 1.27, 1.00], [0.58, 1.27, 1.70], [-0.58, 1.27, 1.70], [-0.40, 1.47, 1.02], [0.40, 1.47, 1.02], [0.30, 1.35, 1.68], [-0.30, 1.35, 1.68]], 0.07);
-  [-1, 1].forEach(sd => partRB('neon', sd * 0.20, 1.468, 1.10, 0.09, 0.022, 0.16, 0.007));
-  // puffy rounded fairings on both sides of the canopy (the dark bulges flanking the glass in the target)
-  hexRSym('darkS', [[0.74, 1.00, -0.86], [1.42, 1.00, -0.80], [1.38, 1.00, 0.86], [0.74, 1.00, 0.90], [0.80, 1.52, -0.72], [1.14, 1.52, -0.68], [1.12, 1.52, 0.74], [0.80, 1.52, 0.78]], 0.15);
-  // dark underbody plate + front splitter
-  hexBlock('darkS', [[-0.52, 0.16, -2.05], [0.52, 0.16, -2.05], [0.62, 0.16, 1.72], [-0.62, 0.16, 1.72], [-0.52, 0.24, -2.05], [0.52, 0.24, -2.05], [0.62, 0.24, 1.72], [-0.62, 0.24, 1.72]]);
-  hexBlock('darkS', [[-0.70, 0.20, -2.40], [0.70, 0.20, -2.40], [0.64, 0.20, -2.10], [-0.64, 0.20, -2.10], [-0.70, 0.27, -2.40], [0.70, 0.27, -2.40], [0.64, 0.27, -2.10], [-0.64, 0.27, -2.10]]);
-  // ---- Glass canopy (see-through, like the target): a low dark wall around two glass bubbles, the cockpit shows through the glass ----
-  const MB = { cz: -0.05, ax: 0.72, az: 1.0, h: 0.74 };      // main bubble (ellipse half axes x / z, height)
-  const FB = { cz: -1.05, ax: 0.50, az: 0.60, h: 0.50 };    // small front bubble
-  const GY = 1.20;                                            // glass base height
-  const inEll = (E, x, z) => (x / E.ax) ** 2 + ((z - E.cz) / E.az) ** 2;
-  function glassWall(E, other) {
-    const N = 28, k = 1.05;
-    for (let i = 0; i < N; i++) {
-      const a0 = i / N * Math.PI * 2, a1 = (i + 1) / N * Math.PI * 2, am = (a0 + a1) / 2;
-      if (other && inEll(other, Math.sin(am) * E.ax * k, E.cz + Math.cos(am) * E.az * k) < 1.0) continue;   // this part is hidden inside the other bubble
-      [1.15, 1.22].forEach(y => partBeam('darkS', Math.sin(a0) * E.ax * k, y, E.cz + Math.cos(a0) * E.az * k, Math.sin(a1) * E.ax * k, y, E.cz + Math.cos(a1) * E.az * k, 0.11));
-    }
-  }
-  glassWall(MB, FB); glassWall(FB, MB);
-  // frame ribs on the glass: a ridge along the roof and two arches (they follow the faceted dome)
-  function glassRib(E, pts, t) {
-    for (let i = 0; i < pts.length - 1; i++) partBeam('darkS', pts[i][0], pts[i][1], pts[i][2], pts[i + 1][0], pts[i + 1][1], pts[i + 1][2], t);
-  }
-  const ribPt = (E, x, z, k) => { const f = 1 - (x / E.ax) ** 2 - ((z - E.cz) / E.az) ** 2; return f <= 0 ? null : [x * k, GY + E.h * Math.sqrt(f) * k + 0.01, z]; };
-  (function () {
-    const ridge = []; for (let z = MB.cz - MB.az * 0.93; z <= MB.cz + MB.az * 0.93; z += MB.az / 5) { const q = ribPt(MB, 0, z, 1.03); if (q) ridge.push(q); }
-    glassRib(MB, ridge, 0.035);
-    [-0.52, 0.38].forEach(zz => {
-      const pts = []; for (let a = 0; a <= 10; a++) {
-        const c = 1 - ((zz - MB.cz) / MB.az) ** 2, w = MB.ax * Math.sqrt(c), th = a / 10 * Math.PI;
-        pts.push([Math.cos(th) * w * 1.03, GY + Math.sin(th) * MB.h * Math.sqrt(c) * 1.03 + 0.01, zz]);
-      }
-      glassRib(MB, pts, 0.04);
-    });
-    const fr = []; for (let z = FB.cz - FB.az * 0.9; z <= FB.cz + FB.az * 0.5; z += FB.az / 4) { const q = ribPt(FB, 0, z, 1.03); if (q) fr.push(q); }
-    glassRib(FB, fr, 0.03);
-  })();
-  const domeGeo = new THREE.SphereGeometry(0.5, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2);
-  domeGeo.scale(MB.ax * 2, MB.h * 2, MB.az * 2);
-  part(domeGeo, place(0, GY, MB.cz), 'dome');
-  const dome2 = new THREE.SphereGeometry(0.5, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2);
-  dome2.scale(FB.ax * 2, FB.h * 2, FB.az * 2);
-  part(dome2, place(0, GY, FB.cz), 'dome');
-  // cockpit: seat, head rest, dashboard with a neon strip, steering wheel, a little pod in the front bubble
-  hexBlock('black', [[-0.26, 1.10, 0.04], [0.26, 1.10, 0.04], [0.26, 1.10, 0.46], [-0.26, 1.10, 0.46], [-0.24, 1.22, 0.06], [0.24, 1.22, 0.06], [0.24, 1.22, 0.46], [-0.24, 1.22, 0.46]]);   // seat cushion
-  hexBlock('black', [[-0.26, 1.10, 0.42], [0.26, 1.10, 0.42], [0.26, 1.10, 0.56], [-0.26, 1.10, 0.56], [-0.22, 1.62, 0.50], [0.22, 1.62, 0.50], [0.22, 1.62, 0.62], [-0.22, 1.62, 0.62]]); // seat back
-  hexBlock('midS', [[-0.14, 1.50, 0.48], [0.14, 1.50, 0.48], [0.14, 1.50, 0.58], [-0.14, 1.50, 0.58], [-0.12, 1.66, 0.52], [0.12, 1.66, 0.52], [0.12, 1.66, 0.60], [-0.12, 1.66, 0.60]]);   // head rest
-  hexBlock('darkS', [[-0.30, 1.10, -0.82], [0.30, 1.10, -0.82], [0.50, 1.10, -0.40], [-0.50, 1.10, -0.40], [-0.28, 1.25, -0.80], [0.28, 1.25, -0.80], [0.46, 1.31, -0.42], [-0.46, 1.31, -0.42]]);   // dashboard
-  partRB('neon', 0, 1.318, -0.50, 0.62, 0.02, 0.05, 0.005);
-  partBeam('darkS', 0, 1.24, -0.46, 0, 1.36, -0.24, 0.05);
-  part(new THREE.TorusGeometry(0.14, 0.025, 4, 10), place(0, 1.38, -0.22, -0.45, 0, 0), 'joint');
-  hexBlock('darkS', [[-0.20, 1.10, -1.38], [0.20, 1.10, -1.38], [0.22, 1.10, -1.00], [-0.22, 1.10, -1.00], [-0.16, 1.24, -1.34], [0.16, 1.24, -1.34], [0.18, 1.26, -1.04], [-0.18, 1.26, -1.04]]);
-  partRB('neon', 0, 1.27, -1.19, 0.20, 0.02, 0.05, 0.005);
-
-  // ---- Cyan neon ----
-  [-1, 1].forEach(s => partBeam('neon', s * (sideW(0.38) + 0.015), 0.38, 1.05, s * (sideW(0.38) + 0.015), 0.38, 1.60, 0.05));   // low side strip at the back
-
-  // ---- Rear face (what the chase camera sees): narrow neon bar on a dark band near the top, V-slanted red lamps, big dark grille, light bumper ----
-  partRB('darkS', 0, 0.90, 1.760, 2.20, 0.22, 0.02, 0.008);
-  partRB('neon', 0, 0.90, 1.790, 1.50, 0.12, 0.04, 0.02);
-  function lampBar(key, cx, cy, cz, w, h, d, ox, oy, roll, yaw) {
-    const cr = Math.cos(roll), sr = Math.sin(roll), cy2 = Math.cos(yaw), sy2 = Math.sin(yaw);
-    const lx = ox * cr - oy * sr, ly = ox * sr + oy * cr;
-    partRB(key, cx + lx * cy2, cy + ly, cz - lx * sy2, w, h, d, Math.min(h, d) * 0.3, 0, yaw, roll);
-  }
-  // Sharp, swept lamp shapes. Each lamp is a thin plate whose outline is a tapered parallelogram: the outer end rises and ends in a point (an angry eye / a claw mark).
-  // xi..xo = inner..outer x (mirrored for both sides), yi0/yi1 = bottom/top edge at the inner end, yo0/yo1 = bottom/top edge at the outer end.
-  function slash(key, xi, xo, yi0, yi1, yo0, yo1, z, dir, th) {
-    [-1, 1].forEach(sd => {
-      const ring = zz => [[sd * xi, yi0, zz], [sd * xo, yo0, zz], [sd * xo, yo1, zz], [sd * xi, yi1, zz]];
-      hexBlock(key, ring(z).concat(ring(z + dir * th)));
-    });
-  }
-  // lampQuad: P = [inner-bottom, outer-bottom, outer-top, inner-top] as [x, y] (right side, mirrored). Housing + outline tube + inner line.
-  function lampQuad(frameKey, coreKey, lineKey, P, z, dir) {
-    const cx = (P[0][0] + P[1][0] + P[2][0] + P[3][0]) / 4, cy = (P[0][1] + P[1][1] + P[2][1] + P[3][1]) / 4;
-    const grow = (q, g) => { const dx = q[0] - cx, dy = q[1] - cy, l = Math.hypot(dx, dy) || 1; return [q[0] + dx / l * g, q[1] + dy / l * g]; };
-    [-1, 1].forEach(sd => {
-      const ring = (Q, zz) => Q.map(q => [sd * q[0], q[1], zz]);
-      const H = P.map(q => grow(q, 0.05));
-      hexBlock('black', ring(H, z).concat(ring(H, z + dir * 0.035)));                                           // dark housing
-      const C = P.map(q => grow(q, -0.04));
-      hexBlock(coreKey, ring(C, z + dir * 0.02).concat(ring(C, z + dir * 0.045)));                             // core
-      for (let i = 0; i < 4; i++) {                                                                              // outline tube
-        const a = P[i], b = P[(i + 1) % 4];
-        partBeam(frameKey, sd * a[0], a[1], z + dir * 0.05, sd * b[0], b[1], z + dir * 0.05, 0.045);
-      }
-      const L0 = [(P[0][0] * 0.55 + P[3][0] * 0.45), (P[0][1] * 0.55 + P[3][1] * 0.45)], L1 = [(P[1][0] * 0.55 + P[2][0] * 0.45), (P[1][1] * 0.55 + P[2][1] * 0.45)];
-      partBeam(lineKey, sd * (L0[0] + (sd > 0 ? 0.04 : 0.04)), L0[1], z + dir * 0.06, sd * (L1[0] - 0.04), L1[1], z + dir * 0.06, 0.02);   // inner line
-    });
-  }
-  // REAR LAMPS (paint shop colour): a big sheared parallelogram like the target: black housing, thick glowing outline, dark core and a bright inner line
-  hexBlock('darkS', [[-0.46, 0.25, 1.74], [0.46, 0.25, 1.74], [0.42, 0.25, 1.86], [-0.42, 0.25, 1.86], [-0.46, 0.80, 1.74], [0.46, 0.80, 1.74], [0.42, 0.78, 1.86], [-0.42, 0.78, 1.86]]);   // grille frame
-  partRB('black', 0, 0.515, 1.865, 0.74, 0.46, 0.02, 0.01);
-  for (let j = 0; j < 5; j++) partRB('darkS', 0, 0.34 + j * 0.08, 1.878, 0.70, 0.016, 0.012, 0.004);
-  partRB('deckS', 0, 0.20, 1.84, 0.98, 0.07, 0.20, 0.02);                          // light bumper bar under the grille
-  [-1, 1].forEach(s => partRB('deckS', s * 0.46, 0.29, 1.88, 0.07, 0.18, 0.08, 0.02));
-
-  // ---- Front face (the target's front mirrors the back): neon bar, V lamps, dark grille ----
-  partRB('darkS', 0, 0.80, -2.175, 1.30, 0.20, 0.03, 0.01);
-  partRB('neon', 0, 0.80, -2.195, 1.00, 0.10, 0.04, 0.02);
-  // HEADLIGHTS: ALWAYS white (own materials, the paint shop never touches them). Angry eyes: the inner end is low, the outer end sweeps up into a point, with a dark brow above.
-  hexBlock('darkS', [[-0.38, 0.27, -2.26], [0.38, 0.27, -2.26], [0.40, 0.27, -2.14], [-0.40, 0.27, -2.14], [-0.38, 0.64, -2.25], [0.38, 0.64, -2.25], [0.40, 0.66, -2.14], [-0.40, 0.66, -2.14]]);   // grille frame
-  partRB('black', 0, 0.455, -2.265, 0.62, 0.30, 0.02, 0.01);
-  for (let j = 0; j < 4; j++) partRB('darkS', 0, 0.35 + j * 0.07, -2.278, 0.58, 0.014, 0.012, 0.004);
-  partRB('neon', 0, 0.275, -2.405, 1.36, 0.03, 0.025, 0.008);                                // splitter edge
-
-  // ---- Tall antenna at the rear-right shoulder with a white lamp ----
-  partBeam('joint', 0.84, 1.10, 1.30, 0.84, 2.65, 1.30, 0.035);
-
-  const haloCv = document.createElement('canvas');
-  haloCv.width = 64; haloCv.height = 64;
-  const hc = haloCv.getContext('2d');
-  const hg = hc.createRadialGradient(32, 32, 2, 32, 32, 32);
-  hg.addColorStop(0, 'rgba(255,255,255,0.9)');
-  hg.addColorStop(0.4, 'rgba(255,255,255,0.35)');
-  hg.addColorStop(1, 'rgba(255,255,255,0)');
-  hc.fillStyle = hg; hc.fillRect(0, 0, 64, 64);
-  const haloTex = new THREE.CanvasTexture(haloCv);
-  haloTex.colorSpace = THREE.SRGBColorSpace;
-  const tailHalos = [-1, 1].map(side => {
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: haloTex, color: 0xff3322, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4, fog: false
-    }));
-    s.position.set(side * 1.05, 0.60 + BODY_LIFT, 1.88);
-    s.scale.set(1.1, 0.6, 1);
-    return s;
-  });
-
-  // soft glow in front of the lamps (colour follows the HEADLIGHTS paint)
-  const fhCv = document.createElement('canvas');
-  fhCv.width = 64; fhCv.height = 64;
-  const fhc = fhCv.getContext('2d');
-  const fhg = fhc.createRadialGradient(32, 32, 2, 32, 32, 32);
-  fhg.addColorStop(0, 'rgba(255,255,255,0.95)');
-  fhg.addColorStop(0.4, 'rgba(255,255,255,0.35)');
-  fhg.addColorStop(1, 'rgba(255,255,255,0)');
-  fhc.fillStyle = fhg; fhc.fillRect(0, 0, 64, 64);
-  const fhTex = new THREE.CanvasTexture(fhCv);
-  fhTex.colorSpace = THREE.SRGBColorSpace;
-  const frontHalos = [-1, 1].map(side => {
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: fhTex, color: 0xffffff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4, fog: false
-    }));
-    s.position.set(side * 1.00, 0.60 + BODY_LIFT, -2.30);
-    s.scale.set(1.1, 0.5, 1);
-    return s;
-  });
-
-  Object.keys(buckets).forEach(key => {
-    const merged = mergeSafe(buckets[key], false);
-    if (!merged) return;
-    merged.translate(0, BODY_LIFT, 0);   // the body rides clearly above the wheels, like the target
-    const mesh = new THREE.Mesh(merged, MATS[key]);
-    if (OUTLINE_KEYS.includes(key)) rover.add(new THREE.Mesh(makeOutlineGeo(merged), OUTLINE_MAT));
-    mesh.castShadow = key !== 'dome';
-    rover.add(mesh);
-  });
-  Object.values(MATS).forEach(mt => { mt.fog = false; });
-  MATS.hullS.color.setHex(0x4a535c); MATS.hullS.emissive.setHex(0x4a5663); MATS.deckS.emissive.setHex(0x7a838e); MATS.midS.emissive.setHex(0x59636e); MATS.darkS.color.setHex(0x333a43); MATS.darkS.emissive.setHex(0x303842); MATS.black.emissive.setHex(0x0c1016);
-  return rover;
+  // cockpit: glass canopy over a dark frame
+  put(body, B(0.95, 0.12, 2.1), DARK2, [0, Yc + 0.4, -1.1]);
+  put(glass, new THREE.SphereGeometry(0.62, 14, 10), 0x6fc8ff, [0, Yc + 0.42, -1.1], 0, [0.82, 0.62, 1.75]);
+  const bm = new THREE.Mesh(mergeGeometries(body), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.55, flatShading: true, emissive: 0x566176 }));
+  const gm = new THREE.Mesh(mergeGeometries(glow), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, fog: false }));
+  const cm = new THREE.Mesh(mergeGeometries(glass), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.08, metalness: 0.9, emissive: 0x0b2a46, transparent: true, opacity: 0.88 }));
+  grp.add(bm, gm, cm); return grp;
 })();
-roverBody.rotation.set(0, 0, 0); roverBody.scale.setScalar(1.25); roverBody.position.set(0, -1.35, 0.15);
 shipBody.add(roverBody);
-// hover pads: glowing discs under the four corners instead of wheels
 const hoverPads = [];
-for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const g = glowSprite(0x4fdcff, 2.2, 0.8); g.position.set(sx * 2.1, -1.45, sz * 2.0); shipBody.add(g); hoverPads.push(g); }
 // twin engines at the rear: dark nacelles with a glowing nozzle ring; the thrust flames come out of them
 const engMat = new THREE.MeshStandardMaterial({ color: 0x4a535c, roughness: 0.45, metalness: 0.6, emissive: 0x1c232b });
 const nozMat = new THREE.MeshStandardMaterial({ color: 0x15191f, roughness: 0.6, metalness: 0.4, emissive: 0x05070a, side: THREE.DoubleSide });
@@ -1215,7 +834,7 @@ function updateMissionHud() {
   el.textContent = m.type === 'bounty' ? `BOUNTY  ${m.done}/${m.n} pirates` : m.type === 'delivery' ? `DELIVERY → ${stations[m.to].name}` : `MINING  ${m.done}/${m.n} ore`;
 }
 function completeMission() {
-  const m = S.mission; if (!m) return; save.credits += m.reward; persist(); refreshHud(); toast('MISSION COMPLETE  +' + m.reward, 2.2); sfx('dock'); S.mission = null; updateMissionHud();
+  const m = S.mission; if (!m) return; save.credits += m.reward; persist(); refreshHud(); toast('MISSION COMPLETE  +' + m.reward, 2.2); sfx('pick'); S.mission = null; updateMissionHud();
 }
 
 // ---------- UI ----------
@@ -1275,9 +894,9 @@ function openShop(msg) {
 ['h', 'u', 'p', 'm', 's'].forEach(k => $('tab-' + k).addEventListener('click', () => { shopTab = k; sfx('lock'); openShop($('shop-earn').textContent); }));
 
 function dockAt(i) {
-  S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + 2.4, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
+  S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + 1.5, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
   for (const e of enemies) { e.active = false; e.g.visible = false; } for (const m of missiles) { m.active = false; m.g.visible = false; }
-  sfx('dock'); buzz(50);
+  buzz(50);
   let msg = 'SHIP REPAIRED';
   if (S.mission && S.mission.type === 'delivery' && S.mission.to === i) { const r = S.mission.reward; completeMission(); msg = 'DELIVERY COMPLETE  +' + r; }
   offered = genMissions(i); shopTab = 'h'; openShop(msg);
@@ -1288,7 +907,7 @@ function tryDock() {
   if (S.mode !== 'fly') return; const i = nearStation(); if (i < 0) return;
   const st = stations[i]; DK.i = i; DK.t = 0; DK.p0.copy(S.pos); DK.q0.copy(S.q); DK.dir.copy(st.front).negate();
   _m.lookAt(_zero, DK.dir, Y); DK.q1.setFromRotationMatrix(_m); DK.P1.copy(st.pos).addScaledVector(st.front, 125);
-  DK.tA = clamp(S.pos.distanceTo(DK.P1) / 220, 0.8, 2.2); S.mode = 'dockin'; document.body.classList.add('docked'); S.target = null; S.boosting = false; S.sx = S.sy = 0; sfx('dock');
+  DK.tA = clamp(S.pos.distanceTo(DK.P1) / 220, 0.8, 2.2); S.mode = 'dockin'; document.body.classList.add('docked'); S.target = null; S.boosting = false; S.sx = S.sy = 0;
 }
 function updateDockIn(dt) {
   const st = stations[DK.i]; DK.t += dt; const tB = 1.9;
@@ -1525,6 +1144,7 @@ function frame(now) {
   // ---- ship + camera ----
   ship.position.copy(S.pos); ship.quaternion.copy(S.q); shipBody.rotation.z = S.roll;
   const vis = S.mode !== 'wreck', blink = S.inv > 0 && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
+  { const on = S.mode !== 'dock'; flames.forEach(f => f.visible = on); flameCore.forEach(f => f.visible = on); flameCones.forEach(f => f.visible = on); hoverPads.forEach(p => p.visible = on); }
   const fl = 0.7 + S.speed / 220 + (S.boosting ? 0.9 : 0), flick = 0.9 + Math.sin(tAcc * 50) * 0.1;
   flames.forEach(f => { f.scale.setScalar(2.2 * fl * flick); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => f.scale.setScalar(0.9 * fl * flick)); flameMat.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); flameCones.forEach(c => { c.scale.set(fl * (0.8 + 0.2 * flick), 1.2 * fl * flick + 0.3, fl * (0.8 + 0.2 * flick)); c.position.z = 0.95 + 0.6 * fl * flick + 0.15; });
   for (const e of enemies) if (e.active) { e.g.children[1].scale.setScalar(5 + Math.sin(tAcc * 40 + e.pos.x) * 0.6); }
@@ -1540,7 +1160,7 @@ function frame(now) {
     // hangar view: the ship sits on its platform, the camera swings slowly round it (like Galaxy on Fire 2)
     hangar.visible = true; ship.quaternion.setFromAxisAngle(Y, 0.5); shipBody.rotation.z = 0;
     const a = Math.sin(tAcc * 0.17) * 1.05, hy = Math.sin(tAcc * 0.23) * 1.2, land = innerWidth > innerHeight * 1.2, off = land && shopTab !== 'h' ? 1 : 0;
-    camera.position.set(HP.x + Math.sin(a) * 17, HP.y + 7 + hy, HP.z + Math.cos(a) * 17); camera.lookAt(HP.x, HP.y + 2.4, HP.z);
+    camera.position.set(HP.x + Math.sin(a) * 17, HP.y + 7 + hy, HP.z + Math.cos(a) * 17); camera.lookAt(HP.x, HP.y + 1.5, HP.z);
     if (!hangarVO || camera.fov !== 46 || off !== vo) { camera.fov = 46; hangarVO = true; vo = off; if (off) camera.setViewOffset(innerWidth, innerHeight, innerWidth * 0.2, 0, innerWidth, innerHeight); else { camera.clearViewOffset(); camera.updateProjectionMatrix(); } }
   } else if (hangarVO) { hangarVO = false; vo = 0; hangar.visible = false; camera.clearViewOffset(); camera.fov = 64; camera.updateProjectionMatrix(); }
   sky.position.copy(camera.position);
