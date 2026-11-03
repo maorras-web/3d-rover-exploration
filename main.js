@@ -916,6 +916,29 @@ let entOn = false, entFor = 0, entDismissed = -1;
 const fadeEl = document.getElementById('fade');
 function fadeOut() { fadeEl.style.transition = 'opacity .7s'; fadeEl.style.opacity = '0'; }   // black screen that fades away after docking / launching
 const DK = { i: 0, t: 0, tA: 1, p0: V3(), q0: new THREE.Quaternion(), q1: new THREE.Quaternion(), P1: V3(), dir: V3() };
+
+// ---- star map ----
+const mapOv = $('map-ov'), mapFld = $('map-fld'), mapMe = $('map-me'); let mapOn = false, mapB = null;
+(function () {
+  let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+  for (const p of planets) { x0 = Math.min(x0, p.pos.x); x1 = Math.max(x1, p.pos.x); z0 = Math.min(z0, p.pos.z); z1 = Math.max(z1, p.pos.z); }
+  const sp = Math.max(x1 - x0, z1 - z0) || 1; mapB = { x0, z0, sx: 1 / sp, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2 };
+  planets.forEach((p, i) => {
+    const b = document.createElement('button'); b.className = 'mn'; b.id = 'mn' + i; b.style.setProperty('--c', stations[i].col);
+    b.style.left = (50 + (p.pos.x - mapB.cx) * mapB.sx * 84) + '%'; b.style.top = (50 + (p.pos.z - mapB.cz) * mapB.sx * 84) + '%';
+    b.innerHTML = '<i></i>' + stations[i].name + '<small></small>'; mapFld.appendChild(b);
+    b.addEventListener('click', () => { if (S.mode !== 'fly') return; closeMap(); if (nearPlanet() === i) return; initAudio(); S.tPlanet = i; sfx('lock'); trvOn = true; $('trv-name').textContent = stations[i].name; $('trv-dlg').style.display = 'flex'; });
+  });
+})();
+function updateMap() {
+  const sc = mapB.sx * 84; mapMe.style.left = (50 + (S.pos.x - mapB.cx) * sc) + '%'; mapMe.style.top = (50 + (S.pos.z - mapB.cz) * sc) + '%';
+  const f = new THREE.Vector3(0, 0, -1).applyQuaternion(S.q); mapMe.style.transform = 'translate(-50%,-60%) rotate(' + Math.atan2(f.x, -f.z) + 'rad)';
+  const n = nearPlanet(); planets.forEach((p, i) => { const e = $('mn' + i); e.classList.toggle('cur', n === i); e.lastChild.textContent = n === i ? 'YOU ARE HERE' : Math.round(S.pos.distanceTo(p.pos) / 100) / 10 + ' km'; });
+}
+function openMap() { if (S.mode !== 'fly') return; mapOn = true; mapOv.style.display = 'block'; updateMap(); }
+function closeMap() { mapOn = false; mapOv.style.display = 'none'; }
+$('b-map').addEventListener('click', () => mapOn ? closeMap() : openMap());
+$('map-x').addEventListener('click', closeMap);
 $('trv-yes').addEventListener('click', () => { trvOn = false; $('trv-dlg').style.display = 'none'; initAudio(); if (S.tPlanet >= 0) startWarp(S.tPlanet); });
 $('trv-no').addEventListener('click', () => { trvOn = false; S.tPlanet = -1; $('trv-dlg').style.display = 'none'; });
 $('ent-yes').addEventListener('click', () => { entOn = false; $('ent-dlg').style.display = 'none'; initAudio(); tryDock(); });
