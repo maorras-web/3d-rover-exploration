@@ -283,45 +283,58 @@ const roverBody = (() => {
   const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
   const CYL = (r0, r1, h, seg) => new THREE.CylinderGeometry(r1, r0, h, seg || 10);   // r0 = front (-z) radius, r1 = rear (+z) radius once rotated along z
   const RX = Math.PI / 2;
-  // fuselage: flattened, slightly oval sections, tapering to a long nose
-  put(body, CYL(0.98, 0.86, 2.4, 10), HULL, [0, Yc, 1.3], [RX, 0, 0], [1.25, 1, 0.74]);
-  put(body, CYL(0.52, 0.98, 2.7, 10), HULL, [0, Yc, -1.2], [RX, 0, 0], [1.25, 1, 0.74]);
-  put(body, new THREE.ConeGeometry(0.52, 1.5, 10), HULL2, [0, Yc, -3.3], [-RX, 0, 0], [1.25, 1, 0.74]);
-  put(body, B(0.05, 0.05, 0.9), DARK2, [0, Yc, -4.35], 0);                                                         // sensor needle
-  // belly + dorsal spine + side intakes
-  put(body, B(1.5, 0.22, 3.4), DARK, [0, Yc - 0.5, 0.5]);
-  put(body, B(0.2, 0.2, 2.2), HULL2, [0, Yc + 0.62, 1.3]);
+  // "Aether" - a sleek smooth-lofted spaceship: curved hull, glowing prow core between two blades, thick sponson wings with cannon pods, finned engine bay
+  const PEARL = 0xe8edf5, GR = 0x3b4350, SIL = 0xaab4c4, TEAL = 0x2ee6d6, AMB = 0xffa23a;
+  const loft = (secs, colFn, cx, cy, pw) => {   // smooth lathe-like hull through elliptical sections (super-ellipse cross-section)
+    const N = 16, pos = [], idx = [];
+    secs.forEach(s => { for (let j = 0; j < N; j++) { const a = j / N * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a), e = 2 / (pw || 2.6); pos.push(cx + Math.sign(c) * Math.pow(Math.abs(c), e) * s[1], cy + s[3] + Math.sign(sn) * Math.pow(Math.abs(sn), e) * s[2], s[0]); } });
+    for (let i = 0; i < secs.length - 1; i++) for (let j = 0; j < N; j++) { const a = i * N + j, b = i * N + (j + 1) % N, c = (i + 1) * N + j, d = (i + 1) * N + (j + 1) % N; idx.push(a, c, b, b, c, d); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+    const ng = g.toNonIndexed(), p = ng.attributes.position, col = new Float32Array(p.count * 3), cc = new THREE.Color();
+    for (let i = 0; i < p.count; i++) { cc.set(colFn(p.getZ(i), p.getY(i) - cy)); col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b; }
+    ng.setAttribute('color', new THREE.BufferAttribute(col, 3)); ng.deleteAttribute('uv'); body.push(ng);
+  };
+  // main hull: pearl white with a graphite belly and a dark rear
+  loft([[-4.3, 0.04, 0.04, 0], [-3.4, 0.3, 0.2, 0.02], [-2.3, 0.62, 0.38, 0.05], [-1.0, 0.95, 0.52, 0.06], [0.4, 1.08, 0.58, 0.05], [1.5, 0.9, 0.5, 0.02], [2.0, 0.74, 0.42, 0]],
+    (z, y) => y < -0.28 ? GR : (z > 1.35 ? SIL : PEARL), 0, Yc, 2.8);
+  // dorsal armour ridge with a glowing reactor slot
+  loft([[-2.5, 0.04, 0.03, 0.42], [-1.9, 0.26, 0.2, 0.46], [-0.4, 0.34, 0.26, 0.5], [1.2, 0.3, 0.22, 0.46], [1.9, 0.2, 0.14, 0.38]], (z) => z > 0.9 ? GR : SIL, 0, Yc, 2.4);
+  put(glow, B(0.12, 0.05, 1.5), AMB, [0, Yc + 0.77, 0.55]);
+  put(glass, new THREE.SphereGeometry(0.5, 14, 10), 0x35d4ff, [0, Yc + 0.58, -1.55], 0, [0.62, 0.42, 1.7]);               // long canopy
+  // prow: two blades with an energy core between them
   for (const s of [-1, 1]) {
-    put(body, B(0.42, 0.42, 1.2), DARK, [s * 0.98, Yc - 0.02, -0.3]);                                              // intake
-    put(body, B(0.3, 0.3, 0.1), DARK2, [s * 0.98, Yc - 0.02, -0.92]);
-    put(body, B(0.5, 0.08, 1.5), RED, [s * 0.74, Yc + 0.36, 0.7], [0, 0, s * -0.35]);                           // red hull stripe
-    // vertical stabilisers, canted outwards
-    put(body, B(0.1, 1.25, 1.5), HULL, [s * 1.0, Yc + 0.95, 1.9], [0, 0, s * -0.22]);
-    put(body, B(0.12, 0.3, 0.7), RED, [s * 1.08, Yc + 1.5, 2.1], [0, 0, s * -0.22]);
-    // wing-to-engine pylon and wing cannon (the lasers leave from x = +-2.6)
-    put(body, B(0.22, 0.32, 1.6), DARK, [s * 2.6, Yc - 0.12, 0.2]);
-    put(body, new THREE.CylinderGeometry(0.1, 0.1, 2.7, 8), DARK2, [s * 2.6, Yc, -0.35], [RX, 0, 0]);
-    put(body, new THREE.CylinderGeometry(0.17, 0.12, 0.45, 8), HULL2, [s * 2.6, Yc, -1.45], [RX, 0, 0]);
-    put(glow, new THREE.CylinderGeometry(0.07, 0.07, 0.12, 8), 0xffffff, [s * 2.6, Yc, -1.72], [RX, 0, 0]);       // muzzle
-    put(glow, B(0.06, 0.06, 2.0), CY, [s * 0.92, Yc + 0.1, -0.6]);                                                // neon strip along the nose
-    put(glow, B(0.05, 0.05, 1.3), CY, [s * 2.05, Yc - 0.08, 1.45]);                                                // wing edge light strip
+    put(body, B(0.1, 0.16, 2.3), SIL, [s * 0.4, Yc + 0.02, -4.6], [0, s * 0.1, 0]);
+    put(body, B(0.1, 0.1, 1.2), GR, [s * 0.5, Yc - 0.1, -3.9], [0, s * 0.05, 0]);
+    put(glow, B(0.04, 0.04, 2.2), TEAL, [s * 0.46, Yc + 0.1, -4.55], [0, s * 0.1, 0]);
   }
-  // swept, tapered wings
+  put(glow, new THREE.SphereGeometry(0.2, 10, 8), 0x7ffcff, [0, Yc, -4.7]);
+  // hull accent lines
+  for (const s of [-1, 1]) {
+    put(glow, B(0.04, 0.04, 3.4), TEAL, [s * 0.74, Yc + 0.12, -0.9], [0, s * 0.06, 0]);
+    put(body, B(0.5, 0.05, 1.0), GR, [s * 0.5, Yc + 0.5, 1.0]);                                                          // dorsal panels
+  }
+  // sponson wings: thick swept plates carrying the cannon pods (lasers leave from x = +-2.6)
   const wing = (s) => {
     const g = new THREE.BoxGeometry(1, 1, 1), p = g.attributes.position;
-    for (let i = 0; i < p.count; i++) { const u = p.getX(i) + 0.5, y = p.getY(i), z = p.getZ(i), ch = 3.0 - 1.8 * u, zc = 0.55 + 1.45 * u, th = 0.3 - 0.18 * u; p.setXYZ(i, s * (0.6 + u * 3.55), Yc - 0.12 + y * th - 0.1 * u, zc + z * ch); }
+    for (let i = 0; i < p.count; i++) { const u = p.getX(i) + 0.5, y = p.getY(i), z = p.getZ(i), ch = 3.2 - 1.4 * u, zc = 0.1 + 0.6 * u, th = 0.3 - 0.12 * u; p.setXYZ(i, s * (0.8 + u * 1.7), Yc - 0.1 + y * th - 0.12 * u, zc + z * ch); }
     let ng = g.toNonIndexed(); if (s < 0) { const q = ng.attributes.position; for (let i = 0; i < q.count; i += 3) { const x = q.getX(i + 1), y = q.getY(i + 1), z = q.getZ(i + 1); q.setXYZ(i + 1, q.getX(i + 2), q.getY(i + 2), q.getZ(i + 2)); q.setXYZ(i + 2, x, y, z); } }
     return ng;
   };
   for (const s of [-1, 1]) {
-    put(body, wing(s), HULL, [0, 0, 0]);
-    put(body, B(1.6, 0.03, 0.55), DARK, [s * 2.1, Yc - 0.03, 1.35]);                                                // panel
-    put(body, B(0.5, 0.2, 1.05), RED, [s * 4.1, Yc - 0.2, 1.85]);                                                    // wingtip fin
+    put(body, wing(s), PEARL, [0, 0, 0]);
+    put(body, B(1.4, 0.04, 0.5), GR, [s * 1.6, Yc + 0.08, 0.5]);                                                      // wing panel
+    loft([[-1.9, 0.03, 0.03, 0], [-1.5, 0.22, 0.2, 0], [-0.6, 0.42, 0.38, 0], [1.0, 0.48, 0.44, 0], [2.0, 0.46, 0.42, 0], [2.4, 0.36, 0.34, 0]], (z) => z < -0.9 ? SIL : (z > 1.7 ? GR : PEARL), s * 2.6, Yc - 0.12, 2.2);
+    put(body, new THREE.CylinderGeometry(0.07, 0.07, 1.0, 8), GR, [s * 2.6, Yc - 0.12, -1.75], [RX, 0, 0]);               // barrel
+    put(glow, new THREE.CylinderGeometry(0.06, 0.06, 0.1, 8), 0xffffff, [s * 2.6, Yc - 0.12, -2.25], [RX, 0, 0]);       // muzzle
+    put(glow, B(0.05, 0.05, 2.4), TEAL, [s * 2.6, Yc + 0.3, 0.4]);                                                    // pod light strip
+    put(glow, new THREE.TorusGeometry(0.3, 0.04, 5, 12), AMB, [s * 2.6, Yc - 0.12, 2.42]);                              // pod exhaust ring
+    // engine bay fins: outer blade beside each nacelle + a lower skid plate
+    put(body, B(0.06, 0.95, 1.4), SIL, [s * 1.95, Yc + 0.25, 2.1], [0, 0, s * -0.3]);
+    put(glow, B(0.04, 0.04, 1.1), AMB, [s * 2.1, Yc + 0.72, 2.2], [0, 0, s * -0.3]);
+    put(body, B(0.9, 0.06, 0.8), GR, [s * 1.2, Yc - 0.62, 2.0]);
   }
-  // cockpit: glass canopy over a dark frame
-  put(body, B(0.95, 0.12, 2.1), DARK2, [0, Yc + 0.4, -1.1]);
-  put(glass, new THREE.SphereGeometry(0.62, 14, 10), 0x6fc8ff, [0, Yc + 0.42, -1.1], 0, [0.82, 0.62, 1.75]);
-  const bm = new THREE.Mesh(mergeGeometries(body), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.55, flatShading: true, emissive: 0x566176 }));
+  put(body, B(0.6, 0.5, 0.7), GR, [0, Yc - 0.1, 2.1]);                                                                  // thin central engine spine between the nacelles
+  const bm = new THREE.Mesh(mergeGeometries(body), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32, metalness: 0.6, flatShading: false, emissive: 0x8892a6 }));
   const gm = new THREE.Mesh(mergeGeometries(glow), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, fog: false }));
   const cm = new THREE.Mesh(mergeGeometries(glass), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.08, metalness: 0.9, emissive: 0x0b2a46, transparent: true, opacity: 0.88 }));
   grp.add(bm, gm, cm); return grp;
