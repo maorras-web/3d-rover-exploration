@@ -339,7 +339,11 @@ const hoverPads = [];
 const engMat = new THREE.MeshStandardMaterial({ color: 0x4a535c, roughness: 0.45, metalness: 0.6, emissive: 0x1c232b });
 const nozMat = new THREE.MeshStandardMaterial({ color: 0x15191f, roughness: 0.6, metalness: 0.4, emissive: 0x05070a, side: THREE.DoubleSide });
 const ringMat = new THREE.MeshBasicMaterial({ color: 0x7fe9ff });
-const flameMat = new THREE.MeshBasicMaterial({ color: 0x7fe9ff, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+const flameTex = canvasTex(8, 64, (x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.3, 'rgba(255,255,255,.18)'); g.addColorStop(0.7, 'rgba(255,255,255,.7)'); g.addColorStop(1, 'rgba(255,255,255,1)'); x.fillStyle = g; x.fillRect(0, 0, w, h); });
+const mkFlame = (c, o) => new THREE.MeshBasicMaterial({ color: c, map: flameTex, transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide });
+const flameMats = [mkFlame(0x2a9dff, 0.8), mkFlame(0x7fe9ff, 0.9), mkFlame(0xffffff, 1)];   // outer glow, middle, white-hot core
+const flameCols = [[0x2a9dff, 0xff5a1a], [0x7fe9ff, 0xffb050], [0xffffff, 0xfff0c0]];
+const FL = [{ r: 0.5, len: 1.9, k: 0 }, { r: 0.33, len: 1.4, k: 1 }, { r: 0.18, len: 0.9, k: 2 }];
 const flameCones = [];
 for (const s of [-1, 1]) {
   const e = new THREE.Group(); e.position.set(s * 1.3, -0.35, 2.55);
@@ -347,7 +351,7 @@ for (const s of [-1, 1]) {
   const intake = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.5, 0.22, 16), engMat); intake.rotation.x = Math.PI / 2; intake.position.z = -0.55; e.add(intake);
   const noz = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.5, 0.35, 16, 1, true), nozMat); noz.rotation.x = Math.PI / 2; noz.position.z = 0.78; e.add(noz);
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.035, 6, 20), ringMat); ring.position.z = 0.95; e.add(ring);
-  const fc = new THREE.Mesh(new THREE.ConeGeometry(0.4, 1, 12, 1, true), flameMat); fc.rotation.x = Math.PI / 2; fc.position.set(0, 0, 0.95); e.add(fc); flameCones.push(fc);
+  FL.forEach((L, k) => { const fc = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 16, 1, true), flameMats[k]); fc.rotation.x = Math.PI / 2; fc.position.set(0, 0, 0.95); fc.userData = { L, ph: s * 1.7 + k }; e.add(fc); flameCones.push(fc); });
   const strut = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 0.9), engMat); strut.position.set(-s * 0.55, 0.15, -0.1); e.add(strut);
   shipBody.add(e);
 }
@@ -601,7 +605,7 @@ const planets = [];
   });
   for (const s of stations) {
     const p = s.pl; p.pos = s.pos.clone().add(p.off); planets.push(p);
-    const pm = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex(p.kind), fog: false })); pm.scale.setScalar(p.r); pm.position.copy(p.pos); pm.rotation.z = 0.3; scene.add(pm); p.mesh = pm;
+    const pm = new THREE.Mesh(geo, (() => { const tx = tex(p.kind); return new THREE.MeshLambertMaterial({ map: tx, emissive: 0xffffff, emissiveMap: tx, emissiveIntensity: 0.28, fog: false }); })()); pm.scale.setScalar(p.r); pm.position.copy(p.pos); pm.rotation.z = 0.3; scene.add(pm); p.mesh = pm;
     if (p.ring) {
       const cv = document.createElement('canvas'); cv.width = cv.height = 256; const x = cv.getContext('2d');
       for (let r = 128; r > 0; r -= 1.5) { const t = r / 128, inRing = t > 0.62 && t < 0.99, a = inRing ? 0.25 + 0.55 * Math.abs(Math.sin(r * 0.55) * Math.cos(r * 0.17)) : 0; x.strokeStyle = 'rgba(' + (225 - (r % 7) * 6) + ',' + (190 - (r % 5) * 6) + ',' + (150 - (r % 9) * 4) + ',' + (t > 0.78 && t < 0.82 ? 0.05 : a) + ')'; x.lineWidth = 1.7; x.beginPath(); x.arc(128, 128, r, 0, Math.PI * 2); x.stroke(); }
@@ -611,6 +615,7 @@ const planets = [];
     }
   }
 }
+const _pd = V3(), _pc = V3(), PCEN = V3(); planets.forEach(p => PCEN.add(p.pos)); PCEN.multiplyScalar(1 / planets.length);
 const lookUp = (d) => Math.abs(d.y) > 0.98 ? Z : Y;   // up-vector that is never parallel to the view direction
 const dockPoint = (st, out) => out.copy(st.pos).addScaledVector(st.front, 58);
 
@@ -805,7 +810,7 @@ function cycleTarget() {
   const list = enemies.filter(e => e.active).map(e => { _a.copy(e.pos).sub(S.pos); const d = _a.length(); return { e, score: Math.acos(clamp(fwd.dot(_a) / (d || 1), -1, 1)) + d / 3000 }; }).sort((a, b) => a.score - b.score);
   if (!list.length) {   // no enemies around: TARGET picks a planet to visit (the planet you are already at is skipped)
     S.target = null; const here = nearPlanet();
-    const cand = planets.map((p, i) => ({ i, a: _a.copy(p.pos).sub(S.pos).normalize().dot(fwd) })).filter(o => o.i !== here).sort((x, y) => y.a - x.a).map(o => o.i);
+    const cand = planets.map((p, i) => ({ i, a: _a.copy(p.mesh.position).sub(S.pos).normalize().dot(fwd) })).filter(o => o.i !== here).sort((x, y) => y.a - x.a).map(o => o.i);
     const k = cand.indexOf(S.tPlanet); S.tPlanet = cand[(k + 1) % cand.length]; sfx('lock');
     trvOn = true; $('trv-name').textContent = stations[S.tPlanet].name; $('trv-dlg').style.display = 'flex'; return;
   }
@@ -1184,7 +1189,7 @@ function frame(now) {
     }
     if (S.inv > 0) S.inv -= dt;
     for (const st of stations) { _a.copy(S.pos).sub(st.pos); const d = _a.length(); if (d < 40 * ST_K) { S.pos.copy(st.pos).addScaledVector(_a.multiplyScalar(40 * ST_K / (d || 1)), 1); S.speed *= 0.6; } }
-    for (const p of planets) { _a.copy(S.pos).sub(p.pos); const d = _a.length(), lim = p.r * 1.03 + 6; if (d < lim) { S.pos.copy(p.pos).addScaledVector(_a, lim / (d || 1)); S.speed *= 0.6; } }
+    // planets are scenery: they can never be reached (see the planet placement in the world animation)
     const mag = 20 + 0;
     for (let i = 0; i < LOOT_N; i++) {
       const l = loot[i]; if (!l.active) continue; l.life -= dt; l.pos.addScaledVector(l.vel, dt); l.vel.multiplyScalar(Math.max(0, 1 - 1.2 * dt));
@@ -1207,7 +1212,7 @@ function frame(now) {
   const vis = S.mode !== 'wreck', blink = S.inv > 0 && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
   { const on = S.mode !== 'dock'; flames.forEach(f => f.visible = on); flameCore.forEach(f => f.visible = on); flameCones.forEach(f => f.visible = on); hoverPads.forEach(p => p.visible = on); }
   const fl = 0.7 + S.speed / 220 + (S.boosting ? 0.9 : 0), flick = 0.9 + Math.sin(tAcc * 50) * 0.1;
-  flames.forEach(f => { f.scale.setScalar(2.2 * fl * flick); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => f.scale.setScalar(0.9 * fl * flick)); flameMat.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); flameCones.forEach(c => { c.scale.set(fl * (0.8 + 0.2 * flick), 1.2 * fl * flick + 0.3, fl * (0.8 + 0.2 * flick)); c.position.z = 0.95 + 0.6 * fl * flick + 0.15; });
+  flames.forEach(f => { f.scale.setScalar(2.2 * fl * flick); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => f.scale.setScalar(0.9 * fl * flick)); flameMats.forEach((fm, k) => fm.color.setHex(flameCols[k][S.boosting ? 1 : 0])); flameCones.forEach(c => { const u = c.userData, L = u.L, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + u.ph) + 0.05 * Math.sin(tAcc * 91 + u.ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); c.scale.set(r, len, r); c.position.z = 0.9 + len / 2; });
   for (const e of enemies) if (e.active) { e.g.children[1].scale.setScalar(5 + Math.sin(tAcc * 40 + e.pos.x) * 0.6); }
   S.camQ.slerp(S.q, 1 - Math.exp(-7 * dt));
   const cd = 17 + S.speed * 0.014;
@@ -1249,7 +1254,11 @@ function frame(now) {
     dummy.updateMatrix(); boltMesh.setMatrixAt(i, dummy.matrix);
   }
   boltMesh.instanceMatrix.needsUpdate = true;
-  for (const p of planets) { const dd = S.pos.distanceTo(p.pos), f = dd > 4500 ? (4500 / dd) * (4500 / dd) : 1; p.mesh.scale.setScalar(p.r * f); if (p.rg) p.rg.scale.setScalar(f); }   // far planets shrink: they look small and distant
+  for (const p of planets) {   // planets are unreachable scenery: drawn along the true direction but at an apparent distance that barely shrinks, with the size you would see from the real distance
+    _a.copy(p.pos).sub(S.pos); const d = _a.length() || 1, dA = 2600 + 0.12 * d, a = Math.max(0.026, p.r / Math.max(d, p.r * 1.6) * (d > 4000 ? Math.pow(4000 / d, 1.5) : 1)), k = a * dA / p.r;   // like Galaxy on Fire 2: far planets are tiny discs (about 3 degrees), the one at your station is huge
+    const w = clamp((d - 1500) / 2500, 0, 1) * 0.7; _pd.copy(_a).divideScalar(d).multiplyScalar(1 - w).addScaledVector(_pc.copy(p.pos).sub(PCEN).normalize(), w).normalize();   // far planets fan out around the system centre so they never bunch up on screen
+    p.mesh.position.copy(S.pos).addScaledVector(_pd, dA); p.mesh.scale.setScalar(p.r * k); if (p.rg) { p.rg.position.copy(p.mesh.position); p.rg.scale.setScalar(k); }
+  }
   for (const st of stations) { st.g.visible = S.pos.distanceTo(st.pos) < STN_VIS; if (st.g.visible) st.g.userData.spin.rotation.z += dt * 0.12; }
   dustMat.uniforms.uCam.value.copy(camera.position); dustMat.uniforms.uVel.value.copy(S.vel);
   dustMat.uniforms.uK.value = 0.012 + (S.boosting ? 0.02 : 0.008); dustMat.uniforms.uAlpha.value = S.mode === 'dock' ? 0 : 0.22 + clamp(S.speed / 170, 0, 1) * 0.35 + (S.boosting ? 0.2 : 0);
@@ -1264,7 +1273,7 @@ function frame(now) {
   if (flying) {
     for (let i = 0; i < stations.length; i++) {
       const d = S.pos.distanceTo(stations[i].pos); if (d < STN_VIS) place(mk[i], stations[i].pos, stations[i].name + ' STATION · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), false); else mk[i].style.display = 'none';
-      const dp = S.pos.distanceTo(planets[i].pos) - planets[i].r, lk = S.tPlanet === i; mkp[i].classList.toggle('lock', lk); if (d < STN_VIS && !lk) mkp[i].style.display = 'none'; else place(mkp[i], planets[i].pos, '', lk);
+      const lk = S.tPlanet === i; mkp[i].classList.toggle('lock', lk); if (!lk) mkp[i].style.display = 'none'; else place(mkp[i], planets[i].mesh.position, '', lk);
     }
     const m = S.mission;
     if (m && (m.type === 'bounty' || m.type === 'delivery')) { const p = m.type === 'bounty' ? m.zone : stations[m.to].pos, d = S.pos.distanceTo(p); place(mkWp, p, (m.type === 'bounty' ? 'BOUNTY ZONE' : 'DELIVERY') + ' · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), true); } else mkWp.style.display = 'none';
