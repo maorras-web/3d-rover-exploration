@@ -222,7 +222,7 @@ const skyS = new THREE.Group(); skyS.scale.setScalar(6); sky.add(skyS);      // 
   })();
   // ---- nebula: soft coloured gas clouds, dark dust lanes and a faint milky-way band, painted ONCE into a small texture (no per-frame cost) ----
   const spaceNebula = (() => {
-    const W = 512, H = 256, data = new Uint8ClampedArray(W * H * 4);
+    const W = 512, H = 256;
     const hs = (x, y, z) => { const h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return h - Math.floor(h); };
     const vn3 = (x, y, z) => {
       const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
@@ -233,7 +233,8 @@ const skyS = new THREE.Group(); skyS.scale.setScalar(6); sky.add(skyS);      // 
     };
     const fbm = (x, y, z, o) => { let t = 0, am = 0.5; for (let i = 0; i < o; i++) { t += am * vn3(x, y, z); x *= 2.03; y *= 2.03; z *= 2.03; am *= 0.5; } return t; };
     const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-    const PUR = [0.62, 0.16, 0.86], TEAL = [0.08, 0.62, 0.92], WARM = [0.95, 0.40, 0.18], BASE = [0.012, 0.016, 0.045];
+    const makeNeb = (PUR, TEAL, WARM, BASE) => {
+    const data = new Uint8ClampedArray(W * H * 4);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const lon = x / W * Math.PI * 2, lat = (0.5 - y / H) * Math.PI;
       const dx = Math.cos(lat) * Math.cos(lon), dy = Math.sin(lat), dz = Math.cos(lat) * Math.sin(lon);
@@ -256,10 +257,14 @@ const skyS = new THREE.Group(); skyS.scale.setScalar(6); sky.add(skyS);      // 
     }
     const tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat);
     tex.colorSpace = THREE.SRGBColorSpace; tex.wrapS = THREE.RepeatWrapping; tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter;
-    tex.generateMipmaps = false; tex.needsUpdate = true;
+    tex.generateMipmaps = false; tex.needsUpdate = true; return tex;
+    };
+    const tex = makeNeb([0.62, 0.16, 0.86], [0.08, 0.62, 0.92], [0.95, 0.40, 0.18], [0.012, 0.016, 0.045]);   // first system: purple / teal / warm
+    let tex1 = null;   // YAPZO's own palette (amber / green / magenta), painted the first time you arrive
     const m = new THREE.Mesh(new THREE.SphereGeometry(465, 32, 16), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, depthWrite: false }));
     m.renderOrder = -100; m.frustumCulled = false;
     skyS.add(m);
+    m.userData.setSys = (k) => { if (k === 1 && !tex1) tex1 = makeNeb([0.92, 0.46, 0.08], [0.08, 0.78, 0.42], [0.86, 0.12, 0.38], [0.03, 0.02, 0.012]); m.material.map = k === 1 ? tex1 : tex; };
     return m;
   })();
 spaceSun.position.copy(SUN_DIR).multiplyScalar(450);
@@ -710,8 +715,10 @@ const planets = [];
   }
 }
 const _pd = V3(), _pc = V3(), PCENS = SYSTEMS.map((nm, k) => { const c = V3(); let n = 0; planets.forEach(p => { if (p.sys === k) { c.add(p.pos); n++; } }); return c.multiplyScalar(1 / (n || 1)); });
-let curSys = 0;   // the system you are in = the system of the nearest station
-const updCurSys = () => { if (S.mode === 'dock') { curSys = stations[S.station].sys; return; } let b = 1e18; for (const s of stations) { const d = S.pos.distanceToSquared(s.pos); if (d < b) { b = d; curSys = s.sys; } } };
+let curSys = 0, lastSkySys = 0;   // the system you are in = the system of the nearest station
+const sysBanner = (k) => { const el = document.getElementById('sysbn'); if (!el) return; el.firstChild.textContent = 'ENTERING ' + SYSTEMS[k] + ' SYSTEM'; el.lastChild.textContent = SYSTEM_SUB[k]; el.style.opacity = '1'; setTimeout(() => { el.style.opacity = '0'; }, 3400); };
+const SYSTEM_SUB = ['5 WORLDS', '5 WORLDS \u00B7 AMBER NEBULA'];
+const updCurSys = () => { if (S.mode === 'dock') { curSys = stations[S.station].sys; return; } let b = 1e18; for (const s of stations) { const d = S.pos.distanceToSquared(s.pos); if (d < b) { b = d; curSys = s.sys; } } if (curSys !== lastSkySys) { lastSkySys = curSys; spaceNebula.userData.setSys(curSys); if (S.mode !== 'dock') setTimeout(() => sysBanner(curSys), 900); } };
 const firstOfSys = (k) => stations.findIndex(s => s.sys === k);
 const lookUp = (d) => Math.abs(d.y) > 0.98 ? Z : Y;   // up-vector that is never parallel to the view direction
 const dockPoint = (st, out) => out.copy(st.pos).addScaledVector(st.front, 58);
@@ -857,6 +864,15 @@ tapBtn($('b-miss'), () => fireMissile()); tapBtn($('b-tgt'), () => cycleTarget()
 $('b-inv').classList.toggle('on', save.inv); $('b-snd').classList.toggle('on', save.snd);
 $('b-inv').addEventListener('click', () => { save.inv = !save.inv; $('b-inv').classList.toggle('on', save.inv); persist(); });
 $('b-snd').addEventListener('click', () => { save.snd = !save.snd; $('b-snd').classList.toggle('on', save.snd); if (eng) eng.master.gain.value = save.snd ? 0.5 : 0; persist(); initAudio(); });
+let paused = false;
+function setPause(v) {
+  if (v === paused) return; if (v && (S.mode === 'dock' || mapOn || $('start').classList.contains('show'))) return;
+  paused = v; $('pause-ov').style.display = v ? 'flex' : 'none'; firing = false; boostHeld = false; stickId = null; setKnob(0, 0);
+  if (actx && !document.hidden) { v ? actx.suspend() : actx.resume(); }
+}
+$('b-pause').addEventListener('click', () => { initAudio(); setPause(true); });
+$('b-resume').addEventListener('click', () => setPause(false));
+addEventListener('keydown', (e) => { if (e.code === 'Escape' || e.code === 'KeyP') setPause(!paused); });
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // ---------- missiles ----------
@@ -1088,7 +1104,7 @@ function updateMap() {
 }
 function openMap() { if (S.mode !== 'fly') return; if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } mapOn = true; mapOv.style.display = 'block'; updateMap(); }
 function closeMap() { mapOn = false; mapOv.style.display = 'none'; }
-$('b-map').addEventListener('click', () => mapOn ? closeMap() : openMap());
+$('b-map').addEventListener('click', () => { setPause(false); mapOn ? closeMap() : openMap(); });
 $('map-x').addEventListener('click', closeMap);
 $('trv-yes').addEventListener('click', () => { trvOn = false; $('trv-dlg').style.display = 'none'; initAudio(); if (S.tPlanet >= 0) startWarp(S.tPlanet); });
 $('trv-no').addEventListener('click', () => { trvOn = false; S.tPlanet = -1; $('trv-dlg').style.display = 'none'; });
@@ -1122,7 +1138,7 @@ $('go-start').textContent = 'LAUNCH';
 { const b = document.createElement('div'); b.style.cssText = 'margin-top:10px;font-size:10px;opacity:.5;letter-spacing:2px'; b.textContent = 'BUILD ' + BUILD; $('go-start').parentNode.appendChild(b); }
 $('go-launch').addEventListener('click', () => { unlockMusic(); $('sh-dlg').style.display = 'flex'; });
 document.addEventListener('click', (e) => {   // one place gives every menu button its sound
-  const b = e.target.closest('button, .go'); if (!b || !b.closest('#shop, .edlg, #sh-dlg, #map-ov, #start')) return; const id = b.id || '';
+  const b = e.target.closest('button, .go'); if (!b || !b.closest('#shop, .edlg, #sh-dlg, #map-ov, #start, #pause-ov')) return; const id = b.id || '';
   initAudio(); sfx(['ent-yes', 'trv-yes', 'dlg-yes', 'go-start'].includes(id) ? 'uiOk' : ['ent-no', 'trv-no', 'dlg-no', 'map-x'].includes(id) ? 'uiNo' : id.startsWith('tab-') ? 'uiTab' : 'ui');
 }, true);
 $('dlg-no').addEventListener('click', () => { $('sh-dlg').style.display = 'none'; });
@@ -1203,7 +1219,7 @@ function drawRadar() {
 
 function frame(now) {
   requestAnimationFrame(frame);
-  let dt = (now - last) / 1000; last = now; if (dt > 0.05) dt = 0.05; if (dt <= 0) return;
+  let dt = (now - last) / 1000; last = now; if (paused || dt > 0.05) dt = paused ? 0 : 0.05; if (dt <= 0) return;
   tAcc += dt; ema += (dt * 1000 - ema) * 0.05; frames++;
   if (frames > 60) { if (ema > 24) { slow += dt; fast = 0; } else if (ema < 15) { fast += dt; slow = 0; } else { slow = fast = 0; } if (slow > 1.5 && pr > PR_MIN) { pr = Math.max(PR_MIN, pr * 0.85); applyPR(); slow = 0; } else if (slow > 3 && pr <= PR_MIN + 0.01 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; } if (fast > 5 && pr < PR_MAX) { pr = Math.min(PR_MAX, pr * 1.12); applyPR(); fast = 0; } }
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = '0'; }
