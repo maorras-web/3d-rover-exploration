@@ -426,17 +426,24 @@ const enemyGeo = (() => {
     const c = new THREE.Color(color), n = g.attributes.position.count, col = new Float32Array(n * 3); for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.deleteAttribute('uv'); parts.push(g);
   };
-  add(new THREE.ConeGeometry(0.8, 3.6, 5), 0x3a2630, [0, 0, -2.2], [-Math.PI / 2, 0, 0]);
-  add(new THREE.CylinderGeometry(0.8, 1.0, 2.8, 5), 0x2a2630, [0, 0, 0.5], [Math.PI / 2, 0, 0]);
-  add(new THREE.SphereGeometry(0.55, 6, 5), 0xff4a3a, [0, 0.55, -0.7]);
-  for (const s of [-1, 1]) {
-    add(new THREE.BoxGeometry(3.6, 0.12, 1.8), 0x4a2a34, [s * 2.0, -0.05, 0.9], [0, s * 0.5, s * -0.12]);
-    add(new THREE.BoxGeometry(0.14, 1.1, 1.0), 0xc0302a, [s * 3.6, 0.35, 1.5]);
-    add(new THREE.CylinderGeometry(0.4, 0.5, 1.5, 6), 0x2a2630, [s * 1.1, -0.1, 1.6], [Math.PI / 2, 0, 0]);
+  // X-shaped raider: four arms in an X around a round central pod (the pilot is "inside", unseen)
+  add(new THREE.SphereGeometry(1.15, 14, 10), 0x9a6c7a, [0, 0, 0]);                                  // central pod
+  add(new THREE.TorusGeometry(1.2, 0.12, 6, 18), 0xff4a3a, [0, 0, 0]);                              // red armour band round the pod
+  add(new THREE.CylinderGeometry(0.5, 0.62, 0.7, 10), 0x6a5460, [0, 0, 1.15], [Math.PI / 2, 0, 0]);  // rear engine block
+  add(new THREE.SphereGeometry(0.42, 8, 6), 0xff7a4a, [0, 0, -1.0]);                                  // front sensor eye
+  for (let k = 0; k < 4; k++) {
+    const an = Math.PI / 4 + k * Math.PI / 2, c = Math.cos(an), s = Math.sin(an);
+    // arm: tapered strut from the pod out to the tip, swept slightly backwards
+    const L = 3.0, mid = 0.9 + L / 2;
+    const g = new THREE.CylinderGeometry(0.28, 0.46, L, 6); g.rotateZ(an - Math.PI / 2);   // cylinder axis (y) -> pointing along the diagonal
+    add(g, 0xb87d8a, [c * mid, s * mid, 0]);
+    add(new THREE.CylinderGeometry(0.34, 0.44, 1.5, 7), 0x7a5a66, [c * 4.1, s * 4.1, 0.5], [Math.PI / 2, 0, 0]);            // wing-tip engine pod
+    add(new THREE.SphereGeometry(0.3, 7, 5), 0xff6a3a, [c * 4.1, s * 4.1, -0.25]);                                          // glowing gun muzzle at the tip
   }
   return mergeGeometries(parts);
 })();
-const enemyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.5, flatShading: true, fog: false, emissive: 0x3a1210 });
+const enemyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.35, flatShading: true, fog: false, emissive: 0x3c1a1c });
+enemyMat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float rimE = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 2.2); totalEmissiveRadiance += vec3(1.0, 0.25, 0.14) * rimE * 0.8;'); };   // red rim light so pirates stand out against dark space
 
 // ---------- dust streaks ----------
 const dustMat = new THREE.ShaderMaterial({
@@ -642,7 +649,7 @@ const fwd = V3(0, 0, -1);
 const enemies = []; const ENEMY_N = 6;
 for (let i = 0; i < ENEMY_N; i++) {
   const g = new THREE.Group(); const mesh = new THREE.Mesh(enemyGeo, enemyMat); mesh.scale.setScalar(1.8); g.add(mesh);
-  const glow = glowSprite(0xff6a3a, 5, 0.9); glow.position.set(0, -0.2, 4.6); g.add(glow);
+  const glow = glowSprite(0xff6a3a, 6.5, 0.95); glow.position.set(0, 0, 3.4); g.add(glow);
   g.visible = false; scene.add(g);
   enemies.push({ g, pos: g.position, q: g.quaternion, vel: V3(), speed: 90, shield: 0, shieldMax: 0, hull: 0, hullMax: 0, active: false, fireT: 0, evadeT: 0, evadeDir: V3(), burst: 0, name: 'PIRATE' });
 }
@@ -947,8 +954,15 @@ function openShop(msg) {
   } else if (shopTab === 'p') {
     const mp = document.createElement('div'); mp.className = 'smap'; list.appendChild(mp);
     let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; stations.forEach(s => { x0 = Math.min(x0, s.pos.x); x1 = Math.max(x1, s.pos.x); z0 = Math.min(z0, s.pos.z); z1 = Math.max(z1, s.pos.z); });
-    stations.forEach((s, k) => { const d = document.createElement('div'); d.className = 'sn' + (k === S.station ? ' here' : '') + (S.mission && S.mission.type === 'delivery' && S.mission.to === k ? ' tgt' : ''); d.style.left = (12 + 76 * (s.pos.x - x0) / (x1 - x0 || 1)) + '%'; d.style.top = (14 + 66 * (s.pos.z - z0) / (z1 - z0 || 1)) + '%';
-      d.innerHTML = `<i style="${k === S.station ? '' : `background:${s.col};box-shadow:0 0 12px ${s.col}`}"></i><span>${s.name}<br><small>${k === S.station ? 'YOU ARE HERE' : (stations[S.station].pos.distanceTo(s.pos) / 1000).toFixed(1) + ' km'}</small></span>`; mp.appendChild(d); });
+    const pc = stations.map(s => [12 + 76 * (s.pos.x - x0) / (x1 - x0 || 1), 14 + 66 * (s.pos.z - z0) / (z1 - z0 || 1)]);
+    // network of lanes: every station linked to its two nearest neighbours, plus brighter lanes out of the station you are docked at
+    const lanes = new Set(), here = S.station; stations.forEach((s, k) => { stations.map((t, j) => [j, s.pos.distanceTo(t.pos)]).filter(q => q[0] !== k).sort((p, q) => p[1] - q[1]).slice(0, 2).forEach(q => lanes.add(Math.min(k, q[0]) + '-' + Math.max(k, q[0]))); });
+    let svg = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">';
+    lanes.forEach(l => { const [i, j] = l.split('-').map(Number); svg += `<line x1="${pc[i][0]}" y1="${pc[i][1]}" x2="${pc[j][0]}" y2="${pc[j][1]}" stroke="rgba(110,170,240,.35)" stroke-width="1" vector-effect="non-scaling-stroke"/>`; });
+    stations.forEach((s, k) => { if (k !== here) svg += `<line x1="${pc[here][0]}" y1="${pc[here][1]}" x2="${pc[k][0]}" y2="${pc[k][1]}" stroke="rgba(255,200,96,.55)" stroke-width="1.2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`; });
+    mp.insertAdjacentHTML('afterbegin', svg + '</svg>');
+    stations.forEach((s, k) => { const d = document.createElement('div'); d.className = 'sn' + (k === S.station ? ' here' : '') + (S.mission && S.mission.type === 'delivery' && S.mission.to === k ? ' tgt' : '') + (pc[k][0] > 58 ? ' fl' : ''); d.style.left = pc[k][0] + '%'; d.style.top = pc[k][1] + '%';
+      d.innerHTML = `<i style="${k === S.station ? '' : `background:${s.col};box-shadow:0 0 12px ${s.col}`}"></i><span>${s.name}<br><small>${k === S.station ? 'YOU ARE HERE' : (stations[S.station].pos.distanceTo(s.pos) / 1000).toFixed(1) + ' LY'}</small></span>`; mp.appendChild(d); });
   } else if (shopTab === 'm') {
     if (S.mission) row('ACTIVE: ' + S.mission.title, S.mission.text + '  ·  ◆ ' + S.mission.reward, '', 'ABANDON', false, () => { S.mission = null; updateMissionHud(); openShop(msg); });
     offered.forEach((m) => row(m.title + '  ◆ ' + m.reward, m.text, '', S.mission ? 'BUSY' : 'ACCEPT', !!S.mission, () => { S.mission = Object.assign({}, m); if (m.zone) S.mission.zone = m.zone; updateMissionHud(); sfx('pick'); openShop('MISSION ACCEPTED'); }));

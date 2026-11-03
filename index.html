@@ -384,7 +384,8 @@
   .smap .sn{position:absolute;transform:translate(-6px,-6px)}
   .smap .sn i{display:block;width:12px;height:12px;border-radius:50%;background:#7fd4ff;box-shadow:0 0 12px #7fd4ff}
   .smap .sn.here i{background:#ffc860;box-shadow:0 0 14px #ffc860}.smap .sn.tgt i{background:#5fffb0;box-shadow:0 0 14px #5fffb0}
-  .smap .sn span{position:absolute;left:18px;top:-3px;white-space:nowrap;font:700 11px system-ui,Arial,sans-serif;color:#dbe8f7}.smap small{font-weight:500;opacity:.7}
+  .smap{overflow:hidden}.smap .sn.fl span{left:auto;right:18px;text-align:right}
+  .smap .sn span{text-shadow:0 0 3px #000,0 0 6px #000,0 0 8px #000;position:absolute;left:18px;top:-3px;white-space:nowrap;font:700 11px system-ui,Arial,sans-serif;color:#dbe8f7}.smap small{font-weight:500;opacity:.7}
   body.docked #top-right{display:none}
   #thr{pointer-events:none!important}#thr.act .trk{box-shadow:inset 0 0 0 1px #9af3ff,0 0 10px rgba(126,240,255,.6)}
 
@@ -489,11 +490,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=185', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=189', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=185'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=189'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>
