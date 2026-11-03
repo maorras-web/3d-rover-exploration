@@ -83,7 +83,7 @@ class CheapGlow extends Pass {
    Light on purpose: instanced asteroids / bolts / loot, merged-geometry enemies, shader dust, no post-processing. */
 
 const $ = (id) => document.getElementById(id);
-const BUILD = 30;
+const BUILD = 31;
 
 // ---------- save ----------
 const SAVE_KEY = 'starCourier2';
@@ -700,7 +700,6 @@ const roverBody = (() => {
     });
   }
   // REAR LAMPS (paint shop colour): a big sheared parallelogram like the target: black housing, thick glowing outline, dark core and a bright inner line
-  lampQuad('tail', 'tailDark', 'tail', [[0.60, 0.34], [1.20, 0.48], [1.22, 0.75], [0.62, 0.75]], 1.765, 1);
   hexBlock('darkS', [[-0.46, 0.25, 1.74], [0.46, 0.25, 1.74], [0.42, 0.25, 1.86], [-0.42, 0.25, 1.86], [-0.46, 0.80, 1.74], [0.46, 0.80, 1.74], [0.42, 0.78, 1.86], [-0.42, 0.78, 1.86]]);   // grille frame
   partRB('black', 0, 0.515, 1.865, 0.74, 0.46, 0.02, 0.01);
   for (let j = 0; j < 5; j++) partRB('darkS', 0, 0.34 + j * 0.08, 1.878, 0.70, 0.016, 0.012, 0.004);
@@ -711,7 +710,6 @@ const roverBody = (() => {
   partRB('darkS', 0, 0.80, -2.175, 1.30, 0.20, 0.03, 0.01);
   partRB('neon', 0, 0.80, -2.195, 1.00, 0.10, 0.04, 0.02);
   // HEADLIGHTS: ALWAYS white (own materials, the paint shop never touches them). Angry eyes: the inner end is low, the outer end sweeps up into a point, with a dark brow above.
-  lampQuad('headHot', 'black', 'glow', [[0.66, 0.30], [1.20, 0.52], [1.24, 0.77], [0.64, 0.60]], -2.17, -1);   // same shape as the target, always white
   hexBlock('darkS', [[-0.38, 0.27, -2.26], [0.38, 0.27, -2.26], [0.40, 0.27, -2.14], [-0.40, 0.27, -2.14], [-0.38, 0.64, -2.25], [0.38, 0.64, -2.25], [0.40, 0.66, -2.14], [-0.40, 0.66, -2.14]]);   // grille frame
   partRB('black', 0, 0.455, -2.265, 0.62, 0.30, 0.02, 0.01);
   for (let j = 0; j < 4; j++) partRB('darkS', 0, 0.35 + j * 0.07, -2.278, 0.58, 0.014, 0.012, 0.004);
@@ -719,7 +717,6 @@ const roverBody = (() => {
 
   // ---- Tall antenna at the rear-right shoulder with a white lamp ----
   partBeam('joint', 0.84, 1.10, 1.30, 0.84, 2.65, 1.30, 0.035);
-  partDisc('glow', 0.84, 2.68, 1.30, 0.06, 0.07, 0, 1, 0, 8);
 
   const haloCv = document.createElement('canvas');
   haloCv.width = 64; haloCv.height = 64;
@@ -737,7 +734,6 @@ const roverBody = (() => {
     }));
     s.position.set(side * 1.05, 0.60 + BODY_LIFT, 1.88);
     s.scale.set(1.1, 0.6, 1);
-    rover.add(s);
     return s;
   });
 
@@ -758,7 +754,6 @@ const roverBody = (() => {
     }));
     s.position.set(side * 1.00, 0.60 + BODY_LIFT, -2.30);
     s.scale.set(1.1, 0.5, 1);
-    rover.add(s);
     return s;
   });
 
@@ -780,8 +775,24 @@ shipBody.add(roverBody);
 // hover pads: glowing discs under the four corners instead of wheels
 const hoverPads = [];
 for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const g = glowSprite(0x4fdcff, 2.2, 0.8); g.position.set(sx * 2.1, -1.45, sz * 2.0); shipBody.add(g); hoverPads.push(g); }
-const flames = [-1, 1].map(s => { const f = glowSprite(0x7fe9ff, 2.0, 0.8); f.position.set(s * 1.3, -0.35, 2.9); shipBody.add(f); return f; });
-const flameCore = [-1, 1].map(s => { const f = glowSprite(0xffffff, 0.9, 0.9); f.position.set(s * 1.3, -0.35, 2.6); shipBody.add(f); return f; });
+// twin engines at the rear: dark nacelles with a glowing nozzle ring; the thrust flames come out of them
+const engMat = new THREE.MeshStandardMaterial({ color: 0x4a535c, roughness: 0.45, metalness: 0.6, emissive: 0x1c232b });
+const nozMat = new THREE.MeshStandardMaterial({ color: 0x15191f, roughness: 0.6, metalness: 0.4, emissive: 0x05070a, side: THREE.DoubleSide });
+const ringMat = new THREE.MeshBasicMaterial({ color: 0x7fe9ff });
+const flameMat = new THREE.MeshBasicMaterial({ color: 0x7fe9ff, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+const flameCones = [];
+for (const s of [-1, 1]) {
+  const e = new THREE.Group(); e.position.set(s * 1.3, -0.35, 2.55);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.42, 1.3, 16), engMat); body.rotation.x = Math.PI / 2; e.add(body);
+  const intake = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.5, 0.22, 16), engMat); intake.rotation.x = Math.PI / 2; intake.position.z = -0.55; e.add(intake);
+  const noz = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.5, 0.35, 16, 1, true), nozMat); noz.rotation.x = Math.PI / 2; noz.position.z = 0.78; e.add(noz);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.035, 6, 20), ringMat); ring.position.z = 0.95; e.add(ring);
+  const fc = new THREE.Mesh(new THREE.ConeGeometry(0.4, 1, 12, 1, true), flameMat); fc.rotation.x = Math.PI / 2; fc.position.set(0, 0, 0.95); e.add(fc); flameCones.push(fc);
+  const strut = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 0.9), engMat); strut.position.set(-s * 0.55, 0.15, -0.1); e.add(strut);
+  shipBody.add(e);
+}
+const flames = [-1, 1].map(s => { const f = glowSprite(0x7fe9ff, 2.0, 0.8); f.position.set(s * 1.3, -0.35, 3.7); shipBody.add(f); return f; });
+const flameCore = [-1, 1].map(s => { const f = glowSprite(0xffffff, 0.9, 0.9); f.position.set(s * 1.3, -0.35, 3.45); shipBody.add(f); return f; });
 
 // ---------- enemy fighter (one merged mesh, vertex colours) ----------
 const enemyGeo = (() => {
@@ -1429,7 +1440,7 @@ function frame(now) {
   ship.position.copy(S.pos); ship.quaternion.copy(S.q); shipBody.rotation.z = S.roll;
   const vis = S.mode !== 'wreck' && S.mode !== 'dock', blink = S.inv > 0 && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
   const fl = 0.7 + S.speed / 220 + (S.boosting ? 0.9 : 0), flick = 0.9 + Math.sin(tAcc * 50) * 0.1;
-  flames.forEach(f => { f.scale.setScalar(2.2 * fl * flick); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => f.scale.setScalar(0.9 * fl * flick));
+  flames.forEach(f => { f.scale.setScalar(2.2 * fl * flick); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => f.scale.setScalar(0.9 * fl * flick)); flameMat.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); flameCones.forEach(c => { c.scale.set(fl * (0.8 + 0.2 * flick), 1.2 * fl * flick + 0.3, fl * (0.8 + 0.2 * flick)); c.position.z = 0.95 + 0.6 * fl * flick + 0.15; });
   for (const e of enemies) if (e.active) { e.g.children[1].scale.setScalar(5 + Math.sin(tAcc * 40 + e.pos.x) * 0.6); }
   S.camQ.slerp(S.q, 1 - Math.exp(-7 * dt));
   const cd = 12.5 + S.speed * 0.012;
