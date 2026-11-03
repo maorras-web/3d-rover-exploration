@@ -83,7 +83,7 @@ class CheapGlow extends Pass {
    Light on purpose: instanced asteroids / bolts / loot, merged-geometry enemies, shader dust, no post-processing. */
 
 const $ = (id) => document.getElementById(id);
-const BUILD = 32;
+const BUILD = 33;
 
 // ---------- save ----------
 const SAVE_KEY = 'starCourier2';
@@ -945,9 +945,14 @@ function buildStation() {
   const panelTex = canvasTex(128, 64, (x, w, h) => { x.fillStyle = '#10264f'; x.fillRect(0, 0, w, h); x.strokeStyle = '#3d7fd0'; x.lineWidth = 2; for (let i = 0; i <= 8; i++) { x.beginPath(); x.moveTo(i * 16, 0); x.lineTo(i * 16, h); x.stroke(); } for (let j = 0; j <= 4; j++) { x.beginPath(); x.moveTo(0, j * 16); x.lineTo(w, j * 16); x.stroke(); } });
   const panelM = new THREE.MeshStandardMaterial({ map: panelTex, roughness: 0.3, metalness: 0.8, emissive: 0x0a1a3a, fog: false });
   for (const s of [-1, 1]) { const arm = new THREE.Mesh(new THREE.BoxGeometry(14, 1.2, 1.2), darkM); arm.position.set(s * 16, 0, -18); g.add(arm); const pan = new THREE.Mesh(new THREE.BoxGeometry(30, 0.5, 18), panelM); pan.position.set(s * 38, 0, -18); g.add(pan); }
-  const tube = new THREE.Mesh(new THREE.CylinderGeometry(6, 7, 14, 10), metal); tube.rotation.x = Math.PI / 2; tube.position.z = 38; g.add(tube);
-  const dockRing = new THREE.Mesh(new THREE.TorusGeometry(14, 1.1, 8, 28), new THREE.MeshBasicMaterial({ color: 0x59ffb0, toneMapped: false, fog: false })); dockRing.position.z = 46; g.add(dockRing);
-  const beacon = glowSprite(0x6fe8ff, 90, 0.9); beacon.position.z = 46; g.add(beacon);
+  // open hangar tunnel (z 32..64) the player flies into: dark double-sided shell, 4 light strips, 3 glowing rings, green mouth ring
+  const hangM = new THREE.MeshStandardMaterial({ color: 0x4a5262, roughness: 0.6, metalness: 0.6, flatShading: true, emissive: 0x161c28, side: THREE.DoubleSide, fog: false });
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(10, 10, 32, 16, 1, true), hangM); tube.rotation.x = Math.PI / 2; tube.position.z = 48; g.add(tube);
+  const stripM = new THREE.MeshBasicMaterial({ color: 0xbfefff, toneMapped: false, fog: false });
+  for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + Math.PI / 4, s = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.35, 30), stripM); s.position.set(Math.cos(a) * 9.6, Math.sin(a) * 9.6, 48); s.rotation.z = a - Math.PI / 2; g.add(s); }
+  for (const z of [38, 48, 58]) { const r = new THREE.Mesh(new THREE.TorusGeometry(9.8, 0.35, 6, 24), new THREE.MeshBasicMaterial({ color: 0x59ffb0, toneMapped: false, fog: false })); r.position.z = z; g.add(r); }
+  const dockRing = new THREE.Mesh(new THREE.TorusGeometry(10.6, 1.0, 8, 28), new THREE.MeshBasicMaterial({ color: 0x59ffb0, toneMapped: false, fog: false })); dockRing.position.z = 64; g.add(dockRing);
+  const beacon = glowSprite(0x6fe8ff, 60, 0.9); beacon.position.z = 70; g.add(beacon);
   g.userData = { spin, beacon };
   return g;
 }
@@ -1231,21 +1236,34 @@ $('tab-u').addEventListener('click', () => { shopTab = 'u'; openShop($('shop-ear
 $('tab-s').addEventListener('click', () => { shopTab = 's'; openShop($('shop-earn').textContent); });
 
 function dockAt(i) {
-  S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
+  S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.copy(stations[i].pos).addScaledVector(stations[i].front, 230); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
   for (const e of enemies) { e.active = false; e.g.visible = false; } for (const m of missiles) { m.active = false; m.g.visible = false; }
   sfx('dock'); buzz(50);
   let msg = 'SHIP REPAIRED';
   if (S.mission && S.mission.type === 'delivery' && S.mission.to === i) { const r = S.mission.reward; completeMission(); msg = 'DELIVERY COMPLETE  +' + r; }
   offered = genMissions(i); shopTab = 'm'; openShop(msg);
 }
-function tryDock() { if (S.mode !== 'fly') return; const i = nearStation(); if (i >= 0) dockAt(i); }
+// docking cinematic: swing onto the station axis, then fly down the hangar tunnel and stop; then the hangar menu opens
+const DK = { i: 0, t: 0, tA: 1, p0: V3(), q0: new THREE.Quaternion(), q1: new THREE.Quaternion(), P1: V3(), dir: V3() };
+function tryDock() {
+  if (S.mode !== 'fly') return; const i = nearStation(); if (i < 0) return;
+  const st = stations[i]; DK.i = i; DK.t = 0; DK.p0.copy(S.pos); DK.q0.copy(S.q); DK.dir.copy(st.front).negate();
+  _m.lookAt(_zero, DK.dir, Y); DK.q1.setFromRotationMatrix(_m); DK.P1.copy(st.pos).addScaledVector(st.front, 125);
+  DK.tA = clamp(S.pos.distanceTo(DK.P1) / 220, 0.8, 2.2); S.mode = 'dockin'; document.body.classList.add('docked'); S.target = null; S.boosting = false; S.sx = S.sy = 0; sfx('dock');
+}
+function updateDockIn(dt) {
+  const st = stations[DK.i]; DK.t += dt; const tB = 1.9;
+  if (DK.t < DK.tA) { const u = DK.t / DK.tA, k = u * u * (3 - 2 * u); S.pos.lerpVectors(DK.p0, DK.P1, k); S.q.slerpQuaternions(DK.q0, DK.q1, k); S.speed = 60 + 40 * Math.sin(u * Math.PI); }
+  else { const u = Math.min(1, (DK.t - DK.tA) / tB), k = 1 - (1 - u) * (1 - u); S.q.copy(DK.q1); S.pos.copy(st.pos).addScaledVector(st.front, 125 - 78 * k); S.speed = 100 * (1 - u) + 6; if (u >= 1) { dockAt(DK.i); return; } }
+  S.vel.copy(DK.dir).multiplyScalar(S.speed); S.roll = 0;
+}
 function nearStation() { let best = -1, bd = 450; for (let i = 0; i < stations.length; i++) { const d = S.pos.distanceTo(stations[i].pos); if (d < bd) { bd = d; best = i; } } return best; }
 
 function launchFrom(i) {
   ST = stats(); S.station = i; const st = stations[i];
-  dockPoint(st, S.pos).addScaledVector(st.front, 40);
+  S.pos.copy(st.pos).addScaledVector(st.front, 48);
   _m.lookAt(_zero, st.front, Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
-  S.speed = 60; S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100; S.inv = 2; S.mode = 'fly'; S.target = null; S.patrolT = 45; S.sx = S.sy = 0;
+  S.speed = 48; S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100; S.inv = 2; S.mode = 'fly'; S.target = null; S.patrolT = 45; S.sx = S.sy = 0;
   for (const a of asteroids) a.active = false; for (const l of loot) l.active = false;
   document.body.classList.remove('docked'); $('shop').classList.remove('show');
 }
@@ -1462,6 +1480,7 @@ function frame(now) {
 
   updateFx(dt);
 
+  if (S.mode === 'dockin') updateDockIn(dt);
   // ---- ship + camera ----
   ship.position.copy(S.pos); ship.quaternion.copy(S.q); shipBody.rotation.z = S.roll;
   const vis = S.mode !== 'wreck', blink = S.inv > 0 && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
