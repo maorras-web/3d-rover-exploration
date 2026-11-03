@@ -83,7 +83,7 @@ class CheapGlow extends Pass {
    Light on purpose: instanced asteroids / bolts / loot, merged-geometry enemies, shader dust, no post-processing. */
 
 const $ = (id) => document.getElementById(id);
-const BUILD = 39;
+const BUILD = 43;
 
 // ---------- save ----------
 const SAVE_KEY = 'starCourier2';
@@ -422,33 +422,33 @@ const hangar = new THREE.Group(); hangar.position.copy(HP); hangar.visible = fal
   const add = (geo, mat, x, y, z) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); hangar.add(o); return o; };
   const WR = 40, WH = 26;
   // walls, ceiling, floor
-  const wallTex = canvasTex(512, 128, (x, w, h) => { x.fillStyle = '#2a1d17'; x.fillRect(0, 0, w, h); x.strokeStyle = '#3d2a20'; x.lineWidth = 3; for (let i = 0; i <= 16; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.stroke(); } x.fillStyle = '#4a2f1e'; for (let i = 0; i < 16; i++) x.fillRect(i * 32 + 6, 20, 20, 8); }, [3, 1]);
-  add(new THREE.CylinderGeometry(WR, WR, WH, 48, 1, true), new THREE.MeshStandardMaterial({ map: wallTex, emissive: 0x7a4c2e, emissiveMap: wallTex, roughness: 0.9, metalness: 0.2, side: THREE.BackSide, fog: false }), 0, WH / 2, 0);
-  add(new THREE.CircleGeometry(WR, 48), std(0x2a1e16, 0x2a1a10), 0, WH, 0).rotation.x = Math.PI / 2;
-  const floorTex = canvasTex(512, 512, (x, w, h) => { x.fillStyle = '#1d1511'; x.fillRect(0, 0, w, h); x.strokeStyle = '#33241a'; x.lineWidth = 2; for (let i = 0; i <= 16; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.moveTo(0, i * 32); x.lineTo(w, i * 32); x.stroke(); } });
-  const fl = add(new THREE.CircleGeometry(WR, 48), new THREE.MeshStandardMaterial({ map: floorTex, emissive: 0x4a2c1a, emissiveMap: floorTex, roughness: 0.7, metalness: 0.4, fog: false }), 0, -0.6, 0); fl.rotation.x = -Math.PI / 2;
+  const wallTex = canvasTex(512, 128, (x, w, h) => { x.fillStyle = '#13241b'; x.fillRect(0, 0, w, h); x.strokeStyle = '#1f3a2b'; x.lineWidth = 3; for (let i = 0; i <= 16; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.stroke(); } x.fillStyle = '#2c5a3c'; for (let i = 0; i < 16; i++) x.fillRect(i * 32 + 6, 20, 20, 8); }, [3, 1]);
+  add(new THREE.CylinderGeometry(WR, WR, WH, 48, 1, true), new THREE.MeshStandardMaterial({ map: wallTex, emissive: 0x2f7a46, emissiveMap: wallTex, roughness: 0.9, metalness: 0.2, side: THREE.BackSide, fog: false }), 0, WH / 2, 0);
+  add(new THREE.CircleGeometry(WR, 48), std(0x1b2a22, 0x14301f), 0, WH, 0).rotation.x = Math.PI / 2;
+  const floorTex = canvasTex(512, 512, (x, w, h) => { x.fillStyle = '#13211a'; x.fillRect(0, 0, w, h); x.strokeStyle = '#24402f'; x.lineWidth = 2; for (let i = 0; i <= 16; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.moveTo(0, i * 32); x.lineTo(w, i * 32); x.stroke(); } });
+  const fl = add(new THREE.CircleGeometry(WR, 48), new THREE.MeshStandardMaterial({ map: floorTex, emissive: 0x2c6a40, emissiveMap: floorTex, roughness: 0.7, metalness: 0.4, fog: false }), 0, -0.6, 0); fl.rotation.x = -Math.PI / 2;
   // glowing wall strips
-  [3.2, 20.5].forEach(y => add(new THREE.CylinderGeometry(WR - 0.3, WR - 0.3, 0.5, 48, 1, true), glow(0xff8a2a, 0.85), 0, y, 0).material.side = THREE.BackSide);
+  [3.2, 20.5].forEach(y => add(new THREE.CylinderGeometry(WR - 0.3, WR - 0.3, 0.5, 48, 1, true), glow(0x44ff88, 0.85), 0, y, 0).material.side = THREE.BackSide);
   // big orange window on the back wall (towards -z): asteroid field in a red-orange glow
-  const winTex = canvasTex(1024, 256, (x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#b4380e'); g.addColorStop(0.5, '#ff7a2a'); g.addColorStop(1, '#c4460f'); x.fillStyle = g; x.fillRect(0, 0, w, h); for (let i = 0; i < 90; i++) { const r = 3 + Math.random() * 12; x.fillStyle = `rgba(${60 + Math.random() * 40 | 0},${25 + Math.random() * 15 | 0},12,${0.5 + Math.random() * 0.4})`; x.beginPath(); x.ellipse(Math.random() * w, Math.random() * h, r * 1.3, r, Math.random() * 3, 0, 7); x.fill(); } });
+  const winTex = canvasTex(1024, 256, (x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#0e7a3a'); g.addColorStop(0.5, '#3cff8a'); g.addColorStop(1, '#12904a'); x.fillStyle = g; x.fillRect(0, 0, w, h); for (let i = 0; i < 90; i++) { const r = 3 + Math.random() * 12; x.fillStyle = `rgba(${8 + Math.random() * 20 | 0},${45 + Math.random() * 25 | 0},${20 + Math.random() * 15 | 0},${0.5 + Math.random() * 0.4})`; x.beginPath(); x.ellipse(Math.random() * w, Math.random() * h, r * 1.3, r, Math.random() * 3, 0, 7); x.fill(); } });
   const win = add(new THREE.CylinderGeometry(WR - 0.6, WR - 0.6, 10, 24, 1, true, Math.PI - 1.0, 2.0), new THREE.MeshBasicMaterial({ map: winTex, side: THREE.BackSide, toneMapped: false, fog: false }), 0, 11.5, 0);
-  add(new THREE.CylinderGeometry(WR - 0.5, WR - 0.5, 0.7, 24, 1, true, Math.PI - 1.0, 2.0), std(0x0e0a08, 0x0a0705), 0, 16.6, 0).material.side = THREE.BackSide;
-  add(new THREE.CylinderGeometry(WR - 0.5, WR - 0.5, 0.7, 24, 1, true, Math.PI - 1.0, 2.0), std(0x0e0a08, 0x0a0705), 0, 6.4, 0).material.side = THREE.BackSide;
+  add(new THREE.CylinderGeometry(WR - 0.5, WR - 0.5, 0.7, 24, 1, true, Math.PI - 1.0, 2.0), std(0x08100c, 0x061008), 0, 16.6, 0).material.side = THREE.BackSide;
+  add(new THREE.CylinderGeometry(WR - 0.5, WR - 0.5, 0.7, 24, 1, true, Math.PI - 1.0, 2.0), std(0x08100c, 0x061008), 0, 6.4, 0).material.side = THREE.BackSide;
   // landing platform: stepped disc, glowing rings, amber tiles on the front
-  add(new THREE.CylinderGeometry(12, 12.6, 0.9, 40), std(0x6a4a34, 0x4a2c1a, 0.6, 0.5), 0, -0.15, 0);
-  add(new THREE.CylinderGeometry(9.6, 10, 0.5, 40), std(0x7a5640, 0x5a3622, 0.55, 0.55), 0, 0.3, 0);
+  add(new THREE.CylinderGeometry(12, 12.6, 0.9, 40), std(0x3f6a52, 0x1f4a32, 0.6, 0.5), 0, -0.15, 0);
+  add(new THREE.CylinderGeometry(9.6, 10, 0.5, 40), std(0x4f8064, 0x2a5a3e, 0.55, 0.55), 0, 0.3, 0);
   const ring = (r0, r1, c, y) => { const o = add(new THREE.RingGeometry(r0, r1, 56), glow(c), 0, y, 0); o.rotation.x = -Math.PI / 2; };
-  ring(11.7, 11.95, 0xffb040, 0.32); ring(8.2, 8.5, 0xff8a2a, 0.56); ring(5.2, 5.4, 0xffb040, 0.56); ring(2.4, 2.6, 0xff4a2a, 0.56);
-  add(new THREE.CylinderGeometry(2.3, 2.3, 0.1, 24), std(0x6a1a12, 0x3a0e08, 0.5, 0.4), 0, 0.56, 0);
-  for (let k = 0; k < 9; k++) { const t = (k - 4) * 0.21, r = 9.0; const o = add(new THREE.BoxGeometry(0.9, 0.14, 1.0), glow(0xffcc66), Math.sin(t) * r, 0.58, Math.cos(t) * r); o.rotation.y = t; }
+  ring(11.7, 11.95, 0x7dffb0, 0.32); ring(8.2, 8.5, 0x44ff88, 0.56); ring(5.2, 5.4, 0x7dffb0, 0.56); ring(2.4, 2.6, 0x20e070, 0.56);
+  add(new THREE.CylinderGeometry(2.3, 2.3, 0.1, 24), std(0x14502e, 0x0a3a20, 0.5, 0.4), 0, 0.56, 0);
+  for (let k = 0; k < 9; k++) { const t = (k - 4) * 0.21, r = 9.0; const o = add(new THREE.BoxGeometry(0.9, 0.14, 1.0), glow(0xc8ffb0), Math.sin(t) * r, 0.58, Math.cos(t) * r); o.rotation.y = t; }
   // crates and pillars around the walls
   let sd = 7; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 26; i++) {
     const a = rn() * Math.PI * 2, r = 25 + rn() * 11, w = 2.5 + rn() * 4, h = 2 + rn() * 5, d = 2.5 + rn() * 4;
-    const c = add(new THREE.BoxGeometry(w, h, d), std(0x6a472f + ((rn() * 24 | 0) << 8), 0x5a3520, 0.7, 0.4), Math.sin(a) * r, h / 2 - 0.6, Math.cos(a) * r); c.rotation.y = rn() * 3;
-    if (rn() > 0.5) add(new THREE.BoxGeometry(w * 0.6, 0.18, 0.05), glow(0xffa040), Math.sin(a) * r, h * 0.7 - 0.6, Math.cos(a) * r).rotation.y = c.rotation.y + 0.0;
+    const c = add(new THREE.BoxGeometry(w, h, d), std(0x3a5a48 + ((rn() * 16 | 0) << 8), 0x1f4a32, 0.7, 0.4), Math.sin(a) * r, h / 2 - 0.6, Math.cos(a) * r); c.rotation.y = rn() * 3;
+    if (rn() > 0.5) add(new THREE.BoxGeometry(w * 0.6, 0.18, 0.05), glow(0x5aff9a), Math.sin(a) * r, h * 0.7 - 0.6, Math.cos(a) * r).rotation.y = c.rotation.y + 0.0;
   }
-  for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + 0.39; add(new THREE.CylinderGeometry(1.1, 1.1, WH, 8), std(0x4a3626, 0x3a2416), Math.sin(a) * (WR - 1.4), WH / 2, Math.cos(a) * (WR - 1.4)); }
+  for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + 0.39; add(new THREE.CylinderGeometry(1.1, 1.1, WH, 8), std(0x2f4a3b, 0x1c3a28), Math.sin(a) * (WR - 1.4), WH / 2, Math.cos(a) * (WR - 1.4)); }
 }
 let hangarVO = false, vo = 0;
 
@@ -585,17 +585,28 @@ function updateFx(dt) {
 // ---------- stations ----------
 function buildStation(name, col) {
   const g = new THREE.Group(), spin = new THREE.Group(); g.add(spin);
-  const metal = new THREE.MeshStandardMaterial({ color: 0xaab4c4, roughness: 0.45, metalness: 0.7, flatShading: true, fog: false });
   const darkM = new THREE.MeshStandardMaterial({ color: 0x3a4152, roughness: 0.6, metalness: 0.6, flatShading: true, fog: false });
-  const winTex = canvasTex(256, 32, (x, w, h) => { x.fillStyle = '#10141c'; x.fillRect(0, 0, w, h); for (let i = 0; i < 70; i++) { x.fillStyle = Math.random() > 0.3 ? '#ffd88a' : '#8fe8ff'; x.fillRect(Math.random() * w, 6 + Math.random() * 20, rnd(3, 8), 3); } }, [10, 1]);
-  const ringM = new THREE.MeshStandardMaterial({ color: 0xc8d0dc, roughness: 0.5, metalness: 0.6, emissive: 0xffffff, emissiveMap: winTex, emissiveIntensity: 0.9, map: winTex, fog: false });
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 64, 12), metal); hub.rotation.x = Math.PI / 2; g.add(hub);
-  const cap = new THREE.Mesh(new THREE.CylinderGeometry(11, 11, 6, 12), darkM); cap.rotation.x = Math.PI / 2; cap.position.z = -30; g.add(cap);
-  spin.add(new THREE.Mesh(new THREE.TorusGeometry(33, 4.2, 10, 40), ringM));
-  for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + Math.PI / 4; const sp = new THREE.Mesh(new THREE.BoxGeometry(1.8, 25, 1.8), darkM); sp.position.set(Math.cos(a) * 17, Math.sin(a) * 17, 0); sp.rotation.z = a - Math.PI / 2; spin.add(sp); }
-  const panelTex = canvasTex(128, 64, (x, w, h) => { x.fillStyle = '#10264f'; x.fillRect(0, 0, w, h); x.strokeStyle = '#3d7fd0'; x.lineWidth = 2; for (let i = 0; i <= 8; i++) { x.beginPath(); x.moveTo(i * 16, 0); x.lineTo(i * 16, h); x.stroke(); } for (let j = 0; j <= 4; j++) { x.beginPath(); x.moveTo(0, j * 16); x.lineTo(w, j * 16); x.stroke(); } });
-  const panelM = new THREE.MeshStandardMaterial({ map: panelTex, roughness: 0.3, metalness: 0.8, emissive: 0x0a1a3a, fog: false });
-  for (const s of [-1, 1]) { const arm = new THREE.Mesh(new THREE.BoxGeometry(14, 1.2, 1.2), darkM); arm.position.set(s * 16, 0, -18); g.add(arm); const pan = new THREE.Mesh(new THREE.BoxGeometry(30, 0.5, 18), panelM); pan.position.set(s * 38, 0, -18); g.add(pan); }
+  // alien-organic station: a horned dome, a bulging body with ribs, a neck ringed with spheres and a cage of petal fins around the hangar mouth
+  const dots = canvasTex(512, 256, (x, w, h) => { x.fillStyle = '#25402f'; x.fillRect(0, 0, w, h); const cs = ['#ffd24a', '#5dff8a', '#ff5ad2', '#4fe0ff', '#ffffff']; for (let i = 0; i < 1100; i++) { x.fillStyle = cs[Math.random() * cs.length | 0]; x.globalAlpha = 0.45 + Math.random() * 0.55; x.fillRect(Math.random() * w, Math.random() * h, 2, 2 + (Math.random() * 3 | 0)); } x.globalAlpha = 1; }, [3, 3]);
+  // cheap fake reflections: a tiny 6-face canvas cube (blue planet below/behind, black space above) gives the glossy sheen of the reference
+  const face = (c0, c1) => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 32); gr.addColorStop(0, c0); gr.addColorStop(1, c1); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); return c; };
+  const env = new THREE.CubeTexture([face('#1b2a44', '#3a78c8'), face('#1b2a44', '#2d5fa8'), face('#050810', '#0a1020'), face('#4a8ad8', '#8fc0f0'), face('#16223a', '#2f68b4'), face('#1b2a44', '#3a78c8')]); env.colorSpace = THREE.SRGBColorSpace; env.needsUpdate = true;
+  const skin = new THREE.MeshStandardMaterial({ color: 0x7a9188, roughness: 0.3, metalness: 0.75, envMap: env, envMapIntensity: 1.1, emissive: 0xffffff, emissiveMap: dots, emissiveIntensity: 0.9, fog: false });
+  const parts = [], Mx = new THREE.Matrix4(), Qq = new THREE.Quaternion(), Pp = new THREE.Vector3(), Ss = new THREE.Vector3();
+  const put = (geo, pos, quat, scl) => { Mx.compose(Pp.set(pos[0], pos[1], pos[2]), quat || Qq.identity(), Ss.set(scl ? scl[0] : 1, scl ? scl[1] : 1, scl ? scl[2] : 1)); geo.applyMatrix4(Mx); parts.push(geo); };
+  const prof = [[0, -57], [5, -55.5], [11, -52], [16.5, -47], [20.5, -41], [22.5, -35], [24, -32.5], [24, -30.5], [26.5, -28], [28.5, -21], [29, -13], [27.5, -5], [23, 1], [16, 5], [12, 8], [11, 12], [11, 30], [12.5, 32]];
+  const lathe = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), 22); lathe.rotateX(Math.PI / 2); parts.push(lathe);
+  // ribs on the body
+  for (let k = 0; k < 8; k++) { const an = k * Math.PI / 4 + Math.PI / 8; put(new THREE.SphereGeometry(1, 10, 8), [Math.cos(an) * 26, Math.sin(an) * 26, -15], Qq.clone().setFromUnitVectors(Z, new THREE.Vector3(Math.cos(an) * 0.18, Math.sin(an) * 0.18, 1).normalize()), [4.6, 4.6, 15]); }
+  // petal fins around the hangar mouth, flaring outwards
+  for (let k = 0; k < 6; k++) { const an = k * Math.PI / 3, d = new THREE.Vector3(Math.cos(an) * 0.16, Math.sin(an) * 0.16, 1).normalize(); put(new THREE.SphereGeometry(1, 10, 8), [Math.cos(an) * 17, Math.sin(an) * 17, 42], Qq.clone().setFromUnitVectors(Z, d), [4.6, 4.6, 24]); }
+  // horns on the dome
+  for (const s of [-1, 1]) { let prev = null; for (let i = 0; i <= 8; i++) { const t = i / 8, p = new THREE.Vector3(s * (14 + 16 * Math.sin(t * 1.9)), 0, -44 - 30 * t * (1 - 0.15 * t)); if (prev) { const dv = p.clone().sub(prev), len = dv.length(); put(new THREE.CylinderGeometry(2.2 * (1 - t) + 0.25, 2.2 * (1 - (t - 1 / 8)) + 0.25, len * 1.02, 7), prev.clone().add(p).multiplyScalar(0.5).toArray(), Qq.clone().setFromUnitVectors(Y, dv.clone().normalize())); } prev = p; } }
+  g.add(new THREE.Mesh(mergeGeometries(parts), skin));
+  // glowing band round the dome rim + ring of spheres on the neck (this ring turns slowly)
+  const bandTex = canvasTex(256, 16, (x, w, h) => { for (let i = 0; i < 32; i++) { x.fillStyle = i % 3 === 0 ? '#ffd24a' : '#4dff7a'; x.fillRect(i * 8 + 1, 3, 6, 10); } }, [2, 1]);
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(24.2, 24.2, 1.8, 40, 1, true), new THREE.MeshBasicMaterial({ map: bandTex, toneMapped: false, fog: false })); band.rotation.x = Math.PI / 2; band.position.z = -31.6; g.add(band);
+  { const sp = []; for (let k = 0; k < 11; k++) { const an = k * Math.PI * 2 / 11; const o = new THREE.SphereGeometry(3.3, 12, 9); o.translate(Math.cos(an) * 13, Math.sin(an) * 13, 12); sp.push(o); } spin.add(new THREE.Mesh(mergeGeometries(sp), skin)); }
   // open hangar tunnel (z 32..64) the player flies into: dark double-sided shell, 4 light strips, 3 glowing rings, green mouth ring
   const hangM = new THREE.MeshStandardMaterial({ color: 0x4a5262, roughness: 0.6, metalness: 0.6, flatShading: true, emissive: 0x161c28, side: THREE.DoubleSide, fog: false });
   const tube = new THREE.Mesh(new THREE.CylinderGeometry(10, 10, 32, 16, 1, true), hangM); tube.rotation.x = Math.PI / 2; tube.position.z = 48; g.add(tube);
@@ -603,20 +614,22 @@ function buildStation(name, col) {
   for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + Math.PI / 4, s = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.35, 30), stripM); s.position.set(Math.cos(a) * 9.6, Math.sin(a) * 9.6, 48); s.rotation.z = a - Math.PI / 2; g.add(s); }
   for (const z of [38, 48, 58]) { const r = new THREE.Mesh(new THREE.TorusGeometry(9.8, 0.35, 6, 24), new THREE.MeshBasicMaterial({ color: 0x59ffb0, toneMapped: false, fog: false })); r.position.z = z; g.add(r); }
   const dockRing = new THREE.Mesh(new THREE.TorusGeometry(10.6, 1.0, 8, 28), new THREE.MeshBasicMaterial({ color: 0x59ffb0, toneMapped: false, fog: false })); dockRing.position.z = 64; g.add(dockRing);
-  const beacon = glowSprite(0x6fe8ff, 60, 0.9); beacon.position.z = 70; g.add(beacon);
+  const beacon = glowSprite(0x6fe8ff, 12, 0.6); beacon.position.z = 70; g.add(beacon);
   // neon sign on two posts above the hangar mouth
   const sg = new THREE.Mesh(new THREE.PlaneGeometry(30, 8.5), new THREE.MeshBasicMaterial({ map: canvasTex(512, 144, (x, w, h) => { x.fillStyle = 'rgba(8,6,14,.88)'; x.fillRect(0, 0, w, h); x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = '900 64px system-ui,Arial,sans-serif'; x.shadowColor = col; x.shadowBlur = 22; x.fillStyle = col; x.fillText(name, w / 2, h * 0.4); x.shadowBlur = 10; x.font = '800 26px system-ui,Arial,sans-serif'; x.fillStyle = '#fff'; x.fillText('★  DOCKING BAY  ★', w / 2, h * 0.8); x.lineWidth = 5; x.strokeStyle = col; x.strokeRect(6, 6, w - 12, h - 12); }), toneMapped: false, fog: false, side: THREE.DoubleSide }));
-  sg.position.set(0, 20, 54); g.add(sg);
-  for (const s of [-1, 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.6, 12, 0.6), darkM); p.position.set(s * 12, 14, 54); g.add(p); }
+  sg.position.set(0, 27, 58); g.add(sg);
+  for (const s of [-1, 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.6, 12, 0.6), darkM); p.position.set(s * 12, 20, 58); g.add(p); }
   g.userData = { spin, beacon };
   return g;
 }
 const stations = [
-  { name: 'HELIOS PRIME', col: '#ff3fd8', pos: V3(0, 0, 0), front: V3(0.3, 0.1, -1) },
-  { name: 'KEPLER', col: '#3fe6ff', pos: V3(1800, 260, -1500), front: V3(-1, -0.1, 0.5) },
-  { name: 'VEGA GATE', col: '#ffb23f', pos: V3(-2100, -180, -2000), front: V3(0.8, 0.1, 0.7) },
+  { name: 'HELIOS PRIME', col: '#ff3fd8', pos: V3(0, 0, 0), front: V3(0, -1, 0) },
+  { name: 'KEPLER', col: '#3fe6ff', pos: V3(1800, 260, -1500), front: V3(0, -1, 0) },
+  { name: 'VEGA GATE', col: '#ffb23f', pos: V3(-2100, -180, -2000), front: V3(0, -1, 0) },
 ];
-stations.forEach(s => { s.front.normalize(); s.g = buildStation(s.name, s.col); s.g.position.copy(s.pos); s.g.lookAt(s.pos.clone().add(s.front)); scene.add(s.g); });
+const ST_K = 3;   // station scale: everything is built at 1x and the whole station group is scaled
+stations.forEach(s => { s.front.normalize(); s.g = buildStation(s.name, s.col); s.g.scale.setScalar(ST_K); s.g.position.copy(s.pos); s.g.up.set(0, 0, 1); s.g.lookAt(s.pos.clone().add(s.front)); scene.add(s.g); });
+const lookUp = (d) => Math.abs(d.y) > 0.98 ? Z : Y;   // up-vector that is never parallel to the view direction
 const dockPoint = (st, out) => out.copy(st.pos).addScaledVector(st.front, 58);
 
 // ---------- game state ----------
@@ -909,26 +922,29 @@ function dockAt(i) {
   offered = genMissions(i); shopTab = 'h'; openShop(msg);
 }
 // docking cinematic: swing onto the station axis, then fly down the hangar tunnel and stop; then the hangar menu opens
+let entOn = false, entFor = 0, entDismissed = -1;
 const DK = { i: 0, t: 0, tA: 1, p0: V3(), q0: new THREE.Quaternion(), q1: new THREE.Quaternion(), P1: V3(), dir: V3() };
+$('ent-yes').addEventListener('click', () => { entOn = false; $('ent-dlg').style.display = 'none'; initAudio(); tryDock(); });
+$('ent-no').addEventListener('click', () => { entOn = false; entDismissed = entFor; $('ent-dlg').style.display = 'none'; });
 function tryDock() {
   if (S.mode !== 'fly') return; const i = nearStation(); if (i < 0) return;
   const st = stations[i]; DK.i = i; DK.t = 0; DK.p0.copy(S.pos); DK.q0.copy(S.q); DK.dir.copy(st.front).negate();
-  _m.lookAt(_zero, DK.dir, Y); DK.q1.setFromRotationMatrix(_m); DK.P1.copy(st.pos).addScaledVector(st.front, 125);
-  DK.tA = clamp(S.pos.distanceTo(DK.P1) / 220, 0.8, 2.2); S.mode = 'dockin'; document.body.classList.add('docked'); S.target = null; S.boosting = false; S.sx = S.sy = 0;
+  _m.lookAt(_zero, DK.dir, lookUp(DK.dir)); DK.q1.setFromRotationMatrix(_m); DK.P1.copy(st.pos).addScaledVector(st.front, 125 * ST_K);
+  DK.tA = clamp(S.pos.distanceTo(DK.P1) / 260, 0.9, 3.2); S.mode = 'dockin'; document.body.classList.add('docked'); S.target = null; S.boosting = false; S.sx = S.sy = 0;
 }
 function updateDockIn(dt) {
-  const st = stations[DK.i]; DK.t += dt; const tB = 1.9;
+  const st = stations[DK.i]; DK.t += dt; const tB = 2.8;
   if (DK.t < DK.tA) { const u = DK.t / DK.tA, k = u * u * (3 - 2 * u); S.pos.lerpVectors(DK.p0, DK.P1, k); S.q.slerpQuaternions(DK.q0, DK.q1, k); S.speed = 60 + 40 * Math.sin(u * Math.PI); }
-  else { const u = Math.min(1, (DK.t - DK.tA) / tB), k = 1 - (1 - u) * (1 - u); S.q.copy(DK.q1); S.pos.copy(st.pos).addScaledVector(st.front, 125 - 78 * k); S.speed = 100 * (1 - u) + 6; if (u >= 1) { dockAt(DK.i); return; } }
+  else { const u = Math.min(1, (DK.t - DK.tA) / tB), k = 1 - (1 - u) * (1 - u); S.q.copy(DK.q1); S.pos.copy(st.pos).addScaledVector(st.front, (125 - 78 * k) * ST_K); S.speed = 160 * (1 - u) + 6; if (u >= 1) { dockAt(DK.i); return; } }
   S.vel.copy(DK.dir).multiplyScalar(S.speed); S.roll = 0;
 }
-function nearStation() { let best = -1, bd = 450; for (let i = 0; i < stations.length; i++) { const d = S.pos.distanceTo(stations[i].pos); if (d < bd) { bd = d; best = i; } } return best; }
+function nearStation() { let best = -1, bd = 700; for (let i = 0; i < stations.length; i++) { const d = S.pos.distanceTo(stations[i].pos); if (d < bd) { bd = d; best = i; } } return best; }
 
 function launchFrom(i) {
   ST = stats(); S.station = i; const st = stations[i];
-  S.pos.copy(st.pos).addScaledVector(st.front, 48);
-  _m.lookAt(_zero, st.front, Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
-  S.speed = 48; S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100; S.inv = 2; S.mode = 'fly'; S.target = null; S.patrolT = 45; S.sx = S.sy = 0;
+  S.pos.copy(st.pos).addScaledVector(st.front, 48 * ST_K);
+  _m.lookAt(_zero, st.front, lookUp(st.front)); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q); entDismissed = i;
+  S.speed = 60; S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100; S.inv = 2; S.mode = 'fly'; S.target = null; S.patrolT = 45; S.sx = S.sy = 0;
   for (const a of asteroids) a.active = false; for (const l of loot) l.active = false;
   document.body.classList.remove('docked'); $('shop').classList.remove('show');
 }
@@ -953,7 +969,7 @@ function spawnAsteroid(a, first) {
     else { _b.set(rnd(-1, 1), rnd(-0.8, 0.8), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.8, 1.0) * ASTR); if (_b.dot(fwd) < 0) _b.addScaledVector(fwd, -2 * _b.dot(fwd)); }
     _b.add(S.pos);
     let ok = _b.distanceTo(S.pos) > 100;
-    for (const st of stations) if (_b.distanceTo(st.pos) < 220) ok = false;
+    for (const st of stations) if (_b.distanceTo(st.pos) < 700) ok = false;
     if (!ok) continue;
     a.x = _b.x; a.y = _b.y; a.z = _b.z;
     const big = Math.random() < 0.15; a.r = big ? rnd(14, 26) : rnd(3, 11); a.hp = a.r * a.r * 0.35; a.active = true; return;
@@ -1131,7 +1147,7 @@ function frame(now) {
       }
     }
     if (S.inv > 0) S.inv -= dt;
-    for (const st of stations) { _a.copy(S.pos).sub(st.pos); const d = _a.length(); if (d < 40) { S.pos.copy(st.pos).addScaledVector(_a.multiplyScalar(40 / (d || 1)), 1); S.speed *= 0.6; } }
+    for (const st of stations) { _a.copy(S.pos).sub(st.pos); const d = _a.length(); if (d < 40 * ST_K) { S.pos.copy(st.pos).addScaledVector(_a.multiplyScalar(40 * ST_K / (d || 1)), 1); S.speed *= 0.6; } }
     const mag = 20 + 0;
     for (let i = 0; i < LOOT_N; i++) {
       const l = loot[i]; if (!l.active) continue; l.life -= dt; l.pos.addScaledVector(l.vel, dt); l.vel.multiplyScalar(Math.max(0, 1 - 1.2 * dt));
@@ -1219,14 +1235,18 @@ function frame(now) {
       if (!on) { /* off-screen: radar shows it */ }
     } else { tgtEl.style.display = 'none'; leadEl.style.display = 'none'; }
     const ns = nearStation(); $('b-dock').style.display = ns >= 0 ? 'flex' : 'none';
+    if (entDismissed >= 0 && S.pos.distanceTo(stations[entDismissed].pos) > 950) entDismissed = -1;
+    const wantEnt = ns >= 0 && ns !== entDismissed;
+    if (wantEnt && !entOn) { entOn = true; entFor = ns; $('ent-name').textContent = stations[ns].name; $('ent-dlg').style.display = 'flex'; sfx('lock'); }
+    else if (!wantEnt && entOn) { entOn = false; $('ent-dlg').style.display = 'none'; }
     if (++flip % 2 === 0) drawRadar();
-  } else { for (const e of mk) e.style.display = 'none'; mkWp.style.display = 'none'; tgtEl.style.display = 'none'; leadEl.style.display = 'none'; $('b-dock').style.display = 'none'; }
+  } else { if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } for (const e of mk) e.style.display = 'none'; mkWp.style.display = 'none'; tgtEl.style.display = 'none'; leadEl.style.display = 'none'; $('b-dock').style.display = 'none'; }
   updateAudio(); updateMusic(dt);
   composer.render();
 }
 
 // menu backdrop: the ship idling next to HELIOS PRIME
-(function menuScene() { S.pos.set(30, 14, 150); _m.lookAt(_zero, V3(-0.15, 0.05, -1).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q); S.mode = 'menu'; ST = stats(); for (let i = 0; i < AST_N; i++) spawnAsteroid(asteroids[i], true); })();
+(function menuScene() { S.pos.set(170, -40, 520); _m.lookAt(_zero, V3(-170, 30, -520).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q); S.mode = 'menu'; ST = stats(); for (let i = 0; i < AST_N; i++) spawnAsteroid(asteroids[i], true); })();
 requestAnimationFrame(frame);
 document.addEventListener('visibilitychange', () => { last = performance.now(); if (actx) { document.hidden ? actx.suspend() : actx.resume(); } });
 window.__sc = { S, stations, save, enemies, startGame, spawnEnemy, dockAt, damageEnemy, THREE, renderer };
