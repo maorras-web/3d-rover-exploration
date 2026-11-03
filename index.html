@@ -350,6 +350,35 @@
   .spec-lg{font:500 10px system-ui,Arial,sans-serif;opacity:.5;margin-top:4px}
   @media (max-aspect-ratio:6/5){#shop{background:rgba(2,6,16,.9);justify-content:center}#shop .panel{max-width:100%}}
   body.docked #top-left,body.docked #speed,body.docked #radar,body.docked #stick,body.docked #thr,body.docked #rb-bg,body.docked .rb,body.docked #mission{display:none!important}
+
+  /* ===== hangar UI (Galaxy-on-Fire-2 style): left nav, bottom bar, depart dialog ===== */
+  #shop{display:none;background:none;padding:0;align-items:stretch;justify-content:flex-start;text-align:left}
+  #shop.show{display:block}
+  #shop .panel{position:absolute;left:calc(112px + env(safe-area-inset-left));right:calc(10px + env(safe-area-inset-right));top:34px;bottom:auto;max-height:calc(100% - 76px);max-width:none;width:auto;padding:0;overflow:hidden;display:flex;flex-direction:column;background:linear-gradient(90deg,rgba(6,10,18,.55),rgba(6,10,18,.86) 40%);border:1px solid rgba(120,170,220,.25);border-radius:4px}
+  #shop #shop-list{padding:8px 10px;flex:1;min-height:0}
+  @media (min-width:700px) and (min-aspect-ratio:6/5){#shop .panel{left:46vw}}
+  #sh-top{position:absolute;left:calc(10px + env(safe-area-inset-left));right:calc(54px + env(safe-area-inset-right));top:0;height:34px;display:flex;align-items:center;gap:16px;background:linear-gradient(180deg,rgba(2,6,12,.85),rgba(2,6,12,0));font:700 11px system-ui,Arial,sans-serif;color:#bcd0e6;letter-spacing:.5px}
+  #sh-top b{font-weight:800;color:#e6f0ff}#sh-top span{color:#ffe08a;opacity:.9}
+  #sh-nav{position:absolute;left:calc(6px + env(safe-area-inset-left));bottom:42px;width:96px;display:flex;flex-direction:column;gap:5px}
+  .nv{height:27px;border-radius:2px;border:1px solid rgba(110,150,200,.5);background:linear-gradient(180deg,rgba(70,100,140,.85),rgba(30,48,76,.9));color:#dbe8f7;font:600 11px system-ui,Arial,sans-serif;letter-spacing:.3px;text-shadow:0 1px 1px #000;box-shadow:inset 0 1px 0 rgba(255,255,255,.18)}
+  .nv.on{border-color:#ffc860;background:linear-gradient(180deg,rgba(150,110,40,.95),rgba(80,56,18,.95));color:#fff}
+  #sh-bar{position:absolute;left:0;right:0;bottom:0;height:34px;display:flex;align-items:center;justify-content:center;gap:14px;padding:0 calc(10px + env(safe-area-inset-right)) env(safe-area-inset-bottom) calc(10px + env(safe-area-inset-left));box-sizing:content-box;background:linear-gradient(180deg,rgba(14,22,34,.92),rgba(4,8,14,.96));border-top:1px solid rgba(120,170,220,.3);font:600 11px system-ui,Arial,sans-serif;color:#c8d8ea}
+  #shop-cr{margin-left:auto;padding:5px 14px;border:1px solid #c9a24a;border-radius:2px;background:linear-gradient(180deg,rgba(120,90,20,.9),rgba(60,42,8,.95));color:#ffe9a8;font:800 13px system-ui,Arial,sans-serif;letter-spacing:.5px}
+  #shop #go-launch{width:36px;height:26px;margin:0;padding:0;border-radius:3px;border:1px solid #6ad28a;background:linear-gradient(180deg,#2f9a55,#16582f);box-shadow:none;display:flex;align-items:center;justify-content:center}
+  #go-launch svg{width:20px;height:20px}
+  #sh-dlg{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35)}
+  #sh-dlg .dl{min-width:260px;border:1px solid rgba(130,170,220,.55);background:linear-gradient(180deg,rgba(26,40,62,.97),rgba(10,16,28,.98));border-radius:3px;box-shadow:0 0 30px #000}
+  #sh-dlg .dt{padding:5px 10px;font:700 11px system-ui,Arial,sans-serif;color:#cfe0f5;background:rgba(80,110,150,.35)}
+  #sh-dlg .dm{padding:14px 12px 10px;font:600 13px system-ui,Arial,sans-serif;color:#fff}
+  #sh-dlg .db{display:flex;gap:8px;justify-content:center;padding:4px 10px 12px}
+  #sh-dlg button{min-width:78px;height:28px;border-radius:2px;border:1px solid rgba(110,150,200,.6);background:linear-gradient(180deg,rgba(70,100,140,.9),rgba(30,48,76,.95));color:#fff;font:700 12px system-ui,Arial,sans-serif}
+  #dlg-yes{border-color:#ffc860!important}
+  .smap{position:relative;height:calc(100vh - 130px);min-height:150px;background:radial-gradient(ellipse at center,rgba(20,36,60,.6),rgba(4,8,16,.6));border:1px solid rgba(110,150,200,.25)}
+  .smap .sn{position:absolute;transform:translate(-6px,-6px)}
+  .smap .sn i{display:block;width:12px;height:12px;border-radius:50%;background:#7fd4ff;box-shadow:0 0 12px #7fd4ff}
+  .smap .sn.here i{background:#ffc860;box-shadow:0 0 14px #ffc860}.smap .sn.tgt i{background:#5fffb0;box-shadow:0 0 14px #5fffb0}
+  .smap .sn span{position:absolute;left:18px;top:-3px;white-space:nowrap;font:700 11px system-ui,Arial,sans-serif;color:#dbe8f7}.smap small{font-weight:500;opacity:.7}
+  body.docked #top-right{display:none}
 </style>
 </head>
 <body>
@@ -393,13 +422,15 @@
   <div class="go" id="go-start">LAUNCH</div>
 </div></div>
 
-<div id="shop" class="screen"><div class="panel">
-  <h1 style="font-size:26px" id="shop-title">DOCKED</h1>
-  <div class="earn"><span id="shop-earn"></span><b id="shop-cr"></b></div>
-  <div class="tabs"><button class="tab on" id="tab-m">MISSIONS</button><button class="tab" id="tab-u">SHOP</button><button class="tab" id="tab-s">SPECS</button></div>
-  <div id="shop-list"></div>
-  <div class="go" id="go-launch">LAUNCH</div>
-</div></div>
+<div id="shop" class="screen">
+  <div id="sh-top"><b id="shop-title">DOCKED</b><span id="shop-earn"></span></div>
+  <div id="sh-nav">
+    <button class="nv on" id="tab-h">Hangar</button><button class="nv" id="tab-u">Shop</button><button class="nv" id="tab-p">Map</button><button class="nv" id="tab-m">Missions</button><button class="nv" id="tab-s">Status</button>
+  </div>
+  <div class="panel" id="sh-panel"><div id="shop-list"></div></div>
+  <div id="sh-bar"><span id="shop-ms">MISSILES</span><b id="shop-cr"></b><button id="go-launch" title="Depart"><svg viewBox="0 0 24 24"><path d="M5 12h12M12 6l6 6-6 6" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+  <div id="sh-dlg"><div class="dl"><div class="dt">Info</div><div class="dm">Depart the station?</div><div class="db"><button id="dlg-yes">Yes</button><button id="dlg-no">No</button></div></div></div>
+</div>
 
 <div id="diag" style="position:fixed;left:0;right:0;top:0;z-index:999999;background:rgba(150,0,0,.92);color:#fff;font:12px/1.4 monospace;padding:8px;display:none;direction:ltr;white-space:pre-wrap"></div>
 <script>
@@ -419,11 +450,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=140', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=141', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=140'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=141'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>

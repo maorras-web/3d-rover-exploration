@@ -83,7 +83,7 @@ class CheapGlow extends Pass {
    Light on purpose: instanced asteroids / bolts / loot, merged-geometry enemies, shader dust, no post-processing. */
 
 const $ = (id) => document.getElementById(id);
-const BUILD = 33;
+const BUILD = 34;
 
 // ---------- save ----------
 const SAVE_KEY = 'starCourier2';
@@ -794,12 +794,44 @@ for (const s of [-1, 1]) {
 const flames = [-1, 1].map(s => { const f = glowSprite(0x7fe9ff, 2.0, 0.8); f.position.set(s * 1.3, -0.35, 3.7); shipBody.add(f); return f; });
 const flameCore = [-1, 1].map(s => { const f = glowSprite(0xffffff, 0.9, 0.9); f.position.set(s * 1.3, -0.35, 3.45); shipBody.add(f); return f; });
 
-// hangar pad: glowing rings under the ship while docked (cheap: 2 additive meshes, hidden in flight)
-const pad = new THREE.Group(); pad.visible = false; scene.add(pad);
-{ const pm = (c, o) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
-  const r1 = new THREE.Mesh(new THREE.RingGeometry(6.4, 6.8, 48), pm(0x6fe6ff, 0.8)), r2 = new THREE.Mesh(new THREE.RingGeometry(4.2, 4.35, 48), pm(0x6fe6ff, 0.5)), d = new THREE.Mesh(new THREE.CircleGeometry(6.4, 48), pm(0x1c6a8c, 0.22));
-  [r1, r2, d].forEach(o => { o.rotation.x = -Math.PI / 2; pad.add(o); }); }
-let hangarVO = false;
+// ---------- hangar room (Galaxy-on-Fire-style): far away from the world, enclosed, only drawn while docked ----------
+const HP = V3(0, -6000, 0);
+const hangar = new THREE.Group(); hangar.position.copy(HP); hangar.visible = false; scene.add(hangar);
+{
+  const std = (c, e, r, mt) => new THREE.MeshStandardMaterial({ color: c, emissive: e, roughness: r === undefined ? 0.8 : r, metalness: mt === undefined ? 0.35 : mt, flatShading: true, fog: false });
+  const glow = (c, o) => new THREE.MeshBasicMaterial({ color: c, transparent: o !== undefined, opacity: o === undefined ? 1 : o, toneMapped: false, fog: false, side: THREE.DoubleSide });
+  const add = (geo, mat, x, y, z) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); hangar.add(o); return o; };
+  const WR = 40, WH = 26;
+  // walls, ceiling, floor
+  const wallTex = canvasTex(512, 128, (x, w, h) => { x.fillStyle = '#2a1d17'; x.fillRect(0, 0, w, h); x.strokeStyle = '#3d2a20'; x.lineWidth = 3; for (let i = 0; i <= 16; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.stroke(); } x.fillStyle = '#4a2f1e'; for (let i = 0; i < 16; i++) x.fillRect(i * 32 + 6, 20, 20, 8); }, [3, 1]);
+  add(new THREE.CylinderGeometry(WR, WR, WH, 48, 1, true), new THREE.MeshStandardMaterial({ map: wallTex, emissive: 0x7a4c2e, emissiveMap: wallTex, roughness: 0.9, metalness: 0.2, side: THREE.BackSide, fog: false }), 0, WH / 2, 0);
+  add(new THREE.CircleGeometry(WR, 48), std(0x2a1e16, 0x2a1a10), 0, WH, 0).rotation.x = Math.PI / 2;
+  const floorTex = canvasTex(512, 512, (x, w, h) => { x.fillStyle = '#1d1511'; x.fillRect(0, 0, w, h); x.strokeStyle = '#33241a'; x.lineWidth = 2; for (let i = 0; i <= 16; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.moveTo(0, i * 32); x.lineTo(w, i * 32); x.stroke(); } });
+  const fl = add(new THREE.CircleGeometry(WR, 48), new THREE.MeshStandardMaterial({ map: floorTex, emissive: 0x4a2c1a, emissiveMap: floorTex, roughness: 0.7, metalness: 0.4, fog: false }), 0, -0.6, 0); fl.rotation.x = -Math.PI / 2;
+  // glowing wall strips
+  [3.2, 20.5].forEach(y => add(new THREE.CylinderGeometry(WR - 0.3, WR - 0.3, 0.5, 48, 1, true), glow(0xff8a2a, 0.85), 0, y, 0).material.side = THREE.BackSide);
+  // big orange window on the back wall (towards -z): asteroid field in a red-orange glow
+  const winTex = canvasTex(1024, 256, (x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#b4380e'); g.addColorStop(0.5, '#ff7a2a'); g.addColorStop(1, '#c4460f'); x.fillStyle = g; x.fillRect(0, 0, w, h); for (let i = 0; i < 90; i++) { const r = 3 + Math.random() * 12; x.fillStyle = `rgba(${60 + Math.random() * 40 | 0},${25 + Math.random() * 15 | 0},12,${0.5 + Math.random() * 0.4})`; x.beginPath(); x.ellipse(Math.random() * w, Math.random() * h, r * 1.3, r, Math.random() * 3, 0, 7); x.fill(); } });
+  const win = add(new THREE.CylinderGeometry(WR - 0.6, WR - 0.6, 10, 24, 1, true, Math.PI - 1.0, 2.0), new THREE.MeshBasicMaterial({ map: winTex, side: THREE.BackSide, toneMapped: false, fog: false }), 0, 11.5, 0);
+  add(new THREE.CylinderGeometry(WR - 0.5, WR - 0.5, 0.7, 24, 1, true, Math.PI - 1.0, 2.0), std(0x0e0a08, 0x0a0705), 0, 16.6, 0).material.side = THREE.BackSide;
+  add(new THREE.CylinderGeometry(WR - 0.5, WR - 0.5, 0.7, 24, 1, true, Math.PI - 1.0, 2.0), std(0x0e0a08, 0x0a0705), 0, 6.4, 0).material.side = THREE.BackSide;
+  // landing platform: stepped disc, glowing rings, amber tiles on the front
+  add(new THREE.CylinderGeometry(12, 12.6, 0.9, 40), std(0x6a4a34, 0x4a2c1a, 0.6, 0.5), 0, -0.15, 0);
+  add(new THREE.CylinderGeometry(9.6, 10, 0.5, 40), std(0x7a5640, 0x5a3622, 0.55, 0.55), 0, 0.3, 0);
+  const ring = (r0, r1, c, y) => { const o = add(new THREE.RingGeometry(r0, r1, 56), glow(c), 0, y, 0); o.rotation.x = -Math.PI / 2; };
+  ring(11.7, 11.95, 0xffb040, 0.32); ring(8.2, 8.5, 0xff8a2a, 0.56); ring(5.2, 5.4, 0xffb040, 0.56); ring(2.4, 2.6, 0xff4a2a, 0.56);
+  add(new THREE.CylinderGeometry(2.3, 2.3, 0.1, 24), std(0x6a1a12, 0x3a0e08, 0.5, 0.4), 0, 0.56, 0);
+  for (let k = 0; k < 9; k++) { const t = (k - 4) * 0.21, r = 9.0; const o = add(new THREE.BoxGeometry(0.9, 0.14, 1.0), glow(0xffcc66), Math.sin(t) * r, 0.58, Math.cos(t) * r); o.rotation.y = t; }
+  // crates and pillars around the walls
+  let sd = 7; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 26; i++) {
+    const a = rn() * Math.PI * 2, r = 25 + rn() * 11, w = 2.5 + rn() * 4, h = 2 + rn() * 5, d = 2.5 + rn() * 4;
+    const c = add(new THREE.BoxGeometry(w, h, d), std(0x6a472f + ((rn() * 24 | 0) << 8), 0x5a3520, 0.7, 0.4), Math.sin(a) * r, h / 2 - 0.6, Math.cos(a) * r); c.rotation.y = rn() * 3;
+    if (rn() > 0.5) add(new THREE.BoxGeometry(w * 0.6, 0.18, 0.05), glow(0xffa040), Math.sin(a) * r, h * 0.7 - 0.6, Math.cos(a) * r).rotation.y = c.rotation.y + 0.0;
+  }
+  for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + 0.39; add(new THREE.CylinderGeometry(1.1, 1.1, WH, 8), std(0x4a3626, 0x3a2416), Math.sin(a) * (WR - 1.4), WH / 2, Math.cos(a) * (WR - 1.4)); }
+}
+let hangarVO = false, vo = 0;
 
 // ---------- enemy fighter (one merged mesh, vertex colours) ----------
 const enemyGeo = (() => {
@@ -932,7 +964,7 @@ function updateFx(dt) {
 }
 
 // ---------- stations ----------
-function buildStation() {
+function buildStation(name, col) {
   const g = new THREE.Group(), spin = new THREE.Group(); g.add(spin);
   const metal = new THREE.MeshStandardMaterial({ color: 0xaab4c4, roughness: 0.45, metalness: 0.7, flatShading: true, fog: false });
   const darkM = new THREE.MeshStandardMaterial({ color: 0x3a4152, roughness: 0.6, metalness: 0.6, flatShading: true, fog: false });
@@ -953,15 +985,19 @@ function buildStation() {
   for (const z of [38, 48, 58]) { const r = new THREE.Mesh(new THREE.TorusGeometry(9.8, 0.35, 6, 24), new THREE.MeshBasicMaterial({ color: 0x59ffb0, toneMapped: false, fog: false })); r.position.z = z; g.add(r); }
   const dockRing = new THREE.Mesh(new THREE.TorusGeometry(10.6, 1.0, 8, 28), new THREE.MeshBasicMaterial({ color: 0x59ffb0, toneMapped: false, fog: false })); dockRing.position.z = 64; g.add(dockRing);
   const beacon = glowSprite(0x6fe8ff, 60, 0.9); beacon.position.z = 70; g.add(beacon);
+  // neon sign on two posts above the hangar mouth
+  const sg = new THREE.Mesh(new THREE.PlaneGeometry(30, 8.5), new THREE.MeshBasicMaterial({ map: canvasTex(512, 144, (x, w, h) => { x.fillStyle = 'rgba(8,6,14,.88)'; x.fillRect(0, 0, w, h); x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = '900 64px system-ui,Arial,sans-serif'; x.shadowColor = col; x.shadowBlur = 22; x.fillStyle = col; x.fillText(name, w / 2, h * 0.4); x.shadowBlur = 10; x.font = '800 26px system-ui,Arial,sans-serif'; x.fillStyle = '#fff'; x.fillText('★  DOCKING BAY  ★', w / 2, h * 0.8); x.lineWidth = 5; x.strokeStyle = col; x.strokeRect(6, 6, w - 12, h - 12); }), toneMapped: false, fog: false, side: THREE.DoubleSide }));
+  sg.position.set(0, 20, 54); g.add(sg);
+  for (const s of [-1, 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.6, 12, 0.6), darkM); p.position.set(s * 12, 14, 54); g.add(p); }
   g.userData = { spin, beacon };
   return g;
 }
 const stations = [
-  { name: 'HELIOS PRIME', pos: V3(0, 0, 0), front: V3(0.3, 0.1, -1) },
-  { name: 'KEPLER', pos: V3(1800, 260, -1500), front: V3(-1, -0.1, 0.5) },
-  { name: 'VEGA GATE', pos: V3(-2100, -180, -2000), front: V3(0.8, 0.1, 0.7) },
+  { name: 'HELIOS PRIME', col: '#ff3fd8', pos: V3(0, 0, 0), front: V3(0.3, 0.1, -1) },
+  { name: 'KEPLER', col: '#3fe6ff', pos: V3(1800, 260, -1500), front: V3(-1, -0.1, 0.5) },
+  { name: 'VEGA GATE', col: '#ffb23f', pos: V3(-2100, -180, -2000), front: V3(0.8, 0.1, 0.7) },
 ];
-stations.forEach(s => { s.front.normalize(); s.g = buildStation(); s.g.position.copy(s.pos); s.g.lookAt(s.pos.clone().add(s.front)); scene.add(s.g); });
+stations.forEach(s => { s.front.normalize(); s.g = buildStation(s.name, s.col); s.g.position.copy(s.pos); s.g.lookAt(s.pos.clone().add(s.front)); scene.add(s.g); });
 const dockPoint = (st, out) => out.copy(st.pos).addScaledVector(st.front, 58);
 
 // ---------- game state ----------
@@ -1188,7 +1224,7 @@ function toast(t, secs) { const el = $('toast'); el.textContent = t; el.style.op
 function flash(kind) { const f = $('flash'); f.style.background = kind === 'shield' ? 'radial-gradient(ellipse at center,rgba(60,170,255,0) 45%,rgba(60,170,255,.5) 100%)' : 'radial-gradient(ellipse at center,rgba(255,50,40,0) 40%,rgba(255,50,40,.7) 100%)'; f.style.opacity = '1'; setTimeout(() => f.style.opacity = '0', 110); }
 const buzz = (ms) => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { } };
 const refreshHud = () => { $('credits').textContent = save.credits; };
-const updateMissHud = () => { $('miss-n').textContent = save.missiles; };
+const updateMissHud = () => { $('miss-n').textContent = save.missiles; const e = document.getElementById('shop-ms'); if (e) e.textContent = 'MISSILES  ' + save.missiles; };
 refreshHud(); updateMissHud(); $('kills').textContent = save.kills;
 
 let shopTab = 'm';
@@ -1196,7 +1232,7 @@ function openShop(msg) {
   S.mode = 'dock';
   $('shop-title').textContent = 'DOCKED · ' + stations[S.station].name;
   $('shop-earn').textContent = msg || '';
-  $('tab-m').classList.toggle('on', shopTab === 'm'); $('tab-u').classList.toggle('on', shopTab === 'u');
+  ['h', 'u', 'p', 'm', 's'].forEach(k => $('tab-' + k).classList.toggle('on', shopTab === k)); $('sh-panel').style.display = shopTab === 'h' ? 'none' : 'flex';
   const list = $('shop-list'); list.innerHTML = '';
   const row = (nm, desc, extra, btnText, dis, fn) => {
     const r = document.createElement('div'); r.className = 'row';
@@ -1204,7 +1240,7 @@ function openShop(msg) {
     if (btnText) { const b = document.createElement('button'); b.className = 'buy'; b.textContent = btnText; b.disabled = dis; b.addEventListener('click', fn); r.appendChild(b); }
     list.appendChild(r);
   };
-  $('tab-s').classList.toggle('on', shopTab === 's'); $('shop-cr').textContent = '◆ ' + save.credits;
+  $('shop-cr').textContent = '◆ ' + save.credits;
   if (shopTab === 's') {
     const tot = save.up.reduce((x, y) => x + y, 0), mk = ['I', 'II', 'III', 'IV', 'V'][Math.min(4, tot / 6 | 0)];
     const hd = document.createElement('div'); hd.className = 'spec-hd'; hd.innerHTML = `<b>STAR COURIER  MK ${mk}</b><span>Light multirole fighter · twin ion engines · 2 laser hardpoints · missile rack</span>`; list.appendChild(hd);
@@ -1220,6 +1256,11 @@ function openShop(msg) {
     bar('CRUISE SPEED', Math.round(ST.cruise), ' m/s', 3, s => s.cruise);
     const ft = document.createElement('div'); ft.className = 'spec-ft'; ft.innerHTML = `<span>MISSILES <b>${save.missiles}</b></span><span>PIRATES DESTROYED <b>${save.kills}</b></span><span>UPGRADES <b>${tot}/${UPG.reduce((x, u) => x + u.max, 0)}</b></span>`; list.appendChild(ft);
     const lg = document.createElement('div'); lg.className = 'spec-lg'; lg.textContent = 'Bright bar = current  ·  faint extension = next upgrade'; list.appendChild(lg);
+  } else if (shopTab === 'p') {
+    const mp = document.createElement('div'); mp.className = 'smap'; list.appendChild(mp);
+    let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; stations.forEach(s => { x0 = Math.min(x0, s.pos.x); x1 = Math.max(x1, s.pos.x); z0 = Math.min(z0, s.pos.z); z1 = Math.max(z1, s.pos.z); });
+    stations.forEach((s, k) => { const d = document.createElement('div'); d.className = 'sn' + (k === S.station ? ' here' : '') + (S.mission && S.mission.type === 'delivery' && S.mission.to === k ? ' tgt' : ''); d.style.left = (12 + 76 * (s.pos.x - x0) / (x1 - x0 || 1)) + '%'; d.style.top = (14 + 66 * (s.pos.z - z0) / (z1 - z0 || 1)) + '%';
+      d.innerHTML = `<i></i><span>${s.name}<br><small>${k === S.station ? 'YOU ARE HERE' : (stations[S.station].pos.distanceTo(s.pos) / 1000).toFixed(1) + ' km'}</small></span>`; mp.appendChild(d); });
   } else if (shopTab === 'm') {
     if (S.mission) row('ACTIVE: ' + S.mission.title, S.mission.text + '  ·  ◆ ' + S.mission.reward, '', 'ABANDON', false, () => { S.mission = null; updateMissionHud(); openShop(msg); });
     offered.forEach((m) => row(m.title + '  ◆ ' + m.reward, m.text, '', S.mission ? 'BUSY' : 'ACCEPT', !!S.mission, () => { S.mission = Object.assign({}, m); if (m.zone) S.mission.zone = m.zone; updateMissionHud(); sfx('pick'); openShop('MISSION ACCEPTED'); }));
@@ -1229,19 +1270,17 @@ function openShop(msg) {
     UPG.forEach((u, i) => { const lv = save.up[i], maxed = lv >= u.max, cost = upCost(i); row(u.name, u.desc + (maxed ? '' : '  ·  ' + prev(i)), '■'.repeat(lv) + '□'.repeat(u.max - lv), maxed ? 'MAX' : '◆ ' + cost, maxed || save.credits < cost, () => { save.credits -= cost; save.up[i]++; persist(); refreshHud(); ST = stats(); sfx('pick'); openShop(msg); }); });
     row('MISSILES  ×' + save.missiles, 'Homing missiles, 3 per pack', '', '◆ 90', save.credits < 90 || save.missiles > 30, () => { save.credits -= 90; save.missiles += 3; persist(); refreshHud(); updateMissHud(); sfx('pick'); openShop(msg); });
   }
-  document.body.classList.add('docked'); $('shop').classList.add('show');
+  updateMissHud(); document.body.classList.add('docked'); $('shop').classList.add('show');
 }
-$('tab-m').addEventListener('click', () => { shopTab = 'm'; openShop($('shop-earn').textContent); });
-$('tab-u').addEventListener('click', () => { shopTab = 'u'; openShop($('shop-earn').textContent); });
-$('tab-s').addEventListener('click', () => { shopTab = 's'; openShop($('shop-earn').textContent); });
+['h', 'u', 'p', 'm', 's'].forEach(k => $('tab-' + k).addEventListener('click', () => { shopTab = k; sfx('lock'); openShop($('shop-earn').textContent); }));
 
 function dockAt(i) {
-  S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.copy(stations[i].pos).addScaledVector(stations[i].front, 230); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
+  S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + 2.4, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
   for (const e of enemies) { e.active = false; e.g.visible = false; } for (const m of missiles) { m.active = false; m.g.visible = false; }
   sfx('dock'); buzz(50);
   let msg = 'SHIP REPAIRED';
   if (S.mission && S.mission.type === 'delivery' && S.mission.to === i) { const r = S.mission.reward; completeMission(); msg = 'DELIVERY COMPLETE  +' + r; }
-  offered = genMissions(i); shopTab = 'm'; openShop(msg);
+  offered = genMissions(i); shopTab = 'h'; openShop(msg);
 }
 // docking cinematic: swing onto the station axis, then fly down the hangar tunnel and stop; then the hangar menu opens
 const DK = { i: 0, t: 0, tA: 1, p0: V3(), q0: new THREE.Quaternion(), q1: new THREE.Quaternion(), P1: V3(), dir: V3() };
@@ -1271,7 +1310,9 @@ function startGame() { initAudio(); if (actx && actx.state === 'suspended') actx
 $('go-start').addEventListener('click', startGame);
 $('go-start').textContent = 'LAUNCH';
 { const b = document.createElement('div'); b.style.cssText = 'margin-top:10px;font-size:10px;opacity:.5;letter-spacing:2px'; b.textContent = 'BUILD ' + BUILD; $('go-start').parentNode.appendChild(b); }
-$('go-launch').addEventListener('click', () => { initAudio(); if (actx && actx.state === 'suspended') actx.resume(); launchFrom(S.station); });
+$('go-launch').addEventListener('click', () => { sfx('lock'); $('sh-dlg').style.display = 'flex'; });
+$('dlg-no').addEventListener('click', () => { $('sh-dlg').style.display = 'none'; });
+$('dlg-yes').addEventListener('click', () => { $('sh-dlg').style.display = 'none'; initAudio(); if (actx && actx.state === 'suspended') actx.resume(); launchFrom(S.station); });
 function wrecked() {
   S.mode = 'wreck'; explode(S.pos, 18); sfx('hit'); buzz(250);
   save.credits = Math.floor(save.credits * 0.9); persist(); refreshHud(); S.mission = null; updateMissionHud(); toast('SHIP DESTROYED', 2); $('flash').style.background = 'rgba(255,40,30,.6)'; $('flash').style.opacity = '1';
@@ -1496,12 +1537,12 @@ function frame(now) {
   const wantFov = 64 + clamp(S.speed / 150, 0, 1.4) * 12 + (S.boosting ? 6 : 0);
   if (Math.abs(camera.fov - wantFov) > 0.05) { camera.fov = damp(camera.fov, wantFov, 4, dt); camera.updateProjectionMatrix(); }
   if (S.mode === 'dock') {
-    // hangar view: the ship turns slowly on its pad on the left, the menu panel fills the right
-    ship.quaternion.setFromAxisAngle(Y, tAcc * 0.45); shipBody.rotation.z = 0; pad.visible = true; pad.position.set(S.pos.x, S.pos.y - 2.5, S.pos.z);
-    camera.position.set(S.pos.x, S.pos.y + 4.2, S.pos.z + 21); camera.lookAt(S.pos.x, S.pos.y - 0.4, S.pos.z);
-    const land = innerWidth > innerHeight * 1.2;
-    if (!hangarVO || camera.fov !== 46) { camera.fov = 46; hangarVO = true; if (land) camera.setViewOffset(innerWidth, innerHeight, innerWidth * 0.2, 0, innerWidth, innerHeight); else camera.updateProjectionMatrix(); }
-  } else if (hangarVO) { hangarVO = false; pad.visible = false; camera.clearViewOffset(); camera.fov = 64; camera.updateProjectionMatrix(); }
+    // hangar view: the ship sits on its platform, the camera swings slowly round it (like Galaxy on Fire 2)
+    hangar.visible = true; ship.quaternion.setFromAxisAngle(Y, 0.5); shipBody.rotation.z = 0;
+    const a = Math.sin(tAcc * 0.17) * 1.05, hy = Math.sin(tAcc * 0.23) * 1.2, land = innerWidth > innerHeight * 1.2, off = land && shopTab !== 'h' ? 1 : 0;
+    camera.position.set(HP.x + Math.sin(a) * 17, HP.y + 7 + hy, HP.z + Math.cos(a) * 17); camera.lookAt(HP.x, HP.y + 2.4, HP.z);
+    if (!hangarVO || camera.fov !== 46 || off !== vo) { camera.fov = 46; hangarVO = true; vo = off; if (off) camera.setViewOffset(innerWidth, innerHeight, innerWidth * 0.2, 0, innerWidth, innerHeight); else { camera.clearViewOffset(); camera.updateProjectionMatrix(); } }
+  } else if (hangarVO) { hangarVO = false; vo = 0; hangar.visible = false; camera.clearViewOffset(); camera.fov = 64; camera.updateProjectionMatrix(); }
   sky.position.copy(camera.position);
   fill.position.set(0.5, 0.7, 1).applyQuaternion(camera.quaternion);
 
@@ -1529,7 +1570,7 @@ function frame(now) {
   boltMesh.instanceMatrix.needsUpdate = true;
   for (const st of stations) { st.g.userData.spin.rotation.z += dt * 0.12; st.g.userData.beacon.material.opacity = 0.6 + Math.sin(tAcc * 3) * 0.25; }
   dustMat.uniforms.uCam.value.copy(camera.position); dustMat.uniforms.uVel.value.copy(S.vel);
-  dustMat.uniforms.uK.value = 0.012 + (S.boosting ? 0.02 : 0.008); dustMat.uniforms.uAlpha.value = 0.22 + clamp(S.speed / 170, 0, 1) * 0.35 + (S.boosting ? 0.2 : 0);
+  dustMat.uniforms.uK.value = 0.012 + (S.boosting ? 0.02 : 0.008); dustMat.uniforms.uAlpha.value = S.mode === 'dock' ? 0 : 0.22 + clamp(S.speed / 170, 0, 1) * 0.35 + (S.boosting ? 0.2 : 0);
 
   // ---- HUD ----
   $('b-sh').style.transform = `scaleX(${clamp(S.shield / ST.shieldMax, 0, 1).toFixed(3)})`;
