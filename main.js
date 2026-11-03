@@ -919,7 +919,8 @@ function openShop(msg) {
   S.mode = 'dock';
   $('shop-title').textContent = 'DOCKED · ' + stations[S.station].name;
   $('shop-earn').textContent = msg || '';
-  ['h', 'u', 'p', 'm', 's'].forEach(k => $('tab-' + k).classList.toggle('on', shopTab === k)); $('sh-panel').style.display = shopTab === 'h' ? 'none' : 'flex'; $('shop').classList.toggle('npcon', shopTab === 'u');
+  ['h', 'u', 'p', 'm', 's'].forEach(k => $('tab-' + k).classList.toggle('on', shopTab === k)); $('sh-panel').style.display = shopTab === 'h' ? 'none' : 'flex'; $('shop').classList.toggle('npcon', shopTab === 'u' || shopTab === 's');
+  { const hero = shopTab === 's'; $('npc').src = hero ? 'pilot.webp' : 'merchant.webp'; $('npc').classList.toggle('hero', hero); $('npc-nm').textContent = hero ? 'NABIYAX · PILOT' : 'VORR · TRADER'; $('npc-tx').textContent = hero ? 'Ship ready. Let\'s fly.' : 'Best prices this side of the nebula, pilot.'; }
   const list = $('shop-list'); list.innerHTML = '';
   const row = (nm, desc, extra, btnText, dis, fn) => {
     const r = document.createElement('div'); r.className = 'row';
