@@ -569,19 +569,25 @@ function sparks(p, n, spd, life) {
   for (let i = 0; i < n; i++) { const k = dbNext; dbNext = (dbNext + 1) % DB_N; dbPos[k * 3] = p.x; dbPos[k * 3 + 1] = p.y; dbPos[k * 3 + 2] = p.z; _a.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.3, 1) * spd); dbVel[k * 3] = _a.x; dbVel[k * 3 + 1] = _a.y; dbVel[k * 3 + 2] = _a.z; dbLife[k] = rnd(0.4, 1) * life; }
   dbAlive = DB_N;
 }
+const ringTex = canvasTex(128, 128, (x, w, h) => { const g = x.createRadialGradient(64, 64, 34, 64, 64, 62); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.55, 'rgba(255,255,255,0.95)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, w, h); });
 const EXP_N = 8, expl = [];
-for (let i = 0; i < EXP_N; i++) { const f = glowSprite(0xffa040, 1, 0), r = glowSprite(0xffffff, 1, 0); f.visible = r.visible = false; scene.add(f, r); expl.push({ f, r, t: 99, size: 10 }); }
+for (let i = 0; i < EXP_N; i++) { const f = glowSprite(0xffa040, 1, 0), r = glowSprite(0xffffff, 1, 0), w = glowSprite(0xffd9a0, 1, 0); w.material.map = ringTex; f.visible = r.visible = w.visible = false; scene.add(f, r, w); expl.push({ f, r, w, t: 99, size: 10 }); }
+// tiny bright flash where a laser/missile hits
+const HF_N = 6, hflash = []; for (let i = 0; i < HF_N; i++) { const s = glowSprite(0xbff8ff, 1, 0); s.visible = false; scene.add(s); hflash.push({ s, t: 9 }); } let hfNext = 0;
+function hitFlash(p, big) { const h = hflash[hfNext]; hfNext = (hfNext + 1) % HF_N; h.t = 0; h.big = big ? 1.5 : 1; h.s.position.copy(p); h.s.visible = true; }
 let explNext = 0;
 function explode(p, size) {
-  const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true;
-  sparks(p, size > 12 ? 28 : 12, size * 3.2, 1.3); sfx('boom', size);
+  const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.w.position.copy(p); e.w.visible = size > 12;
+  sparks(p, size > 12 ? 40 : 12, size * 3.2, 1.3); sfx('boom', size);
 }
 function updateFx(dt) {
   for (const e of expl) {
-    if (e.t > 1) { if (e.f.visible) e.f.visible = e.r.visible = false; continue; }
+    if (e.t > 1) { if (e.f.visible) e.f.visible = e.r.visible = e.w.visible = false; continue; }
     e.t += dt * 1.5; const k = e.t, s = e.size * (0.5 + k * 2.4);
     e.f.scale.set(s, s, 1); e.f.material.opacity = Math.max(0, 1 - k) * 0.95; e.r.scale.set(s * 0.45, s * 0.45, 1); e.r.material.opacity = Math.max(0, 1 - k * 2.2);
+    if (e.w.visible) { const ws = e.size * (1 + k * 7); e.w.scale.set(ws, ws, 1); e.w.material.opacity = Math.max(0, 1 - k) * 0.8; }
   }
+  for (const h of hflash) { if (h.t > 1) { if (h.s.visible) h.s.visible = false; continue; } h.t += dt * 7; const s = (3 + h.t * 5) * h.big; h.s.scale.set(s, s, 1); h.s.material.opacity = Math.max(0, 1 - h.t); }
   if (!dbAlive) return; let any = false;
   for (let i = 0; i < DB_N; i++) {
     if (dbLife[i] <= 0) continue; dbLife[i] -= dt;
@@ -914,6 +920,8 @@ function updateMissiles(dt) {
       _m.lookAt(_zero, _b, Y); _qa.setFromRotationMatrix(_m); m.g.quaternion.rotateTowards(_qa, 3.2 * dt); fwdOf(m.g.quaternion, _a);
       if (dist < 7) { damageEnemy(t, 70 + 15 * save.up[0], m.g.position); m.active = false; m.g.visible = false; explode(m.g.position, 9); continue; }
     }
+    { let hitA = false; for (let j = 0; j < AST_N; j++) { const a = asteroids[j]; if (!a.active) continue; const dx = a.x - m.g.position.x, dy = a.y - m.g.position.y, dz = a.z - m.g.position.z, rr = a.r + 2; if (dx * dx + dy * dy + dz * dz < rr * rr) { hitAsteroid(a, 9999); hitA = true; break; } }
+      if (hitA) { m.active = false; m.g.visible = false; explode(m.g.position, 9); continue; } }
     const sp = Math.min(330, m.vel.length() + 260 * dt); m.vel.copy(_a).multiplyScalar(sp); m.g.position.addScaledVector(m.vel, dt);
     m.body.rotation.z += dt * 9; m.fc.scale.z = 2.2 + Math.random() * 0.9;
     if (m.life <= 0) { m.active = false; m.g.visible = false; explode(m.g.position, 5); }
@@ -929,12 +937,16 @@ function damagePlayer(d) {
   sfx('hit');
   if (S.hull <= 0) { S.hull = 0; wrecked(); }
 }
+function hitAsteroid(a, d) {   // any asteroid, any size, can be destroyed
+  a.hp -= d; if (a.hp > 0) return;
+  _b.set(a.x, a.y, a.z); a.active = false; a.y = -99999; explode(_b, Math.max(5, a.r * 0.9)); dropLoot(_b, 15, true, 1 + (a.r > 7 ? 1 : 0) + (a.r > 14 ? 2 : 0));
+}
 function damageEnemy(e, d, at) {
   if (!e.active) return;
   if (e.shield > 0) { e.shield -= d; if (e.shield < 0) { e.hull += e.shield; e.shield = 0; } } else e.hull -= d;
-  if (at) sparks(at, 4, 14, 0.4);
+  if (at) { sparks(at, 7, 18, 0.45); hitFlash(at, d > 40); }
   if (e.hull <= 0) {
-    e.active = false; e.g.visible = false; explode(e.pos, 16); dropLoot(e.pos, 22 + save.kills % 3 * 6, false, 3);
+    e.active = false; e.g.visible = false; explode(e.pos, 16); S.shake = Math.max(S.shake, 0.5); dropLoot(e.pos, 22 + save.kills % 3 * 6, false, 3);
     save.kills++; persist(); $('kills').textContent = save.kills; if (S.target === e) S.target = null;
     S.shake = Math.max(S.shake, 0.25);
     if (S.mission && S.mission.type === 'bounty') { S.mission.done++; updateMissionHud(); if (S.mission.done >= S.mission.n) completeMission(); }
@@ -1281,7 +1293,7 @@ function frame(now) {
           const a = asteroids[j]; if (!a.active) continue; _c.set(a.x - b.pos.x, a.y - b.pos.y, a.z - b.pos.z); const rr = a.r * 0.95;
           if (_c.lengthSq() < rr * rr) {
             b.life = 0; sparks(b.pos, 3, 12, 0.35);
-            if (a.r < 13) { a.hp -= b.dmg; if (a.hp <= 0) { _b.set(a.x, a.y, a.z); a.active = false; a.y = -99999; explode(_b, a.r * 0.9); dropLoot(_b, 15, true, 1 + (a.r > 7 ? 1 : 0)); } }
+            hitAsteroid(a, b.dmg);
             break;
           }
         }
