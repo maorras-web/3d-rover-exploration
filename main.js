@@ -1116,11 +1116,10 @@ function tryDock() {
   _m.lookAt(_zero, DK.dir, lookUp(DK.dir)); DK.q1.setFromRotationMatrix(_m); DK.P1.copy(st.pos).addScaledVector(st.front, 125 * ST_K);
   DK.tA = 1.0; fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; S.mode = 'dockin'; document.body.classList.add('docked'); S.target = null; S.boosting = false; S.sx = S.sy = 0;
 }
-function updateDockIn(dt) {
-  const st = stations[DK.i]; DK.t += dt; const tB = 1.0; fadeEl.style.opacity = Math.max(0, Math.min(1, (DK.t - 1.15) / 0.7)).toFixed(2);
-  if (DK.t < DK.tA) { const u = DK.t / DK.tA, k = u * u * (3 - 2 * u); S.pos.lerpVectors(DK.p0, DK.P1, k); S.q.slerpQuaternions(DK.q0, DK.q1, k); S.speed = 60 + 40 * Math.sin(u * Math.PI); }
-  else { const u = Math.min(1, (DK.t - DK.tA) / tB), k = 1 - (1 - u) * (1 - u); S.q.copy(DK.q1); S.pos.copy(st.pos).addScaledVector(st.front, (125 - 78 * k) * ST_K); S.speed = 160 * (1 - u) + 6; if (u >= 1) { dockAt(DK.i); fadeOut(); return; } }
-  S.vel.copy(DK.dir).multiplyScalar(S.speed); S.roll = 0;
+function updateDockIn(dt) {   // no flying into the station: the ship is beamed in - the screen fades to black right where you are and the hangar opens
+  DK.t += dt; S.speed *= Math.max(0, 1 - dt * 4); S.vel.multiplyScalar(Math.max(0, 1 - dt * 4)); S.pos.addScaledVector(S.vel, dt); S.roll = 0;
+  fadeEl.style.opacity = Math.min(1, DK.t / 0.55).toFixed(2);
+  if (DK.t >= 0.65) { dockAt(DK.i); fadeOut(); }
 }
 function nearStation() { let best = -1, bd = 700; for (let i = 0; i < stations.length; i++) { const d = S.pos.distanceTo(stations[i].pos); if (d < bd) { bd = d; best = i; } } return best; }
 
