@@ -285,7 +285,7 @@ const roverBody = (() => {
   const CYL = (r0, r1, h, seg) => new THREE.CylinderGeometry(r1, r0, h, seg || 10);   // r0 = front (-z) radius, r1 = rear (+z) radius once rotated along z
   const RX = Math.PI / 2;
   // "Warden": a bulbous armoured gunship - rounded dark hull with a glass dome, two long arms carrying cannon pods with glowing rings, twin thrusters at the rear
-  const HC = 0x9aa5b6, HD = 0x6d788a, GUN = 0x3c4554, ICE = 0x35d4ff;
+  const HC = 0xc2ccdc, HD = 0x8794a8, GUN = 0x4a5466, ICE = 0x35d4ff;
   const loft = (secs, colFn, cx, cy, pw) => {
     const N = 16, pos = [], idx = [];
     secs.forEach(s => { for (let j = 0; j < N; j++) { const a = j / N * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a), e = 2 / (pw || 2.6); pos.push(cx + Math.sign(c) * Math.pow(Math.abs(c), e) * s[1], cy + s[3] + Math.sign(sn) * Math.pow(Math.abs(sn), e) * s[2], s[0]); } });
@@ -328,7 +328,14 @@ const roverBody = (() => {
   }
   const sface = (c0, c1) => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 32); gr.addColorStop(0, c0); gr.addColorStop(1, c1); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); return c; };
   const senv = new THREE.CubeTexture([sface('#c9d1de', '#667186'), sface('#c9d1de', '#5d687c'), sface('#ffffff', '#dfe6f2'), sface('#171c26', '#2a3140'), sface('#bcc5d4', '#6b7587'), sface('#cfd6e2', '#667186')]); senv.colorSpace = THREE.SRGBColorSpace; senv.needsUpdate = true;
-  const bm = new THREE.Mesh(mergeGeometries(body), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32, metalness: 0.8, flatShading: false, envMap: senv, envMapIntensity: 1.0, emissive: 0x3a4254 }));
+  const bgeo = mergeGeometries(body);
+  { // bake light into the vertex colours: bright on top faces, dark underneath and in the belly = strong depth for free
+    const nr = bgeo.attributes.normal, cl = bgeo.attributes.color, ps = bgeo.attributes.position;
+    for (let i = 0; i < nr.count; i++) { const ny = nr.getY(i), f = (0.52 + 0.48 * (ny * 0.5 + 0.5)) * (ny < -0.45 ? 0.72 : 1) * (ps.getY(i) < Yc - 0.4 ? 0.8 : 1); cl.setXYZ(i, cl.getX(i) * f, cl.getY(i) * f, cl.getZ(i) * f); }
+  }
+  const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.75, flatShading: false, envMap: senv, envMapIntensity: 1.1, emissive: 0x161c2a });
+  bmat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float rimK = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 2.6); totalEmissiveRadiance += vec3(0.1, 0.55, 0.85) * rimK * 0.8;'); };   // cyan rim light round the silhouette
+  const bm = new THREE.Mesh(bgeo, bmat);
   const gm = new THREE.Mesh(mergeGeometries(glow), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, fog: false }));
   const cm = new THREE.Mesh(mergeGeometries(glass), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.08, metalness: 0.9, emissive: 0x0b2a46, transparent: true, opacity: 0.88 }));
   grp.add(bm, gm, cm); return grp;
@@ -691,6 +698,11 @@ function sfx(kind, k) {
   else if (kind === 'boost') tone('sawtooth', 90, 420, 0.4, 0.16);
   else if (kind === 'dock') { tone('triangle', 523, 523, 0.45, 0.22); tone('triangle', 659, 659, 0.45, 0.22, 0.12); tone('triangle', 784, 784, 0.5, 0.22, 0.24); }
   else if (kind === 'lock') tone('sine', 1200, 1200, 0.06, 0.12);
+  // menu / button sounds: short soft electronic blips
+  else if (kind === 'ui') { tone('sine', 1900, 1500, 0.04, 0.09); tone('triangle', 950, 800, 0.05, 0.05); }
+  else if (kind === 'uiTab') { tone('sine', 1500, 2100, 0.05, 0.09); tone('sine', 3000, 3000, 0.03, 0.03, 0.015); }
+  else if (kind === 'uiOk') { tone('sine', 880, 880, 0.07, 0.11); tone('sine', 1320, 1320, 0.09, 0.11, 0.06); tone('triangle', 1760, 1760, 0.08, 0.05, 0.06); }
+  else if (kind === 'uiNo') { tone('sine', 620, 380, 0.12, 0.11); tone('triangle', 310, 240, 0.12, 0.05); }
 }
 function updateAudio() {
   if (!eng || actx.state !== 'running') return; const t = actx.currentTime, k = clamp(S.speed / 170, 0, 1), on = S.mode === 'fly';
@@ -922,7 +934,7 @@ function openShop(msg) {
   }
   updateMissHud(); document.body.classList.add('docked'); $('shop').classList.add('show');
 }
-['h', 'u', 'p', 'm', 's'].forEach(k => $('tab-' + k).addEventListener('click', () => { shopTab = k; sfx('lock'); openShop($('shop-earn').textContent); }));
+['h', 'u', 'p', 'm', 's'].forEach(k => $('tab-' + k).addEventListener('click', () => { shopTab = k; openShop($('shop-earn').textContent); }));
 
 function dockAt(i) {
   tintHangar(stations[i].col); S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + 2.1, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
@@ -990,7 +1002,11 @@ function startGame() { initAudio(); unlockMusic(); if (actx && actx.state === 's
 $('go-start').addEventListener('click', startGame);
 $('go-start').textContent = 'LAUNCH';
 { const b = document.createElement('div'); b.style.cssText = 'margin-top:10px;font-size:10px;opacity:.5;letter-spacing:2px'; b.textContent = 'BUILD ' + BUILD; $('go-start').parentNode.appendChild(b); }
-$('go-launch').addEventListener('click', () => { unlockMusic(); sfx('lock'); $('sh-dlg').style.display = 'flex'; });
+$('go-launch').addEventListener('click', () => { unlockMusic(); $('sh-dlg').style.display = 'flex'; });
+document.addEventListener('click', (e) => {   // one place gives every menu button its sound
+  const b = e.target.closest('button, .go'); if (!b || !b.closest('#shop, .edlg, #sh-dlg, #map-ov, #start')) return; const id = b.id || '';
+  initAudio(); sfx(['ent-yes', 'trv-yes', 'dlg-yes', 'go-start'].includes(id) ? 'uiOk' : ['ent-no', 'trv-no', 'dlg-no', 'map-x'].includes(id) ? 'uiNo' : id.startsWith('tab-') ? 'uiTab' : 'ui');
+}, true);
 $('dlg-no').addEventListener('click', () => { $('sh-dlg').style.display = 'none'; });
 $('dlg-yes').addEventListener('click', () => { $('sh-dlg').style.display = 'none'; initAudio(); if (actx && actx.state === 'suspended') actx.resume(); launchFrom(S.station); });
 function wrecked() {
