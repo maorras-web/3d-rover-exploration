@@ -83,7 +83,7 @@ class CheapGlow extends Pass {
    Light on purpose: instanced asteroids / bolts / loot, merged-geometry enemies, shader dust, no post-processing. */
 
 const $ = (id) => document.getElementById(id);
-const BUILD = 12;
+const BUILD = 28;
 
 // ---------- save ----------
 const SAVE_KEY = 'starCourier2';
@@ -944,7 +944,7 @@ const dockPoint = (st, out) => out.copy(st.pos).addScaledVector(st.front, 58);
 // ---------- game state ----------
 const S = {
   pos: V3(0, 0, 200), q: new THREE.Quaternion(), vel: V3(), speed: 0, roll: 0, sx: 0, sy: 0,
-  shield: 80, hull: 100, boost: 100, boosting: false, regenT: 0, inv: 0, shake: 0, fireT: 0, side: 1,
+  shield: 80, hull: 100, boost: 100, thr: 1, boosting: false, regenT: 0, inv: 0, shake: 0, fireT: 0, side: 1,
   mode: 'menu', target: null, station: 0, camQ: new THREE.Quaternion(), mission: null, patrolT: 40, missT: 0, hitFlash: 0,
 };
 const fwd = V3(0, 0, -1);
@@ -1028,17 +1028,28 @@ function updateAudio() {
   if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen) && fsBtn) fsBtn.style.display = 'none';
 }
 
+// ---------- throttle slider (drag up = faster, down = slower; boost still works on top) ----------
+{
+  const el = $('thr'), trk = el.querySelector('.trk'), fl = $('thr-fl'), hd = $('thr-hd'); let id = null;
+  const show = () => { const p = (S.thr - 0.2) / 0.8; fl.style.transform = `scaleY(${p})`; hd.style.top = (1 - p) * 100 + '%'; };
+  const setFrom = (y) => { const r = trk.getBoundingClientRect(); S.thr = clamp(0.2 + 0.8 * (1 - (y - r.top) / r.height), 0.2, 1); show(); };
+  el.addEventListener('pointerdown', (e) => { id = e.pointerId; el.setPointerCapture(id); setFrom(e.clientY); e.preventDefault(); });
+  el.addEventListener('pointermove', (e) => { if (e.pointerId === id) setFrom(e.clientY); });
+  const end = (e) => { if (e.pointerId === id) id = null; }; el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  show();
+}
+
 // ---------- input ----------
 const keys = {}; let touchX = 0, touchY = 0, firing = false, boostHeld = false;
 addEventListener('keydown', (e) => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); if (e.code === 'KeyT') cycleTarget(); if (e.code === 'KeyM') fireMissile(); if (e.code === 'KeyE') tryDock(); });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
-let stickId = null, stickOx = 0, stickOy = 0; const STICK_R = 62;
+let stickId = null, stickOx = 0, stickOy = 0; let STICK_R = 62;
 const stickEl = $('stick'), knob = $('knob');
 const setKnob = (x, y) => { knob.style.transform = `translate(${x}px,${y}px)`; };
 canvas.addEventListener('pointerdown', (e) => {
   if (stickId !== null || e.clientX > innerWidth * 0.5) return;
   stickId = e.pointerId; canvas.setPointerCapture(e.pointerId);
-  const w = 132; stickEl.style.left = clamp(e.clientX - w / 2, 4, innerWidth * 0.5) + 'px'; stickEl.style.bottom = (innerHeight - clamp(e.clientY + w / 2, w + 4, innerHeight - 4)) + 'px';
+  const w = stickEl.offsetWidth || 132; STICK_R = w * 0.4; stickEl.style.left = clamp(e.clientX - w / 2, 4, innerWidth * 0.5) + 'px'; stickEl.style.bottom = (innerHeight - clamp(e.clientY + w / 2, w + 4, innerHeight - 4)) + 'px';
   stickOx = parseFloat(stickEl.style.left) + w / 2; stickOy = innerHeight - parseFloat(stickEl.style.bottom) - w / 2;
 });
 canvas.addEventListener('pointermove', (e) => {
@@ -1292,7 +1303,7 @@ function frame(now) {
 
     // ---- speed / boost ----
     S.boosting = (boostHeld || keys.ShiftLeft || keys.KeyB) && S.boost > 2;
-    let target = ST.cruise;
+    let target = ST.cruise * S.thr;
     if (S.boosting) { target = ST.cruise * 1.85; S.boost = Math.max(0, S.boost - 32 * dt); if (!S._wasB) sfx('boost'); } else S.boost = Math.min(100, S.boost + 15 * dt);
     S._wasB = S.boosting;
     S.speed = damp(S.speed, target, S.speed > target ? 2.0 : 2.6, dt);
