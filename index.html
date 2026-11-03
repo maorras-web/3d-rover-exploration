@@ -381,15 +381,18 @@
   body.docked #top-right{display:none}
   #thr{pointer-events:none!important}#thr.act .trk{box-shadow:inset 0 0 0 1px #9af3ff,0 0 10px rgba(126,240,255,.6)}
 
-  #ent-dlg{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;pointer-events:none;padding-bottom:30px}
-  #ent-dlg .dl{pointer-events:auto;min-width:250px;border:1px solid rgba(110,255,170,.55);background:linear-gradient(180deg,rgba(14,40,30,.95),rgba(6,16,14,.97));border-radius:3px;box-shadow:0 0 30px #000,0 0 18px rgba(60,255,140,.25);text-align:center}
-  #ent-dlg .dt{padding:5px 10px;font:700 11px system-ui,Arial,sans-serif;color:#bdf5d3;background:rgba(60,160,110,.35)}
-  #ent-dlg .dm{padding:14px 12px 10px;font:600 13px system-ui,Arial,sans-serif;color:#fff}
-  #ent-dlg .db{display:flex;gap:8px;justify-content:center;padding:4px 10px 12px}
-  #ent-dlg button{min-width:78px;height:28px;border-radius:2px;border:1px solid rgba(110,255,170,.6);background:linear-gradient(180deg,rgba(40,120,80,.9),rgba(14,50,34,.95));color:#fff;font:700 12px system-ui,Arial,sans-serif}
-  #ent-yes{border-color:#7dffb0!important}
-  body.docked #ent-dlg{display:none!important}
+  
+  .edlg{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;pointer-events:none;padding-bottom:30px}
+    .edlg .dl{pointer-events:auto;min-width:250px;border:1px solid rgba(110,255,170,.55);background:linear-gradient(180deg,rgba(14,40,30,.95),rgba(6,16,14,.97));border-radius:3px;box-shadow:0 0 30px #000,0 0 18px rgba(60,255,140,.25);text-align:center}
+    .edlg .dt{padding:5px 10px;font:700 11px system-ui,Arial,sans-serif;color:#bdf5d3;background:rgba(60,160,110,.35)}
+    .edlg .dm{padding:14px 12px 10px;font:600 13px system-ui,Arial,sans-serif;color:#fff}
+    .edlg .db{display:flex;gap:8px;justify-content:center;padding:4px 10px 12px}
+  .edlg button{min-width:78px;height:28px;border-radius:2px;border:1px solid rgba(110,255,170,.6);background:linear-gradient(180deg,rgba(40,120,80,.9),rgba(14,50,34,.95));color:#fff;font:700 12px system-ui,Arial,sans-serif}
+  #ent-yes,#trv-yes{border-color:#7dffb0!important}
+  body.docked 
+  .edlg{display:none!important}
   #fade{position:fixed;inset:0;z-index:45;background:#000;opacity:0;pointer-events:none}
+  .mk.pl{font-size:9px;opacity:.9}.mk.pl i{width:14px;height:14px}.mk.lock{opacity:1}.mk.lock i{width:30px;height:30px;border-style:dashed;box-shadow:0 0 14px currentColor}
 </style>
 </head>
 <body>
@@ -443,7 +446,8 @@
 </div>
 
 <div id="fade"></div>
-<div id="ent-dlg"><div class="dl"><div class="dt">Docking</div><div class="dm">Enter <b id="ent-name"></b>?</div><div class="db"><button id="ent-yes">Yes</button><button id="ent-no">No</button></div></div></div>
+<div id="trv-dlg" class="edlg"><div class="dl"><div class="dt">Navigation</div><div class="dm">Travel to <b id="trv-name"></b>?</div><div class="db"><button id="trv-yes">Yes</button><button id="trv-no">No</button></div></div></div>
+<div id="ent-dlg" class="edlg"><div class="dl"><div class="dt">Docking</div><div class="dm">Enter <b id="ent-name"></b>?</div><div class="db"><button id="ent-yes">Yes</button><button id="ent-no">No</button></div></div></div>
 
 <div id="diag" style="position:fixed;left:0;right:0;top:0;z-index:999999;background:rgba(150,0,0,.92);color:#fff;font:12px/1.4 monospace;padding:8px;display:none;direction:ltr;white-space:pre-wrap"></div>
 <script>
@@ -463,11 +467,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=152', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=156', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=152'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=156'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>
