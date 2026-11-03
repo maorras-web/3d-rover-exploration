@@ -602,27 +602,25 @@ function buildStation(name, col, V) {
   const g = new THREE.Group(), spin = new THREE.Group(); g.add(spin);
   const darkM = new THREE.MeshStandardMaterial({ color: 0x3a4152, roughness: 0.6, metalness: 0.6, flatShading: true, fog: false });
   // alien-organic station: a horned dome, a bulging body with ribs, a neck ringed with spheres and a cage of petal fins around the hangar mouth
-  const dots = canvasTex(512, 256, (x, w, h) => { x.fillStyle = '#25402f'; x.fillRect(0, 0, w, h); const cs = ['#ffd24a', '#5dff8a', '#ff5ad2', '#4fe0ff', '#ffffff']; for (let i = 0; i < 1100; i++) { x.fillStyle = cs[Math.random() * cs.length | 0]; x.globalAlpha = 0.45 + Math.random() * 0.55; x.fillRect(Math.random() * w, Math.random() * h, 2, 2 + (Math.random() * 3 | 0)); } x.globalAlpha = 1; }, [3, 3]);
+  const dots = canvasTex(512, 256, (x, w, h) => { x.fillStyle = '#2a3140'; x.fillRect(0, 0, w, h); const cs = ['#ffd24a', '#5dff8a', '#ff5ad2', '#4fe0ff', '#ffffff']; for (let i = 0; i < 1100; i++) { x.fillStyle = cs[Math.random() * cs.length | 0]; x.globalAlpha = 0.45 + Math.random() * 0.55; x.fillRect(Math.random() * w, Math.random() * h, 2, 2 + (Math.random() * 3 | 0)); } x.globalAlpha = 1; }, [3, 3]);
   // cheap fake reflections: a tiny 6-face canvas cube (blue planet below/behind, black space above) gives the glossy sheen of the reference
   const face = (c0, c1) => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 32); gr.addColorStop(0, c0); gr.addColorStop(1, c1); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); return c; };
   const env = new THREE.CubeTexture([face('#1b2a44', '#3a78c8'), face('#1b2a44', '#2d5fa8'), face('#050810', '#0a1020'), face('#4a8ad8', '#8fc0f0'), face('#16223a', '#2f68b4'), face('#1b2a44', '#3a78c8')]); env.colorSpace = THREE.SRGBColorSpace; env.needsUpdate = true;
-  const skin = new THREE.MeshStandardMaterial({ color: new THREE.Color(0x7a9188).lerp(new THREE.Color(col), V.tint), roughness: 0.3, metalness: 0.75, envMap: env, envMapIntensity: 1.1, emissive: 0xffffff, emissiveMap: dots, emissiveIntensity: 0.9, fog: false });
+  const skin = new THREE.MeshStandardMaterial({ color: new THREE.Color(0xc4cad8).lerp(new THREE.Color(col), V.tint * 0.7), roughness: 0.55, metalness: 0.5, envMap: env, envMapIntensity: 0.9, emissive: 0xffffff, emissiveMap: dots, emissiveIntensity: 1.1, fog: false });
   const parts = [], Mx = new THREE.Matrix4(), Qq = new THREE.Quaternion(), Pp = new THREE.Vector3(), Ss = new THREE.Vector3();
   const put = (geo, pos, quat, scl) => { Mx.compose(Pp.set(pos[0], pos[1], pos[2]), quat || Qq.identity(), Ss.set(scl ? scl[0] : 1, scl ? scl[1] : 1, scl ? scl[2] : 1)); geo.applyMatrix4(Mx); parts.push(geo); };
-  const prof = [[0, -57], [5, -55.5], [11, -52], [16.5, -47], [20.5, -41], [22.5, -35], [24, -32.5], [24, -30.5], [26.5, -28], [28.5, -21], [29, -13], [27.5, -5], [23, 1], [16, 5], [12, 8], [11, 12], [11, 30], [12.5, 32]];
-  const lathe = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), 22); lathe.rotateX(Math.PI / 2); parts.push(lathe);
-  // ribs on the body
-  for (let k = 0; k < V.ribs; k++) { const an = k * Math.PI * 2 / V.ribs + 0.2; put(new THREE.SphereGeometry(1, 10, 8), [Math.cos(an) * 26, Math.sin(an) * 26, -15], Qq.clone().setFromUnitVectors(Z, new THREE.Vector3(Math.cos(an) * 0.18, Math.sin(an) * 0.18, 1).normalize()), [4.6, 4.6, 15]); }
-  // petal fins around the hangar mouth, flaring outwards
-  for (let k = 0; k < V.fins; k++) { const an = k * Math.PI * 2 / V.fins, d = new THREE.Vector3(Math.cos(an) * 0.16, Math.sin(an) * 0.16, 1).normalize(); put(new THREE.SphereGeometry(1, 10, 8), [Math.cos(an) * 17, Math.sin(an) * 17, 42], Qq.clone().setFromUnitVectors(Z, d), [V.fw, V.fw, 24]); }
-  // horns on the dome
-  for (let hk = 0; hk < V.horns; hk++) { const hc = Math.cos(hk * Math.PI * 2 / V.horns), hs = Math.sin(hk * Math.PI * 2 / V.horns); let prev = null; for (let i = 0; i <= 8; i++) { const t = i / 8, rr = 14 + 16 * Math.sin(t * 1.9), p = new THREE.Vector3(hc * rr, hs * rr, -44 - 30 * V.hl * t * (1 - 0.15 * t)); if (prev) { const dv = p.clone().sub(prev), len = dv.length(); put(new THREE.CylinderGeometry(2.2 * (1 - t) + 0.25, 2.2 * (1 - (t - 1 / 8)) + 0.25, len * 1.02, 7), prev.clone().add(p).multiplyScalar(0.5).toArray(), Qq.clone().setFromUnitVectors(Y, dv.clone().normalize())); } prev = p; } }
-  if (V.spire) put(new THREE.ConeGeometry(3, 34, 8), [0, 0, -72], Qq.clone().setFromUnitVectors(Y, new THREE.Vector3(0, 0, -1)));
+  // spindle station: a smooth pearl-shaped hull, a glowing halo ring held on slim struts, swept tail blades round the hangar mouth and a crown of swept antennae
+  const prof = [[0, -52], [4, -50.5], [10, -46], [17, -39], [22, -30], [25, -20], [24.5, -10], [20, -1], [14, 6], [10.5, 11], [10, 16], [10, 30], [11.5, 32]];
+  const lathe = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), 28); lathe.rotateX(Math.PI / 2); parts.push(lathe);
+  // struts from the hull to the halo ring
+  for (let k = 0; k < V.ribs; k++) { const an = k * Math.PI * 2 / V.ribs + 0.2; put(new THREE.BoxGeometry(1, 1, 1), [Math.cos(an) * 30, Math.sin(an) * 30, -19], Qq.clone().setFromAxisAngle(Z, an), [13, 1.4, 3]); }
+  // swept tail blades round the hangar mouth (long, thin, leaning outwards)
+  for (let k = 0; k < V.fins; k++) { const an = k * Math.PI * 2 / V.fins, d = new THREE.Vector3(Math.cos(an) * 0.2, Math.sin(an) * 0.2, 1).normalize(); put(new THREE.SphereGeometry(1, 12, 8), [Math.cos(an) * 14, Math.sin(an) * 14, 36], Qq.clone().setFromUnitVectors(Z, d), [V.fw * 0.75, 1.5, 22]); }
+  // crown of swept antennae (they lean back from the nose)
+  for (let hk = 0; hk < V.horns; hk++) { const an = hk * Math.PI * 2 / V.horns + 0.3, d = new THREE.Vector3(Math.cos(an) * 0.7, Math.sin(an) * 0.7, -0.7).normalize(); put(new THREE.ConeGeometry(1.5, 14 + 14 * V.hl, 8), [Math.cos(an) * 14, Math.sin(an) * 14, -43 - 3 * V.hl], Qq.clone().setFromUnitVectors(Y, d)); }
+  if (V.spire) put(new THREE.ConeGeometry(2, 34, 8), [0, 0, -69], Qq.clone().setFromUnitVectors(Y, new THREE.Vector3(0, 0, -1)));
+  { const halo = new THREE.Mesh(new THREE.TorusGeometry(38, 1.7, 8, 64), new THREE.MeshBasicMaterial({ color: V.band[0], toneMapped: false, fog: false })); halo.position.z = -19; g.add(halo); }
   g.add(new THREE.Mesh(mergeGeometries(parts), skin));
-  // glowing band round the dome rim + ring of spheres on the neck (this ring turns slowly)
-  const bandTex = canvasTex(256, 16, (x, w, h) => { for (let i = 0; i < 32; i++) { x.fillStyle = i % 3 === 0 ? V.band[1] : V.band[0]; x.fillRect(i * 8 + 1, 3, 6, 10); } }, [2, 1]);
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(24.2, 24.2, 1.8, 40, 1, true), new THREE.MeshBasicMaterial({ map: bandTex, toneMapped: false, fog: false })); band.rotation.x = Math.PI / 2; band.position.z = -31.6; g.add(band);
-  { const sp = []; for (let k = 0; k < V.ringN; k++) { const an = k * Math.PI * 2 / V.ringN; const o = new THREE.SphereGeometry(3.3, 12, 9); o.translate(Math.cos(an) * 13, Math.sin(an) * 13, 12); sp.push(o); } spin.add(new THREE.Mesh(mergeGeometries(sp), skin)); }
   const beacon = glowSprite(0x6fe8ff, 1, 0);   // kept only because the frame loop pulses it; not added to the scene
   g.userData = { spin, beacon };
   return g;
