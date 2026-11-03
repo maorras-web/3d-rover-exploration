@@ -397,6 +397,7 @@ const flameCore = [-1, 1].map(s => { const f = glowSprite(0xffffff, 0.9, 0.6); f
 
 // ---------- hangar room (Galaxy-on-Fire-style): far away from the world, enclosed, only drawn while docked ----------
 const HP = V3(0, -6000, 0);
+const padTiles = [];   // the amber markers on the landing pad (squares in the first system, triangles + circles in YAPZO)
 const hangar = new THREE.Group(); hangar.position.copy(HP); hangar.visible = false; scene.add(hangar);
 {
   const std = (c, e, r, mt) => new THREE.MeshStandardMaterial({ color: c, emissive: e, roughness: r === undefined ? 0.8 : r, metalness: mt === undefined ? 0.35 : mt, flatShading: true, fog: false });
@@ -422,7 +423,7 @@ const hangar = new THREE.Group(); hangar.position.copy(HP); hangar.visible = fal
   const ring = (r0, r1, c, y) => { const o = add(new THREE.RingGeometry(r0, r1, 56), glow(c), 0, y, 0); o.rotation.x = -Math.PI / 2; };
   ring(11.7, 11.95, 0x7dffb0, 0.32); ring(8.2, 8.5, 0x44ff88, 0.56); ring(5.2, 5.4, 0x7dffb0, 0.56); ring(2.4, 2.6, 0x20e070, 0.56);
   add(new THREE.CylinderGeometry(2.3, 2.3, 0.1, 24), std(0x14502e, 0x0a3a20, 0.5, 0.4), 0, 0.56, 0);
-  for (let k = 0; k < 9; k++) { const t = (k - 4) * 0.21, r = 9.0; const o = add(new THREE.BoxGeometry(0.9, 0.14, 1.0), glow(0xc8ffb0), Math.sin(t) * r, 0.58, Math.cos(t) * r); o.rotation.y = t; }
+  for (let k = 0; k < 9; k++) { const t = (k - 4) * 0.21, r = 9.0; const o = add(new THREE.BoxGeometry(0.9, 0.14, 1.0), glow(0xc8ffb0), Math.sin(t) * r, 0.58, Math.cos(t) * r); o.rotation.y = t; padTiles.push(o); }
   // crates and pillars around the walls
   let sd = 7; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 26; i++) {
@@ -432,6 +433,8 @@ const hangar = new THREE.Group(); hangar.position.copy(HP); hangar.visible = fal
   }
   for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + 0.39; add(new THREE.CylinderGeometry(1.1, 1.1, WH, 8), std(0x2f4a3b, 0x1c3a28), Math.sin(a) * (WR - 1.4), WH / 2, Math.cos(a) * (WR - 1.4)); }
 }
+const padGeo = { box: padTiles[0].geometry, tri: new THREE.CylinderGeometry(0.75, 0.75, 0.14, 3), cir: new THREE.CylinderGeometry(0.52, 0.52, 0.14, 20) };
+const setPad = (sys) => padTiles.forEach((o, k) => { o.geometry = sys === 1 ? (k % 2 ? padGeo.cir : padGeo.tri) : padGeo.box; });
 let hangarVO = false, vo = 0;
 // recolour the whole hangar to the colour of the station you docked at (hue only; shapes and brightness stay)
 const hangarMats = []; hangar.traverse(ob => { if (ob.material && !hangarMats.some(r => r.m === ob.material)) hangarMats.push({ m: ob.material, c: ob.material.color.clone(), e: ob.material.emissive ? ob.material.emissive.clone() : null }); });
@@ -613,6 +616,39 @@ function buildStation(name, col, V) {
   g.userData = { spin, beacon };
   return g;
 }
+// ---------- second station style (YAPZO system): an industrial ring station - a big turning-wheel habitat on spokes round a long hub, solar wings and an open docking cage ----------
+function buildStationB(name, col, V) {
+  const g = new THREE.Group(), spin = new THREE.Group(); g.add(spin);
+  const C = new THREE.Color(col);
+  const win = canvasTex(256, 128, (x, w, h) => { x.fillStyle = '#c8d0dc'; x.fillRect(0, 0, w, h); x.fillStyle = '#6a7486'; for (let i = 0; i < w; i += 32) x.fillRect(i, 0, 2, h); for (let j = 0; j < h; j += 32) x.fillRect(0, j, w, 2); const cs = ['#ffe9a0', '#ffffff', '#9fe8ff']; for (let i = 0; i < 170; i++) { x.fillStyle = cs[Math.random() * 3 | 0]; x.fillRect((Math.random() * w) | 0, (Math.random() * h) | 0, 2, 2); } });
+  const emTex = canvasTex(256, 128, (x, w, h) => { x.fillStyle = '#000'; x.fillRect(0, 0, w, h); const cs = ['#ffe9a0', '#ffffff', '#9fe8ff']; for (let i = 0; i < 170; i++) { x.fillStyle = cs[Math.random() * 3 | 0]; x.fillRect((Math.random() * w) | 0, (Math.random() * h) | 0, 3, 3); } });
+  const skin = new THREE.MeshStandardMaterial({ color: new THREE.Color(0xdfe4ec).lerp(C, V.tint), map: win, roughness: 0.55, metalness: 0.2, emissive: 0xffffff, emissiveMap: emTex, emissiveIntensity: 0.9, fog: false });
+  const panelTex = canvasTex(128, 64, (x, w, h) => { x.fillStyle = '#16265a'; x.fillRect(0, 0, w, h); x.strokeStyle = '#4a70d0'; x.lineWidth = 1; for (let i = 0; i <= w; i += 16) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i, h); x.stroke(); } for (let j = 0; j <= h; j += 16) { x.beginPath(); x.moveTo(0, j); x.lineTo(w, j); x.stroke(); } });
+  const panelMat = new THREE.MeshStandardMaterial({ map: panelTex, roughness: 0.35, metalness: 0.7, emissive: 0x0a1a44, fog: false });
+  const parts = [], pparts = [], Mx = new THREE.Matrix4(), Qq = new THREE.Quaternion(), Pp = new THREE.Vector3(), Ss = new THREE.Vector3();
+  const put = (arr, geo, pos, quat, scl) => { Mx.compose(Pp.set(pos[0], pos[1], pos[2]), quat || Qq.identity(), Ss.set(scl ? scl[0] : 1, scl ? scl[1] : 1, scl ? scl[2] : 1)); geo.applyMatrix4(Mx); arr.push(geo); };
+  const R = V.R;
+  // hub: long pointed spindle along z (docking end at +z)
+  const hub = new THREE.LatheGeometry([[0, -54], [4, -53], [8, -49], [9.5, -43], [9.5, 24], [12.5, 28], [12.5, 33], [10, 35]].map(p => new THREE.Vector2(p[0], p[1])), 20); hub.rotateX(Math.PI / 2); parts.push(hub);
+  // the big habitat wheel(s) and the spokes holding them
+  const rings = V.rings || 1;
+  for (let r = 0; r < rings; r++) { const z = -14 + r * 14; put(parts, new THREE.TorusGeometry(R, V.tube || 3.8, 10, 44), [0, 0, z]); for (let k = 0; k < V.spokes; k++) { const an = k * Math.PI * 2 / V.spokes + 0.4; put(parts, new THREE.BoxGeometry(R - 8, 1.6, 2.2), [Math.cos(an) * (R + 8) / 2, Math.sin(an) * (R + 8) / 2, z], Qq.clone().setFromAxisAngle(Z, an)); } }
+  // solar wings on booms
+  for (let k = 0; k < (V.panels || 0); k++) { const sd = k % 2 ? -1 : 1, z = -38 + (k >> 1) * -9; put(parts, new THREE.BoxGeometry(14, 1.2, 1.2), [sd * 15, 0, z]); put(pparts, new THREE.BoxGeometry(24, 0.6, 12), [sd * 33, 0, z]); }
+  // fuel tanks on the hub
+  for (let k = 0; k < (V.tanks || 0); k++) { const an = k * Math.PI * 2 / V.tanks; put(parts, new THREE.SphereGeometry(5, 12, 9), [Math.cos(an) * 14, Math.sin(an) * 14, 12]); }
+  // docking cage at the +z end: open frame of pylons round the mouth
+  for (let k = 0; k < 6; k++) { const an = k * Math.PI / 3; put(parts, new THREE.BoxGeometry(2.2, 2.2, 22), [Math.cos(an) * 17, Math.sin(an) * 17, 42]); }
+  g.add(new THREE.Mesh(mergeGeometries(parts), skin)); if (pparts.length) g.add(new THREE.Mesh(mergeGeometries(pparts), panelMat));
+  // glowing strips: rim of the cage, a lit band on the wheel
+  const glow = (c) => new THREE.MeshBasicMaterial({ color: c, toneMapped: false, fog: false });
+  const cage = new THREE.Mesh(new THREE.TorusGeometry(17, 0.8, 6, 36), glow(V.band[0])); cage.position.z = 53; g.add(cage);
+  const bandTex = canvasTex(256, 16, (x, w, h) => { for (let i = 0; i < 32; i++) { x.fillStyle = i % 4 === 0 ? V.band[1] : V.band[0]; x.fillRect(i * 8 + 1, 3, 6, 10); } }, [3, 1]);
+  for (let r = 0; r < rings; r++) { const b = new THREE.Mesh(new THREE.CylinderGeometry(R + (V.tube || 3.8) * 0.97, R + (V.tube || 3.8) * 0.97, 1.6, 48, 1, true), new THREE.MeshBasicMaterial({ map: bandTex, toneMapped: false, fog: false })); b.rotation.x = Math.PI / 2; b.position.z = -14 + r * 14; g.add(b); }
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(1.6, 8, 6), glow(V.band[1])); tip.position.z = -56; g.add(tip);
+  g.userData = { spin, beacon: glowSprite(0x6fe8ff, 1, 0) };
+  return g;
+}
 // ---------- solar system: six planets in different colours, each with exactly ONE station in orbit next to it ----------
 // pl.off = where the planet sits relative to its station (the station is always about one planet-radius + 400 away from the surface)
 const stations = [
@@ -623,17 +659,17 @@ const stations = [
   { name: 'CINDER', col: '#ff4a2a', v: { fins: 3, fw: 6.4, ribs: 8, horns: 6, hl: 0.55, ringN: 6, tint: 0.45, band: ['#ff7a24', '#ffd24a'] }, pos: V3(-3600, 400, 1200), front: V3(0, -1, 0), pl: { kind: 'lava', r: 380, off: V3(-600, -100, 500), atm: [1.0, 0.3, 0.15] } },
   { name: 'FROST', col: '#9fe8ff', v: { fins: 6, fw: 3.6, ribs: 0, horns: 0, spire: 1, hl: 1, ringN: 12, tint: 0.35, band: ['#9fe8ff', '#ffffff'] }, pos: V3(400, 700, -3800), front: V3(0, -1, 0), pl: { kind: 'ice', r: 480, off: V3(-700, 300, -300), atm: [0.6, 0.9, 1.0] } },
   // ---- YAPZO system: five more worlds, far away from the first system (reach it from the star map) ----
-  { name: 'YAPZO PRIME', col: '#ffcc55', v: { fins: 5, fw: 4.8, ribs: 7, horns: 3, hl: 1.1, ringN: 9, tint: 0.3, band: ['#ffcc55', '#ff8a3a'] }, pos: V3(9000, 300, -6000), front: V3(0, -1, 0), pl: { kind: 'desert', r: 560, off: V3(-850, -150, -600), atm: [1.0, 0.75, 0.3] } },
-  { name: 'NIMBUS', col: '#7aa8ff', v: { fins: 4, fw: 5.0, ribs: 4, horns: 0, spire: 1, hl: 1, ringN: 10, tint: 0.35, band: ['#7aa8ff', '#ffffff'] }, pos: V3(11000, 0, -4800), front: V3(0, -1, 0), pl: { kind: 'storm', r: 600, off: V3(800, -250, -550), atm: [0.4, 0.6, 1.0] } },
-  { name: 'ORCHID', col: '#ff6ad0', v: { fins: 7, fw: 3.4, ribs: 9, horns: 5, hl: 0.8, ringN: 12, tint: 0.4, band: ['#ff6ad0', '#ffd0f0'] }, pos: V3(6700, 550, -5100), front: V3(0, -1, 0), pl: { kind: 'bloom', r: 440, off: V3(-550, 200, -700), atm: [1.0, 0.4, 0.8] } },
-  { name: 'SULPHUR', col: '#c8ff3a', v: { fins: 3, fw: 6.0, ribs: 6, horns: 6, hl: 0.6, ringN: 7, tint: 0.45, band: ['#c8ff3a', '#4a6a10'] }, pos: V3(9800, 400, -9200), front: V3(0, -1, 0), pl: { kind: 'toxic', r: 400, off: V3(650, 150, -450), atm: [0.7, 1.0, 0.2] } },
-  { name: 'ONYX', col: '#35e0c8', v: { fins: 6, fw: 3.8, ribs: 0, horns: 0, spire: 1, hl: 1, ringN: 11, tint: 0.35, band: ['#35e0c8', '#d0fff6'] }, pos: V3(8000, -400, -8600), front: V3(0, -1, 0), pl: { kind: 'onyx', r: 500, off: V3(-700, 250, -350), atm: [0.2, 0.9, 0.8] } },
+  { name: 'YAPZO PRIME', col: '#ffcc55', v: { ring: 1, R: 34, tube: 3.8, spokes: 4, panels: 2, tanks: 0, tint: 0.12, band: ['#ffcc55', '#ffffff'] }, pos: V3(9000, 300, -6000), front: V3(0, -1, 0), pl: { kind: 'desert', r: 560, off: V3(-850, -150, -600), atm: [1.0, 0.75, 0.3] } },
+  { name: 'NIMBUS', col: '#7aa8ff', v: { ring: 1, R: 30, tube: 3.2, rings: 2, spokes: 3, panels: 0, tanks: 3, tint: 0.2, band: ['#7aa8ff', '#ffffff'] }, pos: V3(11000, 0, -4800), front: V3(0, -1, 0), pl: { kind: 'storm', r: 600, off: V3(800, -250, -550), atm: [0.4, 0.6, 1.0] } },
+  { name: 'ORCHID', col: '#ff6ad0', v: { ring: 1, R: 36, tube: 2.6, spokes: 6, panels: 2, tanks: 0, tint: 0.28, band: ['#ff6ad0', '#ffd0f0'] }, pos: V3(6700, 550, -5100), front: V3(0, -1, 0), pl: { kind: 'bloom', r: 440, off: V3(-550, 200, -700), atm: [1.0, 0.4, 0.8] } },
+  { name: 'SULPHUR', col: '#c8ff3a', v: { ring: 1, R: 26, tube: 4.4, spokes: 5, panels: 4, tanks: 4, tint: 0.3, band: ['#c8ff3a', '#ffffff'] }, pos: V3(9800, 400, -9200), front: V3(0, -1, 0), pl: { kind: 'toxic', r: 400, off: V3(650, 150, -450), atm: [0.7, 1.0, 0.2] } },
+  { name: 'ONYX', col: '#35e0c8', v: { ring: 1, R: 38, tube: 3.0, rings: 2, spokes: 8, panels: 0, tanks: 0, tint: 0.2, band: ['#35e0c8', '#d0fff6'] }, pos: V3(8000, -400, -8600), front: V3(0, -1, 0), pl: { kind: 'onyx', r: 500, off: V3(-700, 250, -350), atm: [0.2, 0.9, 0.8] } },
 ];
 const SYSTEMS = ['HELIOS', 'YAPZO']; stations.forEach((s, i) => { s.sys = i < 6 ? 0 : 1; });
 const ST_K = 3;   // station scale: everything is built at 1x and the whole station group is scaled
 const SYS_K = 2.2;   // spread the system out: distance between stations x2.2 (planets move with their stations)
 stations.forEach(s => s.pos.multiplyScalar(SYS_K));
-stations.forEach(s => { s.front.normalize(); s.g = buildStation(s.name, s.col, s.v); s.g.scale.setScalar(ST_K); s.g.position.copy(s.pos); s.g.up.set(0, 0, 1); s.g.lookAt(s.pos.clone().add(s.front)); scene.add(s.g); });
+stations.forEach(s => { s.front.normalize(); s.g = (s.v.ring ? buildStationB : buildStation)(s.name, s.col, s.v); s.g.scale.setScalar(ST_K); s.g.position.copy(s.pos); s.g.up.set(0, 0, 1); s.g.lookAt(s.pos.clone().add(s.front)); scene.add(s.g); });
 const planets = [];
 {
   const geo = new THREE.SphereGeometry(1, 36, 22);
@@ -1019,7 +1055,7 @@ function openShop(msg) {
 ['h', 'u', 'p', 'm', 's'].forEach(k => $('tab-' + k).addEventListener('click', () => { shopTab = k; openShop($('shop-earn').textContent); }));
 
 function dockAt(i) {
-  tintHangar(stations[i].col); S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + 2.1, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
+  tintHangar(stations[i].col); setPad(stations[i].sys); S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + 2.1, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
   for (const e of enemies) { e.active = false; e.g.visible = false; } for (const m of missiles) { m.active = false; m.g.visible = false; }
   buzz(50);
   let msg = 'SHIP REPAIRED';
