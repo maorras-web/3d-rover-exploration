@@ -356,15 +356,15 @@ const hangar = new THREE.Group(); hangar.position.copy(HP); hangar.visible = fal
   const add = (geo, mat, x, y, z) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); hangar.add(o); return o; };
   const WR = 40, WH = 26;
   // walls, ceiling, floor
-  const wallTex = canvasTex(512, 128, (x, w, h) => { x.fillStyle = '#13241b'; x.fillRect(0, 0, w, h); x.strokeStyle = '#1f3a2b'; x.lineWidth = 3; for (let i = 0; i <= 16; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.stroke(); } x.fillStyle = '#2c5a3c'; for (let i = 0; i < 16; i++) x.fillRect(i * 32 + 6, 20, 20, 8); }, [3, 1]);
+  const wallTex = canvasTex(512, 128, (x, w, h) => { x.fillStyle = '#222'; x.fillRect(0, 0, w, h); x.strokeStyle = '#333'; x.lineWidth = 3; for (let i = 0; i <= 16; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.stroke(); } x.fillStyle = '#666'; for (let i = 0; i < 16; i++) x.fillRect(i * 32 + 6, 20, 20, 8); }, [3, 1]);
   add(new THREE.CylinderGeometry(WR, WR, WH, 48, 1, true), new THREE.MeshStandardMaterial({ map: wallTex, emissive: 0x2f7a46, emissiveMap: wallTex, roughness: 0.9, metalness: 0.2, side: THREE.BackSide, fog: false }), 0, WH / 2, 0);
   add(new THREE.CircleGeometry(WR, 48), std(0x1b2a22, 0x14301f), 0, WH, 0).rotation.x = Math.PI / 2;
-  const floorTex = canvasTex(512, 512, (x, w, h) => { x.fillStyle = '#13211a'; x.fillRect(0, 0, w, h); x.strokeStyle = '#24402f'; x.lineWidth = 2; for (let i = 0; i <= 16; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.moveTo(0, i * 32); x.lineTo(w, i * 32); x.stroke(); } });
+  const floorTex = canvasTex(512, 512, (x, w, h) => { x.fillStyle = '#222'; x.fillRect(0, 0, w, h); x.strokeStyle = '#3a3a3a'; x.lineWidth = 2; for (let i = 0; i <= 16; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.moveTo(0, i * 32); x.lineTo(w, i * 32); x.stroke(); } });
   const fl = add(new THREE.CircleGeometry(WR, 48), new THREE.MeshStandardMaterial({ map: floorTex, emissive: 0x2c6a40, emissiveMap: floorTex, roughness: 0.7, metalness: 0.4, fog: false }), 0, -0.6, 0); fl.rotation.x = -Math.PI / 2;
   // glowing wall strips
   [3.2, 20.5].forEach(y => add(new THREE.CylinderGeometry(WR - 0.3, WR - 0.3, 0.5, 48, 1, true), glow(0x44ff88, 0.85), 0, y, 0).material.side = THREE.BackSide);
   // big orange window on the back wall (towards -z): asteroid field in a red-orange glow
-  const winTex = canvasTex(1024, 256, (x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#0e7a3a'); g.addColorStop(0.5, '#3cff8a'); g.addColorStop(1, '#12904a'); x.fillStyle = g; x.fillRect(0, 0, w, h); for (let i = 0; i < 90; i++) { const r = 3 + Math.random() * 12; x.fillStyle = `rgba(${8 + Math.random() * 20 | 0},${45 + Math.random() * 25 | 0},${20 + Math.random() * 15 | 0},${0.5 + Math.random() * 0.4})`; x.beginPath(); x.ellipse(Math.random() * w, Math.random() * h, r * 1.3, r, Math.random() * 3, 0, 7); x.fill(); } });
+  const winTex = canvasTex(1024, 256, (x, w, h) => { x.fillStyle = '#000'; x.fillRect(0, 0, w, h); for (let i = 0; i < 260; i++) { const a = 0.35 + Math.random() * 0.65, r = Math.random() < 0.12 ? 1.6 : 0.9; x.fillStyle = `rgba(${200 + Math.random() * 55 | 0},${210 + Math.random() * 45 | 0},255,${a})`; x.beginPath(); x.arc(Math.random() * w, Math.random() * h, r, 0, 7); x.fill(); } });
   const win = add(new THREE.CylinderGeometry(WR - 0.6, WR - 0.6, 10, 24, 1, true, Math.PI - 1.0, 2.0), new THREE.MeshBasicMaterial({ map: winTex, side: THREE.BackSide, toneMapped: false, fog: false }), 0, 11.5, 0);
   add(new THREE.CylinderGeometry(WR - 0.5, WR - 0.5, 0.7, 24, 1, true, Math.PI - 1.0, 2.0), std(0x08100c, 0x061008), 0, 16.6, 0).material.side = THREE.BackSide;
   add(new THREE.CylinderGeometry(WR - 0.5, WR - 0.5, 0.7, 24, 1, true, Math.PI - 1.0, 2.0), std(0x08100c, 0x061008), 0, 6.4, 0).material.side = THREE.BackSide;
@@ -385,6 +385,16 @@ const hangar = new THREE.Group(); hangar.position.copy(HP); hangar.visible = fal
   for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + 0.39; add(new THREE.CylinderGeometry(1.1, 1.1, WH, 8), std(0x2f4a3b, 0x1c3a28), Math.sin(a) * (WR - 1.4), WH / 2, Math.cos(a) * (WR - 1.4)); }
 }
 let hangarVO = false, vo = 0;
+// recolour the whole hangar to the colour of the station you docked at (hue only; shapes and brightness stay)
+const hangarMats = []; hangar.traverse(ob => { if (ob.material && !hangarMats.some(r => r.m === ob.material)) hangarMats.push({ m: ob.material, c: ob.material.color.clone(), e: ob.material.emissive ? ob.material.emissive.clone() : null }); });
+const _hs = { h: 0, s: 0, l: 0 };
+function tintHangar(hex) {
+  const hue = new THREE.Color(hex).getHSL(_hs).h;
+  for (const r of hangarMats) {
+    const re = (src, dst) => { src.getHSL(_hs); if (_hs.s > 0.15) dst.setHSL(hue, _hs.s, _hs.l); else dst.copy(src); };
+    re(r.c, r.m.color); if (r.e) re(r.e, r.m.emissive);
+  }
+}
 
 // ---------- enemy fighter (one merged mesh, vertex colours) ----------
 const enemyGeo = (() => {
@@ -557,9 +567,9 @@ const stations = [
   { name: 'FROST', col: '#9fe8ff', v: { fins: 6, fw: 3.6, ribs: 0, horns: 0, spire: 1, hl: 1, ringN: 12, tint: 0.35, band: ['#9fe8ff', '#ffffff'] }, pos: V3(400, 700, -3800), front: V3(0, -1, 0), pl: { kind: 'ice', r: 480, off: V3(-700, 300, -300), atm: [0.6, 0.9, 1.0] } },
 ];
 const ST_K = 3;   // station scale: everything is built at 1x and the whole station group is scaled
-stations.forEach(s => { s.front.normalize(); s.g = buildStation(s.name, s.col, s.v); s.g.scale.setScalar(ST_K); s.g.position.copy(s.pos); s.g.up.set(0, 0, 1); s.g.lookAt(s.pos.clone().add(s.front)); scene.add(s.g); });
 const SYS_K = 2.2;   // spread the system out: distance between stations x2.2 (planets move with their stations)
 stations.forEach(s => s.pos.multiplyScalar(SYS_K));
+stations.forEach(s => { s.front.normalize(); s.g = buildStation(s.name, s.col, s.v); s.g.scale.setScalar(ST_K); s.g.position.copy(s.pos); s.g.up.set(0, 0, 1); s.g.lookAt(s.pos.clone().add(s.front)); scene.add(s.g); });
 const planets = [];
 {
   const geo = new THREE.SphereGeometry(1, 36, 22);
@@ -584,13 +594,13 @@ const planets = [];
   });
   for (const s of stations) {
     const p = s.pl; p.pos = s.pos.clone().add(p.off); planets.push(p);
-    const pm = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex(p.kind), fog: false })); pm.scale.setScalar(p.r); pm.position.copy(p.pos); pm.rotation.z = 0.3; scene.add(pm);
+    const pm = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex(p.kind), fog: false })); pm.scale.setScalar(p.r); pm.position.copy(p.pos); pm.rotation.z = 0.3; scene.add(pm); p.mesh = pm;
     if (p.ring) {
       const cv = document.createElement('canvas'); cv.width = cv.height = 256; const x = cv.getContext('2d');
       for (let r = 128; r > 0; r -= 1.5) { const t = r / 128, inRing = t > 0.62 && t < 0.99, a = inRing ? 0.25 + 0.55 * Math.abs(Math.sin(r * 0.55) * Math.cos(r * 0.17)) : 0; x.strokeStyle = 'rgba(' + (225 - (r % 7) * 6) + ',' + (190 - (r % 5) * 6) + ',' + (150 - (r % 9) * 4) + ',' + (t > 0.78 && t < 0.82 ? 0.05 : a) + ')'; x.lineWidth = 1.7; x.beginPath(); x.arc(128, 128, r, 0, Math.PI * 2); x.stroke(); }
       const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace;
       const rg = new THREE.Mesh(new THREE.PlaneGeometry(p.r * 3.4, p.r * 3.4), new THREE.MeshBasicMaterial({ map: tx, transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false, opacity: 0.85 }));
-      rg.position.copy(p.pos); rg.quaternion.setFromUnitVectors(Z, V3(0.2, 0.9, 0.3).normalize()); scene.add(rg);
+      rg.position.copy(p.pos); rg.quaternion.setFromUnitVectors(Z, V3(0.2, 0.9, 0.3).normalize()); scene.add(rg); p.rg = rg;
     }
   }
 }
@@ -903,7 +913,7 @@ function openShop(msg) {
 ['h', 'u', 'p', 'm', 's'].forEach(k => $('tab-' + k).addEventListener('click', () => { shopTab = k; sfx('lock'); openShop($('shop-earn').textContent); }));
 
 function dockAt(i) {
-  S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + 1.5, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
+  tintHangar(stations[i].col); S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + 1.5, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
   for (const e of enemies) { e.active = false; e.g.visible = false; } for (const m of missiles) { m.active = false; m.g.visible = false; }
   buzz(50);
   let msg = 'SHIP REPAIRED';
@@ -925,14 +935,14 @@ const mapOv = $('map-ov'), mapFld = $('map-fld'), mapMe = $('map-me'); let mapOn
   planets.forEach((p, i) => {
     const b = document.createElement('button'); b.className = 'mn'; b.id = 'mn' + i; b.style.setProperty('--c', stations[i].col);
     b.style.left = (50 + (p.pos.x - mapB.cx) * mapB.sx * 84) + '%'; b.style.top = (50 + (p.pos.z - mapB.cz) * mapB.sx * 84) + '%';
-    b.innerHTML = '<i></i>' + stations[i].name + '<small></small>'; mapFld.appendChild(b);
+    b.innerHTML = '<i></i><span>' + stations[i].name + '</span><small></small>'; mapFld.appendChild(b);
     b.addEventListener('click', () => { if (S.mode !== 'fly') return; closeMap(); if (nearPlanet() === i) return; initAudio(); S.tPlanet = i; sfx('lock'); trvOn = true; $('trv-name').textContent = stations[i].name; $('trv-dlg').style.display = 'flex'; });
   });
 })();
 function updateMap() {
   const sc = mapB.sx * 84; mapMe.style.left = (50 + (S.pos.x - mapB.cx) * sc) + '%'; mapMe.style.top = (50 + (S.pos.z - mapB.cz) * sc) + '%';
   const f = new THREE.Vector3(0, 0, -1).applyQuaternion(S.q); mapMe.style.transform = 'translate(-50%,-60%) rotate(' + Math.atan2(f.x, -f.z) + 'rad)';
-  const n = nearPlanet(); planets.forEach((p, i) => { const e = $('mn' + i); e.classList.toggle('cur', n === i); e.lastChild.textContent = n === i ? 'YOU ARE HERE' : Math.round(S.pos.distanceTo(p.pos) / 100) / 10 + ' km'; });
+  const n = nearPlanet(); planets.forEach((p, i) => { const e = $('mn' + i); e.classList.toggle('cur', n === i); e.lastChild.textContent = n === i ? 'YOU ARE HERE' : ''; });
 }
 function openMap() { if (S.mode !== 'fly') return; if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } mapOn = true; mapOv.style.display = 'block'; updateMap(); }
 function closeMap() { mapOn = false; mapOv.style.display = 'none'; }
@@ -1232,6 +1242,7 @@ function frame(now) {
     dummy.updateMatrix(); boltMesh.setMatrixAt(i, dummy.matrix);
   }
   boltMesh.instanceMatrix.needsUpdate = true;
+  for (const p of planets) { const dd = S.pos.distanceTo(p.pos), f = dd > 4500 ? (4500 / dd) * (4500 / dd) : 1; p.mesh.scale.setScalar(p.r * f); if (p.rg) p.rg.scale.setScalar(f); }   // far planets shrink: they look small and distant
   for (const st of stations) { st.g.visible = S.pos.distanceTo(st.pos) < STN_VIS; if (st.g.visible) st.g.userData.spin.rotation.z += dt * 0.12; }
   dustMat.uniforms.uCam.value.copy(camera.position); dustMat.uniforms.uVel.value.copy(S.vel);
   dustMat.uniforms.uK.value = 0.012 + (S.boosting ? 0.02 : 0.008); dustMat.uniforms.uAlpha.value = S.mode === 'dock' ? 0 : 0.22 + clamp(S.speed / 170, 0, 1) * 0.35 + (S.boosting ? 0.2 : 0);
@@ -1246,7 +1257,7 @@ function frame(now) {
   if (flying) {
     for (let i = 0; i < stations.length; i++) {
       const d = S.pos.distanceTo(stations[i].pos); if (d < STN_VIS) place(mk[i], stations[i].pos, stations[i].name + ' STATION · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), false); else mk[i].style.display = 'none';
-      const dp = S.pos.distanceTo(planets[i].pos) - planets[i].r, lk = S.tPlanet === i; mkp[i].classList.toggle('lock', lk); if (d < STN_VIS && !lk) mkp[i].style.display = 'none'; else place(mkp[i], planets[i].pos, stations[i].name + ' · ' + (dp >= 1000 ? (dp / 1000).toFixed(1) + ' km' : Math.round(dp) + ' m'), lk);
+      const dp = S.pos.distanceTo(planets[i].pos) - planets[i].r, lk = S.tPlanet === i; mkp[i].classList.toggle('lock', lk); if (d < STN_VIS && !lk) mkp[i].style.display = 'none'; else place(mkp[i], planets[i].pos, '', lk);
     }
     const m = S.mission;
     if (m && (m.type === 'bounty' || m.type === 'delivery')) { const p = m.type === 'bounty' ? m.zone : stations[m.to].pos, d = S.pos.distanceTo(p); place(mkWp, p, (m.type === 'bounty' ? 'BOUNTY ZONE' : 'DELIVERY') + ' · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), true); } else mkWp.style.display = 'none';
