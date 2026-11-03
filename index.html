@@ -389,6 +389,7 @@
   #ent-dlg button{min-width:78px;height:28px;border-radius:2px;border:1px solid rgba(110,255,170,.6);background:linear-gradient(180deg,rgba(40,120,80,.9),rgba(14,50,34,.95));color:#fff;font:700 12px system-ui,Arial,sans-serif}
   #ent-yes{border-color:#7dffb0!important}
   body.docked #ent-dlg{display:none!important}
+  #fade{position:fixed;inset:0;z-index:45;background:#000;opacity:0;pointer-events:none}
 </style>
 </head>
 <body>
@@ -441,6 +442,7 @@
   <div id="sh-dlg"><div class="dl"><div class="dt">Info</div><div class="dm">Depart the station?</div><div class="db"><button id="dlg-yes">Yes</button><button id="dlg-no">No</button></div></div></div>
 </div>
 
+<div id="fade"></div>
 <div id="ent-dlg"><div class="dl"><div class="dt">Docking</div><div class="dm">Enter <b id="ent-name"></b>?</div><div class="db"><button id="ent-yes">Yes</button><button id="ent-no">No</button></div></div></div>
 
 <div id="diag" style="position:fixed;left:0;right:0;top:0;z-index:999999;background:rgba(150,0,0,.92);color:#fff;font:12px/1.4 monospace;padding:8px;display:none;direction:ltr;white-space:pre-wrap"></div>
@@ -461,11 +463,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=150', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=152', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=150'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=152'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>
