@@ -310,6 +310,16 @@ const roverBody = (() => {
   for (const s of [-1, 1]) loft([[-2.4, 0.04, 0.04, 0], [-1.6, 0.28, 0.3, 0], [0, 0.4, 0.38, 0], [1.2, 0.3, 0.3, 0], [1.9, 0.05, 0.05, 0]], () => HD, s * 1.25, Yc + 0.12, 2.4);
   loft([[-3.5, 0.04, 0.04, 0], [-2.5, 0.55, 0.2, 0], [-1, 0.7, 0.22, 0], [0.5, 0.42, 0.15, 0]], () => GUN, 0, Yc - 0.38, 2.4);
   for (let k = 0; k < 6; k++) put(body, B(1.15 - k * 0.06, 0.03, 0.05), GUN, [0, Yc + 0.6, -0.5 + k * 0.42]);
+  // extra relief: stepped dorsal ridge, side intakes with dark mouths, raised shoulder plates, belly keel, arm struts
+  put(body, B(0.5, 0.18, 1.7), HD, [0, Yc + 0.66, 1.4]); put(body, B(0.22, 0.3, 1.1), GUN, [0, Yc + 0.8, 1.9]);
+  put(body, B(0.7, 0.06, 0.7), HC, [0, Yc + 0.46, 2.0]);
+  for (const s of [-1, 1]) {
+    put(body, B(0.55, 0.34, 1.0), HC, [s * 1.0, Yc + 0.32, 1.0], [0, s * -0.08, 0]); put(body, B(0.4, 0.2, 0.06), GUN, [s * 1.0, Yc + 0.32, 0.48]);
+    put(body, B(0.7, 0.1, 1.3), GUN, [s * 0.8, Yc + 0.52, -0.6], [0, 0, s * -0.12]);
+    put(body, B(0.16, 0.5, 1.3), GUN, [s * 1.5, Yc - 0.28, 0.5]);
+    put(body, B(0.08, 0.28, 1.0), HC, [s * 2.2, Yc - 0.12, 0.1], [0, s * 0.36, 0]);
+  }
+  put(body, B(0.2, 0.28, 3.4), GUN, [0, Yc - 0.78, 0.1]);
   // glass dome cockpit
   put(glass, new THREE.SphereGeometry(0.5, 16, 12), 0x24405f, [0, Yc + 0.52, -1.9], 0, [0.85, 0.55, 1.75]);
   put(body, B(0.9, 0.08, 2.2), GUN, [0, Yc + 0.38, -1.9]);
@@ -327,13 +337,21 @@ const roverBody = (() => {
     put(body, B(0.06, 0.8, 0.95), HC, [s * 2.76, 0.42, 0.3], [0, 0, s * 0.15]);                                    // blade fin on top of the pod
   }
   const sface = (c0, c1) => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 32); gr.addColorStop(0, c0); gr.addColorStop(1, c1); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); return c; };
-  const senv = new THREE.CubeTexture([sface('#c9d1de', '#667186'), sface('#c9d1de', '#5d687c'), sface('#ffffff', '#dfe6f2'), sface('#171c26', '#2a3140'), sface('#bcc5d4', '#6b7587'), sface('#cfd6e2', '#667186')]); senv.colorSpace = THREE.SRGBColorSpace; senv.needsUpdate = true;
+  const senv = new THREE.CubeTexture([sface('#e8eef8', '#3a4458'), sface('#d5dcea', '#2e374a'), sface('#ffffff', '#f2f6ff'), sface('#10141c', '#1c222e'), sface('#dbe2ee', '#3a4458'), sface('#e8eef8', '#323c50')]); senv.colorSpace = THREE.SRGBColorSpace; senv.needsUpdate = true;
   const bgeo = mergeGeometries(body);
   { // bake light into the vertex colours: bright on top faces, dark underneath and in the belly = strong depth for free
     const nr = bgeo.attributes.normal, cl = bgeo.attributes.color, ps = bgeo.attributes.position;
-    for (let i = 0; i < nr.count; i++) { const ny = nr.getY(i), f = (0.52 + 0.48 * (ny * 0.5 + 0.5)) * (ny < -0.45 ? 0.72 : 1) * (ps.getY(i) < Yc - 0.4 ? 0.8 : 1); cl.setXYZ(i, cl.getX(i) * f, cl.getY(i) * f, cl.getZ(i) * f); }
+    for (let i = 0; i < nr.count; i++) {
+      const nx = nr.getX(i), ny = nr.getY(i), nz = nr.getZ(i), py = ps.getY(i), px = Math.abs(ps.getX(i));
+      const key = Math.max(0, nx * -0.42 + ny * 0.78 + nz * -0.46);                  // key light: from above, front-left
+      let f = 0.3 + 0.6 * key + 0.14 * (ny * 0.5 + 0.5);
+      if (ny < -0.45) f *= 0.62; if (py < Yc - 0.4) f *= 0.78;                        // dark belly
+      if (nz > 0.6) f *= 0.7;                                                         // rear faces in shade
+      f *= 1 - 0.22 * Math.min(1, Math.max(0, (px - 0.9) / 0.5)) * (ny < 0.3 ? 1 : 0.4); // occlusion where arms meet the hull
+      cl.setXYZ(i, cl.getX(i) * f, cl.getY(i) * f, cl.getZ(i) * f);
+    }
   }
-  const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.75, flatShading: false, envMap: senv, envMapIntensity: 1.1, emissive: 0x161c2a });
+  const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.24, metalness: 0.8, flatShading: false, envMap: senv, envMapIntensity: 1.1, emissive: 0x10141f });
   bmat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float rimK = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 2.6); totalEmissiveRadiance += vec3(0.1, 0.55, 0.85) * rimK * 0.8;'); };   // cyan rim light round the silhouette
   const bm = new THREE.Mesh(bgeo, bmat);
   const gm = new THREE.Mesh(mergeGeometries(glow), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, fog: false }));
@@ -1111,7 +1129,7 @@ function frame(now) {
     S.boosting = (boostHeld || keys.ShiftLeft || keys.KeyB) && S.boost > 2;
     if (keys.KeyW || keys.ArrowUp) { S.thr = Math.min(1, S.thr + dt * 0.6); } if (keys.KeyS || keys.ArrowDown) { S.thr = Math.max(0, S.thr - dt * 0.6); }
     let target = ST.cruise * S.thr;
-    if (S.boosting) { target = ST.cruise * 1.85; S.boost = Math.max(0, S.boost - 32 * dt); if (!S._wasB) sfx('boost'); } else S.boost = Math.min(100, S.boost + 15 * dt);
+    if (S.boosting) { target = ST.cruise * 1.85; S.boost = Math.max(0, S.boost - 32 * dt); } else S.boost = Math.min(100, S.boost + 15 * dt);
     S._wasB = S.boosting;
     S.speed = damp(S.speed, target, S.speed > target ? 2.0 : 2.6, dt);
     S.vel.copy(fwd).multiplyScalar(S.speed); S.pos.addScaledVector(S.vel, dt);
@@ -1275,7 +1293,7 @@ function frame(now) {
     const w = clamp((d - 1500) / 2500, 0, 1) * 0.7; _pd.copy(_a).divideScalar(d).multiplyScalar(1 - w).addScaledVector(_pc.copy(p.pos).sub(PCEN).normalize(), w).normalize();   // far planets fan out around the system centre so they never bunch up on screen
     p.mesh.position.copy(S.pos).addScaledVector(_pd, dA); p.mesh.scale.setScalar(p.r * k); if (p.rg) { p.rg.position.copy(p.mesh.position); p.rg.scale.setScalar(k); }
   }
-  for (const st of stations) { st.g.visible = S.pos.distanceTo(st.pos) < STN_VIS; if (st.g.visible) st.g.userData.spin.rotation.z += dt * 0.12; }
+  for (const st of stations) { st.g.visible = S.pos.distanceTo(st.pos) < STN_VIS; }
   dustMat.uniforms.uCam.value.copy(camera.position); dustMat.uniforms.uVel.value.copy(S.vel);
   dustMat.uniforms.uK.value = 0.012 + (S.boosting ? 0.02 : 0.008); dustMat.uniforms.uAlpha.value = S.mode === 'dock' ? 0 : 0.22 + clamp(S.speed / 170, 0, 1) * 0.35 + (S.boosting ? 0.2 : 0);
 
