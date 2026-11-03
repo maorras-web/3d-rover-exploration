@@ -466,9 +466,10 @@
 #map-fld .mn.cur i{outline:2px solid #fff;outline-offset:3px}
 #map-fld .mn small{opacity:.7;font-size:10px}
 #map-me{position:absolute;width:0;height:0;border:7px solid transparent;border-bottom:14px solid #5fffb0;transform:translate(-50%,-60%)}
+#map-sys{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(34px + env(safe-area-inset-bottom));padding:8px 18px;border:1.5px solid #6fb8ff;border-radius:18px;background:rgba(20,50,90,.7);color:#cfe9ff;font:700 12px system-ui,Arial,sans-serif;letter-spacing:2px}
 #map-ov .mh{position:absolute;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom));text-align:center;color:#7fa8c8;font-size:11px;letter-spacing:2px}
 </style>
-<div id="map-ov"><div class="mt">STAR MAP</div><button class="mx" id="map-x">&times;</button><div id="map-fld"><div id="map-me"></div></div><div class="mh">TAP A PLANET TO TRAVEL</div></div>
+<div id="map-ov"><div class="mt" id="map-title">STAR MAP</div><button class="mx" id="map-x">&times;</button><div id="map-fld"><div id="map-me"></div></div><div class="mh">TAP A PLANET TO TRAVEL</div><button id="map-sys"></button></div>
 <div id="trv-dlg" class="edlg"><div class="dl"><div class="dt">Navigation</div><div class="dm">Travel to <b id="trv-name"></b>?</div><div class="db"><button id="trv-yes">Yes</button><button id="trv-no">No</button></div></div></div>
 <div id="ent-dlg" class="edlg"><div class="dl"><div class="dt">Docking</div><div class="dm">Enter <b id="ent-name"></b>?</div><div class="db"><button id="ent-yes">Yes</button><button id="ent-no">No</button></div></div></div>
 
@@ -490,11 +491,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=195', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=196', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=195'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=196'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>

@@ -622,7 +622,14 @@ const stations = [
   { name: 'AURORA', col: '#4cff8a', v: { fins: 5, fw: 4.2, ribs: 5, horns: 2, hl: 1.4, ringN: 10, tint: 0.4, band: ['#4cff8a', '#bfffd8'] }, pos: V3(3400, -350, 900), front: V3(0, -1, 0), pl: { kind: 'jungle', r: 520, off: V3(800, 200, 500), atm: [0.3, 1.0, 0.55] } },
   { name: 'CINDER', col: '#ff4a2a', v: { fins: 3, fw: 6.4, ribs: 8, horns: 6, hl: 0.55, ringN: 6, tint: 0.45, band: ['#ff7a24', '#ffd24a'] }, pos: V3(-3600, 400, 1200), front: V3(0, -1, 0), pl: { kind: 'lava', r: 380, off: V3(-600, -100, 500), atm: [1.0, 0.3, 0.15] } },
   { name: 'FROST', col: '#9fe8ff', v: { fins: 6, fw: 3.6, ribs: 0, horns: 0, spire: 1, hl: 1, ringN: 12, tint: 0.35, band: ['#9fe8ff', '#ffffff'] }, pos: V3(400, 700, -3800), front: V3(0, -1, 0), pl: { kind: 'ice', r: 480, off: V3(-700, 300, -300), atm: [0.6, 0.9, 1.0] } },
+  // ---- YAPZO system: five more worlds, far away from the first system (reach it from the star map) ----
+  { name: 'YAPZO PRIME', col: '#ffcc55', v: { fins: 5, fw: 4.8, ribs: 7, horns: 3, hl: 1.1, ringN: 9, tint: 0.3, band: ['#ffcc55', '#ff8a3a'] }, pos: V3(9000, 300, -6000), front: V3(0, -1, 0), pl: { kind: 'desert', r: 560, off: V3(-850, -150, -600), atm: [1.0, 0.75, 0.3] } },
+  { name: 'NIMBUS', col: '#7aa8ff', v: { fins: 4, fw: 5.0, ribs: 4, horns: 0, spire: 1, hl: 1, ringN: 10, tint: 0.35, band: ['#7aa8ff', '#ffffff'] }, pos: V3(11000, 0, -4800), front: V3(0, -1, 0), pl: { kind: 'storm', r: 600, off: V3(800, -250, -550), atm: [0.4, 0.6, 1.0] } },
+  { name: 'ORCHID', col: '#ff6ad0', v: { fins: 7, fw: 3.4, ribs: 9, horns: 5, hl: 0.8, ringN: 12, tint: 0.4, band: ['#ff6ad0', '#ffd0f0'] }, pos: V3(6700, 550, -5100), front: V3(0, -1, 0), pl: { kind: 'bloom', r: 440, off: V3(-550, 200, -700), atm: [1.0, 0.4, 0.8] } },
+  { name: 'SULPHUR', col: '#c8ff3a', v: { fins: 3, fw: 6.0, ribs: 6, horns: 6, hl: 0.6, ringN: 7, tint: 0.45, band: ['#c8ff3a', '#4a6a10'] }, pos: V3(9800, 400, -9200), front: V3(0, -1, 0), pl: { kind: 'toxic', r: 400, off: V3(650, 150, -450), atm: [0.7, 1.0, 0.2] } },
+  { name: 'ONYX', col: '#35e0c8', v: { fins: 6, fw: 3.8, ribs: 0, horns: 0, spire: 1, hl: 1, ringN: 11, tint: 0.35, band: ['#35e0c8', '#d0fff6'] }, pos: V3(8000, -400, -8600), front: V3(0, -1, 0), pl: { kind: 'onyx', r: 500, off: V3(-700, 250, -350), atm: [0.2, 0.9, 0.8] } },
 ];
+const SYSTEMS = ['HELIOS', 'YAPZO']; stations.forEach((s, i) => { s.sys = i < 6 ? 0 : 1; });
 const ST_K = 3;   // station scale: everything is built at 1x and the whole station group is scaled
 const SYS_K = 2.2;   // spread the system out: distance between stations x2.2 (planets move with their stations)
 stations.forEach(s => s.pos.multiplyScalar(SYS_K));
@@ -640,6 +647,11 @@ const planets = [];
     else if (kind === 'purple') { bands(['#5b2a9a', '#8a4ad0', '#b878f0', '#3e1c74', '#d49af8', '#6f36b8'], 6); blot(220, ['#ffd6ff', '#2a1050'], 10, 50, 2, 6, 0.18); }
     else if (kind === 'jungle') { x.fillStyle = '#2f7a3a'; x.fillRect(0, 0, 256, 128); blot(60, ['#58b05a', '#1f5a2c', '#c8b878'], 8, 34, 4, 14, 0.8); blot(50, ['#ffffff'], 10, 40, 1.5, 4, 0.3); x.fillStyle = 'rgba(230,255,235,.8)'; x.fillRect(0, 0, 256, 6); x.fillRect(0, 122, 256, 6); }
     else if (kind === 'lava') { x.fillStyle = '#2a0d0a'; x.fillRect(0, 0, 256, 128); blot(70, ['#5a1a10', '#12100f'], 8, 34, 4, 14, 0.9); x.strokeStyle = '#ff7a24'; for (let k = 0; k < 70; k++) { x.lineWidth = 0.8 + rn(2.2); x.globalAlpha = 0.5 + rn(0.5); x.beginPath(); let px = rn(256), py = rn(128); x.moveTo(px, py); for (let j = 0; j < 5; j++) { px += rn(26) - 13; py += rn(20) - 10; x.lineTo(px, py); } x.stroke(); } x.globalAlpha = 1; }
+    else if (kind === 'desert') { x.fillStyle = '#c98a4a'; x.fillRect(0, 0, 256, 128); bands(['#d9a066', '#c07a3c', '#e6b87c', '#a8652f', '#d2924f'], 5); blot(140, ['#f0d09a', '#7a4420'], 8, 36, 2, 8, 0.45); blot(14, ['#e8dcc8'], 6, 20, 2, 6, 0.6); }
+    else if (kind === 'storm') { bands(['#1f3f8a', '#3f6fd0', '#9ec0ff', '#2a52a8', '#ffffff', '#17306a', '#5a8ae8'], 5); blot(180, ['#ffffff', '#0e1e50'], 10, 46, 2, 6, 0.25); blot(5, ['#e8f0ff'], 14, 30, 6, 12, 0.7); }
+    else if (kind === 'bloom') { x.fillStyle = '#8a2a70'; x.fillRect(0, 0, 256, 128); blot(80, ['#ff6ad0', '#4a1040', '#ffb0e8'], 8, 34, 4, 14, 0.8); blot(40, ['#ffffff'], 10, 40, 1.5, 4, 0.3); }
+    else if (kind === 'toxic') { x.fillStyle = '#6a8a1a'; x.fillRect(0, 0, 256, 128); blot(90, ['#c8ff3a', '#3a4a0a', '#e8ff9a'], 8, 34, 3, 12, 0.8); blot(30, ['#ffffff'], 10, 40, 1.5, 4, 0.25); }
+    else if (kind === 'onyx') { x.fillStyle = '#10181c'; x.fillRect(0, 0, 256, 128); blot(60, ['#1c2a30', '#060a0c'], 8, 34, 4, 14, 0.9); x.strokeStyle = '#35e0c8'; for (let k = 0; k < 60; k++) { x.lineWidth = 0.8 + rn(1.8); x.globalAlpha = 0.45 + rn(0.5); x.beginPath(); let px = rn(256), py = rn(128); x.moveTo(px, py); for (let j = 0; j < 5; j++) { px += rn(26) - 13; py += rn(20) - 10; x.lineTo(px, py); } x.stroke(); } x.globalAlpha = 1; }
     else { x.fillStyle = '#d4ecf8'; x.fillRect(0, 0, 256, 128); blot(80, ['#9ad0ea', '#ffffff', '#7ab8dc'], 10, 44, 2, 9, 0.7); x.strokeStyle = 'rgba(40,110,170,.45)'; for (let k = 0; k < 40; k++) { x.lineWidth = 1; x.beginPath(); let px = rn(256), py = rn(128); x.moveTo(px, py); x.lineTo(px + rn(60) - 30, py + rn(30) - 15); x.stroke(); } }
     const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
   };
@@ -650,7 +662,7 @@ const planets = [];
     fragmentShader: 'uniform vec3 c; uniform float pw; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), pw); gl_FragColor = vec4(c * f, 1.0); }'
   });
   for (const s of stations) {
-    const p = s.pl; p.pos = s.pos.clone().add(p.off); planets.push(p);
+    const p = s.pl; p.pos = s.pos.clone().add(p.off); p.sys = s.sys; planets.push(p);
     const pm = new THREE.Mesh(geo, (() => { const tx = tex(p.kind); return new THREE.MeshLambertMaterial({ map: tx, emissive: 0xffffff, emissiveMap: tx, emissiveIntensity: 0.28, fog: false }); })()); pm.scale.setScalar(p.r); pm.position.copy(p.pos); pm.rotation.z = 0.3; scene.add(pm); p.mesh = pm;
     if (p.ring) {
       const cv = document.createElement('canvas'); cv.width = cv.height = 256; const x = cv.getContext('2d');
@@ -661,7 +673,10 @@ const planets = [];
     }
   }
 }
-const _pd = V3(), _pc = V3(), PCEN = V3(); planets.forEach(p => PCEN.add(p.pos)); PCEN.multiplyScalar(1 / planets.length);
+const _pd = V3(), _pc = V3(), PCENS = SYSTEMS.map((nm, k) => { const c = V3(); let n = 0; planets.forEach(p => { if (p.sys === k) { c.add(p.pos); n++; } }); return c.multiplyScalar(1 / (n || 1)); });
+let curSys = 0;   // the system you are in = the system of the nearest station
+const updCurSys = () => { if (S.mode === 'dock') { curSys = stations[S.station].sys; return; } let b = 1e18; for (const s of stations) { const d = S.pos.distanceToSquared(s.pos); if (d < b) { b = d; curSys = s.sys; } } };
+const firstOfSys = (k) => stations.findIndex(s => s.sys === k);
 const lookUp = (d) => Math.abs(d.y) > 0.98 ? Z : Y;   // up-vector that is never parallel to the view direction
 const dockPoint = (st, out) => out.copy(st.pos).addScaledVector(st.front, 58);
 
@@ -880,7 +895,7 @@ function cycleTarget() {
   const list = enemies.filter(e => e.active).map(e => { _a.copy(e.pos).sub(S.pos); const d = _a.length(); return { e, score: Math.acos(clamp(fwd.dot(_a) / (d || 1), -1, 1)) + d / 3000 }; }).sort((a, b) => a.score - b.score);
   if (!list.length) {   // no enemies around: TARGET picks a planet to visit (the planet you are already at is skipped)
     S.target = null; const here = nearPlanet();
-    const cand = planets.map((p, i) => ({ i, a: _a.copy(p.mesh.position).sub(S.pos).normalize().dot(fwd) })).filter(o => o.i !== here).sort((x, y) => y.a - x.a).map(o => o.i);
+    const cand = planets.map((p, i) => ({ i, a: _a.copy(p.mesh.position).sub(S.pos).normalize().dot(fwd) })).filter(o => o.i !== here && planets[o.i].sys === curSys).sort((x, y) => y.a - x.a).map(o => o.i);
     const k = cand.indexOf(S.tPlanet); S.tPlanet = cand[(k + 1) % cand.length]; sfx('lock');
     trvOn = true; $('trv-name').textContent = stations[S.tPlanet].name; $('trv-dlg').style.display = 'flex'; return;
   }
@@ -907,7 +922,7 @@ function updateWarp(dt) {
 }
 
 // ---------- missions ----------
-function rndStationOtherThan(i) { const o = stations.map((s, k) => k).filter(k => k !== i); return o[Math.random() * o.length | 0]; }
+function rndStationOtherThan(i) { const o = stations.map((s, k) => k).filter(k => k !== i && stations[k].sys === stations[i].sys); return o[Math.random() * o.length | 0]; }
 function genMissions(from) {
   const lvl = Math.min(save.kills, 40);
   const n = 3 + (Math.random() * 3 | 0), dirv = (() => { const po = stations[from].pl.off.clone().normalize(); let d, t = 0; do { d = V3(rnd(-1, 1), rnd(-0.3, 0.3), rnd(-1, 1)).normalize(); } while (d.dot(po) > 0.2 && ++t < 10); return d; })();
@@ -979,15 +994,16 @@ function openShop(msg) {
     const lg = document.createElement('div'); lg.className = 'spec-lg'; lg.textContent = 'Bright bar = current  ·  faint extension = next upgrade'; list.appendChild(lg);
   } else if (shopTab === 'p') {
     const mp = document.createElement('div'); mp.className = 'smap'; list.appendChild(mp);
-    let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; stations.forEach(s => { x0 = Math.min(x0, s.pos.x); x1 = Math.max(x1, s.pos.x); z0 = Math.min(z0, s.pos.z); z1 = Math.max(z1, s.pos.z); });
-    const pc = stations.map(s => [12 + 76 * (s.pos.x - x0) / (x1 - x0 || 1), 14 + 66 * (s.pos.z - z0) / (z1 - z0 || 1)]);
+    const ids = stations.map((s, k) => k).filter(k => stations[k].sys === stations[S.station].sys);
+    let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; ids.forEach(k => { const s = stations[k]; x0 = Math.min(x0, s.pos.x); x1 = Math.max(x1, s.pos.x); z0 = Math.min(z0, s.pos.z); z1 = Math.max(z1, s.pos.z); });
+    const pc = []; ids.forEach(k => { const s = stations[k]; pc[k] = [12 + 76 * (s.pos.x - x0) / (x1 - x0 || 1), 14 + 66 * (s.pos.z - z0) / (z1 - z0 || 1)]; });
     // network of lanes: every station linked to its two nearest neighbours, plus brighter lanes out of the station you are docked at
-    const lanes = new Set(), here = S.station; stations.forEach((s, k) => { stations.map((t, j) => [j, s.pos.distanceTo(t.pos)]).filter(q => q[0] !== k).sort((p, q) => p[1] - q[1]).slice(0, 2).forEach(q => lanes.add(Math.min(k, q[0]) + '-' + Math.max(k, q[0]))); });
+    const lanes = new Set(), here = S.station; ids.forEach(k => { ids.map(j => [j, stations[k].pos.distanceTo(stations[j].pos)]).filter(q => q[0] !== k).sort((p, q) => p[1] - q[1]).slice(0, 2).forEach(q => lanes.add(Math.min(k, q[0]) + '-' + Math.max(k, q[0]))); });
     let svg = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">';
     lanes.forEach(l => { const [i, j] = l.split('-').map(Number); svg += `<line x1="${pc[i][0]}" y1="${pc[i][1]}" x2="${pc[j][0]}" y2="${pc[j][1]}" stroke="rgba(110,170,240,.35)" stroke-width="1" vector-effect="non-scaling-stroke"/>`; });
-    stations.forEach((s, k) => { if (k !== here) svg += `<line x1="${pc[here][0]}" y1="${pc[here][1]}" x2="${pc[k][0]}" y2="${pc[k][1]}" stroke="rgba(255,200,96,.55)" stroke-width="1.2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`; });
-    mp.insertAdjacentHTML('afterbegin', svg + '</svg>');
-    stations.forEach((s, k) => { const d = document.createElement('div'); d.className = 'sn' + (k === S.station ? ' here' : '') + (S.mission && S.mission.type === 'delivery' && S.mission.to === k ? ' tgt' : '') + (pc[k][0] > 58 ? ' fl' : ''); d.style.left = pc[k][0] + '%'; d.style.top = pc[k][1] + '%';
+    ids.forEach(k => { if (k !== here) svg += `<line x1="${pc[here][0]}" y1="${pc[here][1]}" x2="${pc[k][0]}" y2="${pc[k][1]}" stroke="rgba(255,200,96,.55)" stroke-width="1.2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`; });
+    mp.insertAdjacentHTML('afterbegin', svg + '</svg><div style="position:absolute;left:10px;top:7px;font:700 10px system-ui,Arial,sans-serif;letter-spacing:3px;color:#7fb4e8">' + SYSTEMS[stations[S.station].sys] + ' SYSTEM</div>');
+    ids.forEach(k => { const s = stations[k], d = document.createElement('div'); d.className = 'sn' + (k === S.station ? ' here' : '') + (S.mission && S.mission.type === 'delivery' && S.mission.to === k ? ' tgt' : '') + (pc[k][0] > 58 ? ' fl' : ''); d.style.left = pc[k][0] + '%'; d.style.top = pc[k][1] + '%';
       d.innerHTML = `<i style="${k === S.station ? '' : `background:${s.col};box-shadow:0 0 12px ${s.col}`}"></i><span>${s.name}<br><small>${k === S.station ? 'YOU ARE HERE' : (stations[S.station].pos.distanceTo(s.pos) / 1000).toFixed(1) + ' LY'}</small></span>`; mp.appendChild(d); });
   } else if (shopTab === 'm') {
     if (S.mission) row('ACTIVE: ' + S.mission.title, S.mission.text + '  ·  ◆ ' + S.mission.reward, '', 'ABANDON', false, () => { S.mission = null; updateMissionHud(); openShop(msg); });
@@ -1018,18 +1034,18 @@ const DK = { i: 0, t: 0, tA: 1, p0: V3(), q0: new THREE.Quaternion(), q1: new TH
 
 // ---- star map ----
 const mapOv = $('map-ov'), mapFld = $('map-fld'), mapMe = $('map-me'); let mapOn = false, mapB = null;
+const mapBs = SYSTEMS.map((nm, k) => { let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; for (const p of planets) if (p.sys === k) { x0 = Math.min(x0, p.pos.x); x1 = Math.max(x1, p.pos.x); z0 = Math.min(z0, p.pos.z); z1 = Math.max(z1, p.pos.z); } const sp = Math.max(x1 - x0, z1 - z0) || 1; return { x0, z0, sx: 1 / sp, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2 }; });
 (function () {
-  let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
-  for (const p of planets) { x0 = Math.min(x0, p.pos.x); x1 = Math.max(x1, p.pos.x); z0 = Math.min(z0, p.pos.z); z1 = Math.max(z1, p.pos.z); }
-  const sp = Math.max(x1 - x0, z1 - z0) || 1; mapB = { x0, z0, sx: 1 / sp, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2 };
   planets.forEach((p, i) => {
-    const b = document.createElement('button'); b.className = 'mn'; b.id = 'mn' + i; b.style.setProperty('--c', stations[i].col);
-    b.style.left = (50 + (p.pos.x - mapB.cx) * mapB.sx * 84) + '%'; b.style.top = (50 + (p.pos.z - mapB.cz) * mapB.sx * 84) + '%';
+    const mb = mapBs[p.sys], b = document.createElement('button'); b.className = 'mn'; b.id = 'mn' + i; b.style.setProperty('--c', stations[i].col);
+    b.style.left = (50 + (p.pos.x - mb.cx) * mb.sx * 84) + '%'; b.style.top = (50 + (p.pos.z - mb.cz) * mb.sx * 84) + '%';
     b.innerHTML = '<i></i><span>' + stations[i].name + '</span><small></small>'; mapFld.appendChild(b);
     b.addEventListener('click', () => { if (S.mode !== 'fly') return; closeMap(); if (nearPlanet() === i) return; initAudio(); S.tPlanet = i; sfx('lock'); trvOn = true; $('trv-name').textContent = stations[i].name; $('trv-dlg').style.display = 'flex'; });
   });
+  $('map-sys').addEventListener('click', () => { if (S.mode !== 'fly') return; const to = firstOfSys((curSys + 1) % SYSTEMS.length); closeMap(); initAudio(); S.tPlanet = to; sfx('lock'); trvOn = true; $('trv-name').textContent = SYSTEMS[stations[to].sys] + ' SYSTEM'; $('trv-dlg').style.display = 'flex'; });
 })();
 function updateMap() {
+  updCurSys(); mapB = mapBs[curSys]; $('map-sys').textContent = '\u27A4 JUMP TO ' + SYSTEMS[(curSys + 1) % SYSTEMS.length] + ' SYSTEM'; $('map-title').textContent = 'STAR MAP \u00B7 ' + SYSTEMS[curSys] + ' SYSTEM'; planets.forEach((p, i) => { $('mn' + i).style.display = p.sys === curSys ? '' : 'none'; });
   const sc = mapB.sx * 84; mapMe.style.left = (50 + (S.pos.x - mapB.cx) * sc) + '%'; mapMe.style.top = (50 + (S.pos.z - mapB.cz) * sc) + '%';
   const f = new THREE.Vector3(0, 0, -1).applyQuaternion(S.q); mapMe.style.transform = 'translate(-50%,-60%) rotate(' + Math.atan2(f.x, -f.z) + 'rad)';
   const n = nearPlanet(); planets.forEach((p, i) => { const e = $('mn' + i); e.classList.toggle('cur', n === i); e.lastChild.textContent = n === i ? 'YOU ARE HERE' : ''; });
@@ -1336,9 +1352,11 @@ function frame(now) {
     dummy.updateMatrix(); boltMesh.setMatrixAt(i, dummy.matrix); boltHalo.setMatrixAt(i, dummy.matrix);
   }
   boltMesh.instanceMatrix.needsUpdate = true; boltHalo.instanceMatrix.needsUpdate = true;
+  updCurSys();
   for (const p of planets) {   // planets are unreachable scenery: drawn along the true direction but at an apparent distance that barely shrinks, with the size you would see from the real distance
+    if (p.sys !== curSys) { p.mesh.visible = false; if (p.rg) p.rg.visible = false; continue; } p.mesh.visible = true; if (p.rg) p.rg.visible = true;
     _a.copy(p.pos).sub(S.pos); const d = _a.length() || 1, dA = 2600 + 0.12 * d, a = Math.max(0.026, p.r / Math.max(d, p.r * 1.6) * (d > 4000 ? Math.pow(4000 / d, 1.5) : 1)), k = a * dA / p.r;   // like Galaxy on Fire 2: far planets are tiny discs (about 3 degrees), the one at your station is huge
-    const w = clamp((d - 1500) / 2500, 0, 1) * 0.7; _pd.copy(_a).divideScalar(d).multiplyScalar(1 - w).addScaledVector(_pc.copy(p.pos).sub(PCEN).normalize(), w).normalize();   // far planets fan out around the system centre so they never bunch up on screen
+    const w = clamp((d - 1500) / 2500, 0, 1) * 0.7; _pd.copy(_a).divideScalar(d).multiplyScalar(1 - w).addScaledVector(_pc.copy(p.pos).sub(PCENS[p.sys]).normalize(), w).normalize();   // far planets fan out around the system centre so they never bunch up on screen
     p.mesh.position.copy(S.pos).addScaledVector(_pd, dA); p.mesh.scale.setScalar(p.r * k); if (p.rg) { p.rg.position.copy(p.mesh.position); p.rg.scale.setScalar(k); }
   }
   for (const st of stations) { st.g.visible = S.pos.distanceTo(st.pos) < STN_VIS; }
