@@ -83,7 +83,7 @@ class CheapGlow extends Pass {
    Light on purpose: instanced asteroids / bolts / loot, merged-geometry enemies, shader dust, no post-processing. */
 
 const $ = (id) => document.getElementById(id);
-const BUILD = 37;
+const BUILD = 39;
 
 // ---------- save ----------
 const SAVE_KEY = 'starCourier2';
@@ -716,17 +716,7 @@ function updateAudio() {
   if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen) && fsBtn) fsBtn.style.display = 'none';
 }
 
-// ---------- throttle slider (drag up = faster, down = slower; boost still works on top) ----------
-{
-  const el = $('thr'), trk = el.querySelector('.trk'), fl = $('thr-fl'), hd = $('thr-hd'); let id = null;
-  const show = () => { const p = (S.thr - 0.2) / 0.8; fl.style.transform = `scaleY(${p})`; hd.style.top = (1 - p) * 100 + '%'; };
-  const setFrom = (y) => { const r = trk.getBoundingClientRect(); S.thr = clamp(0.2 + 0.8 * (1 - (y - r.top) / r.height), 0.2, 1); show(); };
-  el.addEventListener('pointerdown', (e) => { id = e.pointerId; el.setPointerCapture(id); setFrom(e.clientY); e.preventDefault(); });
-  el.addEventListener('pointermove', (e) => { if (e.pointerId === id) setFrom(e.clientY); });
-  const end = (e) => { if (e.pointerId === id) id = null; }; el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
-  show();
-}
-
+// ---------- throttle: touch any free spot on the right half and drag up = faster, down = slower / full stop (like Galaxy on Fire 2) ----------
 // ---------- input ----------
 const keys = {}; let touchX = 0, touchY = 0, firing = false, boostHeld = false;
 addEventListener('keydown', (e) => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); if (e.code === 'KeyT') cycleTarget(); if (e.code === 'KeyM') fireMissile(); if (e.code === 'KeyE') tryDock(); });
@@ -747,6 +737,14 @@ canvas.addEventListener('pointermove', (e) => {
 });
 const endStick = (e) => { if (e.pointerId !== stickId) return; stickId = null; touchX = touchY = 0; setKnob(0, 0); stickEl.style.left = ''; stickEl.style.bottom = ''; };
 canvas.addEventListener('pointerup', endStick); canvas.addEventListener('pointercancel', endStick);
+let thrId = null, thrY0 = 0, thr0 = 1;
+canvas.addEventListener('pointerdown', (e) => {
+  if (thrId !== null || e.clientX <= innerWidth * 0.5 || S.mode !== 'fly') return;
+  thrId = e.pointerId; canvas.setPointerCapture(e.pointerId); thrY0 = e.clientY; thr0 = S.thr;
+});
+canvas.addEventListener('pointermove', (e) => { if (e.pointerId !== thrId) return; S.thr = clamp(thr0 - (e.clientY - thrY0) / (innerHeight * 0.4), 0, 1); });
+const endThr = (e) => { if (e.pointerId !== thrId) return; thrId = null; };
+canvas.addEventListener('pointerup', endThr); canvas.addEventListener('pointercancel', endThr);
 function holdBtn(el, set) {
   const on = (e) => { e.preventDefault(); set(true); el.classList.add('down'); initAudio(); }, off = (e) => { e.preventDefault(); set(false); el.classList.remove('down'); };
   el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off); el.addEventListener('pointerleave', off);
@@ -1038,6 +1036,7 @@ function frame(now) {
 
     // ---- speed / boost ----
     S.boosting = (boostHeld || keys.ShiftLeft || keys.KeyB) && S.boost > 2;
+    if (keys.KeyW || keys.ArrowUp) { S.thr = Math.min(1, S.thr + dt * 0.6); } if (keys.KeyS || keys.ArrowDown) { S.thr = Math.max(0, S.thr - dt * 0.6); }
     let target = ST.cruise * S.thr;
     if (S.boosting) { target = ST.cruise * 1.85; S.boost = Math.max(0, S.boost - 32 * dt); if (!S._wasB) sfx('boost'); } else S.boost = Math.min(100, S.boost + 15 * dt);
     S._wasB = S.boosting;

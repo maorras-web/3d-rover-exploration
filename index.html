@@ -349,7 +349,7 @@
   .spec-ft{display:flex;flex-wrap:wrap;gap:6px 16px;margin:12px 0 4px;font:700 10px system-ui,Arial,sans-serif;letter-spacing:1px;opacity:.85}.spec-ft b{color:#ffe08a}
   .spec-lg{font:500 10px system-ui,Arial,sans-serif;opacity:.5;margin-top:4px}
   @media (max-aspect-ratio:6/5){#shop{background:rgba(2,6,16,.9);justify-content:center}#shop .panel{max-width:100%}}
-  body.docked #top-left,body.docked #speed,body.docked #radar,body.docked #stick,body.docked #thr,body.docked #rb-bg,body.docked .rb,body.docked #mission{display:none!important}
+  body.docked #top-left,body.docked #speed,body.docked #radar,body.docked #stick,body.docked #rb-bg,body.docked .rb,body.docked #mission{display:none!important}
 
   /* ===== hangar UI (Galaxy-on-Fire-2 style): left nav, bottom bar, depart dialog ===== */
   #shop{display:none;background:none;padding:0;align-items:stretch;justify-content:flex-start;text-align:left}
@@ -379,6 +379,7 @@
   .smap .sn.here i{background:#ffc860;box-shadow:0 0 14px #ffc860}.smap .sn.tgt i{background:#5fffb0;box-shadow:0 0 14px #5fffb0}
   .smap .sn span{position:absolute;left:18px;top:-3px;white-space:nowrap;font:700 11px system-ui,Arial,sans-serif;color:#dbe8f7}.smap small{font-weight:500;opacity:.7}
   body.docked #top-right{display:none}
+  #thr{pointer-events:none!important}#thr.act .trk{box-shadow:inset 0 0 0 1px #9af3ff,0 0 10px rgba(126,240,255,.6)}
 </style>
 </head>
 <body>
@@ -406,7 +407,6 @@
 <canvas id="radar" class="hud" width="208" height="208"></canvas>
 
 <div id="stick" class="hud"><div class="base"></div><div class="knob" id="knob"></div></div>
-<div id="thr" class="hud"><div class="trk"><div class="fl" id="thr-fl"></div><div class="hd" id="thr-hd"></div></div><div class="lb">SPEED</div></div>
 <div id="rb-bg"></div>
 <button class="rb hx" id="b-fire"><svg class="ic" viewBox="0 0 40 24"><path d="M5 6c0-1.7 1.3-3 3-3h11c2.5 0 4.5 1.2 6 3.5V13H9c-2.2 0-4-1.8-4-4z"/><path d="M25 8h12v2H25zM35 6.5h3v5h-3z"/><path d="M9 12h7l-2.6 10H8z"/></svg><span class="tx">FIRE</span></button>
 <button class="rb hx" id="b-miss"><svg class="ic" viewBox="0 0 24 24"><g transform="rotate(40 12 12)"><path d="M12 1c2 2 3 5 3 8v6H9V9c0-3 1-6 3-8zM9 14l-3.5 4.5H9zM15 14l3.5 4.5H15zM10.5 16h3v3h-3z"/></g></svg><span class="tx">MISSILE</span><span id="miss-n"></span></button>
@@ -417,7 +417,7 @@
 <div id="start" class="screen show"><div class="panel">
   <h1>STAR COURIER</h1>
   <div class="sub">SPACE COMBAT · MISSIONS · UPGRADES</div>
-  <div class="how">Left thumb steers the ship (pitch &amp; yaw). <b>FIRE</b> lasers, <b>MISSILE</b> for locked targets, <b>TARGET</b> picks the next enemy, <b>BOOST</b> to outrun.<br>
+  <div class="how">Left thumb steers the ship (pitch &amp; yaw). <b>Right side:</b> touch any free spot and drag <b>up</b> to speed up, <b>down</b> to slow down or stop. <b>FIRE</b> lasers, <b>MISSILE</b> for locked targets, <b>TARGET</b> picks the next enemy, <b>BOOST</b> to outrun.<br>
   Take missions at stations, hunt pirates, mine asteroids with your lasers, and spend credits on upgrades.<br>Fly close to a station and press <b>DOCK</b>.</div>
   <div class="go" id="go-start">LAUNCH</div>
 </div></div>
@@ -450,11 +450,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=144', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=146', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=144'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=146'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>
