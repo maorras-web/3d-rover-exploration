@@ -506,14 +506,16 @@ const _col = new THREE.Color();
 
 // ---------- bolts (lasers) ----------
 const BOLT_N = 120, bolts = [];
-const boltMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.34, 0.34, 9), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, fog: false }), BOLT_N);
+const boltMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 0.7, 17), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, fog: false }), BOLT_N);
+const boltHalo = new THREE.InstancedMesh(new THREE.BoxGeometry(1.9, 1.9, 19), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }), BOLT_N);
+boltHalo.frustumCulled = false; boltHalo.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(boltHalo);
 boltMesh.frustumCulled = false; boltMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(boltMesh);
-for (let i = 0; i < BOLT_N; i++) { bolts.push({ pos: V3(), vel: V3(), life: 0, enemy: false, dmg: 0 }); boltMesh.setColorAt(i, _col.set(0xffffff)); }
+for (let i = 0; i < BOLT_N; i++) { bolts.push({ pos: V3(), vel: V3(), life: 0, enemy: false, dmg: 0 }); boltMesh.setColorAt(i, _col.set(0xffffff)); boltHalo.setColorAt(i, _col.set(0x6dfcff)); }
 let boltNext = 0;
 function fireBolt(pos, dir, speed, dmg, enemy) {
   const b = bolts[boltNext]; boltNext = (boltNext + 1) % BOLT_N;
   b.pos.copy(pos); b.vel.copy(dir).multiplyScalar(speed); b.life = enemy ? 2.6 : 1.7; b.enemy = enemy; b.dmg = dmg;
-  boltMesh.setColorAt(bolts.indexOf(b), _col.set(enemy ? 0xff5a2a : 0x6dfcff)); boltMesh.instanceColor.needsUpdate = true;
+  { const bi = bolts.indexOf(b); _col.set(enemy ? 0xff5a2a : 0x6dfcff); boltMesh.setColorAt(bi, _col); boltHalo.setColorAt(bi, _col); boltMesh.instanceColor.needsUpdate = true; boltHalo.instanceColor.needsUpdate = true; }
 }
 
 // ---------- debris / sparks + explosions ----------
@@ -775,7 +777,26 @@ document.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // ---------- missiles ----------
 const MS_N = 4, missiles = [];
-for (let i = 0; i < MS_N; i++) { const g = new THREE.Group(); const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 2.4, 6), new THREE.MeshBasicMaterial({ color: 0xffe9b0, toneMapped: false, fog: false })); body.rotation.x = Math.PI / 2; g.add(body); const fl = glowSprite(0xffa040, 4, 0.9); fl.position.z = 1.4; g.add(fl); g.visible = false; scene.add(g); missiles.push({ g, vel: V3(), life: 0, target: null, active: false }); }
+// one shared rocket model: white body, red nose cone, four swept fins, dark nozzle - lit like the ship; the engine flame is a small additive cone
+const msGeo = (() => {
+  const parts = [], paint = (g, c) => { g = g.toNonIndexed(); g.deleteAttribute('uv'); const n = g.attributes.position.count, col = new Float32Array(n * 3), cc = new THREE.Color(c); for (let i = 0; i < n; i++) { col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b; } g.setAttribute('color', new THREE.BufferAttribute(col, 3)); parts.push(g); };
+  const cyl = (r0, r1, len, z, c) => { const g = new THREE.CylinderGeometry(r0, r1, len, 10); g.rotateX(Math.PI / 2); g.translate(0, 0, z); paint(g, c); };
+  cyl(0.3, 0.3, 2.2, 0, 0xe6ebf2);          // body
+  cyl(0.02, 0.3, 1.0, -1.6, 0xff4a2a);      // nose cone
+  cyl(0.31, 0.31, 0.16, -0.7, 0xff9a2a);    // warning band
+  cyl(0.24, 0.3, 0.3, 1.2, 0x39414f);       // nozzle
+  for (let k = 0; k < 4; k++) { const f = new THREE.BoxGeometry(0.05, 0.62, 0.8); f.translate(0, 0.5, 0.75); f.rotateZ(k * Math.PI / 2); paint(f, 0x5a6578); }
+  return mergeGeometries(parts);
+})();
+const msFlameMat = mkFlame(0xff9a30, 0.95);
+const msMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.3, emissive: 0x58627a });
+const msFlameGeo = new THREE.ConeGeometry(0.3, 1, 10, 1, true); msFlameGeo.rotateX(-Math.PI / 2); msFlameGeo.translate(0, 0, 0.5);
+for (let i = 0; i < MS_N; i++) {
+  const g = new THREE.Group(), body = new THREE.Mesh(msGeo, msMat); g.add(body);
+  const fc = new THREE.Mesh(msFlameGeo, msFlameMat); fc.position.z = 1.35; fc.scale.set(1, 1, 2.6); g.add(fc);
+  const fl = glowSprite(0xffa040, 2.6, 0.7); fl.position.z = 1.5; g.add(fl);
+  g.scale.setScalar(2.1); g.visible = false; scene.add(g); missiles.push({ g, body, fc, vel: V3(), life: 0, target: null, active: false });
+}
 function fireMissile() {
   if (S.mode !== 'fly') return; if (save.missiles <= 0) { toast('NO MISSILES', 0.8); return; }
   const m = missiles.find(x => !x.active); if (!m) return;
@@ -794,7 +815,7 @@ function updateMissiles(dt) {
       if (dist < 7) { damageEnemy(t, 70 + 15 * save.up[0], m.g.position); m.active = false; m.g.visible = false; explode(m.g.position, 9); continue; }
     }
     const sp = Math.min(330, m.vel.length() + 260 * dt); m.vel.copy(_a).multiplyScalar(sp); m.g.position.addScaledVector(m.vel, dt);
-    sparks(m.g.position, 1, 4, 0.5);
+    m.body.rotation.z += dt * 9; m.fc.scale.z = 2.2 + Math.random() * 0.9;
     if (m.life <= 0) { m.active = false; m.g.visible = false; explode(m.g.position, 5); }
   }
 }
@@ -1271,9 +1292,9 @@ function frame(now) {
     const b = bolts[i];
     if (b.life <= 0) { dummy.position.set(0, -99999, 0); dummy.scale.setScalar(0.0001); dummy.quaternion.identity(); }
     else { dummy.position.copy(b.pos); dummy.scale.set(1, 1, 1); _m.lookAt(_zero, b.vel, Y); dummy.quaternion.setFromRotationMatrix(_m); }
-    dummy.updateMatrix(); boltMesh.setMatrixAt(i, dummy.matrix);
+    dummy.updateMatrix(); boltMesh.setMatrixAt(i, dummy.matrix); boltHalo.setMatrixAt(i, dummy.matrix);
   }
-  boltMesh.instanceMatrix.needsUpdate = true;
+  boltMesh.instanceMatrix.needsUpdate = true; boltHalo.instanceMatrix.needsUpdate = true;
   for (const p of planets) {   // planets are unreachable scenery: drawn along the true direction but at an apparent distance that barely shrinks, with the size you would see from the real distance
     _a.copy(p.pos).sub(S.pos); const d = _a.length() || 1, dA = 2600 + 0.12 * d, a = Math.max(0.026, p.r / Math.max(d, p.r * 1.6) * (d > 4000 ? Math.pow(4000 / d, 1.5) : 1)), k = a * dA / p.r;   // like Galaxy on Fire 2: far planets are tiny discs (about 3 degrees), the one at your station is huge
     const w = clamp((d - 1500) / 2500, 0, 1) * 0.7; _pd.copy(_a).divideScalar(d).multiplyScalar(1 - w).addScaledVector(_pc.copy(p.pos).sub(PCEN).normalize(), w).normalize();   // far planets fan out around the system centre so they never bunch up on screen
