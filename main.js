@@ -83,7 +83,7 @@ class CheapGlow extends Pass {
    Light on purpose: instanced asteroids / bolts / loot, merged-geometry enemies, shader dust, no post-processing. */
 
 const $ = (id) => document.getElementById(id);
-const BUILD = 36;
+const BUILD = 37;
 
 // ---------- save ----------
 const SAVE_KEY = 'starCourier2';
@@ -846,6 +846,15 @@ const refreshHud = () => { $('credits').textContent = save.credits; };
 const updateMissHud = () => { $('miss-n').textContent = save.missiles; const e = document.getElementById('shop-ms'); if (e) e.textContent = 'MISSILES  ' + save.missiles; };
 refreshHud(); updateMissHud(); $('kills').textContent = save.kills;
 
+// station music: loops while docked, fades in/out; never starts until the player has tapped (browser rule)
+const stMus = new Audio('station.mp3?v=1'); stMus.loop = true; stMus.preload = 'auto'; stMus.volume = 0; let stVol = 0, stUnlocked = false;
+function unlockMusic() { if (stUnlocked) return; stUnlocked = true; try { const p = stMus.play(); if (p && p.then) p.then(() => { if (stVol <= 0.01) stMus.pause(); }).catch(() => { stUnlocked = false; }); } catch (e) { stUnlocked = false; } }
+function updateMusic(dt) {
+  const want = S.mode === 'dock' && save.snd && !document.hidden ? 0.6 : 0;
+  stVol += (want - stVol) * Math.min(1, dt * (want > stVol ? 0.9 : 2.2)); if (Math.abs(want - stVol) < 0.004) stVol = want;
+  if (stVol > 0.01) { if (stMus.paused) { try { const p = stMus.play(); if (p && p.catch) p.catch(() => { }); } catch (e) { } } stMus.volume = clamp(stVol, 0, 1); }
+  else if (!stMus.paused) { stMus.pause(); stMus.volume = 0; }
+}
 let shopTab = 'm';
 function openShop(msg) {
   S.mode = 'dock';
@@ -925,11 +934,11 @@ function launchFrom(i) {
   for (const a of asteroids) a.active = false; for (const l of loot) l.active = false;
   document.body.classList.remove('docked'); $('shop').classList.remove('show');
 }
-function startGame() { initAudio(); if (actx && actx.state === 'suspended') actx.resume(); $('start').classList.remove('show'); updateMissionHud(); launchFrom(0); offered = genMissions(0); }
+function startGame() { initAudio(); unlockMusic(); if (actx && actx.state === 'suspended') actx.resume(); $('start').classList.remove('show'); updateMissionHud(); launchFrom(0); offered = genMissions(0); }
 $('go-start').addEventListener('click', startGame);
 $('go-start').textContent = 'LAUNCH';
 { const b = document.createElement('div'); b.style.cssText = 'margin-top:10px;font-size:10px;opacity:.5;letter-spacing:2px'; b.textContent = 'BUILD ' + BUILD; $('go-start').parentNode.appendChild(b); }
-$('go-launch').addEventListener('click', () => { sfx('lock'); $('sh-dlg').style.display = 'flex'; });
+$('go-launch').addEventListener('click', () => { unlockMusic(); sfx('lock'); $('sh-dlg').style.display = 'flex'; });
 $('dlg-no').addEventListener('click', () => { $('sh-dlg').style.display = 'none'; });
 $('dlg-yes').addEventListener('click', () => { $('sh-dlg').style.display = 'none'; initAudio(); if (actx && actx.state === 'suspended') actx.resume(); launchFrom(S.station); });
 function wrecked() {
@@ -1213,7 +1222,7 @@ function frame(now) {
     const ns = nearStation(); $('b-dock').style.display = ns >= 0 ? 'flex' : 'none';
     if (++flip % 2 === 0) drawRadar();
   } else { for (const e of mk) e.style.display = 'none'; mkWp.style.display = 'none'; tgtEl.style.display = 'none'; leadEl.style.display = 'none'; $('b-dock').style.display = 'none'; }
-  updateAudio();
+  updateAudio(); updateMusic(dt);
   composer.render();
 }
 
