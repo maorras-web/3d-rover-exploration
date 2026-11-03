@@ -356,6 +356,12 @@
   #shop.show{display:block}
   #shop .panel{position:absolute;left:calc(112px + env(safe-area-inset-left));right:calc(10px + env(safe-area-inset-right));top:34px;bottom:auto;max-height:calc(100% - 76px);max-width:none;width:auto;padding:0;overflow:hidden;display:flex;flex-direction:column;background:linear-gradient(90deg,rgba(6,10,18,.55),rgba(6,10,18,.86) 40%);border:1px solid rgba(120,170,220,.25);border-radius:4px}
   #shop #shop-list{padding:8px 10px;flex:1;min-height:0}
+  #npc,#npc-tag{display:none;position:absolute;left:calc(104px + env(safe-area-inset-left));pointer-events:none}
+  #npc{top:30px;height:calc(100% - 70px);width:auto;max-width:44vw;filter:drop-shadow(0 4px 14px rgba(0,0,0,.7))}
+  #npc-tag{bottom:46px;padding:4px 12px 4px 10px;border-left:3px solid #35d4ff;background:linear-gradient(90deg,rgba(4,10,20,.92),rgba(4,10,20,.5));font:700 11px/1.25 system-ui,Arial,sans-serif;letter-spacing:1.5px;color:#9fe8ff;max-width:36vw}
+  #npc-tag i{display:block;font:italic 400 12px/1.3 system-ui,Arial,sans-serif;letter-spacing:0;color:#e8f1ff;margin-top:2px}
+  #shop.npcon #npc,#shop.npcon #npc-tag{display:block}
+  #shop.npcon .panel{left:calc(112px + 52vh + env(safe-area-inset-left))}
   @media (min-width:700px) and (min-aspect-ratio:6/5){#shop .panel{left:46vw}}
   #sh-top{position:absolute;left:calc(10px + env(safe-area-inset-left));right:calc(54px + env(safe-area-inset-right));top:0;height:34px;display:flex;align-items:center;gap:16px;background:linear-gradient(180deg,rgba(2,6,12,.85),rgba(2,6,12,0));font:700 11px system-ui,Arial,sans-serif;color:#bcd0e6;letter-spacing:.5px}
   #sh-top b{font-weight:800;color:#e6f0ff}#sh-top span{color:#ffe08a;opacity:.9}
@@ -440,6 +446,8 @@
   <div id="sh-nav">
     <button class="nv on" id="tab-h">Hangar</button><button class="nv" id="tab-u">Shop</button><button class="nv" id="tab-p">Map</button><button class="nv" id="tab-m">Missions</button><button class="nv" id="tab-s">Status</button>
   </div>
+  <img id="npc" src="merchant.webp" alt="">
+  <div id="npc-tag">VORR · TRADER<i>Best prices this side of the nebula, pilot.</i></div>
   <div class="panel" id="sh-panel"><div id="shop-list"></div></div>
   <div id="sh-bar"><span id="shop-ms">MISSILES</span><b id="shop-cr"></b><button id="go-launch" title="Depart"><svg viewBox="0 0 24 24"><path d="M5 12h12M12 6l6 6-6 6" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
   <div id="sh-dlg"><div class="dl"><div class="dt">Info</div><div class="dm">Depart the station?</div><div class="db"><button id="dlg-yes">Yes</button><button id="dlg-no">No</button></div></div></div>
@@ -480,11 +488,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=183', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=184', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=183'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=184'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>
