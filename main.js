@@ -285,11 +285,11 @@ const roverBody = (() => {
   const CYL = (r0, r1, h, seg) => new THREE.CylinderGeometry(r1, r0, h, seg || 10);   // r0 = front (-z) radius, r1 = rear (+z) radius once rotated along z
   const RX = Math.PI / 2;
   // "Warden": a bulbous armoured gunship - rounded dark hull with a glass dome, two long arms carrying cannon pods with glowing rings, twin thrusters at the rear
-  const HC = 0xc2ccdc, HD = 0x8794a8, GUN = 0x4a5466, ICE = 0x35d4ff;
+  const HC = 0xf0f3f8, HD = 0xc6ceda, GUN = 0x7c8698, ICE = 0x35d4ff;
   const loft = (secs, colFn, cx, cy, pw, mt) => {
     const N = 16, pos = [], idx = [];
     secs.forEach(s => { for (let j = 0; j < N; j++) { const a = j / N * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a), e = 2 / (pw || 2.6); pos.push(cx + Math.sign(c) * Math.pow(Math.abs(c), e) * s[1], cy + s[3] + Math.sign(sn) * Math.pow(Math.abs(sn), e) * s[2], s[0]); } });
-    for (let i = 0; i < secs.length - 1; i++) for (let j = 0; j < N; j++) { const a = i * N + j, b = i * N + (j + 1) % N, c = (i + 1) * N + j, d = (i + 1) * N + (j + 1) % N; idx.push(a, c, b, b, c, d); }
+    for (let i = 0; i < secs.length - 1; i++) for (let j = 0; j < N; j++) { const a = i * N + j, b = i * N + (j + 1) % N, c = (i + 1) * N + j, d = (i + 1) * N + (j + 1) % N; idx.push(a, b, c, b, d, c); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
     const ng = g.toNonIndexed(), p = ng.attributes.position, col = new Float32Array(p.count * 3), cc = new THREE.Color();
     for (let i = 0; i < p.count; i++) { cc.set(colFn(p.getZ(i), p.getY(i) - cy)); col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b; }
@@ -314,11 +314,37 @@ const roverBody = (() => {
     put(glow, new THREE.TorusGeometry(0.3, 0.03, 6, 18), ICE, [s * 2.6, -0.05, -0.75]);
     loft([[-0.5, 0.02, 0.04, 0], [0, 0.03, 0.4, 0], [0.8, 0.03, 0.34, 0], [1.1, 0.02, 0.04, 0]], () => HC, s * 2.6, 0.32, 2.0);   // blade fin
   }
-  for (const s of [-1, 1]) loft([[-0.63, 0.28, 0.2, 0], [-0.3, 0.3, 0.22, 0], [0.3, 0.3, 0.22, 0], [0.63, 0.26, 0.2, 0]], () => HD, 0, 0, 2.2,
-    new THREE.Matrix4().makeTranslation(s * 1.12, -0.25, 2.4).multiply(new THREE.Matrix4().makeRotationY(s * Math.PI / 2)));   // engine pylon: a clean strut from hull to nacelle
+  for (const s of [-1, 1]) loft([[-0.63, 0.4, 0.3, 0], [-0.3, 0.42, 0.33, 0], [0.3, 0.42, 0.33, 0], [0.63, 0.38, 0.3, 0]], () => HD, 0, 0, 2.2,
+    new THREE.Matrix4().makeTranslation(s * 1.22, -0.25, 1.75).multiply(new THREE.Matrix4().makeRotationY(s * Math.PI / 2)));   // engine pylon: a clean strut from hull to nacelle
   const sface = (c0, c1) => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 32); gr.addColorStop(0, c0); gr.addColorStop(1, c1); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); return c; };
   const senv = new THREE.CubeTexture([sface('#e8eef8', '#3a4458'), sface('#d5dcea', '#2e374a'), sface('#ffffff', '#f2f6ff'), sface('#10141c', '#1c222e'), sface('#dbe2ee', '#3a4458'), sface('#e8eef8', '#323c50')]); senv.colorSpace = THREE.SRGBColorSpace; senv.needsUpdate = true;
   const bgeo = mergeGeometries(body);
+  // armour-plate texture: drawn once in code (panels, seams, rivets, vents, scratches, hazard marks) and mapped per triangle along its dominant axis
+  const drawPlates = (x, W, H, bump) => {
+    let sd = 11; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    x.fillStyle = bump ? '#bbb' : '#d5dae4'; x.fillRect(0, 0, W, H);
+    const panels = []; const split = (px, py, pw, ph, d) => { if (d > 3 || (d > 1 && rn() < 0.22) || pw < 70 || ph < 70) { panels.push([px, py, pw, ph]); return; } if ((pw > ph) ^ (rn() < 0.2)) { const c = pw * (0.35 + rn() * 0.3); split(px, py, c, ph, d + 1); split(px + c, py, pw - c, ph, d + 1); } else { const c = ph * (0.35 + rn() * 0.3); split(px, py, pw, c, d + 1); split(px, py + c, pw, ph - c, d + 1); } };
+    split(0, 0, W, H, 0);
+    for (const [px, py, pw, ph] of panels) {
+      const t = rn(); x.fillStyle = bump ? `rgb(${170 + t * 40 | 0},${170 + t * 40 | 0},${170 + t * 40 | 0})` : `rgb(${196 + t * 40 | 0},${204 + t * 36 | 0},${216 + t * 30 | 0})`; x.fillRect(px + 2, py + 2, pw - 4, ph - 4);
+      x.strokeStyle = bump ? '#222' : '#4c5466'; x.lineWidth = bump ? 7 : 5; x.strokeRect(px + 2.5, py + 2.5, pw - 5, ph - 5);
+      if (!bump) { x.strokeStyle = 'rgba(255,255,255,.35)'; x.lineWidth = 1.5; x.strokeRect(px + 5, py + 5, pw - 10, ph - 10); }
+      x.fillStyle = bump ? '#eee' : '#6c7486'; for (const [rx, ry] of [[9, 9], [pw - 9, 9], [9, ph - 9], [pw - 9, ph - 9]]) { x.beginPath(); x.arc(px + rx, py + ry, 2.2, 0, 7); x.fill(); }   // rivets
+      const k = rn();
+      if (k < 0.2 && pw > 90 && ph > 90) { x.strokeStyle = bump ? '#222' : '#2c3240'; x.lineWidth = 3; for (let i = 0; i < 5; i++) { const yy = py + ph * 0.3 + i * ph * 0.1; x.beginPath(); x.moveTo(px + pw * 0.2, yy); x.lineTo(px + pw * 0.8, yy); x.stroke(); } }   // vent slats
+      else if (k < 0.32 && !bump) { x.fillStyle = rn() < 0.5 ? 'rgba(255,120,40,.85)' : 'rgba(53,212,255,.8)'; x.fillRect(px + pw * 0.15, py + ph * 0.45, pw * 0.7, 7); }   // marking stripe
+    }
+    x.lineCap = 'round'; for (let i = 0; i < 40; i++) { const sx = rn() * W, sy = rn() * H, a = rn() * 6.28, l = 6 + rn() * 26; x.strokeStyle = bump ? 'rgba(20,20,20,.5)' : (rn() < 0.5 ? 'rgba(40,46,60,.35)' : 'rgba(255,255,255,.35)'); x.lineWidth = 1; x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx + Math.cos(a) * l, sy + Math.sin(a) * l); x.stroke(); }   // scratches
+  };
+  const plateMap = canvasTex(512, 512, (x, w, h) => drawPlates(x, w, h, false), [1, 1]);
+  const plateBump = canvasTex(512, 512, (x, w, h) => drawPlates(x, w, h, true), [1, 1]); plateBump.colorSpace = THREE.NoColorSpace;
+  plateMap.anisotropy = plateBump.anisotropy = 4;
+  { const p = bgeo.attributes.position, uv = new Float32Array(p.count * 2), S3 = 1 / 3.2, a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+    for (let i = 0; i < p.count; i += 3) {
+      a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2); n.crossVectors(b.sub(a), c.sub(a)); const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
+      for (let k = 0; k < 3; k++) { const X = p.getX(i + k), Y = p.getY(i + k), Z = p.getZ(i + k); let u, v; if (ay >= ax && ay >= az) { u = X; v = Z; } else if (ax >= az) { u = Z; v = Y; } else { u = X; v = Y; } uv[(i + k) * 2] = u * S3; uv[(i + k) * 2 + 1] = v * S3; }
+    }
+    bgeo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); }
   { // bake light into the vertex colours: bright on top faces, dark underneath and in the belly = strong depth for free
     const nr = bgeo.attributes.normal, cl = bgeo.attributes.color, ps = bgeo.attributes.position;
     for (let i = 0; i < nr.count; i++) {
@@ -328,11 +354,11 @@ const roverBody = (() => {
       if (ny < -0.45) f *= 0.62; if (py < Yc - 0.4) f *= 0.78;                        // dark belly
       if (nz > 0.6) f *= 0.7;                                                         // rear faces in shade
       f *= 1 - 0.22 * Math.min(1, Math.max(0, (px - 0.9) / 0.5)) * (ny < 0.3 ? 1 : 0.4); // occlusion where arms meet the hull
-      cl.setXYZ(i, cl.getX(i) * f, cl.getY(i) * f, cl.getZ(i) * f);
+      f *= 1.7; cl.setXYZ(i, Math.min(1, cl.getX(i) * f), Math.min(1, cl.getY(i) * f), Math.min(1, cl.getZ(i) * f));
     }
   }
-  const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.24, metalness: 0.8, flatShading: false, envMap: senv, envMapIntensity: 1.1, emissive: 0x10141f });
-  bmat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float rimK = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 2.6); totalEmissiveRadiance += vec3(0.1, 0.55, 0.85) * rimK * 0.8;'); };   // cyan rim light round the silhouette
+  const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, map: plateMap, bumpMap: plateBump, bumpScale: 2.6, roughness: 0.3, metalness: 0.7, flatShading: false, envMap: senv, envMapIntensity: 1.3, emissive: 0x2a303c });
+  bmat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float rimK = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 2.6); totalEmissiveRadiance += vec3(0.1, 0.55, 0.85) * rimK * 0.5;'); };   // cyan rim light round the silhouette
   const bm = new THREE.Mesh(bgeo, bmat);
   const gm = new THREE.Mesh(mergeGeometries(glow), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, fog: false }));
   const cm = new THREE.Mesh(mergeGeometries(glass), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.08, metalness: 0.9, emissive: 0x0b2a46, transparent: true, opacity: 0.88 }));
@@ -341,12 +367,12 @@ const roverBody = (() => {
 shipBody.add(roverBody);
 const hoverPads = [];
 // twin engines at the rear: dark nacelles with a glowing nozzle ring; the thrust flames come out of them
-const engMat = new THREE.MeshStandardMaterial({ color: 0x9aa6ba, roughness: 0.4, metalness: 0.3, emissive: 0x38445c, side: THREE.DoubleSide });
+const engMat = new THREE.MeshStandardMaterial({ color: 0xbcc5d4, roughness: 0.4, metalness: 0.12, emissive: 0x3a4458, side: THREE.DoubleSide });
 const nozMat = new THREE.MeshStandardMaterial({ color: 0x15191f, roughness: 0.6, metalness: 0.4, emissive: 0x05070a, side: THREE.DoubleSide });
 const ringMat = new THREE.MeshBasicMaterial({ color: 0x7fe9ff });
 const flameTex = canvasTex(8, 64, (x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.3, 'rgba(255,255,255,.18)'); g.addColorStop(0.7, 'rgba(255,255,255,.7)'); g.addColorStop(1, 'rgba(255,255,255,1)'); x.fillStyle = g; x.fillRect(0, 0, w, h); });
 const mkFlame = (c, o) => new THREE.MeshBasicMaterial({ color: c, map: flameTex, transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide });
-const flameMats = [mkFlame(0x2a9dff, 0.8), mkFlame(0x7fe9ff, 0.9), mkFlame(0xffffff, 1)];   // outer glow, middle, white-hot core
+const flameMats = [mkFlame(0x2a9dff, 0.5), mkFlame(0x7fe9ff, 0.55), mkFlame(0xffffff, 0.8)];   // outer glow, middle, white-hot core
 const flameCols = [[0x2a9dff, 0xff5a1a], [0x7fe9ff, 0xffb050], [0xffffff, 0xfff0c0]];
 const FL = [{ r: 0.5, len: 1.9, k: 0 }, { r: 0.33, len: 1.4, k: 1 }, { r: 0.18, len: 0.9, k: 2 }];
 const flameCones = [];
@@ -354,10 +380,10 @@ const flameCones = [];
 const engProf = [[0.0, -0.78], [0.3, -0.76], [0.52, -0.66], [0.5, -0.5], [0.45, -0.3], [0.47, 0.1], [0.55, 0.15], [0.55, 0.3], [0.44, 0.34], [0.42, 0.55], [0.5, 0.72], [0.6, 0.9], [0.55, 0.92], [0.46, 0.8], [0.0, 0.8]].map(p => new THREE.Vector2(p[0], p[1]));
 const engGeo = new THREE.LatheGeometry(engProf, 20);
 const engPod = new THREE.SphereGeometry(1, 14, 10);
-const bandMat = new THREE.MeshStandardMaterial({ color: 0x2a3140, roughness: 0.5, metalness: 0.5, emissive: 0x0a0e16 });
+const bandMat = new THREE.MeshStandardMaterial({ color: 0x6a7488, roughness: 0.5, metalness: 0.2, emissive: 0x1c2230 });
 const coreMat = new THREE.MeshBasicMaterial({ color: 0x2a8fc0, toneMapped: false, fog: false });
 for (const s of [-1, 1]) {
-  const e = new THREE.Group(); e.position.set(s * 1.75, -0.25, 3.0);
+  const e = new THREE.Group(); e.position.set(s * 1.85, -0.25, 2.2);
   const body = new THREE.Mesh(engGeo, engMat); body.rotation.x = Math.PI / 2; e.add(body);
   const lipBand = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.04, 6, 24), ringMat); lipBand.position.z = -0.66; e.add(lipBand);              // glowing intake lip
   const band = new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.05, 6, 24), bandMat); band.position.z = 0.22; e.add(band);                           // armoured band
@@ -366,8 +392,8 @@ for (const s of [-1, 1]) {
   FL.forEach((L, k) => { const fc = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 16, 1, true), flameMats[k]); fc.rotation.x = Math.PI / 2; fc.position.set(0, 0, 0.95); fc.userData = { L, ph: s * 1.7 + k }; e.add(fc); flameCones.push(fc); });
   shipBody.add(e);
 }
-const flames = [-1, 1].map(s => { const f = glowSprite(0x7fe9ff, 2.0, 0.8); f.position.set(s * 1.75, -0.25, 4.15); shipBody.add(f); return f; });
-const flameCore = [-1, 1].map(s => { const f = glowSprite(0xffffff, 0.9, 0.9); f.position.set(s * 1.75, -0.25, 3.9); shipBody.add(f); return f; });
+const flames = [-1, 1].map(s => { const f = glowSprite(0x7fe9ff, 2.0, 0.42); f.position.set(s * 1.85, -0.25, 3.35); shipBody.add(f); return f; });
+const flameCore = [-1, 1].map(s => { const f = glowSprite(0xffffff, 0.9, 0.6); f.position.set(s * 1.85, -0.25, 3.1); shipBody.add(f); return f; });
 
 // ---------- hangar room (Galaxy-on-Fire-style): far away from the world, enclosed, only drawn while docked ----------
 const HP = V3(0, -6000, 0);
@@ -1268,7 +1294,7 @@ function frame(now) {
   const vis = S.mode !== 'wreck', blink = S.inv > 0 && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
   { const on = S.mode !== 'dock'; flames.forEach(f => f.visible = on); flameCore.forEach(f => f.visible = on); flameCones.forEach(f => f.visible = on); hoverPads.forEach(p => p.visible = on); }
   const fl = 0.7 + S.speed / 220 + (S.boosting ? 0.9 : 0), flick = 0.9 + Math.sin(tAcc * 50) * 0.1;
-  flames.forEach(f => { f.scale.setScalar(2.2 * fl * flick); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => f.scale.setScalar(0.9 * fl * flick)); flameMats.forEach((fm, k) => fm.color.setHex(flameCols[k][S.boosting ? 1 : 0])); flameCones.forEach(c => { const u = c.userData, L = u.L, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + u.ph) + 0.05 * Math.sin(tAcc * 91 + u.ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); c.scale.set(r, len, r); c.position.z = 0.9 + len / 2; });
+  flames.forEach(f => { f.scale.setScalar(1.9 * fl * flick); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => f.scale.setScalar(0.7 * fl * flick)); flameMats.forEach((fm, k) => fm.color.setHex(flameCols[k][S.boosting ? 1 : 0])); flameCones.forEach(c => { const u = c.userData, L = u.L, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + u.ph) + 0.05 * Math.sin(tAcc * 91 + u.ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); c.scale.set(r, len, r); c.position.z = 0.9 + len / 2; });
   for (const e of enemies) if (e.active) { e.g.children[1].scale.setScalar(5 + Math.sin(tAcc * 40 + e.pos.x) * 0.6); }
   S.camQ.slerp(S.q, 1 - Math.exp(-7 * dt));
   const cd = 17 + S.speed * 0.014;
