@@ -286,56 +286,36 @@ const roverBody = (() => {
   const RX = Math.PI / 2;
   // "Warden": a bulbous armoured gunship - rounded dark hull with a glass dome, two long arms carrying cannon pods with glowing rings, twin thrusters at the rear
   const HC = 0xc2ccdc, HD = 0x8794a8, GUN = 0x4a5466, ICE = 0x35d4ff;
-  const loft = (secs, colFn, cx, cy, pw) => {
+  const loft = (secs, colFn, cx, cy, pw, mt) => {
     const N = 16, pos = [], idx = [];
     secs.forEach(s => { for (let j = 0; j < N; j++) { const a = j / N * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a), e = 2 / (pw || 2.6); pos.push(cx + Math.sign(c) * Math.pow(Math.abs(c), e) * s[1], cy + s[3] + Math.sign(sn) * Math.pow(Math.abs(sn), e) * s[2], s[0]); } });
     for (let i = 0; i < secs.length - 1; i++) for (let j = 0; j < N; j++) { const a = i * N + j, b = i * N + (j + 1) % N, c = (i + 1) * N + j, d = (i + 1) * N + (j + 1) % N; idx.push(a, c, b, b, c, d); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
     const ng = g.toNonIndexed(), p = ng.attributes.position, col = new Float32Array(p.count * 3), cc = new THREE.Color();
     for (let i = 0; i < p.count; i++) { cc.set(colFn(p.getZ(i), p.getY(i) - cy)); col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b; }
-    ng.setAttribute('color', new THREE.BufferAttribute(col, 3)); ng.deleteAttribute('uv'); body.push(ng);
+    ng.setAttribute('color', new THREE.BufferAttribute(col, 3)); ng.deleteAttribute('uv'); if (mt) { ng.applyMatrix4(mt); ng.computeVertexNormals(); } body.push(ng);
   };
   // hull: broad rounded front tapering to the rear; panel-grey top, dark belly
-  loft([[-3.7, 0.06, 0.06, 0], [-3.3, 0.5, 0.28, 0], [-2.6, 0.95, 0.5, 0.02], [-1.6, 1.32, 0.66, 0.05], [-0.2, 1.3, 0.68, 0.05], [1.2, 1.05, 0.6, 0.03], [2.3, 0.78, 0.48, 0]],
-    (z, y) => y < -0.3 ? GUN : (y > 0.3 ? HC : HD), 0, Yc, 2.5);
-  // armour plating, spine and accent lights on the roof
-  put(body, B(1.1, 0.07, 1.5), GUN, [0, Yc + 0.5, 0.5]); put(body, B(0.34, 0.1, 2.5), HD, [0, Yc + 0.56, 0.7]);
-  put(body, B(0.7, 0.07, 0.9), GUN, [0, Yc + 0.42, -0.9]); put(glow, B(0.18, 0.03, 1.0), ICE, [0, Yc + 0.62, 1.0]);
-  put(body, B(1.3, 0.14, 3.0), GUN, [0, Yc - 0.56, 0.2]);
-  for (const s of [-1, 1]) {
-    put(glow, B(0.04, 0.04, 2.8), ICE, [s * 1.12, Yc + 0.2, -0.7], [0, s * -0.06, 0]);
-    put(body, B(0.5, 0.06, 1.2), GUN, [s * 0.55, Yc + 0.46, -1.8]);
-  }
-  // shoulder fairings, chin armour and panel seams give the hull real depth
-  for (const s of [-1, 1]) loft([[-2.4, 0.04, 0.04, 0], [-1.6, 0.28, 0.3, 0], [0, 0.4, 0.38, 0], [1.2, 0.3, 0.3, 0], [1.9, 0.05, 0.05, 0]], () => HD, s * 1.25, Yc + 0.12, 2.4);
-  loft([[-3.5, 0.04, 0.04, 0], [-2.5, 0.55, 0.2, 0], [-1, 0.7, 0.22, 0], [0.5, 0.42, 0.15, 0]], () => GUN, 0, Yc - 0.38, 2.4);
-  for (let k = 0; k < 6; k++) put(body, B(1.15 - k * 0.06, 0.03, 0.05), GUN, [0, Yc + 0.6, -0.5 + k * 0.42]);
-  // extra relief: stepped dorsal ridge, side intakes with dark mouths, raised shoulder plates, belly keel, arm struts
-  put(body, B(0.5, 0.18, 1.7), HD, [0, Yc + 0.66, 1.4]); put(body, B(0.22, 0.3, 1.1), GUN, [0, Yc + 0.8, 1.9]);
-  put(body, B(0.7, 0.06, 0.7), HC, [0, Yc + 0.46, 2.0]);
-  for (const s of [-1, 1]) {
-    put(body, B(0.55, 0.34, 1.0), HC, [s * 1.0, Yc + 0.32, 1.0], [0, s * -0.08, 0]); put(body, B(0.4, 0.2, 0.06), GUN, [s * 1.0, Yc + 0.32, 0.48]);
-    put(body, B(0.7, 0.1, 1.3), GUN, [s * 0.8, Yc + 0.52, -0.6], [0, 0, s * -0.12]);
-    put(body, B(0.16, 0.5, 1.3), GUN, [s * 1.5, Yc - 0.28, 0.5]);
-    put(body, B(0.08, 0.28, 1.0), HC, [s * 2.2, Yc - 0.12, 0.1], [0, s * 0.36, 0]);
-  }
-  put(body, B(0.2, 0.28, 3.4), GUN, [0, Yc - 0.78, 0.1]);
-  // glass dome cockpit
+  loft([[-3.7, 0.06, 0.06, 0], [-3.3, 0.5, 0.28, 0], [-2.6, 0.95, 0.5, 0.02], [-1.62, 1.32, 0.66, 0.05], [-1.56, 1.32, 0.66, 0.05], [-0.2, 1.3, 0.68, 0.05], [0.58, 1.2, 0.65, 0.04], [0.64, 1.2, 0.65, 0.04], [1.2, 1.05, 0.6, 0.03], [1.76, 0.92, 0.55, 0.02], [1.82, 0.92, 0.55, 0.02], [2.3, 0.78, 0.48, 0], [2.45, 0.2, 0.2, 0], [2.5, 0.03, 0.03, 0]],
+    (z, y) => (Math.abs(z + 1.59) < 0.04 || Math.abs(z - 0.61) < 0.04 || Math.abs(z - 1.79) < 0.04) ? GUN : (y < -0.3 ? GUN : (y > 0.3 ? HC : HD)), 0, Yc, 2.5);
+  // smooth sculpted parts only (no stacked boxes): dorsal spine, shoulder fairings, chin, glass dome, swept arms, cannon pods - all lofted
+  put(glow, B(0.04, 0.04, 2.8), ICE, [-1.12, Yc + 0.2, -0.7], [0, 0.06, 0]); put(glow, B(0.04, 0.04, 2.8), ICE, [1.12, Yc + 0.2, -0.7], [0, -0.06, 0]);
+  put(glow, B(0.12, 0.03, 1.6), ICE, [0, Yc + 0.66, 0.9]);
   put(glass, new THREE.SphereGeometry(0.5, 16, 12), 0x24405f, [0, Yc + 0.52, -1.9], 0, [0.85, 0.55, 1.75]);
-  put(body, B(0.9, 0.08, 2.2), GUN, [0, Yc + 0.38, -1.9]);
-  // two long arms sweeping out and forward, each ending in a cannon pod with a glowing ring (lasers leave from x = +-2.6)
   for (const s of [-1, 1]) {
-    put(body, B(0.95, 0.5, 1.5), HD, [s * 1.15, Yc + 0.08, 0.5]);                                                   // arm root block
-    put(body, B(1.75, 0.3, 0.52), HC, [s * 1.85, Yc + 0.04, 0.22], [0, s * 0.36, s * -0.1]);                       // arm
-    put(body, B(1.0, 0.05, 0.28), GUN, [s * 1.85, Yc + 0.21, 0.22], [0, s * 0.36, s * -0.1]);                       // arm plate
-    put(body, CYL(0.3, 0.38, 2.4, 12), HD, [s * 2.6, -0.05, -0.3], [RX, 0, 0]);                                    // pod
-    put(body, CYL(0.4, 0.4, 0.5, 12), HC, [s * 2.6, -0.05, 0.6], [RX, 0, 0]);                                      // pod rear collar
-    put(body, new THREE.CylinderGeometry(0.07, 0.07, 1.2, 8), GUN, [s * 2.6, -0.05, -1.7], [RX, 0, 0]);             // barrel
+    // swept arm: flat tapered blade from the hull to the pod, blending into both
+    const th = Math.atan2(1.45 * s, -0.5);
+    loft([[-0.95, 0.05, 0.05, 0], [-0.6, 0.42, 0.13, 0], [0, 0.55, 0.17, 0], [0.6, 0.42, 0.13, 0], [0.95, 0.05, 0.05, 0]], (z) => z > 0.2 ? HC : HD, 0, 0, 2.4, new THREE.Matrix4().makeTranslation(s * 1.85, Yc + 0.04, 0.25).multiply(new THREE.Matrix4().makeRotationY(th)));
+    // cannon pod: one smooth capsule with a thicker rear collar
+    loft([[-2.4, 0.05, 0.05, 0], [-2.0, 0.2, 0.2, 0], [-1.2, 0.3, 0.3, 0], [0.3, 0.36, 0.36, 0], [0.75, 0.42, 0.42, 0], [1.05, 0.3, 0.3, 0]], (z) => z > 0.2 ? HC : HD, s * 2.6, -0.05, 2.0);
+    put(body, new THREE.CylinderGeometry(0.07, 0.07, 1.2, 8), GUN, [s * 2.6, -0.05, -1.7], [RX, 0, 0]);               // barrel
     put(glow, new THREE.CylinderGeometry(0.06, 0.06, 0.1, 8), 0xffffff, [s * 2.6, -0.05, -2.32], [RX, 0, 0]);        // muzzle
     put(glow, new THREE.TorusGeometry(0.34, 0.05, 6, 18), ICE, [s * 2.6, -0.05, 0.9]);                              // glowing ring
     put(glow, new THREE.TorusGeometry(0.3, 0.03, 6, 18), ICE, [s * 2.6, -0.05, -0.75]);
-    put(body, B(0.06, 0.8, 0.95), HC, [s * 2.76, 0.42, 0.3], [0, 0, s * 0.15]);                                    // blade fin on top of the pod
+    loft([[-0.5, 0.02, 0.04, 0], [0, 0.03, 0.4, 0], [0.8, 0.03, 0.34, 0], [1.1, 0.02, 0.04, 0]], () => HC, s * 2.6, 0.32, 2.0);   // blade fin
   }
+  for (const s of [-1, 1]) loft([[-0.63, 0.28, 0.2, 0], [-0.3, 0.3, 0.22, 0], [0.3, 0.3, 0.22, 0], [0.63, 0.26, 0.2, 0]], () => HD, 0, 0, 2.2,
+    new THREE.Matrix4().makeTranslation(s * 1.12, -0.25, 2.4).multiply(new THREE.Matrix4().makeRotationY(s * Math.PI / 2)));   // engine pylon: a clean strut from hull to nacelle
   const sface = (c0, c1) => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 32); gr.addColorStop(0, c0); gr.addColorStop(1, c1); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); return c; };
   const senv = new THREE.CubeTexture([sface('#e8eef8', '#3a4458'), sface('#d5dcea', '#2e374a'), sface('#ffffff', '#f2f6ff'), sface('#10141c', '#1c222e'), sface('#dbe2ee', '#3a4458'), sface('#e8eef8', '#323c50')]); senv.colorSpace = THREE.SRGBColorSpace; senv.needsUpdate = true;
   const bgeo = mergeGeometries(body);
@@ -361,7 +341,7 @@ const roverBody = (() => {
 shipBody.add(roverBody);
 const hoverPads = [];
 // twin engines at the rear: dark nacelles with a glowing nozzle ring; the thrust flames come out of them
-const engMat = new THREE.MeshStandardMaterial({ color: 0x4a535c, roughness: 0.45, metalness: 0.6, emissive: 0x1c232b });
+const engMat = new THREE.MeshStandardMaterial({ color: 0x9aa6ba, roughness: 0.4, metalness: 0.3, emissive: 0x38445c, side: THREE.DoubleSide });
 const nozMat = new THREE.MeshStandardMaterial({ color: 0x15191f, roughness: 0.6, metalness: 0.4, emissive: 0x05070a, side: THREE.DoubleSide });
 const ringMat = new THREE.MeshBasicMaterial({ color: 0x7fe9ff });
 const flameTex = canvasTex(8, 64, (x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.3, 'rgba(255,255,255,.18)'); g.addColorStop(0.7, 'rgba(255,255,255,.7)'); g.addColorStop(1, 'rgba(255,255,255,1)'); x.fillStyle = g; x.fillRect(0, 0, w, h); });
@@ -370,18 +350,24 @@ const flameMats = [mkFlame(0x2a9dff, 0.8), mkFlame(0x7fe9ff, 0.9), mkFlame(0xfff
 const flameCols = [[0x2a9dff, 0xff5a1a], [0x7fe9ff, 0xffb050], [0xffffff, 0xfff0c0]];
 const FL = [{ r: 0.5, len: 1.9, k: 0 }, { r: 0.33, len: 1.4, k: 1 }, { r: 0.18, len: 0.9, k: 2 }];
 const flameCones = [];
+// engine nacelle profile (radius, along-axis) turned into one smooth lathe: flared intake lip, slim body, step, bell-shaped nozzle
+const engProf = [[0.0, -0.78], [0.3, -0.76], [0.52, -0.66], [0.5, -0.5], [0.45, -0.3], [0.47, 0.1], [0.55, 0.15], [0.55, 0.3], [0.44, 0.34], [0.42, 0.55], [0.5, 0.72], [0.6, 0.9], [0.55, 0.92], [0.46, 0.8], [0.0, 0.8]].map(p => new THREE.Vector2(p[0], p[1]));
+const engGeo = new THREE.LatheGeometry(engProf, 20);
+const engPod = new THREE.SphereGeometry(1, 14, 10);
+const bandMat = new THREE.MeshStandardMaterial({ color: 0x2a3140, roughness: 0.5, metalness: 0.5, emissive: 0x0a0e16 });
+const coreMat = new THREE.MeshBasicMaterial({ color: 0x2a8fc0, toneMapped: false, fog: false });
 for (const s of [-1, 1]) {
-  const e = new THREE.Group(); e.position.set(s * 1.3, -0.35, 2.55);
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.42, 1.3, 16), engMat); body.rotation.x = Math.PI / 2; e.add(body);
-  const intake = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.5, 0.22, 16), engMat); intake.rotation.x = Math.PI / 2; intake.position.z = -0.55; e.add(intake);
-  const noz = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.5, 0.35, 16, 1, true), nozMat); noz.rotation.x = Math.PI / 2; noz.position.z = 0.78; e.add(noz);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.035, 6, 20), ringMat); ring.position.z = 0.95; e.add(ring);
+  const e = new THREE.Group(); e.position.set(s * 1.75, -0.25, 3.0);
+  const body = new THREE.Mesh(engGeo, engMat); body.rotation.x = Math.PI / 2; e.add(body);
+  const lipBand = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.04, 6, 24), ringMat); lipBand.position.z = -0.66; e.add(lipBand);              // glowing intake lip
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.05, 6, 24), bandMat); band.position.z = 0.22; e.add(band);                           // armoured band
+  const core = new THREE.Mesh(new THREE.CircleGeometry(0.43, 20), coreMat); core.position.z = 0.62; e.add(core);                                       // white-hot throat inside the nozzle
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.04, 6, 24), ringMat); ring.position.z = 0.91; e.add(ring);                            // glowing nozzle rim
   FL.forEach((L, k) => { const fc = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 16, 1, true), flameMats[k]); fc.rotation.x = Math.PI / 2; fc.position.set(0, 0, 0.95); fc.userData = { L, ph: s * 1.7 + k }; e.add(fc); flameCones.push(fc); });
-  const strut = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 0.9), engMat); strut.position.set(-s * 0.55, 0.15, -0.1); e.add(strut);
   shipBody.add(e);
 }
-const flames = [-1, 1].map(s => { const f = glowSprite(0x7fe9ff, 2.0, 0.8); f.position.set(s * 1.3, -0.35, 3.7); shipBody.add(f); return f; });
-const flameCore = [-1, 1].map(s => { const f = glowSprite(0xffffff, 0.9, 0.9); f.position.set(s * 1.3, -0.35, 3.45); shipBody.add(f); return f; });
+const flames = [-1, 1].map(s => { const f = glowSprite(0x7fe9ff, 2.0, 0.8); f.position.set(s * 1.75, -0.25, 4.15); shipBody.add(f); return f; });
+const flameCore = [-1, 1].map(s => { const f = glowSprite(0xffffff, 0.9, 0.9); f.position.set(s * 1.75, -0.25, 3.9); shipBody.add(f); return f; });
 
 // ---------- hangar room (Galaxy-on-Fire-style): far away from the world, enclosed, only drawn while docked ----------
 const HP = V3(0, -6000, 0);
