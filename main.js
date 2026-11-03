@@ -83,7 +83,7 @@ class CheapGlow extends Pass {
    Light on purpose: instanced asteroids / bolts / loot, merged-geometry enemies, shader dust, no post-processing. */
 
 const $ = (id) => document.getElementById(id);
-const BUILD = 28;
+const BUILD = 30;
 
 // ---------- save ----------
 const SAVE_KEY = 'starCourier2';
@@ -990,10 +990,20 @@ function sfx(kind, k) {
   const tone = (type, f0, f1, dur, vol, delay) => { const o = actx.createOscillator(), g = actx.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t + (delay || 0)); o.frequency.exponentialRampToValueAtTime(f1, t + (delay || 0) + dur); g.gain.setValueAtTime(vol, t + (delay || 0)); g.gain.exponentialRampToValueAtTime(0.001, t + (delay || 0) + dur); o.connect(g); g.connect(eng.master); o.start(t + (delay || 0)); o.stop(t + (delay || 0) + dur + 0.02); };
   const noise = (cut, dur, vol) => { const s = actx.createBufferSource(); s.buffer = eng.nb; const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; const g = actx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); s.connect(f); f.connect(g); g.connect(eng.master); s.start(t); };
   if (kind === 'laser') {
-    if (t - lastLaser < 0.07) return; lastLaser = t; const r = 0.94 + Math.random() * 0.12;
-    // "pew": a bright sine zap that drops fast, a soft triangle body underneath and a tiny high click at the start
-    tone('sine', 2100 * r, 330 * r, 0.16, 0.085); tone('triangle', 1050 * r, 160 * r, 0.2, 0.06);
-    const cs = actx.createBufferSource(); cs.buffer = eng.nb; const cf = actx.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 4200; cf.Q.value = 1.2; const cg = actx.createGain(); cg.gain.setValueAtTime(0.07, t); cg.gain.exponentialRampToValueAtTime(0.001, t + 0.035); cs.connect(cf); cf.connect(cg); cg.connect(eng.master); cs.start(t); cs.stop(t + 0.05);
+    if (t - lastLaser < 0.07) return; lastLaser = t; const r = 0.95 + Math.random() * 0.1;
+    // blaster: punchy low thump + a bright saw zap that sweeps down through a closing filter + a high sparkle + a tiny click
+    const sweep = (type, f0, f1, dur, vol, cut0, cut1, det) => {
+      const o = actx.createOscillator(), f = actx.createBiquadFilter(), g = actx.createGain(); o.type = type; o.detune.value = det || 0;
+      o.frequency.setValueAtTime(f0 * r, t); o.frequency.exponentialRampToValueAtTime(f1 * r, t + dur);
+      f.type = 'lowpass'; f.Q.value = 3; f.frequency.setValueAtTime(cut0, t); f.frequency.exponentialRampToValueAtTime(cut1, t + dur);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.006); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.connect(f); f.connect(g); g.connect(eng.master); o.start(t); o.stop(t + dur + 0.02);
+    };
+    sweep('sine', 240, 60, 0.11, 0.2, 2000, 2000);
+    sweep('sawtooth', 1700, 170, 0.2, 0.075, 5000, 500, 0);
+    sweep('sawtooth', 1700, 170, 0.2, 0.05, 5000, 500, 14);
+    sweep('triangle', 3400, 1100, 0.07, 0.04, 9000, 3000);
+    const cs = actx.createBufferSource(); cs.buffer = eng.nb; const cf = actx.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 3500; cf.Q.value = 0.9; const cg = actx.createGain(); cg.gain.setValueAtTime(0.09, t); cg.gain.exponentialRampToValueAtTime(0.001, t + 0.03); cs.connect(cf); cf.connect(cg); cg.connect(eng.master); cs.start(t); cs.stop(t + 0.04);
   }
   else if (kind === 'elaser') { tone('triangle', 520, 140, 0.16, 0.05); tone('sine', 1300, 300, 0.1, 0.025); }
   else if (kind === 'hit') noise(900, 0.3, 0.5);
@@ -1261,7 +1271,8 @@ function place(el, worldPos, label, edge, hideIfBehind) {
 function drawRadar() {
   const c = rctx, W = 208, R = 98, cx = 104, cy = 104, range = 1500, k = R / range;
   c.clearRect(0, 0, W, W);
-    qInv.copy(S.q).invert();
+  c.strokeStyle = 'rgba(126,240,255,.28)'; c.lineWidth = 1.5; c.beginPath(); c.arc(cx, cy, R * 0.5, 0, 7); c.stroke(); c.beginPath(); c.moveTo(cx - R, cy); c.lineTo(cx + R, cy); c.moveTo(cx, cy - R); c.lineTo(cx, cy + R); c.stroke();
+  qInv.copy(S.q).invert();
   const dot = (p, col, size, sq) => {
     _c.copy(p).sub(S.pos).applyQuaternion(qInv); let x = _c.x, z = _c.z, y = _c.y; const d = Math.hypot(x, z); let a = 1;
     if (d > range) { x *= range / d; z *= range / d; a = 0.45; }
