@@ -562,7 +562,7 @@ const SYS_K = 2.2;   // spread the system out: distance between stations x2.2 (p
 stations.forEach(s => s.pos.multiplyScalar(SYS_K));
 const planets = [];
 {
-  const geo = new THREE.SphereGeometry(1, 36, 22), atmGeo = new THREE.SphereGeometry(1.09, 28, 16);
+  const geo = new THREE.SphereGeometry(1, 36, 22);
   const rn = (n) => Math.random() * n;
   const tex = (kind) => {
     const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128; const x = cv.getContext('2d');
@@ -585,7 +585,6 @@ const planets = [];
   for (const s of stations) {
     const p = s.pl; p.pos = s.pos.clone().add(p.off); planets.push(p);
     const pm = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex(p.kind), fog: false })); pm.scale.setScalar(p.r); pm.position.copy(p.pos); pm.rotation.z = 0.3; scene.add(pm);
-    const am = new THREE.Mesh(atmGeo, atmMat(p.atm, 2.4)); am.scale.setScalar(p.r); am.position.copy(p.pos); scene.add(am);
     if (p.ring) {
       const cv = document.createElement('canvas'); cv.width = cv.height = 256; const x = cv.getContext('2d');
       for (let r = 128; r > 0; r -= 1.5) { const t = r / 128, inRing = t > 0.62 && t < 0.99, a = inRing ? 0.25 + 0.55 * Math.abs(Math.sin(r * 0.55) * Math.cos(r * 0.17)) : 0; x.strokeStyle = 'rgba(' + (225 - (r % 7) * 6) + ',' + (190 - (r % 5) * 6) + ',' + (150 - (r % 9) * 4) + ',' + (t > 0.78 && t < 0.82 ? 0.05 : a) + ')'; x.lineWidth = 1.7; x.beginPath(); x.arc(128, 128, r, 0, Math.PI * 2); x.stroke(); }
@@ -811,7 +810,7 @@ function updateWarp(dt) {
     WP.done = true; const st = stations[WP.to];
     S.pos.copy(st.pos).addScaledVector(st.pl.off.clone().normalize(), -1100); S.pos.y -= 350;
     _m.lookAt(_zero, _a.copy(st.pos).sub(S.pos).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
-    S.speed = 50; S.inv = 2; S.mode = 'fly'; entDismissed = -1; document.body.classList.remove('docked'); fadeOut();
+    S.speed = 50; S.inv = 2; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); fadeOut();
   }
 }
 
@@ -935,7 +934,7 @@ function updateMap() {
   const f = new THREE.Vector3(0, 0, -1).applyQuaternion(S.q); mapMe.style.transform = 'translate(-50%,-60%) rotate(' + Math.atan2(f.x, -f.z) + 'rad)';
   const n = nearPlanet(); planets.forEach((p, i) => { const e = $('mn' + i); e.classList.toggle('cur', n === i); e.lastChild.textContent = n === i ? 'YOU ARE HERE' : Math.round(S.pos.distanceTo(p.pos) / 100) / 10 + ' km'; });
 }
-function openMap() { if (S.mode !== 'fly') return; mapOn = true; mapOv.style.display = 'block'; updateMap(); }
+function openMap() { if (S.mode !== 'fly') return; if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } mapOn = true; mapOv.style.display = 'block'; updateMap(); }
 function closeMap() { mapOn = false; mapOv.style.display = 'none'; }
 $('b-map').addEventListener('click', () => mapOn ? closeMap() : openMap());
 $('map-x').addEventListener('click', closeMap);
@@ -1260,7 +1259,7 @@ function frame(now) {
     } else { tgtEl.style.display = 'none'; leadEl.style.display = 'none'; }
     const ns = nearStation(); $('b-dock').style.display = ns >= 0 ? 'flex' : 'none';
     if (entDismissed >= 0 && S.pos.distanceTo(stations[entDismissed].pos) > 950) entDismissed = -1;
-    const wantEnt = ns >= 0 && ns !== entDismissed;
+    const wantEnt = ns >= 0 && ns !== entDismissed && stations[ns].g.visible && !trvOn && !mapOn && fwdOf(S.q, fwd).dot(_a.copy(stations[ns].pos).sub(S.pos).normalize()) > 0.2;
     if (wantEnt && !entOn) { entOn = true; entFor = ns; $('ent-name').textContent = stations[ns].name; $('ent-dlg').style.display = 'flex'; sfx('lock'); }
     else if (!wantEnt && entOn) { entOn = false; $('ent-dlg').style.display = 'none'; }
     if (++flip % 2 === 0) drawRadar();
