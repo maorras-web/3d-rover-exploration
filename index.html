@@ -330,6 +330,26 @@
   @media (max-height:380px){#radar{width:92px;height:92px}}
   #b-tgt{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 122 100' preserveAspectRatio='none'%3E%3Cdefs%3E%3CradialGradient id='f' cx='55%25' cy='50%25' r='62%25'%3E%3Cstop offset='0' stop-color='%233a2008' stop-opacity='.82'/%3E%3Cstop offset='.62' stop-color='%2358340e' stop-opacity='.82'/%3E%3Cstop offset='1' stop-color='%23b07428' stop-opacity='.9'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cpath d='M6.5 23.0Q3 21 6.7 19.4L48.3 1.6Q52 0 56.0 0.0L84.0 0.0Q88 0 91.6 1.8L117.4 15.2Q121 17 121.0 21.0L121.0 97.0Q121 99 119.2 98.1L71.6 72.4Q69 71 66.2 72.0L38.8 82.0Q36 83 36.0 80.0L36.0 52.0Q36 40 25.6 34.0Z' fill='url(%23f)'/%3E%3Cpath d='M6.5 23.0Q3 21 6.7 19.4L48.3 1.6Q52 0 56.0 0.0L84.0 0.0Q88 0 91.6 1.8L117.4 15.2Q121 17 121.0 21.0L121.0 97.0Q121 99 119.2 98.1L71.6 72.4Q69 71 66.2 72.0L38.8 82.0Q36 83 36.0 80.0L36.0 52.0Q36 40 25.6 34.0Z' fill='none' stroke='%23ecd0a0' stroke-opacity='.9' stroke-width='1.4' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E")}
   #b-boost{filter:drop-shadow(0 0 2px #030816)}
+
+  /* hangar layout: ship on the left (rendered by the game), menu on the right */
+  #shop{justify-content:flex-end;background:linear-gradient(90deg,rgba(2,3,10,0) 30%,rgba(2,6,16,.88) 52%,rgba(2,6,16,.94))}
+  #shop .panel{max-width:min(56vw,540px);padding:6px 4px 6px 0;text-align:left}
+  #shop h1{font-size:22px!important;letter-spacing:4px;text-align:left}
+  #shop .earn{display:flex;justify-content:space-between;gap:10px}
+  #shop .earn b{color:#fff}
+  #shop .tabs{justify-content:flex-start}
+  #shop .go{align-self:flex-start;margin-left:0}
+  .spec-hd{padding:4px 2px 8px}.spec-hd b{display:block;font:900 15px system-ui,Arial,sans-serif;letter-spacing:3px;color:#9ff3ff}
+  .spec-hd span{display:block;font:500 11px system-ui,Arial,sans-serif;opacity:.7;margin-top:3px}
+  .spec{display:grid;grid-template-columns:118px 1fr 82px;align-items:center;gap:8px;margin:7px 0;font:700 10px system-ui,Arial,sans-serif;letter-spacing:1px}
+  .spec .sl{opacity:.8}.spec .sv{text-align:right;color:#ffe08a;font-size:11px}
+  .spec .sb{position:relative;height:9px;border-radius:5px;background:rgba(126,240,255,.12);border:1px solid rgba(126,240,255,.25);overflow:hidden}
+  .spec .sb i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#3fbfe0,#9ff3ff)}
+  .spec .sb i.nx{background:rgba(255,224,138,.45)}
+  .spec-ft{display:flex;flex-wrap:wrap;gap:6px 16px;margin:12px 0 4px;font:700 10px system-ui,Arial,sans-serif;letter-spacing:1px;opacity:.85}.spec-ft b{color:#ffe08a}
+  .spec-lg{font:500 10px system-ui,Arial,sans-serif;opacity:.5;margin-top:4px}
+  @media (max-aspect-ratio:6/5){#shop{background:rgba(2,6,16,.9);justify-content:center}#shop .panel{max-width:100%}}
+  body.docked #top-left,body.docked #speed,body.docked #radar,body.docked #stick,body.docked #thr,body.docked #rb-bg,body.docked .rb,body.docked #mission{display:none!important}
 </style>
 </head>
 <body>
@@ -375,8 +395,8 @@
 
 <div id="shop" class="screen"><div class="panel">
   <h1 style="font-size:26px" id="shop-title">DOCKED</h1>
-  <div class="earn" id="shop-earn"></div>
-  <div class="tabs"><button class="tab on" id="tab-m">MISSIONS</button><button class="tab" id="tab-u">SHIP</button></div>
+  <div class="earn"><span id="shop-earn"></span><b id="shop-cr"></b></div>
+  <div class="tabs"><button class="tab on" id="tab-m">MISSIONS</button><button class="tab" id="tab-u">SHOP</button><button class="tab" id="tab-s">SPECS</button></div>
   <div id="shop-list"></div>
   <div class="go" id="go-launch">LAUNCH</div>
 </div></div>
@@ -399,11 +419,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=138', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=139', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=138'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=139'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>

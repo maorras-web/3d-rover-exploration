@@ -83,7 +83,7 @@ class CheapGlow extends Pass {
    Light on purpose: instanced asteroids / bolts / loot, merged-geometry enemies, shader dust, no post-processing. */
 
 const $ = (id) => document.getElementById(id);
-const BUILD = 31;
+const BUILD = 32;
 
 // ---------- save ----------
 const SAVE_KEY = 'starCourier2';
@@ -794,6 +794,13 @@ for (const s of [-1, 1]) {
 const flames = [-1, 1].map(s => { const f = glowSprite(0x7fe9ff, 2.0, 0.8); f.position.set(s * 1.3, -0.35, 3.7); shipBody.add(f); return f; });
 const flameCore = [-1, 1].map(s => { const f = glowSprite(0xffffff, 0.9, 0.9); f.position.set(s * 1.3, -0.35, 3.45); shipBody.add(f); return f; });
 
+// hangar pad: glowing rings under the ship while docked (cheap: 2 additive meshes, hidden in flight)
+const pad = new THREE.Group(); pad.visible = false; scene.add(pad);
+{ const pm = (c, o) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  const r1 = new THREE.Mesh(new THREE.RingGeometry(6.4, 6.8, 48), pm(0x6fe6ff, 0.8)), r2 = new THREE.Mesh(new THREE.RingGeometry(4.2, 4.35, 48), pm(0x6fe6ff, 0.5)), d = new THREE.Mesh(new THREE.CircleGeometry(6.4, 48), pm(0x1c6a8c, 0.22));
+  [r1, r2, d].forEach(o => { o.rotation.x = -Math.PI / 2; pad.add(o); }); }
+let hangarVO = false;
+
 // ---------- enemy fighter (one merged mesh, vertex colours) ----------
 const enemyGeo = (() => {
   const parts = [];
@@ -1192,17 +1199,36 @@ function openShop(msg) {
     if (btnText) { const b = document.createElement('button'); b.className = 'buy'; b.textContent = btnText; b.disabled = dis; b.addEventListener('click', fn); r.appendChild(b); }
     list.appendChild(r);
   };
-  if (shopTab === 'm') {
+  $('tab-s').classList.toggle('on', shopTab === 's'); $('shop-cr').textContent = '◆ ' + save.credits;
+  if (shopTab === 's') {
+    const tot = save.up.reduce((x, y) => x + y, 0), mk = ['I', 'II', 'III', 'IV', 'V'][Math.min(4, tot / 6 | 0)];
+    const hd = document.createElement('div'); hd.className = 'spec-hd'; hd.innerHTML = `<b>STAR COURIER  MK ${mk}</b><span>Light multirole fighter · twin ion engines · 2 laser hardpoints · missile rack</span>`; list.appendChild(hd);
+    const at = (i, f) => { const s0 = stats(); save.up[i] = Math.min(UPG[i].max, save.up[i] + 1); const s1 = stats(); save.up[i] = Math.max(0, save.up[i] - 1); return [f(s0), f(s1)]; };
+    const mx = (i, f) => { const s0 = stats(), u = save.up[i]; save.up[i] = UPG[i].max; const s1 = stats(); save.up[i] = u; return f(s1); };
+    const bar = (label, val, unit, i, f) => { const mxv = mx(i, f), nx = at(i, f)[1], cur = f(stats());
+      const r = document.createElement('div'); r.className = 'spec';
+      r.innerHTML = `<div class="sl">${label}</div><div class="sb"><i class="nx" style="width:${Math.min(100, nx / mxv * 100)}%"></i><i style="width:${Math.min(100, cur / mxv * 100)}%"></i></div><div class="sv">${val}${unit}</div>`; list.appendChild(r); };
+    bar('LASER DAMAGE', ST.dmg.toFixed(1), ' /shot', 0, s => s.dmg);
+    bar('SHIELD', ST.shieldMax, '', 1, s => s.shieldMax);
+    bar('SHIELD RECHARGE', ST.shieldRegen, ' /s', 1, s => s.shieldRegen);
+    bar('HULL', ST.hullMax, '', 2, s => s.hullMax);
+    bar('CRUISE SPEED', Math.round(ST.cruise), ' m/s', 3, s => s.cruise);
+    const ft = document.createElement('div'); ft.className = 'spec-ft'; ft.innerHTML = `<span>MISSILES <b>${save.missiles}</b></span><span>PIRATES DESTROYED <b>${save.kills}</b></span><span>UPGRADES <b>${tot}/${UPG.reduce((x, u) => x + u.max, 0)}</b></span>`; list.appendChild(ft);
+    const lg = document.createElement('div'); lg.className = 'spec-lg'; lg.textContent = 'Bright bar = current  ·  faint extension = next upgrade'; list.appendChild(lg);
+  } else if (shopTab === 'm') {
     if (S.mission) row('ACTIVE: ' + S.mission.title, S.mission.text + '  ·  ◆ ' + S.mission.reward, '', 'ABANDON', false, () => { S.mission = null; updateMissionHud(); openShop(msg); });
     offered.forEach((m) => row(m.title + '  ◆ ' + m.reward, m.text, '', S.mission ? 'BUSY' : 'ACCEPT', !!S.mission, () => { S.mission = Object.assign({}, m); if (m.zone) S.mission.zone = m.zone; updateMissionHud(); sfx('pick'); openShop('MISSION ACCEPTED'); }));
   } else {
-    UPG.forEach((u, i) => { const lv = save.up[i], maxed = lv >= u.max, cost = upCost(i); row(u.name, u.desc, '■'.repeat(lv) + '□'.repeat(u.max - lv), maxed ? 'MAX' : '◆ ' + cost, maxed || save.credits < cost, () => { save.credits -= cost; save.up[i]++; persist(); refreshHud(); ST = stats(); sfx('pick'); openShop(msg); }); });
+    const prev = (i) => { const c = stats(); save.up[i]++; const n = stats(); save.up[i]--; return [
+      `${c.dmg.toFixed(0)} → ${n.dmg.toFixed(0)} damage`, `${c.shieldMax} → ${n.shieldMax} shield`, `${c.hullMax} → ${n.hullMax} hull`, `${Math.round(c.cruise)} → ${Math.round(n.cruise)} m/s`][i]; };
+    UPG.forEach((u, i) => { const lv = save.up[i], maxed = lv >= u.max, cost = upCost(i); row(u.name, u.desc + (maxed ? '' : '  ·  ' + prev(i)), '■'.repeat(lv) + '□'.repeat(u.max - lv), maxed ? 'MAX' : '◆ ' + cost, maxed || save.credits < cost, () => { save.credits -= cost; save.up[i]++; persist(); refreshHud(); ST = stats(); sfx('pick'); openShop(msg); }); });
     row('MISSILES  ×' + save.missiles, 'Homing missiles, 3 per pack', '', '◆ 90', save.credits < 90 || save.missiles > 30, () => { save.credits -= 90; save.missiles += 3; persist(); refreshHud(); updateMissHud(); sfx('pick'); openShop(msg); });
   }
-  $('shop').classList.add('show');
+  document.body.classList.add('docked'); $('shop').classList.add('show');
 }
 $('tab-m').addEventListener('click', () => { shopTab = 'm'; openShop($('shop-earn').textContent); });
 $('tab-u').addEventListener('click', () => { shopTab = 'u'; openShop($('shop-earn').textContent); });
+$('tab-s').addEventListener('click', () => { shopTab = 's'; openShop($('shop-earn').textContent); });
 
 function dockAt(i) {
   S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
@@ -1221,7 +1247,7 @@ function launchFrom(i) {
   _m.lookAt(_zero, st.front, Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
   S.speed = 60; S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100; S.inv = 2; S.mode = 'fly'; S.target = null; S.patrolT = 45; S.sx = S.sy = 0;
   for (const a of asteroids) a.active = false; for (const l of loot) l.active = false;
-  $('shop').classList.remove('show');
+  document.body.classList.remove('docked'); $('shop').classList.remove('show');
 }
 function startGame() { initAudio(); if (actx && actx.state === 'suspended') actx.resume(); $('start').classList.remove('show'); updateMissionHud(); launchFrom(0); offered = genMissions(0); }
 $('go-start').addEventListener('click', startGame);
@@ -1438,7 +1464,7 @@ function frame(now) {
 
   // ---- ship + camera ----
   ship.position.copy(S.pos); ship.quaternion.copy(S.q); shipBody.rotation.z = S.roll;
-  const vis = S.mode !== 'wreck' && S.mode !== 'dock', blink = S.inv > 0 && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
+  const vis = S.mode !== 'wreck', blink = S.inv > 0 && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
   const fl = 0.7 + S.speed / 220 + (S.boosting ? 0.9 : 0), flick = 0.9 + Math.sin(tAcc * 50) * 0.1;
   flames.forEach(f => { f.scale.setScalar(2.2 * fl * flick); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => f.scale.setScalar(0.9 * fl * flick)); flameMat.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); flameCones.forEach(c => { c.scale.set(fl * (0.8 + 0.2 * flick), 1.2 * fl * flick + 0.3, fl * (0.8 + 0.2 * flick)); c.position.z = 0.95 + 0.6 * fl * flick + 0.15; });
   for (const e of enemies) if (e.active) { e.g.children[1].scale.setScalar(5 + Math.sin(tAcc * 40 + e.pos.x) * 0.6); }
@@ -1450,6 +1476,13 @@ function frame(now) {
   _qa.setFromAxisAngle(Z, -S.sx * 0.05); camera.quaternion.multiply(_qa);
   const wantFov = 64 + clamp(S.speed / 150, 0, 1.4) * 12 + (S.boosting ? 6 : 0);
   if (Math.abs(camera.fov - wantFov) > 0.05) { camera.fov = damp(camera.fov, wantFov, 4, dt); camera.updateProjectionMatrix(); }
+  if (S.mode === 'dock') {
+    // hangar view: the ship turns slowly on its pad on the left, the menu panel fills the right
+    ship.quaternion.setFromAxisAngle(Y, tAcc * 0.45); shipBody.rotation.z = 0; pad.visible = true; pad.position.set(S.pos.x, S.pos.y - 2.5, S.pos.z);
+    camera.position.set(S.pos.x, S.pos.y + 4.2, S.pos.z + 21); camera.lookAt(S.pos.x, S.pos.y - 0.4, S.pos.z);
+    const land = innerWidth > innerHeight * 1.2;
+    if (!hangarVO || camera.fov !== 46) { camera.fov = 46; hangarVO = true; if (land) camera.setViewOffset(innerWidth, innerHeight, innerWidth * 0.2, 0, innerWidth, innerHeight); else camera.updateProjectionMatrix(); }
+  } else if (hangarVO) { hangarVO = false; pad.visible = false; camera.clearViewOffset(); camera.fov = 64; camera.updateProjectionMatrix(); }
   sky.position.copy(camera.position);
   fill.position.set(0.5, 0.7, 1).applyQuaternion(camera.quaternion);
 
