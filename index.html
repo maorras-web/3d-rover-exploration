@@ -70,6 +70,8 @@
   .row{display:flex;align-items:center;gap:10px;margin:5px 0;padding:7px 12px;border-radius:12px;background:rgba(10,24,40,.7);border:1px solid rgba(126,240,255,.22);text-align:left}
   .row .nm{flex:1;font:800 13px system-ui,Arial,sans-serif;letter-spacing:1px}
   .row .nm span{display:block;font-weight:500;font-size:11px;opacity:.72;letter-spacing:.4px;margin-top:2px}
+  .row .ico{flex:none;width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:11px;color:var(--c,#7ef0ff);background:radial-gradient(circle at 50% 35%,rgba(255,255,255,.1),rgba(6,14,26,.9) 70%);border:1px solid var(--c,#7ef0ff);box-shadow:0 0 10px -2px var(--c,#7ef0ff),inset 0 0 8px -3px var(--c,#7ef0ff)}
+  .row .ico svg{width:26px;height:26px;filter:drop-shadow(0 0 3px var(--c,#7ef0ff))}
   .row .lv{font:700 10px monospace;letter-spacing:1px;color:#8fe8ff}
   .buy{padding:7px 14px;border-radius:18px;border:1px solid #ffe08a;background:rgba(255,224,138,.15);color:#ffe08a;font:800 12px system-ui,Arial,sans-serif;min-width:74px}
   .buy[disabled]{opacity:.35;border-color:#888;color:#aaa}
@@ -381,6 +383,10 @@
   #sh-dlg button{min-width:78px;height:28px;border-radius:2px;border:1px solid rgba(110,150,200,.6);background:linear-gradient(180deg,rgba(70,100,140,.9),rgba(30,48,76,.95));color:#fff;font:700 12px system-ui,Arial,sans-serif}
   #dlg-yes{border-color:#ffc860!important}
   .smap{position:relative;height:calc(100vh - 130px);min-height:150px;background:radial-gradient(ellipse at center,rgba(20,36,60,.6),rgba(4,8,16,.6));border:1px solid rgba(110,150,200,.25)}
+  .subtg{display:flex;gap:6px;margin:2px 0 6px}.subtg button{flex:1;padding:7px 0;border-radius:10px;border:1px solid rgba(126,240,255,.3);background:rgba(10,24,40,.7);color:#9fdcff;font:800 12px system-ui,Arial,sans-serif;letter-spacing:2px}.subtg button.on{background:rgba(126,240,255,.2);border-color:#7ef0ff;color:#fff}
+  .buy.sell{border-color:#7fe3a0;background:rgba(127,227,160,.13);color:#9af0b8;min-width:84px}.buy:disabled{opacity:.4}
+  .smap .pvw{position:absolute;right:8px;top:6px;width:132px;padding:6px 6px 5px;text-align:center;background:rgba(6,14,26,.72);border:1px solid rgba(126,240,255,.25);border-radius:12px;z-index:3}
+  .pvw canvas{display:block;margin:0 auto;width:120px;height:120px;touch-action:none;cursor:grab}.pvw b{display:block;font:800 11px system-ui,Arial,sans-serif;letter-spacing:2px;color:#cfe9ff;margin-top:2px}.pvw small{display:block;font:600 10px system-ui,Arial,sans-serif;color:#8fb4d8}.pvw em{display:block;font:500 9px system-ui,Arial,sans-serif;color:#5f84a8;font-style:normal;margin-top:2px}
   .smap .sn{position:absolute;transform:translate(-6px,-6px)}
   .smap .sn i{display:block;width:12px;height:12px;border-radius:50%;background:#7fd4ff;box-shadow:0 0 12px #7fd4ff}
   .smap .sn.here i{background:#ffc860;box-shadow:0 0 14px #ffc860}.smap .sn.tgt i{background:#5fffb0;box-shadow:0 0 14px #5fffb0}
@@ -558,11 +564,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=217', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=219', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=217'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=219'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>

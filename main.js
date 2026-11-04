@@ -87,8 +87,9 @@ const BUILD = 48;
 
 // ---------- save ----------
 const SAVE_KEY = 'starCourier2';
-let save = { credits: 100, up: [0, 0, 0, 0], missiles: 4, kills: 0, inv: false, snd: true };
+let save = { credits: 100, up: [0, 0, 0, 0], missiles: 4, kills: 0, inv: false, snd: true, cargo: [0, 0, 0, 0, 0] };
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && Array.isArray(s.up)) save = Object.assign(save, s); } catch (e) { }
+if (!Array.isArray(save.cargo) || save.cargo.length !== 5) save.cargo = [0, 0, 0, 0, 0];
 const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { } };
 
 const UPG = [
@@ -1082,7 +1083,30 @@ function updateMusic(dt) {
   if (stVol > 0.01) { if (stMus.paused) { try { const p = stMus.play(); if (p && p.catch) p.catch(() => { }); } catch (e) { } } stMus.volume = clamp(stVol, 0, 1); }
   else if (!stMus.paused) { stMus.pause(); stMus.volume = 0; }
 }
-let shopTab = 'm', lgSt = -1;
+let shopTab = 'm', lgSt = -1, shopSub = 'u';
+const HOLD = 20, GOODS = [{ nm: 'ORE', base: 40, desc: 'Raw asteroid ore' }, { nm: 'FOOD', base: 25, desc: 'Sealed rations' }, { nm: 'MEDS', base: 70, desc: 'Medical supplies' }, { nm: 'TECH', base: 120, desc: 'Electronic parts' }, { nm: 'GEMS', base: 200, desc: 'Cut crystals' }];
+const cMul = (st, gi) => { const x = Math.sin((st + 1) * 12.9898 + gi * 78.233) * 43758.5453; return 0.7 + 0.7 * (x - Math.floor(x)); };   // each station pays a different price for each good
+// ---- 3D planet viewer for the Map tab: a tiny software sphere on a 120px canvas. Pixel lookups are precomputed once, so a frame is ~14k array reads, and it only runs while the tab is open ----
+const pvEnd = { id: 0 };
+function pvStart(cv, k) {
+  const p = stations[k].pl, id = ++pvEnd.id; if (p.build) { p.build(); p.build = null; }
+  const img = p.mesh.material.uniforms.map.value.image; if (!img || !img.getContext) return;
+  const sw = img.width, sh = img.height, src = img.getContext('2d').getImageData(0, 0, sw, sh).data, N = 120, R = 56, c0 = N / 2, g = cv.getContext('2d'), out = g.createImageData(N, N), o = out.data;
+  const U = new Float32Array(N * N), Vr = new Int32Array(N * N), Sh = new Float32Array(N * N), Rm = new Float32Array(N * N), Al = new Uint8Array(N * N), tilt = 0.3, ct = Math.cos(tilt), st = Math.sin(tilt), L = [-0.55, 0.45, 0.7], ll = Math.hypot(...L);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const i = y * N + x, nx = (x + 0.5 - c0) / R, ny = -(y + 0.5 - c0) / R, r2 = nx * nx + ny * ny; if (r2 >= 1.06) continue;
+    const nz = Math.sqrt(Math.max(0, 1 - r2)), d = Math.sqrt(r2), edge = Math.max(0, Math.min(1, (1.03 - d) / 0.05)); if (edge <= 0) continue; Al[i] = edge * 255;
+    const px = nx * ct + ny * st, py = -nx * st + ny * ct, lon = Math.atan2(px, nz), lat = Math.asin(Math.max(-1, Math.min(1, py)));
+    U[i] = lon / 6.2831853; Vr[i] = Math.min(sh - 1, Math.max(0, (0.5 - lat / Math.PI) * sh | 0)) * sw;
+    const dl = (nx * L[0] + ny * L[1] + nz * L[2]) / ll; Sh[i] = 0.1 + 0.95 * Math.max(0, Math.min(1, (dl + 0.2) / 0.8)); Rm[i] = Math.pow(Math.max(0, d), 6) * (0.35 + 0.65 * Math.max(0, dl + 0.3)); }
+  const ac = p.atm, A0 = ac[0] * 255, A1 = ac[1] * 255, A2 = ac[2] * 255; let rot = Math.random(), last = performance.now(), drag = -1;
+  cv.onpointerdown = (e) => { drag = e.clientX; cv.setPointerCapture(e.pointerId); }; cv.onpointermove = (e) => { if (drag >= 0) { rot -= (e.clientX - drag) / 260; drag = e.clientX; } }; cv.onpointerup = cv.onpointercancel = () => { drag = -1; };
+  const frame = (now) => { if (id !== pvEnd.id || !cv.isConnected) return; const dt = Math.min(0.1, (now - last) / 1000); last = now; if (drag < 0) rot += dt * 0.035;
+    for (let i = 0; i < N * N; i++) { const a = Al[i], j = i << 2; if (!a) { o[j + 3] = 0; continue; } let u = U[i] + rot; u -= Math.floor(u); const q = (Vr[i] + (u * sw | 0)) << 2, s = Sh[i], rm = Rm[i];
+      o[j] = Math.min(255, src[q] * s + A0 * rm); o[j + 1] = Math.min(255, src[q + 1] * s + A1 * rm); o[j + 2] = Math.min(255, src[q + 2] * s + A2 * rm); o[j + 3] = a; }
+    g.putImageData(out, 0, 0); requestAnimationFrame(frame); };
+  requestAnimationFrame(frame);
+}
+const PKIND = { gas: 'GAS GIANT', ocean: 'OCEAN WORLD', purple: 'VIOLET GIANT', jungle: 'JUNGLE WORLD', lava: 'LAVA WORLD', ice: 'ICE WORLD', desert: 'DESERT WORLD', storm: 'STORM GIANT', bloom: 'BLOOM WORLD', toxic: 'TOXIC WORLD', onyx: 'ONYX WORLD' };
 function openShop(msg) {
   S.mode = 'dock';
   $('shop-title').textContent = 'DOCKED · ' + stations[S.station].name;
@@ -1090,9 +1114,21 @@ function openShop(msg) {
   ['h', 'u', 'p', 'm', 's', 'b'].forEach(k => $('tab-' + k).classList.toggle('on', shopTab === k)); $('sh-panel').style.display = shopTab === 'h' || shopTab === 'b' ? 'none' : 'flex'; $('shop').classList.toggle('npcon', shopTab === 'u' || shopTab === 's'); $('shop').classList.toggle('lgon', shopTab === 'b'); if (shopTab === 'b') $('lounge').classList.toggle('sys1', stations[S.station].sys === 1); if (shopTab === 'b' && window.__fillLounge && lgSt !== S.station) { window.__fillLounge(); lgSt = S.station; }
   { const hero = shopTab === 's'; $('npc').src = hero ? 'pilot.webp' : 'merchant.webp'; $('npc').classList.toggle('hero', hero); $('npc-nm').textContent = hero ? 'NABIYAX · PILOT' : 'VORR · TRADER'; $('npc-tx').textContent = hero ? 'Ship ready. Let\'s fly.' : 'Best prices this side of the nebula, pilot.'; }
   const list = $('shop-list'); list.innerHTML = '';
-  const row = (nm, desc, extra, btnText, dis, fn) => {
+  const ICO = {   // one small glowing icon per upgrade (inline SVG, no image files)
+    0: ['#ff6a8a', '<path d="M13.5 2L5 13.5h5.5L9.5 22 19 9.5h-5.8z" fill="currentColor" fill-opacity=".28"/>'],
+    1: ['#5fe4ff', '<path d="M12 2.5l8 3v6c0 4.8-3.3 8.6-8 10-4.7-1.4-8-5.2-8-10v-6z" fill="currentColor" fill-opacity=".2"/><path d="M12 6.5v11M8 10.5h8" />'],
+    2: ['#ffc24a', '<path d="M12 2.5l8.2 4.2v10.6L12 21.5l-8.2-4.2V6.7z" fill="currentColor" fill-opacity=".2"/><path d="M12 8l4 2.2v3.6L12 16l-4-2.2v-3.6z"/>'],
+    3: ['#ff8a3a', '<path d="M12 2.5c3.2 3.8 5 6.8 5 10.2a5 5 0 0 1-10 0c0-3.4 1.8-6.4 5-10.2z" fill="currentColor" fill-opacity=".25"/><path d="M12 11.5c1.3 1.6 2 2.8 2 4a2 2 0 0 1-4 0c0-1.2.7-2.4 2-4z"/>'],
+    c0: ['#c9a27a', '<path d="M4 9l8-4.500 8 4.500v7l-8 4.500-8-4.500z" fill="currentColor" fill-opacity=".2"/><path d="M4 9l8 4.500 8-4.500M12 13.500v7"/>'],
+    c1: ['#7bf08a', '<path d="M12 20c-4 0-7-3-7-7 0-3 2-5 4-5 1.500 0 2 .8 3 .8s1.500-.8 3-.8c2 0 4 2 4 5 0 4-3 7-7 7z" fill="currentColor" fill-opacity=".2"/><path d="M12 8c0-2 1-3.500 3-4"/>'],
+    c2: ['#ff6a8a', '<rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" fill-opacity=".15"/><path d="M12 8v8M8 12h8"/>'],
+    c3: ['#5fe4ff', '<rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" fill-opacity=".15"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>'],
+    c4: ['#d49aff', '<path d="M7 4h10l4 5-9 12L3 9z" fill="currentColor" fill-opacity=".2"/><path d="M3 9h18M9 4l3 5 3-5M12 9v12"/>'],
+    m: ['#c79bff', '<path d="M12 2c3 2.2 4 5.8 4 9v4.2l-2 2.3h-4l-2-2.3V11c0-3.200 1-6.800 4-9z" fill="currentColor" fill-opacity=".22"/><path d="M8 14l-3.200 3.800V20L8 18M16 14l3.200 3.800V20L16 18M12 21v1.500"/><circle cx="12" cy="9.500" r="1.600"/>']
+  };
+  const row = (nm, desc, extra, btnText, dis, fn, ic) => {
     const r = document.createElement('div'); r.className = 'row';
-    r.innerHTML = `<div class="nm">${nm}<span>${desc}</span></div>${extra ? `<div class="lv">${extra}</div>` : ''}`;
+    r.innerHTML = `${ic !== undefined && ICO[ic] ? `<div class="ico" style="--c:${ICO[ic][0]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICO[ic][1]}</svg></div>` : ''}<div class="nm">${nm}<span>${desc}</span></div>${extra ? `<div class="lv">${extra}</div>` : ''}`;
     if (btnText) { const b = document.createElement('button'); b.className = 'buy'; b.textContent = btnText; b.disabled = dis; b.addEventListener('click', fn); r.appendChild(b); }
     list.appendChild(r);
   };
@@ -1116,23 +1152,36 @@ function openShop(msg) {
     const mp = document.createElement('div'); mp.className = 'smap'; list.appendChild(mp);
     const ids = stations.map((s, k) => k).filter(k => stations[k].sys === stations[S.station].sys);
     let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; ids.forEach(k => { const s = stations[k]; x0 = Math.min(x0, s.pos.x); x1 = Math.max(x1, s.pos.x); z0 = Math.min(z0, s.pos.z); z1 = Math.max(z1, s.pos.z); });
-    const pc = []; ids.forEach(k => { const s = stations[k]; pc[k] = [12 + 76 * (s.pos.x - x0) / (x1 - x0 || 1), 14 + 66 * (s.pos.z - z0) / (z1 - z0 || 1)]; });
+    const pc = []; ids.forEach(k => { const s = stations[k]; pc[k] = [8 + 50 * (s.pos.x - x0) / (x1 - x0 || 1), 14 + 66 * (s.pos.z - z0) / (z1 - z0 || 1)]; });
     // network of lanes: every station linked to its two nearest neighbours, plus brighter lanes out of the station you are docked at
     const lanes = new Set(), here = S.station; ids.forEach(k => { ids.map(j => [j, stations[k].pos.distanceTo(stations[j].pos)]).filter(q => q[0] !== k).sort((p, q) => p[1] - q[1]).slice(0, 2).forEach(q => lanes.add(Math.min(k, q[0]) + '-' + Math.max(k, q[0]))); });
     let svg = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">';
     lanes.forEach(l => { const [i, j] = l.split('-').map(Number); svg += `<line x1="${pc[i][0]}" y1="${pc[i][1]}" x2="${pc[j][0]}" y2="${pc[j][1]}" stroke="rgba(110,170,240,.35)" stroke-width="1" vector-effect="non-scaling-stroke"/>`; });
     ids.forEach(k => { if (k !== here) svg += `<line x1="${pc[here][0]}" y1="${pc[here][1]}" x2="${pc[k][0]}" y2="${pc[k][1]}" stroke="rgba(255,200,96,.55)" stroke-width="1.2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`; });
     mp.insertAdjacentHTML('afterbegin', svg + '</svg><div style="position:absolute;left:10px;top:7px;font:700 10px system-ui,Arial,sans-serif;letter-spacing:3px;color:#7fb4e8">' + SYSTEMS[stations[S.station].sys] + ' SYSTEM</div>');
-    ids.forEach(k => { const s = stations[k], d = document.createElement('div'); d.className = 'sn' + (k === S.station ? ' here' : '') + (S.mission && S.mission.type === 'delivery' && S.mission.to === k ? ' tgt' : '') + (pc[k][0] > 58 ? ' fl' : ''); d.style.left = pc[k][0] + '%'; d.style.top = pc[k][1] + '%';
-      d.innerHTML = `<i style="${k === S.station ? '' : `background:${s.col};box-shadow:0 0 12px ${s.col}`}"></i><span>${s.name}<br><small>${k === S.station ? 'YOU ARE HERE' : (stations[S.station].pos.distanceTo(s.pos) / 1000).toFixed(1) + ' LY'}</small></span>`; mp.appendChild(d); });
+    ids.forEach(k => { const s = stations[k], d = document.createElement('div'); d.className = 'sn' + (k === S.station ? ' here' : '') + (S.mission && S.mission.type === 'delivery' && S.mission.to === k ? ' tgt' : '') + (pc[k][0] > 44 ? ' fl' : ''); d.style.left = pc[k][0] + '%'; d.style.top = pc[k][1] + '%';
+      d.innerHTML = `<i style="${k === S.station ? '' : `background:${s.col};box-shadow:0 0 12px ${s.col}`}"></i><span>${s.name}<br><small>${k === S.station ? 'YOU ARE HERE' : (stations[S.station].pos.distanceTo(s.pos) / 1000).toFixed(1) + ' LY'}</small></span>`; mp.appendChild(d); d.addEventListener('click', () => pvShow(k)); });
+    const pvw = document.createElement('div'); pvw.className = 'pvw'; pvw.innerHTML = '<canvas width="120" height="120"></canvas><b></b><small></small><em>drag to spin · tap a station</em>'; mp.appendChild(pvw);
+    const pvShow = (k) => { const p = stations[k].pl; pvw.querySelector('b').textContent = (PKIND[p.kind] || 'PLANET'); pvw.querySelector('small').textContent = stations[k].name + ' · R ' + p.r + ' km'; pvStart(pvw.querySelector('canvas'), k); };
+    pvShow(S.station);
   } else if (shopTab === 'm') {
     if (S.mission) row('ACTIVE: ' + S.mission.title, S.mission.text + '  ·  ◆ ' + S.mission.reward, '', 'ABANDON', false, () => { S.mission = null; updateMissionHud(); openShop(msg); });
     offered.forEach((m) => row(m.title + '  ◆ ' + m.reward, m.text, '', S.mission ? 'BUSY' : 'ACCEPT', !!S.mission, () => { S.mission = Object.assign({}, m); if (m.zone) S.mission.zone = m.zone; updateMissionHud(); sfx('pick'); openShop('MISSION ACCEPTED'); }));
   } else {
     const prev = (i) => { const c = stats(); save.up[i]++; const n = stats(); save.up[i]--; return [
       `${c.dmg.toFixed(0)} → ${n.dmg.toFixed(0)} damage`, `${c.shieldMax} → ${n.shieldMax} shield`, `${c.hullMax} → ${n.hullMax} hull`, `${Math.round(c.cruise)} → ${Math.round(n.cruise)} m/s`][i]; };
-    UPG.forEach((u, i) => { const lv = save.up[i], maxed = lv >= u.max, cost = upCost(i); row(u.name, u.desc + (maxed ? '' : '  ·  ' + prev(i)), '■'.repeat(lv) + '□'.repeat(u.max - lv), maxed ? 'MAX' : '◆ ' + cost, maxed || save.credits < cost, () => { save.credits -= cost; save.up[i]++; persist(); refreshHud(); ST = stats(); sfx('pick'); openShop(msg); }); });
-    row('MISSILES  ×' + save.missiles, 'Homing missiles, 3 per pack', '', '◆ 90', save.credits < 90 || save.missiles > 30, () => { save.credits -= 90; save.missiles += 3; persist(); refreshHud(); updateMissHud(); sfx('pick'); openShop(msg); });
+    const tg = document.createElement('div'); tg.className = 'subtg'; tg.innerHTML = `<button class="${shopSub === 'u' ? 'on' : ''}" data-s="u">UPGRADES</button><button class="${shopSub === 'c' ? 'on' : ''}" data-s="c">CARGO</button>`;
+    tg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { shopSub = b.dataset.s; sfx('ui'); openShop(msg); })); list.appendChild(tg);
+    if (shopSub === 'c') {
+      const used = save.cargo.reduce((x, y) => x + y, 0), hd = document.createElement('div'); hd.className = 'spec-ft'; hd.innerHTML = `<span>HOLD <b>${used}/${HOLD}</b></span><span>PRICES AT <b>${stations[S.station].name}</b></span>`; list.appendChild(hd);
+      GOODS.forEach((g, gi) => { const m = cMul(S.station, gi), bp = Math.round(g.base * m), sp = Math.round(g.base * m * 0.9), tag = m < 0.9 ? '  ·  CHEAP HERE' : m > 1.18 ? '  ·  SELLS HIGH' : '';
+        row(g.nm + '  ×' + save.cargo[gi], g.desc + tag, '', '◆ ' + bp, save.credits < bp || used >= HOLD, () => { save.credits -= bp; save.cargo[gi]++; persist(); refreshHud(); sfx('pick'); openShop(msg); }, 'c' + gi);
+        const sb = document.createElement('button'); sb.className = 'buy sell'; sb.textContent = 'SELL ◆ ' + sp; sb.disabled = save.cargo[gi] < 1; sb.addEventListener('click', () => { save.credits += sp; save.cargo[gi]--; persist(); refreshHud(); sfx('pick'); openShop(msg); }); list.lastChild.appendChild(sb); });
+      const ft = document.createElement('div'); ft.className = 'spec-lg'; ft.textContent = 'Buy where it is cheap, sell where it is dear. Every station pays differently.'; list.appendChild(ft);
+    } else {
+    UPG.forEach((u, i) => { const lv = save.up[i], maxed = lv >= u.max, cost = upCost(i); row(u.name, u.desc + (maxed ? '' : '  ·  ' + prev(i)), '■'.repeat(lv) + '□'.repeat(u.max - lv), maxed ? 'MAX' : '◆ ' + cost, maxed || save.credits < cost, () => { save.credits -= cost; save.up[i]++; persist(); refreshHud(); ST = stats(); sfx('pick'); openShop(msg); }, i); });
+    row('MISSILES  ×' + save.missiles, 'Homing missiles, 3 per pack', '', '◆ 90', save.credits < 90 || save.missiles > 30, () => { save.credits -= 90; save.missiles += 3; persist(); refreshHud(); updateMissHud(); sfx('pick'); openShop(msg); }, 'm');
+    }
   }
   updateMissHud(); document.body.classList.add('docked'); $('shop').classList.add('show');
 }
