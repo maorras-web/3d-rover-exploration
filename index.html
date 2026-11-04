@@ -387,6 +387,7 @@
   .buy.sell{border-color:#7fe3a0;background:rgba(127,227,160,.13);color:#9af0b8;min-width:84px}.buy:disabled{opacity:.4}
   .smap .pvw{position:absolute;right:8px;top:6px;width:132px;padding:6px 6px 5px;text-align:center;background:rgba(6,14,26,.72);border:1px solid rgba(126,240,255,.25);border-radius:12px;z-index:3}
   .pvw canvas{display:block;margin:0 auto;width:120px;height:120px;touch-action:none;cursor:grab}.pvw b{display:block;font:800 11px system-ui,Arial,sans-serif;letter-spacing:2px;color:#cfe9ff;margin-top:2px}.pvw small{display:block;font:600 10px system-ui,Arial,sans-serif;color:#8fb4d8}.pvw em{display:block;font:500 9px system-ui,Arial,sans-serif;color:#5f84a8;font-style:normal;margin-top:2px}
+  .smap .sysw{position:absolute;left:10px;bottom:8px;display:flex;gap:6px;z-index:3}.sysw button{padding:5px 12px;border-radius:9px;border:1px solid rgba(126,240,255,.3);background:rgba(6,14,26,.8);color:#9fdcff;font:800 10px system-ui,Arial,sans-serif;letter-spacing:2px}.sysw button.on{background:rgba(126,240,255,.22);border-color:#7ef0ff;color:#fff}
   .smap .sn{position:absolute;transform:translate(-6px,-6px)}
   .smap .sn i{display:block;width:12px;height:12px;border-radius:50%;background:#7fd4ff;box-shadow:0 0 12px #7fd4ff}
   .smap .sn.here i{background:#ffc860;box-shadow:0 0 14px #ffc860}.smap .sn.tgt i{background:#5fffb0;box-shadow:0 0 14px #5fffb0}
@@ -564,11 +565,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=219', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=221', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=219'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=221'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>

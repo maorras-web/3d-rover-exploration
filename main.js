@@ -1083,7 +1083,7 @@ function updateMusic(dt) {
   if (stVol > 0.01) { if (stMus.paused) { try { const p = stMus.play(); if (p && p.catch) p.catch(() => { }); } catch (e) { } } stMus.volume = clamp(stVol, 0, 1); }
   else if (!stMus.paused) { stMus.pause(); stMus.volume = 0; }
 }
-let shopTab = 'm', lgSt = -1, shopSub = 'u';
+let shopTab = 'm', lgSt = -1, shopSub = 'u', mapSys = -1;
 const HOLD = 20, GOODS = [{ nm: 'ORE', base: 40, desc: 'Raw asteroid ore' }, { nm: 'FOOD', base: 25, desc: 'Sealed rations' }, { nm: 'MEDS', base: 70, desc: 'Medical supplies' }, { nm: 'TECH', base: 120, desc: 'Electronic parts' }, { nm: 'GEMS', base: 200, desc: 'Cut crystals' }];
 const cMul = (st, gi) => { const x = Math.sin((st + 1) * 12.9898 + gi * 78.233) * 43758.5453; return 0.7 + 0.7 * (x - Math.floor(x)); };   // each station pays a different price for each good
 // ---- 3D planet viewer for the Map tab: a tiny software sphere on a 120px canvas. Pixel lookups are precomputed once, so a frame is ~14k array reads, and it only runs while the tab is open ----
@@ -1150,20 +1150,21 @@ function openShop(msg) {
     const lg = document.createElement('div'); lg.className = 'spec-lg'; lg.textContent = 'Bright bar = current  ·  faint extension = next upgrade'; list.appendChild(lg);
   } else if (shopTab === 'p') {
     const mp = document.createElement('div'); mp.className = 'smap'; list.appendChild(mp);
-    const ids = stations.map((s, k) => k).filter(k => stations[k].sys === stations[S.station].sys);
+    const ms = mapSys < 0 ? stations[S.station].sys : mapSys, ids = stations.map((s, k) => k).filter(k => stations[k].sys === ms);
     let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; ids.forEach(k => { const s = stations[k]; x0 = Math.min(x0, s.pos.x); x1 = Math.max(x1, s.pos.x); z0 = Math.min(z0, s.pos.z); z1 = Math.max(z1, s.pos.z); });
     const pc = []; ids.forEach(k => { const s = stations[k]; pc[k] = [8 + 50 * (s.pos.x - x0) / (x1 - x0 || 1), 14 + 66 * (s.pos.z - z0) / (z1 - z0 || 1)]; });
     // network of lanes: every station linked to its two nearest neighbours, plus brighter lanes out of the station you are docked at
     const lanes = new Set(), here = S.station; ids.forEach(k => { ids.map(j => [j, stations[k].pos.distanceTo(stations[j].pos)]).filter(q => q[0] !== k).sort((p, q) => p[1] - q[1]).slice(0, 2).forEach(q => lanes.add(Math.min(k, q[0]) + '-' + Math.max(k, q[0]))); });
     let svg = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">';
     lanes.forEach(l => { const [i, j] = l.split('-').map(Number); svg += `<line x1="${pc[i][0]}" y1="${pc[i][1]}" x2="${pc[j][0]}" y2="${pc[j][1]}" stroke="rgba(110,170,240,.35)" stroke-width="1" vector-effect="non-scaling-stroke"/>`; });
-    ids.forEach(k => { if (k !== here) svg += `<line x1="${pc[here][0]}" y1="${pc[here][1]}" x2="${pc[k][0]}" y2="${pc[k][1]}" stroke="rgba(255,200,96,.55)" stroke-width="1.2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`; });
-    mp.insertAdjacentHTML('afterbegin', svg + '</svg><div style="position:absolute;left:10px;top:7px;font:700 10px system-ui,Arial,sans-serif;letter-spacing:3px;color:#7fb4e8">' + SYSTEMS[stations[S.station].sys] + ' SYSTEM</div>');
+    ids.forEach(k => { if (k !== here && stations[here].sys === ms) svg += `<line x1="${pc[here][0]}" y1="${pc[here][1]}" x2="${pc[k][0]}" y2="${pc[k][1]}" stroke="rgba(255,200,96,.55)" stroke-width="1.2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`; });
+    mp.insertAdjacentHTML('afterbegin', svg + '</svg><div style="position:absolute;left:10px;top:7px;font:700 10px system-ui,Arial,sans-serif;letter-spacing:3px;color:#7fb4e8">' + SYSTEMS[ms] + ' SYSTEM</div><div class="sysw">' + SYSTEMS.map((n, q) => `<button data-q="${q}" class="${q === ms ? 'on' : ''}">${n}</button>`).join('') + '</div>');
     ids.forEach(k => { const s = stations[k], d = document.createElement('div'); d.className = 'sn' + (k === S.station ? ' here' : '') + (S.mission && S.mission.type === 'delivery' && S.mission.to === k ? ' tgt' : '') + (pc[k][0] > 44 ? ' fl' : ''); d.style.left = pc[k][0] + '%'; d.style.top = pc[k][1] + '%';
-      d.innerHTML = `<i style="${k === S.station ? '' : `background:${s.col};box-shadow:0 0 12px ${s.col}`}"></i><span>${s.name}<br><small>${k === S.station ? 'YOU ARE HERE' : (stations[S.station].pos.distanceTo(s.pos) / 1000).toFixed(1) + ' LY'}</small></span>`; mp.appendChild(d); d.addEventListener('click', () => pvShow(k)); });
+      d.innerHTML = `<i style="${k === S.station ? '' : `background:${s.col};box-shadow:0 0 12px ${s.col}`}"></i><span>${s.name}<br><small>${k === S.station ? 'YOU ARE HERE' : (stations[S.station].pos.distanceTo(s.pos) / 1000 * (s.sys === stations[S.station].sys ? 1 : 3)).toFixed(1) + ' LY'}</small></span>`; mp.appendChild(d); d.addEventListener('click', () => pvShow(k)); });
+    mp.querySelectorAll('.sysw button').forEach(b => b.addEventListener('click', () => { mapSys = +b.dataset.q; sfx('ui'); openShop($('shop-earn').textContent); }));
     const pvw = document.createElement('div'); pvw.className = 'pvw'; pvw.innerHTML = '<canvas width="120" height="120"></canvas><b></b><small></small><em>drag to spin · tap a station</em>'; mp.appendChild(pvw);
-    const pvShow = (k) => { const p = stations[k].pl; pvw.querySelector('b').textContent = (PKIND[p.kind] || 'PLANET'); pvw.querySelector('small').textContent = stations[k].name + ' · R ' + p.r + ' km'; pvStart(pvw.querySelector('canvas'), k); };
-    pvShow(S.station);
+    const pvShow = (k) => { const p = stations[k].pl; pvw.querySelector('b').textContent = (PKIND[p.kind] || 'PLANET'); pvw.querySelector('small').textContent = stations[k].name + ' · ' + ((k * 600000 + p.r * 3000) / 1e6).toFixed(1) + 'M KM'; pvStart(pvw.querySelector('canvas'), k); };
+    pvShow(stations[S.station].sys === ms ? S.station : ids[0]);
   } else if (shopTab === 'm') {
     if (S.mission) row('ACTIVE: ' + S.mission.title, S.mission.text + '  ·  ◆ ' + S.mission.reward, '', 'ABANDON', false, () => { S.mission = null; updateMissionHud(); openShop(msg); });
     offered.forEach((m) => row(m.title + '  ◆ ' + m.reward, m.text, '', S.mission ? 'BUSY' : 'ACCEPT', !!S.mission, () => { S.mission = Object.assign({}, m); if (m.zone) S.mission.zone = m.zone; updateMissionHud(); sfx('pick'); openShop('MISSION ACCEPTED'); }));
@@ -1215,6 +1216,7 @@ function openShop(msg) {
 }
 
 function dockAt(i) {
+  mapSys = -1;
   tintHangar(stations[i].col); setPad(stations[i].sys); S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + 2.1, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
   for (const e of enemies) { e.active = false; e.g.visible = false; } for (const m of missiles) { m.active = false; m.g.visible = false; }
   buzz(50);
