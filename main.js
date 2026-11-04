@@ -681,25 +681,60 @@ stations.forEach(s => s.pos.multiplyScalar(SYS_K));
 stations.forEach(s => { s.front.normalize(); s.g = (s.v.ring ? buildStationB : buildStation)(s.name, s.col, s.v); s.g.scale.setScalar(ST_K); s.g.position.copy(s.pos); s.g.up.set(0, 0, 1); s.g.lookAt(s.pos.clone().add(s.front)); scene.add(s.g); });
 const planets = [];
 {
-  const geo = new THREE.SphereGeometry(1, 36, 22);
+  const geo = new THREE.SphereGeometry(1, 48, 32);
   const rn = (n) => Math.random() * n;
-  const tex = (kind) => {
-    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128; const x = cv.getContext('2d');
-    const blot = (n, cols, wmin, wmax, hmin, hmax, a) => { for (let k = 0; k < n; k++) { x.fillStyle = cols[k % cols.length]; x.globalAlpha = a * (0.5 + Math.random() * 0.5); x.beginPath(); x.ellipse(rn(256), rn(128), wmin + rn(wmax - wmin), hmin + rn(hmax - hmin), rn(3), 0, 7); x.fill(); } x.globalAlpha = 1; };
-    const bands = (cols, h) => { for (let y = 0; y < 128; y += h) { x.fillStyle = cols[(y / h + (y > 60 ? 3 : 0)) % cols.length]; x.fillRect(0, y, 256, h); } };
-    if (kind === 'gas') { bands(['#c9783c', '#e8b074', '#a8552e', '#f0d2a0', '#b9663a', '#7a3d28', '#dba06a', '#e9c48e'], 4); blot(300, ['#fff0d0', '#5a2a18'], 8, 40, 1, 3, 0.12); }
-    else if (kind === 'ocean') { x.fillStyle = '#1a4f9e'; x.fillRect(0, 0, 256, 128); blot(26, ['#42965a', '#c4aa6e'], 6, 28, 3, 12, 0.85); blot(70, ['#ffffff'], 10, 40, 1.5, 5, 0.4); x.fillStyle = 'rgba(240,248,255,.9)'; x.fillRect(0, 0, 256, 8); x.fillRect(0, 120, 256, 8); }
-    else if (kind === 'purple') { bands(['#5b2a9a', '#8a4ad0', '#b878f0', '#3e1c74', '#d49af8', '#6f36b8'], 6); blot(220, ['#ffd6ff', '#2a1050'], 10, 50, 2, 6, 0.18); }
-    else if (kind === 'jungle') { x.fillStyle = '#2f7a3a'; x.fillRect(0, 0, 256, 128); blot(60, ['#58b05a', '#1f5a2c', '#c8b878'], 8, 34, 4, 14, 0.8); blot(50, ['#ffffff'], 10, 40, 1.5, 4, 0.3); x.fillStyle = 'rgba(230,255,235,.8)'; x.fillRect(0, 0, 256, 6); x.fillRect(0, 122, 256, 6); }
-    else if (kind === 'lava') { x.fillStyle = '#2a0d0a'; x.fillRect(0, 0, 256, 128); blot(70, ['#5a1a10', '#12100f'], 8, 34, 4, 14, 0.9); x.strokeStyle = '#ff7a24'; for (let k = 0; k < 70; k++) { x.lineWidth = 0.8 + rn(2.2); x.globalAlpha = 0.5 + rn(0.5); x.beginPath(); let px = rn(256), py = rn(128); x.moveTo(px, py); for (let j = 0; j < 5; j++) { px += rn(26) - 13; py += rn(20) - 10; x.lineTo(px, py); } x.stroke(); } x.globalAlpha = 1; }
-    else if (kind === 'desert') { x.fillStyle = '#c98a4a'; x.fillRect(0, 0, 256, 128); bands(['#d9a066', '#c07a3c', '#e6b87c', '#a8652f', '#d2924f'], 5); blot(140, ['#f0d09a', '#7a4420'], 8, 36, 2, 8, 0.45); blot(14, ['#e8dcc8'], 6, 20, 2, 6, 0.6); }
-    else if (kind === 'storm') { bands(['#1f3f8a', '#3f6fd0', '#9ec0ff', '#2a52a8', '#ffffff', '#17306a', '#5a8ae8'], 5); blot(180, ['#ffffff', '#0e1e50'], 10, 46, 2, 6, 0.25); blot(5, ['#e8f0ff'], 14, 30, 6, 12, 0.7); }
-    else if (kind === 'bloom') { x.fillStyle = '#8a2a70'; x.fillRect(0, 0, 256, 128); blot(80, ['#ff6ad0', '#4a1040', '#ffb0e8'], 8, 34, 4, 14, 0.8); blot(40, ['#ffffff'], 10, 40, 1.5, 4, 0.3); }
-    else if (kind === 'toxic') { x.fillStyle = '#6a8a1a'; x.fillRect(0, 0, 256, 128); blot(90, ['#c8ff3a', '#3a4a0a', '#e8ff9a'], 8, 34, 3, 12, 0.8); blot(30, ['#ffffff'], 10, 40, 1.5, 4, 0.25); }
-    else if (kind === 'onyx') { x.fillStyle = '#10181c'; x.fillRect(0, 0, 256, 128); blot(60, ['#1c2a30', '#060a0c'], 8, 34, 4, 14, 0.9); x.strokeStyle = '#35e0c8'; for (let k = 0; k < 60; k++) { x.lineWidth = 0.8 + rn(1.8); x.globalAlpha = 0.45 + rn(0.5); x.beginPath(); let px = rn(256), py = rn(128); x.moveTo(px, py); for (let j = 0; j < 5; j++) { px += rn(26) - 13; py += rn(20) - 10; x.lineTo(px, py); } x.stroke(); } x.globalAlpha = 1; }
-    else { x.fillStyle = '#d4ecf8'; x.fillRect(0, 0, 256, 128); blot(80, ['#9ad0ea', '#ffffff', '#7ab8dc'], 10, 44, 2, 9, 0.7); x.strokeStyle = 'rgba(40,110,170,.45)'; for (let k = 0; k < 40; k++) { x.lineWidth = 1; x.beginPath(); let px = rn(256), py = rn(128); x.moveTo(px, py); x.lineTo(px + rn(60) - 30, py + rn(30) - 15); x.stroke(); } }
-    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+  // ---- procedural planet surfaces: tileable value-noise (fBm), painted once into a canvas, no per-frame cost ----
+  const NT = new Float32Array(65536); for (let i = 0; i < 65536; i++) NT[i] = Math.random();
+  const vn = (x, y, px, py) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * xf * (xf * (xf * 6 - 15) + 10), v = yf * yf * yf * (yf * (yf * 6 - 15) + 10);
+    const x0 = ((xi % px) + px) % px, x1 = (x0 + 1) % px, y0 = ((yi % py) + py) % py, y1 = (y0 + 1) % py, h = (X, Y) => NT[(X * 1619 + Y * 31337 + 977) & 65535];
+    const a0 = h(x0, y0), a1 = h(x1, y0), b0 = h(x0, y1), b1 = h(x1, y1); return (a0 + (a1 - a0) * u) * (1 - v) + (b0 + (b1 - b0) * u) * v; };
+  const fbm = (u, v, base, oct) => { let s = 0, amp = 0.5, tot = 0, f = base; for (let o = 0; o < oct; o++) { s += amp * vn(u * f + o * 17.3, v * f * 0.5 + o * 9.1, f, Math.max(2, f >> 1)); tot += amp; amp *= 0.5; f *= 2; } return s / tot; };
+  const hx = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  const ramp = (st, t) => { if (t <= st[0][0]) return st[0].slice(1); for (let i = 1; i < st.length; i++) if (t <= st[i][0]) { const k = (t - st[i - 1][0]) / (st[i][0] - st[i - 1][0]); return [0, 1, 2].map(c => st[i - 1][c + 1] + (st[i][c + 1] - st[i - 1][c + 1]) * k); } return st[st.length - 1].slice(1); };
+  const cyc = (cols, t) => { const n = cols.length, i = Math.floor(t) % n, k = t - Math.floor(t), A = cols[(i + n) % n], B = cols[(i + 1 + n) % n], s = k * k * (3 - 2 * k); return [A[0] + (B[0] - A[0]) * s, A[1] + (B[1] - A[1]) * s, A[2] + (B[2] - A[2]) * s]; };
+  const SW = 512, SH = 256;
+  const paint = (fn, w, h) => { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const x = cv.getContext('2d'), im = x.createImageData(w, h), d = im.data; for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const c = fn(i / w, j / h), o = (j * w + i) * 4; d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = c.length > 3 ? c[3] : 255; } x.putImageData(im, 0, 0); return cv; };
+  const GAS = { gas: ['#c9783c', '#e8b074', '#a8552e', '#f0d2a0', '#b9663a', '#7a3d28', '#dba06a', '#e9c48e'], purple: ['#5b2a9a', '#8a4ad0', '#b878f0', '#3e1c74', '#d49af8', '#6f36b8'], storm: ['#1f3f8a', '#3f6fd0', '#9ec0ff', '#2a52a8', '#e8f0ff', '#17306a', '#5a8ae8'], desert: ['#d9a066', '#c07a3c', '#e6b87c', '#a8652f', '#d2924f', '#efc890'] };
+  const WORLD = {   // sea level, sea ramp, land ramp, polar cap
+    ocean: [0.5, [[0, 8, 34, 100], [1, 40, 120, 190]], [[0, 205, 190, 125], [0.12, 80, 155, 85], [0.5, 60, 115, 62], [0.8, 125, 105, 85], [1, 238, 238, 242]], 1],
+    jungle: [0.42, [[0, 10, 70, 95], [1, 40, 150, 160]], [[0, 200, 185, 120], [0.1, 80, 200, 100], [0.5, 45, 140, 65], [0.9, 110, 95, 65], [1, 230, 235, 225]], 1],
+    bloom: [0.46, [[0, 50, 8, 70], [1, 150, 40, 140]], [[0, 255, 190, 235], [0.2, 255, 110, 205], [0.6, 160, 50, 140], [1, 255, 225, 245]], 1],
+    toxic: [0.45, [[0, 55, 85, 8], [1, 125, 165, 25]], [[0, 230, 255, 150], [0.2, 190, 245, 50], [0.6, 95, 120, 22], [1, 235, 250, 190]], 0],
+    ice: [0, [[0, 150, 200, 230], [1, 150, 200, 230]], [[0, 85, 135, 175], [0.5, 135, 170, 202], [1, 195, 215, 232]], 1]
   };
+  const tex = (kind) => {
+    let cv;
+    if (GAS[kind]) {
+      const cols = GAS[kind].map(hx), calm = kind === 'desert' ? 0.4 : 1, nb = kind === 'gas' ? 9 : kind === 'desert' ? 7 : 11;
+      cv = paint((u, v) => { const wv = fbm(u, v, 4, 5), w2 = fbm(u + 0.3, v, 8, 4), ph = v * nb + (wv - 0.5) * 3.2 * calm + (w2 - 0.5) * 1.1, c = cyc(cols, ph), sh = 0.9 + 0.2 * fbm(u, v, 16, 3); return [c[0] * sh, c[1] * sh, c[2] * sh]; }, SW, SH);
+    } else if (kind === 'lava' || kind === 'onyx') {
+      const gl = kind === 'lava' ? [255, 110, 30] : [53, 224, 200], lo = kind === 'lava' ? [24, 10, 8] : [14, 22, 26], hi = kind === 'lava' ? [80, 40, 30] : [34, 52, 60];
+      cv = paint((u, v) => { const h = fbm(u, v, 8, 5), r = 1 - Math.abs(2 * fbm(u + 0.5, v, 8, 5) - 1), cr = Math.max(0, Math.min(1, (r - 0.9) / 0.07)), hot = cr * cr * (3 - 2 * cr), t = h; return [0, 1, 2].map(c => (lo[c] + (hi[c] - lo[c]) * t) * (1 - hot) + gl[c] * hot + (hot > 0.7 ? 80 * (hot - 0.7) : 0)); }, SW, SH);
+    } else {
+      const W = WORLD[kind] || WORLD.ice, sea = W[0], seaR = W[1], landR = W[2], cap = W[3];
+      cv = paint((u, v) => { const h = fbm(u, v, 8, 7), lat = Math.abs(v - 0.5) * 2;
+        if (kind === 'ice') { const r = 1 - Math.abs(2 * fbm(u + 0.2, v, 16, 4) - 1), c = ramp(landR, h), k = Math.max(0, (r - 0.93) / 0.07) * 0.6; return [c[0] * (1 - k) + 70 * k, c[1] * (1 - k) + 130 * k, c[2] * (1 - k) + 190 * k]; }
+        if (cap && lat > 0.86 + 0.08 * fbm(u, v, 8, 3)) return [215, 228, 240];
+        const sc = ramp(seaR, Math.min(1, h / sea)), lc = ramp(landR, Math.max(0, (h - sea) / (1 - sea))), k = Math.max(0, Math.min(1, (h - sea + 0.012) / 0.024)); const shal = Math.max(0, 1 - Math.abs(h - sea) / 0.05) * 0.35; return [0, 1, 2].map(c => (sc[c] * (1 - k) + lc[c] * k) * (1 - shal) + (c === 0 ? 60 : c === 1 ? 200 : 190) * shal * (k < 1 ? 1 : 0)); }, SW, SH);
+    }
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 2; return t;
+  };
+  // cloud layers (two shared textures, white with an alpha made from noise) - drawn on a slightly bigger sphere that turns slowly
+  const cloudTex = [0, 1].map(s => { const cv = paint((u, v) => { const n = fbm(u + s * 0.37, v, 6, 5), a = Math.max(0, Math.min(1, (n - 0.54) / 0.13)); return [255, 255, 255, a * 235]; }, 256, 128); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t; });
+  const CLOUDS = { ocean: 0.95, jungle: 0.85, bloom: 0.7, toxic: 0.6, ice: 0.22, storm: 0.45, desert: 0.3 };
+  const SUN = sun.position.clone().normalize(); const blankTex = new THREE.DataTexture(new Uint8Array([40, 44, 56, 255]), 1, 1); blankTex.needsUpdate = true; blankTex.colorSpace = THREE.SRGBColorSpace;
+  const planetMat = (tx, atm, emis) => new THREE.ShaderMaterial({ fog: false,
+    uniforms: { map: { value: tx }, L: { value: SUN }, atm: { value: new THREE.Color(atm[0], atm[1], atm[2]) }, emis: { value: emis } },
+    vertexShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv = uv; vN = normalize(mat3(modelMatrix) * normal); vec4 wp = modelMatrix * vec4(position, 1.0); vV = normalize(cameraPosition - wp.xyz); gl_Position = projectionMatrix * viewMatrix * wp; }',
+    fragmentShader: 'uniform sampler2D map; uniform vec3 L; uniform vec3 atm; uniform float emis; varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vec3 n = normalize(vN); vec3 Lp = normalize(L + 0.9 * normalize(vV)); float d = dot(n, Lp); float lit = smoothstep(-0.25, 0.55, d); vec3 b = texture2D(map, vUv).rgb; vec3 col = b * (0.2 + 1.1 * lit) + b * emis; float fr = pow(1.0 - max(dot(n, normalize(vV)), 0.0), 3.0); col += atm * fr * (0.1 + 0.9 * smoothstep(-0.35, 0.5, d)) * 0.8; float tw = smoothstep(-0.05, 0.12, d) * (1.0 - smoothstep(0.12, 0.4, d)); col += atm * tw * 0.12; gl_FragColor = vec4(col, 1.0); }' });
+  const cloudMat = (tx, op) => new THREE.ShaderMaterial({ transparent: true, depthWrite: false, fog: false,
+    uniforms: { map: { value: tx }, L: { value: SUN }, op: { value: op } },
+    vertexShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv = uv; vN = normalize(mat3(modelMatrix) * normal); vec4 wp = modelMatrix * vec4(position, 1.0); vV = normalize(cameraPosition - wp.xyz); gl_Position = projectionMatrix * viewMatrix * wp; }',
+    fragmentShader: 'uniform sampler2D map; uniform vec3 L; uniform float op; varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vec4 c = texture2D(map, vUv); vec3 Lp = normalize(L + 0.9 * normalize(vV)); float lit = smoothstep(-0.25, 0.55, dot(normalize(vN), Lp)); gl_FragColor = vec4(vec3(1.0) * (0.25 + 1.1 * lit), c.a * op); }' });
+  const haloMat = (c) => new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.BackSide, fog: false,
+    uniforms: { c: { value: new THREE.Color(c[0], c[1], c[2]) }, L: { value: SUN } },
+    vertexShader: 'varying vec3 vN; varying vec3 vWN; varying vec3 vV; varying vec3 vWV; void main(){ vWN = normalize(mat3(modelMatrix) * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); vWV = normalize(cameraPosition - (modelMatrix * vec4(position, 1.0)).xyz); gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'uniform vec3 c; uniform vec3 L; varying vec3 vN; varying vec3 vWN; varying vec3 vV; varying vec3 vWV; void main(){ vec3 Lp = normalize(L + 0.9 * normalize(vWV)); float a = abs(dot(normalize(vN), normalize(vV))); float f = pow(clamp(a / 0.42, 0.0, 1.0), 1.6); float day = 0.3 + 0.9 * smoothstep(-0.45, 0.5, dot(normalize(vWN), Lp)); gl_FragColor = vec4(c * f * day * 0.85, 1.0); }' });
   const atmMat = (c, pw) => new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
     uniforms: { c: { value: new THREE.Color(c[0], c[1], c[2]) }, pw: { value: pw } },
@@ -708,7 +743,10 @@ const planets = [];
   });
   for (const s of stations) {
     const p = s.pl; p.pos = s.pos.clone().add(p.off); p.sys = s.sys; planets.push(p);
-    const pm = new THREE.Mesh(geo, (() => { const tx = tex(p.kind); return new THREE.MeshLambertMaterial({ map: tx, emissive: 0xffffff, emissiveMap: tx, emissiveIntensity: 0.28, fog: false }); })()); pm.scale.setScalar(p.r); pm.position.copy(p.pos); pm.rotation.z = 0.3; scene.add(pm); p.mesh = pm;
+    p.build = () => { p.mesh.material.uniforms.map.value = tex(p.kind); };
+    const pm = new THREE.Mesh(geo, planetMat(blankTex, p.atm, p.kind === 'lava' || p.kind === 'onyx' ? 0.45 : 0.0)); pm.scale.setScalar(p.r); pm.position.copy(p.pos); pm.rotation.z = 0.3; scene.add(pm); p.mesh = pm;
+    if (CLOUDS[p.kind]) { const cm = new THREE.Mesh(geo, cloudMat(cloudTex[planets.length & 1], CLOUDS[p.kind])); cm.scale.setScalar(1.03); pm.add(cm); p.cl = cm; }
+    { const hm = new THREE.Mesh(geo, haloMat(p.atm)); hm.scale.setScalar(1.12); pm.add(hm); }
     if (p.ring) {
       const cv = document.createElement('canvas'); cv.width = cv.height = 256; const x = cv.getContext('2d');
       for (let r = 128; r > 0; r -= 1.5) { const t = r / 128, inRing = t > 0.62 && t < 0.99, a = inRing ? 0.25 + 0.55 * Math.abs(Math.sin(r * 0.55) * Math.cos(r * 0.17)) : 0; x.strokeStyle = 'rgba(' + (225 - (r % 7) * 6) + ',' + (190 - (r % 5) * 6) + ',' + (150 - (r % 9) * 4) + ',' + (t > 0.78 && t < 0.82 ? 0.05 : a) + ')'; x.lineWidth = 1.7; x.beginPath(); x.arc(128, 128, r, 0, Math.PI * 2); x.stroke(); }
@@ -1414,10 +1452,13 @@ function frame(now) {
   }
   boltMesh.instanceMatrix.needsUpdate = true; boltHalo.instanceMatrix.needsUpdate = true;
   updCurSys();
+  let pBuilt = false;
   for (const p of planets) {   // planets are unreachable scenery: drawn along the true direction but at an apparent distance that barely shrinks, with the size you would see from the real distance
     if (p.sys !== curSys) { p.mesh.visible = false; if (p.rg) p.rg.visible = false; continue; } p.mesh.visible = true; if (p.rg) p.rg.visible = true;
     _a.copy(p.pos).sub(S.pos); const d = _a.length() || 1, dA = 2600 + 0.12 * d, a = Math.max(0.026, p.r / Math.max(d, p.r * 1.6) * (d > 4000 ? Math.pow(4000 / d, 1.5) : 1)), k = a * dA / p.r;   // like Galaxy on Fire 2: far planets are tiny discs (about 3 degrees), the one at your station is huge
     const w = clamp((d - 1500) / 2500, 0, 1) * 0.7; _pd.copy(_a).divideScalar(d).multiplyScalar(1 - w).addScaledVector(_pc.copy(p.pos).sub(PCENS[p.sys]).normalize(), w).normalize();   // far planets fan out around the system centre so they never bunch up on screen
+    if (p.build && !pBuilt) { p.build(); p.build = null; pBuilt = true; }   // each planet paints its surface the first time it is in view (one per frame, so there is no long freeze)
+    if (p.cl) p.cl.rotation.y += dt * 0.012;
     p.mesh.position.copy(S.pos).addScaledVector(_pd, dA); p.mesh.scale.setScalar(p.r * k); if (p.rg) { p.rg.position.copy(p.mesh.position); p.rg.scale.setScalar(k); }
   }
   for (const st of stations) { st.g.visible = S.pos.distanceTo(st.pos) < STN_VIS; }
