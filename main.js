@@ -306,7 +306,14 @@ const roverBody = (() => {
   // smooth sculpted parts only (no stacked boxes): dorsal spine, shoulder fairings, chin, glass dome, swept arms, cannon pods - all lofted
   put(glow, B(0.04, 0.04, 2.8), ICE, [-1.12, Yc + 0.2, -0.7], [0, 0.06, 0]); put(glow, B(0.04, 0.04, 2.8), ICE, [1.12, Yc + 0.2, -0.7], [0, -0.06, 0]);
   put(glow, B(0.12, 0.03, 1.6), ICE, [0, Yc + 0.66, 0.9]);
-  put(glass, new THREE.SphereGeometry(0.5, 16, 12), 0x24405f, [0, Yc + 0.52, -1.9], 0, [0.85, 0.55, 1.75]);
+  put(glass, new THREE.SphereGeometry(0.5, 20, 14), 0x4a82b8, [0, Yc + 0.5, -1.85], 0, [0.98, 0.62, 2.05]);
+  put(glow, B(0.05, 0.02, 1.5), 0xcfeaff, [0, Yc + 0.93, -1.9]);   // glint along the canopy
+  for (const s of [-1, 1]) {
+    // twin tail fins (they give the ship a proper fighter silhouette from behind) with a glowing edge, and a coloured navigation light on every wing pod
+    loft([[0.35, 0.03, 0.05, 0], [0.9, 0.045, 0.42, 0.34], [1.8, 0.045, 0.56, 0.46], [2.5, 0.02, 0.12, 0.1]], (z, y) => y > 0.5 ? HD : HC, 0, 0, 2.2,
+      new THREE.Matrix4().makeTranslation(s * 0.78, Yc + 0.22, 0).multiply(new THREE.Matrix4().makeRotationZ(-s * 0.28)));
+    put(glow, B(0.1, 0.1, 0.1), s < 0 ? 0xff3a2a : 0x3aff6a, [s * 2.6, 0.48, 0.3]);
+  }
   for (const s of [-1, 1]) {
     // swept arm: flat tapered blade from the hull to the pod, blending into both
     const th = Math.atan2(1.45 * s, -0.5);
@@ -362,11 +369,11 @@ const roverBody = (() => {
       f *= 1.7; cl.setXYZ(i, Math.min(1, cl.getX(i) * f), Math.min(1, cl.getY(i) * f), Math.min(1, cl.getZ(i) * f));
     }
   }
-  const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, map: plateMap, bumpMap: plateBump, bumpScale: 2.6, roughness: 0.3, metalness: 0.7, flatShading: false, envMap: senv, envMapIntensity: 1.3, emissive: 0x2a303c });
+  const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, map: plateMap, bumpMap: plateBump, bumpScale: 1.6, roughness: 0.3, metalness: 0.7, flatShading: false, envMap: senv, envMapIntensity: 1.3, emissive: 0x2a303c });
   bmat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float rimK = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 2.6); totalEmissiveRadiance += vec3(0.1, 0.55, 0.85) * rimK * 0.5;'); };   // cyan rim light round the silhouette
   const bm = new THREE.Mesh(bgeo, bmat);
   const gm = new THREE.Mesh(mergeGeometries(glow), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, fog: false }));
-  const cm = new THREE.Mesh(mergeGeometries(glass), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.08, metalness: 0.9, emissive: 0x0b2a46, transparent: true, opacity: 0.88 }));
+  const cm = new THREE.Mesh(mergeGeometries(glass), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.08, metalness: 0.9, emissive: 0x123e66, transparent: true, opacity: 0.9 }));
   grp.add(bm, gm, cm); return grp;
 })();
 shipBody.add(roverBody);
@@ -1492,7 +1499,7 @@ function frame(now) {
   }
   boltMesh.instanceMatrix.needsUpdate = true; boltHalo.instanceMatrix.needsUpdate = true;
   updCurSys();
-  let pBuilt = false;
+  let pBuilt = false; const PSIZE = 2;   // every planet is drawn twice as big
   for (const p of planets) {   // planets are unreachable scenery: drawn along the true direction but at an apparent distance that barely shrinks, with the size you would see from the real distance
     if (p.sys !== curSys) { p.mesh.visible = false; if (p.rg) p.rg.visible = false; continue; } p.mesh.visible = true; if (p.rg) p.rg.visible = true;
     _a.copy(p.pos).sub(S.pos); const d = _a.length() || 1, dA = 2600 + 0.12 * d, a = Math.max(0.026, p.r / Math.max(d, p.r * 1.6) * (d > 4000 ? Math.pow(4000 / d, 1.5) : 1)), k = a * dA / p.r;   // like Galaxy on Fire 2: far planets are tiny discs (about 3 degrees), the one at your station is huge
@@ -1500,7 +1507,8 @@ function frame(now) {
     if (p.build && !pBuilt) { p.build(); p.build = null; pBuilt = true; }   // each planet paints its surface the first time it is in view (one per frame, so there is no long freeze)
     if (p.cl) p.cl.rotation.y += dt * 0.012;
     if (p.moon) { p.mt += dt * 0.04; p.moon.position.set(Math.cos(p.mt) * 1.9, Math.sin(p.mt * 0.7) * 0.3, Math.sin(p.mt) * 1.9); }
-    p.mesh.position.copy(S.pos).addScaledVector(_pd, dA); p.mesh.scale.setScalar(p.r * k); if (p.rg) { p.rg.position.copy(p.mesh.position); p.rg.scale.setScalar(k); }
+    p.mesh.position.copy(S.pos).addScaledVector(_pd, dA); const f = Math.min(PSIZE, 0.75 / a);   // double size, but the planet right next to you grows less so it does not swallow the whole sky
+    p.mesh.scale.setScalar(p.r * k * f); if (p.rg) { p.rg.position.copy(p.mesh.position); p.rg.scale.setScalar(k * f); }
   }
   for (const st of stations) { st.g.visible = S.pos.distanceTo(st.pos) < STN_VIS; }
   dustMat.uniforms.uCam.value.copy(camera.position); dustMat.uniforms.uVel.value.copy(S.vel);

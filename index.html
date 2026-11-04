@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>Star Courier</title>
 <style>
-  html,body{margin:0;height:100%;background:#02030a;overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#e8f6ff}
+  html,body{-webkit-tap-highlight-color:transparent;margin:0;height:100%;background:#02030a;overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#e8f6ff}
   canvas#c{position:fixed;inset:0;width:100%;height:100%;display:block}
   .hud{position:fixed;pointer-events:none;z-index:10;text-shadow:0 1px 4px rgba(0,0,0,.8)}
   #top-left{top:calc(10px + env(safe-area-inset-top));left:calc(12px + env(safe-area-inset-left));display:flex;flex-direction:column;gap:5px;min-width:160px}
@@ -454,7 +454,11 @@
 #shop.lgon #lounge{display:block}
 #shop.lgon #npc,#shop.lgon #npc-tag,#shop.lgon #sh-panel{display:none!important}
 #lounge svg{position:absolute;inset:0;width:100%;height:100%}
+#lounge,#lounge *{-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;outline:none;touch-action:manipulation}
+#lounge svg *::selection,#lounge::selection{background:transparent}
 #lounge .pt{cursor:pointer}
+#lounge .pt:focus,#lounge .pt:focus-visible,#lounge svg:focus{outline:none}
+#lounge image{-webkit-user-drag:none}
 #lounge .pt .hit{fill:transparent;stroke:none}
 #lounge .pt image{pointer-events:none}
 #lounge.sys1 #lg-scene,#lounge.sys1 .pt ellipse{filter:hue-rotate(170deg) saturate(1.15)}
@@ -554,11 +558,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=214', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=217', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=214'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=217'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>
