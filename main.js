@@ -840,7 +840,13 @@ function sfx(kind, k) {
   else if (kind === 'hit') noise(900, 0.3, 0.5);
   else if (kind === 'boom') noise(500 + 200 / (k || 1), 0.55, clamp(0.25 + (k || 10) * 0.02, 0.3, 0.8));
   else if (kind === 'pick') tone('sine', 760, 1480, 0.16, 0.2);
-  else if (kind === 'missile') { tone('sawtooth', 160, 700, 0.5, 0.12); }
+  else if (kind === 'missile') {
+    // short crackle at the start, then a deep whoosh that rises
+    for (let i = 0; i < 6; i++) { const d = i * 0.018 + Math.random() * 0.012, s = actx.createBufferSource(); s.buffer = eng.nb; const hp = actx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1800 + Math.random() * 2500; const g = actx.createGain(); g.gain.setValueAtTime(0.0001, t + d); g.gain.exponentialRampToValueAtTime(0.28, t + d + 0.003); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.03); s.connect(hp); hp.connect(g); g.connect(eng.master); s.start(t + d, Math.random() * 0.4, 0.04); }
+    const w = actx.createBufferSource(); w.buffer = eng.nb; w.loop = true; const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4; bp.frequency.setValueAtTime(140, t); bp.frequency.exponentialRampToValueAtTime(1500, t + 0.95);
+    const wg = actx.createGain(); wg.gain.setValueAtTime(0.0001, t); wg.gain.exponentialRampToValueAtTime(0.55, t + 0.55); wg.gain.exponentialRampToValueAtTime(0.001, t + 1.0); w.connect(bp); bp.connect(wg); wg.connect(eng.master); w.start(t); w.stop(t + 1.05);
+    tone('triangle', 55, 230, 0.8, 0.22, 0.02);
+  }
   else if (kind === 'boost') tone('sawtooth', 90, 420, 0.4, 0.16);
   else if (kind === 'dock') { tone('triangle', 523, 523, 0.45, 0.22); tone('triangle', 659, 659, 0.45, 0.22, 0.12); tone('triangle', 784, 784, 0.5, 0.22, 0.24); }
   else if (kind === 'lock') tone('sine', 1200, 1200, 0.06, 0.12);
