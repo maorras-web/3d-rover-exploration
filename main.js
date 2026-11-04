@@ -1067,7 +1067,7 @@ function openShop(msg) {
   S.mode = 'dock';
   $('shop-title').textContent = 'DOCKED · ' + stations[S.station].name;
   $('shop-earn').textContent = msg || '';
-  ['h', 'u', 'p', 'm', 's'].forEach(k => $('tab-' + k).classList.toggle('on', shopTab === k)); $('sh-panel').style.display = shopTab === 'h' ? 'none' : 'flex'; $('shop').classList.toggle('npcon', shopTab === 'u' || shopTab === 's');
+  ['h', 'u', 'p', 'm', 's', 'b'].forEach(k => $('tab-' + k).classList.toggle('on', shopTab === k)); $('sh-panel').style.display = shopTab === 'h' || shopTab === 'b' ? 'none' : 'flex'; $('shop').classList.toggle('npcon', shopTab === 'u' || shopTab === 's'); $('shop').classList.toggle('lgon', shopTab === 'b');
   { const hero = shopTab === 's'; $('npc').src = hero ? 'pilot.webp' : 'merchant.webp'; $('npc').classList.toggle('hero', hero); $('npc-nm').textContent = hero ? 'NABIYAX · PILOT' : 'VORR · TRADER'; $('npc-tx').textContent = hero ? 'Ship ready. Let\'s fly.' : 'Best prices this side of the nebula, pilot.'; }
   const list = $('shop-list'); list.innerHTML = '';
   const row = (nm, desc, extra, btnText, dis, fn) => {
@@ -1116,7 +1116,20 @@ function openShop(msg) {
   }
   updateMissHud(); document.body.classList.add('docked'); $('shop').classList.add('show');
 }
-['h', 'u', 'p', 'm', 's'].forEach(k => $('tab-' + k).addEventListener('click', () => { shopTab = k; openShop($('shop-earn').textContent); }));
+['h', 'u', 'p', 'm', 's', 'b'].forEach(k => $('tab-' + k).addEventListener('click', () => { shopTab = k; openShop($('shop-earn').textContent); }));
+// ---- space lounge: tap a patron to hear a rumour (free), or order a drink (small credit sink) for a better tip ----
+{
+  const PT = [
+    { nm: 'GRUNK · MINER', t: ['Big rocks pay little. A missile cracks even the giant ones in one hit.', 'Keep your laser on a rock and it falls apart. Takes patience on the big ones.', 'Ore pays best from the large asteroids. Worth the wait.'] },
+    { nm: 'LYRA · COURIER', t: ['Yapzo is far out. Open the star map and tap the jump button.', 'The warp between systems is smooth. Just do not fly into a station while it spins.', 'Every station here looks different. The Yapzo ones have a huge ring.'] },
+    { nm: 'DEX · BOUNTY HUNTER', t: ['Pirates fly in an X shape. Aim at the middle, that is where the pilot hides.', 'Press TARGET, then fire a missile. It homes in on whoever you picked.', 'Their shields drop fast if you keep them in the middle of your sights.'] },
+    { nm: 'ZEEP · TRADER', t: ['Shield upgrades first. Trust me, you will thank me later.', 'Vorr sells missiles by the pack. Stock up before a long trip.', 'Credits are for spending, pilot. Save them for the hull upgrade.'] },
+    { nm: 'OLD SOL · DRIFTER', t: ['Nobody has seen the edge of the Yapzo system. They say the planets sing.', 'I flew with a pilot once who never boosted. Never lost a fight either.', 'The best view in the galaxy is out the window behind you.'] }
+  ], TIP = ['Cinder is full of pirates. Go in with full shields.', 'A tip from me: the pirate pilot is always in the middle of the X. Hit the middle.', 'Keep your boost for escaping, not for chasing. It recharges slowly.', 'Missile packs are cheap. Pirates are not. Buy more missiles.', 'Yapzo pays better than Helios for the same missions, but the pirates hit harder.'];
+  const idx = [0, 0, 0, 0, 0], say = (nm, tx) => { $('lg-nm').textContent = nm; $('lg-tx').textContent = tx; };
+  document.querySelectorAll('#lounge .pt').forEach(g => g.addEventListener('click', () => { const i = +g.dataset.i, p = PT[i]; initAudio(); sfx('ui'); say(p.nm, p.t[idx[i]++ % p.t.length]); }));
+  $('lg-drink').addEventListener('click', () => { if (save.credits < 15) { toast('NOT ENOUGH CREDITS', 1); return; } save.credits -= 15; persist(); refreshHud(); $('shop-cr').textContent = '◆ ' + save.credits; initAudio(); sfx('pick'); const p = PT[Math.random() * PT.length | 0]; say(p.nm + ' · CHEERS', TIP[Math.random() * TIP.length | 0]); });
+}
 
 function dockAt(i) {
   tintHangar(stations[i].col); setPad(stations[i].sys); S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + 2.1, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
