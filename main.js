@@ -1062,12 +1062,12 @@ function updateMusic(dt) {
   if (stVol > 0.01) { if (stMus.paused) { try { const p = stMus.play(); if (p && p.catch) p.catch(() => { }); } catch (e) { } } stMus.volume = clamp(stVol, 0, 1); }
   else if (!stMus.paused) { stMus.pause(); stMus.volume = 0; }
 }
-let shopTab = 'm';
+let shopTab = 'm', lgSt = -1;
 function openShop(msg) {
   S.mode = 'dock';
   $('shop-title').textContent = 'DOCKED · ' + stations[S.station].name;
   $('shop-earn').textContent = msg || '';
-  ['h', 'u', 'p', 'm', 's', 'b'].forEach(k => $('tab-' + k).classList.toggle('on', shopTab === k)); $('sh-panel').style.display = shopTab === 'h' || shopTab === 'b' ? 'none' : 'flex'; $('shop').classList.toggle('npcon', shopTab === 'u' || shopTab === 's'); $('shop').classList.toggle('lgon', shopTab === 'b');
+  ['h', 'u', 'p', 'm', 's', 'b'].forEach(k => $('tab-' + k).classList.toggle('on', shopTab === k)); $('sh-panel').style.display = shopTab === 'h' || shopTab === 'b' ? 'none' : 'flex'; $('shop').classList.toggle('npcon', shopTab === 'u' || shopTab === 's'); $('shop').classList.toggle('lgon', shopTab === 'b'); if (shopTab === 'b' && window.__fillLounge && lgSt !== S.station) { window.__fillLounge(); lgSt = S.station; }
   { const hero = shopTab === 's'; $('npc').src = hero ? 'pilot.webp' : 'merchant.webp'; $('npc').classList.toggle('hero', hero); $('npc-nm').textContent = hero ? 'NABIYAX · PILOT' : 'VORR · TRADER'; $('npc-tx').textContent = hero ? 'Ship ready. Let\'s fly.' : 'Best prices this side of the nebula, pilot.'; }
   const list = $('shop-list'); list.innerHTML = '';
   const row = (nm, desc, extra, btnText, dis, fn) => {
@@ -1120,15 +1120,29 @@ function openShop(msg) {
 // ---- space lounge: tap a patron to hear a rumour (free), or order a drink (small credit sink) for a better tip ----
 {
   const PT = [
-    { nm: 'GRUNK · MINER', t: ['Big rocks pay little. A missile cracks even the giant ones in one hit.', 'Keep your laser on a rock and it falls apart. Takes patience on the big ones.', 'Ore pays best from the large asteroids. Worth the wait.'] },
-    { nm: 'LYRA · COURIER', t: ['Yapzo is far out. Open the star map and tap the jump button.', 'The warp between systems is smooth. Just do not fly into a station while it spins.', 'Every station here looks different. The Yapzo ones have a huge ring.'] },
-    { nm: 'DEX · BOUNTY HUNTER', t: ['Pirates fly in an X shape. Aim at the middle, that is where the pilot hides.', 'Press TARGET, then fire a missile. It homes in on whoever you picked.', 'Their shields drop fast if you keep them in the middle of your sights.'] },
-    { nm: 'ZEEP · TRADER', t: ['Shield upgrades first. Trust me, you will thank me later.', 'Vorr sells missiles by the pack. Stock up before a long trip.', 'Credits are for spending, pilot. Save them for the hull upgrade.'] },
-    { nm: 'OLD SOL · DRIFTER', t: ['Nobody has seen the edge of the Yapzo system. They say the planets sing.', 'I flew with a pilot once who never boosted. Never lost a fight either.', 'The best view in the galaxy is out the window behind you.'] }
-  ], TIP = ['Cinder is full of pirates. Go in with full shields.', 'A tip from me: the pirate pilot is always in the middle of the X. Hit the middle.', 'Keep your boost for escaping, not for chasing. It recharges slowly.', 'Missile packs are cheap. Pirates are not. Buy more missiles.', 'Yapzo pays better than Helios for the same missions, but the pirates hit harder.'];
-  const idx = [0, 0, 0, 0, 0], say = (nm, tx) => { $('lg-nm').textContent = nm; $('lg-tx').textContent = tx; };
-  document.querySelectorAll('#lounge .pt').forEach(g => g.addEventListener('click', () => { const i = +g.dataset.i, p = PT[i]; initAudio(); sfx('ui'); say(p.nm, p.t[idx[i]++ % p.t.length]); }));
-  $('lg-drink').addEventListener('click', () => { if (save.credits < 15) { toast('NOT ENOUGH CREDITS', 1); return; } save.credits -= 15; persist(); refreshHud(); $('shop-cr').textContent = '◆ ' + save.credits; initAudio(); sfx('pick'); const p = PT[Math.random() * PT.length | 0]; say(p.nm + ' · CHEERS', TIP[Math.random() * TIP.length | 0]); });
+    { nm: 'MALVOR · SYNDICATE BOSS', t: ['Pay up or keep moving.', 'I own half this sector. Do not make it more.', 'Smile less, pilot. It does not suit you.'] },
+    { nm: 'KYRA · ASSASSIN', t: ['I never miss. Ask my last target.', 'Quiet is how I like my work.', 'You blink, I vanish.'] },
+    { nm: 'GRAKK · MERCENARY', t: ['Strong hull, stronger fists.', 'I do not ask who. I ask how much.', 'Hit me. I dare you.'] },
+    { nm: 'SILAS · BROKER', t: ['Everything has a price. Even you.', 'I know who wants you dead. For a fee, I will tell you.', 'Information is the sharpest blade.'] },
+    { nm: 'ZIRRA · SCOUT', t: ['I see you long before you see me.', 'The dark is my home. Stay out of it.', 'Do not follow me. You will not like where it ends.'] },
+    { nm: 'BRUTE · BOUNCER', t: ['No trouble in here, pilot.', 'One wrong word and you leave through the airlock.', 'Move along. Or I move you.'] },
+    { nm: 'NYX · SMUGGLER', t: ['Cargo? What cargo?', 'The border patrol never found me. They never will.', 'Fast ship, empty questions. That is my rule.'] },
+    { nm: 'HOGG · FIXER', t: ['I can get anything. Cash first.', 'Do not ask where it came from.', 'A deal is a deal. Break it and I break you.'] },
+    { nm: 'CORVAX · BOUNTY HUNTER', t: ['Your face is on a wanted list. Kidding. Maybe.', 'I always collect.', 'Run. It makes the hunt more fun.'] },
+    { nm: 'ORLA · SPY', t: ['Walls have ears. Mine are better.', 'I know what you did last cycle.', 'Smile. You are being watched.'] },
+    { nm: 'VYRA · PIRATE QUEEN', t: ['Fly well, or fly for me.', 'Every pirate out there answers to me.', 'Bow your head, pilot. I am only joking. Almost.'] },
+    { nm: 'THE WATCHER · ORACLE', t: ['I know how your last fight ends.', 'The stars remember every pilot who fell.', 'Fear is only a warning. Listen to it.'] }
+  ], TIP = ['Cinder is full of pirates. Go in with full shields.', 'The pirate pilot is always in the middle of the X. Hit the middle.', 'Keep your boost for escaping, not for chasing.', 'Missile packs are cheap. Pirates are not. Buy more.', 'Yapzo pays better than Helios, but the pirates hit harder.', 'A missile cracks even the biggest asteroid in one hit.'];
+  const SLOTS = [{ x: 345, y: 344, s: 0.5 }, { x: 440, y: 342, s: 0.46 }, { x: 625, y: 334, s: 0.42 }, { x: 775, y: 340, s: 0.44 }, { x: 885, y: 354, s: 0.5 }];
+  // five different faces at every station (a rotating pick from the twelve), cut from one sprite sheet
+  const fillLounge = () => { const g = $('lg-pts'), st = S.station | 0, ns = 'http://www.w3.org/2000/svg'; let h = '';
+    SLOTS.forEach((sl, j) => { const c = (st * 5 + j * 1 + (st > 5 ? 3 : 0)) % PT.length, w = 288 * sl.s, hh = 480 * sl.s;
+      h += `<g class="pt" data-i="${c}" transform="translate(${sl.x} ${sl.y})"><ellipse cx="0" cy="${-hh * 0.45}" rx="${w * 0.7}" ry="${hh * 0.55}" fill="url(#lgGlow)"/><svg x="${-w / 2}" y="${-hh}" width="${w}" height="${hh}" viewBox="${(c % 6) * 288} ${(c / 6 | 0) * 480} 288 480" overflow="hidden"><image href="lounge.webp" width="1728" height="960"/></svg><rect class="hit" x="${-w / 2}" y="${-hh}" width="${w}" height="${hh}" fill="transparent"/></g>`; });
+    g.innerHTML = h;
+    g.querySelectorAll('.pt').forEach(el => el.addEventListener('click', () => { const i = +el.dataset.i, p = PT[i]; initAudio(); sfx('ui'); say(p.nm, p.t[idx[i]++ % p.t.length]); })); };
+  window.__fillLounge = fillLounge;
+  const idx = new Array(12).fill(0), say = (nm, tx) => { $('lg-nm').textContent = nm; $('lg-tx').textContent = tx; };
+  $('lg-drink').addEventListener('click', () => { if (save.credits < 15) { toast('NOT ENOUGH CREDITS', 1); return; } save.credits -= 15; persist(); refreshHud(); $('shop-cr').textContent = '◆ ' + save.credits; initAudio(); sfx('pick'); const on = $('lg-pts').querySelectorAll('.pt'), p = PT[+on[Math.random() * on.length | 0].dataset.i]; say(p.nm + ' · CHEERS', TIP[Math.random() * TIP.length | 0]); });
 }
 
 function dockAt(i) {
