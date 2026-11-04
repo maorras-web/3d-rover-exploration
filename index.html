@@ -364,7 +364,7 @@
   #npc-tag{bottom:46px;padding:4px 12px 4px 10px;border-left:3px solid #35d4ff;background:linear-gradient(90deg,rgba(4,10,20,.92),rgba(4,10,20,.5));font:700 11px/1.25 system-ui,Arial,sans-serif;letter-spacing:1.5px;color:#9fe8ff;max-width:36vw}
   #npc-tag i{display:block;font:italic 400 12px/1.3 system-ui,Arial,sans-serif;letter-spacing:0;color:#e8f1ff;margin-top:2px}
   #shop.npcon #npc,#shop.npcon #npc-tag{display:block}
-  #npc.hero{filter:none;border-radius:6px;box-shadow:0 0 0 1px rgba(53,212,255,.45),0 0 22px rgba(40,90,255,.35);-webkit-mask-image:linear-gradient(180deg,#000 78%,transparent);mask-image:linear-gradient(180deg,#000 78%,transparent)}
+  #npc.hero{height:auto;width:min(32vh,30vw);top:40px;filter:none;border-radius:6px;box-shadow:0 0 0 1px rgba(53,212,255,.45),0 0 22px rgba(40,90,255,.35);-webkit-mask-image:linear-gradient(180deg,#000 78%,transparent);mask-image:linear-gradient(180deg,#000 78%,transparent)}
   #shop.npcon .panel{left:calc(112px + 52vh + env(safe-area-inset-left))}
   @media (min-width:700px) and (min-aspect-ratio:6/5){#shop .panel{left:46vw}}
   #sh-top{position:absolute;left:calc(10px + env(safe-area-inset-left));right:calc(54px + env(safe-area-inset-right));top:0;height:34px;display:flex;align-items:center;gap:16px;background:linear-gradient(180deg,rgba(2,6,12,.85),rgba(2,6,12,0));font:700 11px system-ui,Arial,sans-serif;color:#bcd0e6;letter-spacing:.5px}
@@ -460,9 +460,17 @@
 #lounge .pt{cursor:pointer}
 #lounge .pt .hit{fill:transparent;stroke:none}
 #lounge .pt image{pointer-events:none}
+#lounge.sys1 #lg-scene,#lounge.sys1 .pt ellipse{filter:hue-rotate(170deg) saturate(1.15)}
+#lounge.sys1 #lg-say{border-left-color:#3ad0ff;color:#9fe8ff}
 #lounge .pt:active{opacity:.8}
 #lg-say{position:absolute;left:12px;bottom:10px;max-width:58%;padding:6px 12px 7px 10px;border-left:3px solid #ff9a3a;background:linear-gradient(90deg,rgba(14,5,4,.94),rgba(14,5,4,.6));font:700 11px/1.25 system-ui,Arial,sans-serif;letter-spacing:1.5px;color:#ffc27a;pointer-events:none}
 #lg-say i{display:block;font:italic 400 12px/1.3 system-ui,Arial,sans-serif;letter-spacing:0;color:#ffeedd;margin-top:2px}
+#lg-nab{position:absolute;right:10px;top:8px;display:flex;align-items:flex-end;gap:8px;opacity:0;transform:translateY(-6px);transition:opacity .35s,transform .35s;pointer-events:none}
+#lg-nab.on{opacity:1;transform:none}
+#lg-nab img{height:64px;width:auto;border-radius:6px;box-shadow:0 0 0 1px rgba(255,170,70,.6),0 0 14px rgba(255,120,30,.35)}
+#lg-nab .nt{max-width:210px;padding:5px 10px 6px;border-radius:8px 8px 2px 8px;background:rgba(14,5,4,.88);border:1px solid rgba(255,170,70,.45);font:800 10px/1.2 system-ui,Arial,sans-serif;letter-spacing:1.5px;color:#ffc27a}
+#lg-nab .nt i{display:block;font:italic 400 12px/1.3 system-ui,Arial,sans-serif;letter-spacing:0;color:#ffeedd;margin-top:2px}
+#lounge.sys1 #lg-nab .nt{border-color:rgba(58,208,255,.5);color:#9fe8ff}
 #lg-drink{position:absolute;right:12px;bottom:10px;height:28px;padding:0 12px;border-radius:3px;border:1px solid #ffb55a;background:linear-gradient(180deg,rgba(150,70,20,.95),rgba(80,32,10,.95));color:#fff;font:700 11px system-ui,Arial,sans-serif;letter-spacing:1px}
 #lg-drink:disabled{opacity:.5}
 </style>
@@ -484,7 +492,7 @@
 <linearGradient id="lgBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34203a"/><stop offset="1" stop-color="#0c0510"/></linearGradient>
 <linearGradient id="lgWall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e0652a" stop-opacity=".75"/><stop offset="1" stop-color="#7a2410" stop-opacity=".6"/></linearGradient>
 </defs>
-<rect width="1000" height="400" fill="url(#lgBg)"/>
+<g id="lg-scene"><rect width="1000" height="400" fill="url(#lgBg)"/>
 <g fill="none" stroke="#3a140c" stroke-width="12"><path d="M-20 70 Q500 -30 1020 80"/><path d="M-20 130 Q500 40 1020 140" stroke-width="7"/></g>
 <g fill="#ffb59a" opacity=".9"><ellipse cx="780" cy="52" rx="38" ry="9"/><ellipse cx="640" cy="92" rx="24" ry="6"/><ellipse cx="930" cy="34" rx="40" ry="8"/></g>
 <g><rect x="650" y="125" width="150" height="115" rx="30" fill="url(#lgWin)" stroke="#a06a44" stroke-width="6"/><circle cx="760" cy="230" r="66" fill="#8a3216" opacity=".55"/><g fill="#ffd9b0" opacity=".7"><circle cx="680" cy="150" r="1.6"/><circle cx="720" cy="170" r="1.2"/><circle cx="772" cy="146" r="1.5"/></g>
@@ -500,8 +508,8 @@
 <g><rect x="90" y="276" width="10" height="16" fill="#ffd27a"/><rect x="118" y="272" width="10" height="20" fill="#ff9a6a"/><rect x="150" y="268" width="9" height="14" fill="#52c8e0"/><rect x="396" y="274" width="10" height="18" fill="#ffd27a"/><rect x="420" y="277" width="9" height="14" fill="#52c8e0"/></g>
 <rect y="345" width="1000" height="60" fill="#0b0305" opacity=".75"/><path d="M500 395 Q760 360 1010 372" fill="none" stroke="#ff7a4a" stroke-width="5" stroke-dasharray="30 18" opacity=".8"/>
 <g fill="#241816"><rect x="700" y="300" width="320" height="70" rx="8"/></g><g fill="#5a4038" opacity=".8"><rect x="712" y="306" width="62" height="40" rx="5"/><rect x="786" y="306" width="62" height="40" rx="5"/><rect x="860" y="306" width="62" height="40" rx="5"/><rect x="934" y="306" width="62" height="40" rx="5"/></g>
-<g id="lg-pts"></g>
-</svg><div id="lg-say"><b id="lg-nm">SPACE LOUNGE</b><i id="lg-tx">Tap a patron to talk.</i></div><button id="lg-drink">ORDER A DRINK  ◆ 15</button></div>
+</g><g id="lg-pts"></g>
+</svg><div id="lg-say"><b id="lg-nm">SPACE LOUNGE</b><i id="lg-tx">Tap a patron to talk.</i></div><div id="lg-nab"><div class="nt">NABIYAX<i>There's nothing like a good drink after a long day.</i></div><img src="pilot.webp" alt=""></div><button id="lg-drink">ORDER A DRINK  ◆ 15</button></div>
   <div id="sh-top"><b id="shop-title">DOCKED</b><span id="shop-earn"></span></div>
   <div id="sh-nav">
     <button class="nv on" id="tab-h">Hangar</button><button class="nv" id="tab-u">Shop</button><button class="nv" id="tab-p">Map</button><button class="nv" id="tab-m">Missions</button><button class="nv" id="tab-s">Status</button><button class="nv" id="tab-b">Lounge</button>
@@ -549,11 +557,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=209', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=212', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=209'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=212'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>
