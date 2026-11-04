@@ -50,7 +50,6 @@
   #b-miss{right:calc(122px + env(safe-area-inset-right));bottom:calc(20px + env(safe-area-inset-bottom));width:64px;height:64px;background:radial-gradient(circle at 35% 30%,rgba(255,220,130,.6),rgba(220,130,30,.4))}
   #b-boost{right:calc(30px + env(safe-area-inset-right));bottom:calc(122px + env(safe-area-inset-bottom));width:64px;height:64px;background:radial-gradient(circle at 35% 30%,rgba(150,210,255,.6),rgba(50,100,220,.4))}
   #b-tgt{right:calc(110px + env(safe-area-inset-right));bottom:calc(98px + env(safe-area-inset-bottom));width:50px;height:50px;background:rgba(255,106,90,.28);font-size:10px}
-  #b-dock{left:50%;transform:translateX(-50%);top:calc(48px + env(safe-area-inset-top));border-radius:26px;width:auto;height:auto;padding:10px 26px;font-size:15px;letter-spacing:4px;background:rgba(95,255,176,.28);border-color:#59ffb0;display:none;box-shadow:0 0 18px rgba(89,255,176,.5)}
   #miss-n{position:absolute;right:6px;top:2px;font-size:11px;color:#ffe08a}
   #radar{left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));width:104px;height:104px;border-radius:50%;background:rgba(6,16,26,.55);border:1px solid rgba(126,240,255,.35)}
   .screen{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(4,10,24,.6),rgba(2,3,10,.93));text-align:center;padding:10px;box-sizing:border-box}
@@ -97,7 +96,6 @@
   #b-boost{border-color:rgba(140,200,255,.9)}
   #b-miss{border-color:rgba(255,205,120,.9)}
   #b-tgt{border-color:rgba(255,130,110,.85);background:rgba(120,30,30,.5)}
-  #b-dock{border-width:2px}
   .go{background:linear-gradient(180deg,rgba(95,228,255,.32),rgba(95,228,255,.12))}
   .row{border-left:3px solid rgba(126,240,255,.55);border-radius:4px 12px 12px 4px;background:linear-gradient(90deg,rgba(10,24,40,.85),rgba(10,24,40,.6))}
   #toast{font-size:24px}
@@ -156,7 +154,6 @@
   #b-tgt .ic,#b-tgt .ics{font-size:24px}
   #miss-n{position:absolute;right:11px;top:13px;min-width:15px;padding:1px 3px;font:900 11px/1.1 system-ui,Arial,sans-serif;color:#fff;background:rgba(6,14,28,.9);box-shadow:inset 0 0 0 1px rgba(126,240,255,.5);text-align:center;z-index:2}
   .rb.down{transform:scale(.93);filter:brightness(1.4)}
-  #b-dock{clip-path:none}
   #b-fire,#b-miss,#b-boost{background:linear-gradient(160deg,var(--c1),var(--c2))}
   #b-tgt{background:linear-gradient(160deg,var(--c1),var(--c2));width:104px;right:calc(4px + env(safe-area-inset-right))}
   #b-boost{right:calc(100px + env(safe-area-inset-right));bottom:calc(94px + env(safe-area-inset-bottom))}
@@ -450,7 +447,7 @@
 <button class="rb hx" id="b-miss"><svg class="ic" viewBox="0 0 24 24"><g transform="rotate(40 12 12)"><path d="M12 1c2 2 3 5 3 8v6H9V9c0-3 1-6 3-8zM9 14l-3.5 4.5H9zM15 14l3.5 4.5H15zM10.5 16h3v3h-3z"/></g></svg><span class="tx">MISSILE</span><span id="miss-n"></span></button>
 <button class="rb hx" id="b-boost"><svg class="ic" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 1c2.2 2.3 3.3 5 3.3 8.6V15H8.7V9.6C8.7 6 9.8 3.3 12 1zM12 6.4a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4z"/><path d="M8.6 11L4.8 15.6V18l3.8-1.7zM15.4 11l3.8 4.6V18l-3.8-1.7z"/><path d="M10.2 17.6l.5 4M12 17.6v5M13.8 17.6l-.5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/></svg><span class="tx">BOOST</span></button>
 <button class="rb hx" id="b-tgt"><svg class="ics" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg><span class="tx">TARGET</span></button>
-<button class="rb" id="b-dock">DOCK</button>
+
 
 <style>
 #lounge{position:absolute;left:calc(104px + env(safe-area-inset-left));right:0;top:34px;bottom:34px;display:none;overflow:hidden;background:#0b0305;border-left:1px solid rgba(255,140,60,.25)}
@@ -478,7 +475,7 @@
   <h1>STAR COURIER</h1>
   <div class="sub">SPACE COMBAT · MISSIONS · UPGRADES</div>
   <div class="how">Left thumb steers the ship (pitch &amp; yaw). <b>Right side:</b> touch any free spot and drag <b>up</b> to speed up, <b>down</b> to slow down or stop. <b>FIRE</b> lasers, <b>MISSILE</b> for locked targets, <b>TARGET</b> picks the next enemy, <b>BOOST</b> to outrun.<br>
-  Take missions at stations, hunt pirates, mine asteroids with your lasers, and spend credits on upgrades.<br>Fly close to a station and press <b>DOCK</b>.</div>
+  Take missions at stations, hunt pirates, mine asteroids with your lasers, and spend credits on upgrades.<br>Fly close to a station (about 200 m) and it offers to let you in.</div>
   <div class="go" id="go-start">LAUNCH</div>
 </div></div>
 
@@ -557,11 +554,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=212', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=213', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=212'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=213'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>

@@ -789,7 +789,7 @@ for (let i = 0; i < ENEMY_N; i++) {
 function spawnEnemy(pos, level) {
   const e = enemies.find(x => !x.active); if (!e) return null;
   e.active = true; e.g.visible = true; e.pos.copy(pos); e.q.identity(); e.speed = 90; e.evadeT = 0; e.fireT = rnd(1, 2.5); e.burst = 0;
-  const lv = Math.min(level, 6); e.shieldMax = e.shield = 28 + lv * 9; e.hullMax = e.hull = 36 + lv * 10; e.name = ['PIRATE', 'RAIDER', 'MARAUDER'][Math.min(2, lv >> 1)];
+  const lv = Math.min(level, 6); e.shieldMax = e.shield = 20 + lv * 6; e.hullMax = e.hull = 26 + lv * 6; e.name = ['PIRATE', 'RAIDER', 'MARAUDER'][Math.min(2, lv >> 1)];
   _a.copy(S.pos).sub(e.pos).normalize(); _m.lookAt(_zero, _a, Y); e.q.setFromRotationMatrix(_m);
   return e;
 }
@@ -909,7 +909,7 @@ function holdBtn(el, set) {
 }
 function tapBtn(el, fn) { el.addEventListener('pointerdown', (e) => { e.preventDefault(); el.classList.add('down'); initAudio(); fn(); }); const off = () => el.classList.remove('down'); el.addEventListener('pointerup', off); el.addEventListener('pointerleave', off); el.addEventListener('pointercancel', off); }
 holdBtn($('b-fire'), (v) => firing = v); holdBtn($('b-boost'), (v) => boostHeld = v);
-tapBtn($('b-miss'), () => fireMissile()); tapBtn($('b-tgt'), () => cycleTarget()); tapBtn($('b-dock'), () => tryDock());
+tapBtn($('b-miss'), () => fireMissile()); tapBtn($('b-tgt'), () => cycleTarget());
 $('b-inv').classList.toggle('on', save.inv); $('b-snd').classList.toggle('on', save.snd);
 $('b-inv').addEventListener('click', () => { save.inv = !save.inv; $('b-inv').classList.toggle('on', save.inv); persist(); });
 $('b-snd').addEventListener('click', () => { save.snd = !save.snd; $('b-snd').classList.toggle('on', save.snd); if (eng) eng.master.gain.value = save.snd ? 0.5 : 0; persist(); initAudio(); });
@@ -1203,7 +1203,7 @@ function updateDockIn(dt) {   // no flying into the station: the ship is beamed 
   fadeEl.style.opacity = Math.min(1, DK.t / 0.55).toFixed(2);
   if (DK.t >= 0.65) { dockAt(DK.i); fadeOut(); }
 }
-function nearStation() { let best = -1, bd = 700; for (let i = 0; i < stations.length; i++) { const d = S.pos.distanceTo(stations[i].pos); if (d < bd) { bd = d; best = i; } } return best; }
+function nearStation() { let best = -1, bd = 200; for (let i = 0; i < stations.length; i++) { const d = S.pos.distanceTo(stations[i].pos); if (d < bd) { bd = d; best = i; } } return best; }
 
 function launchFrom(i) {
   ST = stats(); S.station = i; const st = stations[i];
@@ -1395,10 +1395,10 @@ function frame(now) {
       _d.copy(S.pos).addScaledVector(S.vel, dist / 500).sub(e.pos).normalize(); want = _d;
       e.evadeT -= dt;
       if (e.evadeT > 0) want = e.evadeDir;
-      else if (dist < 80 && Math.random() < 0.03) { e.evadeDir.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).addScaledVector(dirTo, -0.6).normalize(); e.evadeT = rnd(1.1, 2.0); }
-      _m.lookAt(_zero, want, Y); _qb.setFromRotationMatrix(_m); e.q.rotateTowards(_qb, (e.evadeT > 0 ? 2.4 : 1.35) * dt);
+      else if (dist < 60 && Math.random() < 0.006) { e.evadeDir.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).addScaledVector(dirTo, -0.6).normalize(); e.evadeT = rnd(0.5, 0.9); }
+      _m.lookAt(_zero, want, Y); _qb.setFromRotationMatrix(_m); e.q.rotateTowards(_qb, (e.evadeT > 0 ? 1.6 : 1.0) * dt);
       fwdOf(e.q, _c);
-      const wantSp = e.evadeT > 0 ? 125 : dist > 400 ? 120 : dist > 160 ? 96 : 80; e.speed = damp(e.speed, wantSp, 1.4, dt);
+      const wantSp = e.evadeT > 0 ? 100 : dist > 400 ? 105 : dist > 160 ? 85 : 66; e.speed = damp(e.speed, wantSp, 1.4, dt);
       e.vel.copy(_c).multiplyScalar(e.speed); e.pos.addScaledVector(e.vel, dt);
       e.fireT -= dt;
       if (dist < 420 && e.evadeT <= 0 && _c.dot(dirTo) > 0.965 && e.fireT <= 0) {
@@ -1521,13 +1521,13 @@ function frame(now) {
       if (on) { place(leadEl, S.lead, undefined, false); } else leadEl.style.display = 'none';
       if (!on) { /* off-screen: radar shows it */ }
     } else { tgtEl.style.display = 'none'; leadEl.style.display = 'none'; }
-    const ns = nearStation(); $('b-dock').style.display = ns >= 0 ? 'flex' : 'none';
-    if (entDismissed >= 0 && S.pos.distanceTo(stations[entDismissed].pos) > 950) entDismissed = -1;
-    const wantEnt = ns >= 0 && ns !== entDismissed && stations[ns].g.visible && !trvOn && !mapOn && fwdOf(S.q, fwd).dot(_a.copy(stations[ns].pos).sub(S.pos).normalize()) > 0.2;
+    const ns = nearStation();
+    if (entDismissed >= 0 && S.pos.distanceTo(stations[entDismissed].pos) > 300) entDismissed = -1;
+    const wantEnt = ns >= 0 && ns !== entDismissed && stations[ns].g.visible && !trvOn && !mapOn;
     if (wantEnt && !entOn) { entOn = true; entFor = ns; $('ent-name').textContent = stations[ns].name; $('ent-dlg').style.display = 'flex'; sfx('lock'); }
     else if (!wantEnt && entOn) { entOn = false; $('ent-dlg').style.display = 'none'; }
     if (++flip % 2 === 0) drawRadar();
-  } else { if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } if (trvOn) { trvOn = false; $('trv-dlg').style.display = 'none'; } for (const e of mk) e.style.display = 'none'; for (const e of mkp) e.style.display = 'none'; mkWp.style.display = 'none'; tgtEl.style.display = 'none'; leadEl.style.display = 'none'; $('b-dock').style.display = 'none'; }
+  } else { if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } if (trvOn) { trvOn = false; $('trv-dlg').style.display = 'none'; } for (const e of mk) e.style.display = 'none'; for (const e of mkp) e.style.display = 'none'; mkWp.style.display = 'none'; tgtEl.style.display = 'none'; leadEl.style.display = 'none'; }
   updateAudio(); updateMusic(dt);
   composer.render();
 }
