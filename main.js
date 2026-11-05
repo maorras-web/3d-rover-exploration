@@ -675,18 +675,18 @@ function buildStationB(name, col, V) {
 // ---------- solar system: six planets in different colours, each with exactly ONE station in orbit next to it ----------
 // pl.off = where the planet sits relative to its station (the station is always about one planet-radius + 400 away from the surface)
 const stations = [
-  { name: 'HELIOS PRIME', col: '#ffa040', v: { fins: 6, fw: 4.6, ribs: 8, horns: 2, hl: 1, ringN: 11, tint: 0.25, band: ['#4dff7a', '#ffd24a'] }, pos: V3(0, 0, 0), front: V3(0, -1, 0), pl: { kind: 'gas', r: 620, off: V3(-900, -150, -640), atm: [1.0, 0.55, 0.26], ring: true } },
-  { name: 'KEPLER', col: '#4aa0ff', v: { fins: 4, fw: 5.4, ribs: 6, horns: 0, spire: 1, hl: 1, ringN: 8, tint: 0.35, band: ['#4aa0ff', '#ffffff'] }, pos: V3(1800, 260, -1500), front: V3(0, -1, 0), pl: { kind: 'ocean', r: 420, off: V3(700, -300, -500), atm: [0.28, 0.58, 1.0] } },
-  { name: 'VEGA GATE', col: '#b46bff', v: { fins: 8, fw: 3.2, ribs: 10, horns: 4, hl: 0.8, ringN: 14, tint: 0.4, band: ['#d49aff', '#ff5ad2'] }, pos: V3(-2100, -180, -2000), front: V3(0, -1, 0), pl: { kind: 'purple', r: 460, off: V3(-500, 200, -800), atm: [0.7, 0.35, 1.0], ring: true } },
-  { name: 'AURORA', col: '#4cff8a', v: { fins: 5, fw: 4.2, ribs: 5, horns: 2, hl: 1.4, ringN: 10, tint: 0.4, band: ['#4cff8a', '#bfffd8'] }, pos: V3(3400, -350, 900), front: V3(0, -1, 0), pl: { kind: 'jungle', r: 520, off: V3(800, 200, 500), atm: [0.3, 1.0, 0.55] } },
-  { name: 'CINDER', col: '#ff4a2a', v: { fins: 3, fw: 6.4, ribs: 8, horns: 6, hl: 0.55, ringN: 6, tint: 0.45, band: ['#ff7a24', '#ffd24a'] }, pos: V3(-3600, 400, 1200), front: V3(0, -1, 0), pl: { kind: 'lava', r: 380, off: V3(-600, -100, 500), atm: [1.0, 0.3, 0.15] } },
-  { name: 'FROST', col: '#9fe8ff', v: { fins: 6, fw: 3.6, ribs: 0, horns: 0, spire: 1, hl: 1, ringN: 12, tint: 0.35, band: ['#9fe8ff', '#ffffff'] }, pos: V3(400, 700, -3800), front: V3(0, -1, 0), pl: { kind: 'ice', r: 480, off: V3(-700, 300, -300), atm: [0.6, 0.9, 1.0] } },
+  { name: 'XIAQA', col: '#ffa040', v: { fins: 6, fw: 4.6, ribs: 8, horns: 2, hl: 1, ringN: 11, tint: 0.25, band: ['#4dff7a', '#ffd24a'] }, pos: V3(0, 0, 0), front: V3(0, -1, 0), pl: { kind: 'gas', r: 620, off: V3(-900, -150, -640), atm: [1.0, 0.55, 0.26], ring: true } },
+  { name: 'TIANOG', col: '#4aa0ff', v: { fins: 4, fw: 5.4, ribs: 6, horns: 0, spire: 1, hl: 1, ringN: 8, tint: 0.35, band: ['#4aa0ff', '#ffffff'] }, pos: V3(1800, 260, -1500), front: V3(0, -1, 0), pl: { kind: 'ocean', r: 420, off: V3(700, -300, -500), atm: [0.28, 0.58, 1.0] } },
+  { name: 'MIRAK', col: '#b46bff', v: { fins: 8, fw: 3.2, ribs: 10, horns: 4, hl: 0.8, ringN: 14, tint: 0.4, band: ['#d49aff', '#ff5ad2'] }, pos: V3(-2100, -180, -2000), front: V3(0, -1, 0), pl: { kind: 'purple', r: 460, off: V3(-500, 200, -800), atm: [0.7, 0.35, 1.0], ring: true } },
+  { name: 'TEPZONIAX', col: '#4cff8a', v: { fins: 5, fw: 4.2, ribs: 5, horns: 2, hl: 1.4, ringN: 10, tint: 0.4, band: ['#4cff8a', '#bfffd8'] }, pos: V3(3400, -350, 900), front: V3(0, -1, 0), pl: { kind: 'jungle', r: 520, off: V3(800, 200, 500), atm: [0.3, 1.0, 0.55] } },
+  { name: 'PEXTRA', col: '#ff4a2a', v: { fins: 3, fw: 6.4, ribs: 8, horns: 6, hl: 0.55, ringN: 6, tint: 0.45, band: ['#ff7a24', '#ffd24a'] }, pos: V3(-3600, 400, 1200), front: V3(0, -1, 0), pl: { kind: 'lava', r: 380, off: V3(-600, -100, 500), atm: [1.0, 0.3, 0.15] } },
+  { name: 'VAJJA', col: '#9fe8ff', v: { fins: 6, fw: 3.6, ribs: 0, horns: 0, spire: 1, hl: 1, ringN: 12, tint: 0.35, band: ['#9fe8ff', '#ffffff'] }, pos: V3(400, 700, -3800), front: V3(0, -1, 0), pl: { kind: 'ice', r: 480, off: V3(-700, 300, -300), atm: [0.6, 0.9, 1.0] } },
   // ---- YAPZO system: five more worlds, far away from the first system (reach it from the star map) ----
-  { name: 'YAPZO PRIME', col: '#ffcc55', v: { ring: 1, R: 34, tube: 3.8, spokes: 4, panels: 2, tanks: 0, tint: 0.12, band: ['#ffcc55', '#ffffff'] }, pos: V3(9000, 300, -6000), front: V3(0, -1, 0), pl: { kind: 'desert', r: 560, off: V3(-850, -150, -600), atm: [1.0, 0.75, 0.3] } },
-  { name: 'NIMBUS', col: '#7aa8ff', v: { ring: 1, R: 30, tube: 3.2, rings: 2, spokes: 3, panels: 0, tanks: 3, tint: 0.2, band: ['#7aa8ff', '#ffffff'] }, pos: V3(11000, 0, -4800), front: V3(0, -1, 0), pl: { kind: 'storm', r: 600, off: V3(800, -250, -550), atm: [0.4, 0.6, 1.0], ring: true } },
-  { name: 'ORCHID', col: '#ff6ad0', v: { ring: 1, R: 36, tube: 2.6, spokes: 6, panels: 2, tanks: 0, tint: 0.28, band: ['#ff6ad0', '#ffd0f0'] }, pos: V3(6700, 550, -5100), front: V3(0, -1, 0), pl: { kind: 'bloom', r: 440, off: V3(-550, 200, -700), atm: [1.0, 0.4, 0.8] } },
-  { name: 'SULPHUR', col: '#c8ff3a', v: { ring: 1, R: 26, tube: 4.4, spokes: 5, panels: 4, tanks: 4, tint: 0.3, band: ['#c8ff3a', '#ffffff'] }, pos: V3(9800, 400, -9200), front: V3(0, -1, 0), pl: { kind: 'toxic', r: 400, off: V3(650, 150, -450), atm: [0.7, 1.0, 0.2] } },
-  { name: 'ONYX', col: '#35e0c8', v: { ring: 1, R: 38, tube: 3.0, rings: 2, spokes: 8, panels: 0, tanks: 0, tint: 0.2, band: ['#35e0c8', '#d0fff6'] }, pos: V3(8000, -400, -8600), front: V3(0, -1, 0), pl: { kind: 'onyx', r: 500, off: V3(-700, 250, -350), atm: [0.2, 0.9, 0.8] } },
+  { name: 'KAIFMA', col: '#ffcc55', v: { ring: 1, R: 34, tube: 3.8, spokes: 4, panels: 2, tanks: 0, tint: 0.12, band: ['#ffcc55', '#ffffff'] }, pos: V3(9000, 300, -6000), front: V3(0, -1, 0), pl: { kind: 'desert', r: 560, off: V3(-850, -150, -600), atm: [1.0, 0.75, 0.3] } },
+  { name: 'VELNOR', col: '#7aa8ff', v: { ring: 1, R: 30, tube: 3.2, rings: 2, spokes: 3, panels: 0, tanks: 3, tint: 0.2, band: ['#7aa8ff', '#ffffff'] }, pos: V3(11000, 0, -4800), front: V3(0, -1, 0), pl: { kind: 'storm', r: 600, off: V3(800, -250, -550), atm: [0.4, 0.6, 1.0], ring: true } },
+  { name: 'YAZMIR', col: '#ff6ad0', v: { ring: 1, R: 36, tube: 2.6, spokes: 6, panels: 2, tanks: 0, tint: 0.28, band: ['#ff6ad0', '#ffd0f0'] }, pos: V3(6700, 550, -5100), front: V3(0, -1, 0), pl: { kind: 'bloom', r: 440, off: V3(-550, 200, -700), atm: [1.0, 0.4, 0.8] } },
+  { name: 'ERSO', col: '#c8ff3a', v: { ring: 1, R: 26, tube: 4.4, spokes: 5, panels: 4, tanks: 4, tint: 0.3, band: ['#c8ff3a', '#ffffff'] }, pos: V3(9800, 400, -9200), front: V3(0, -1, 0), pl: { kind: 'toxic', r: 400, off: V3(650, 150, -450), atm: [0.7, 1.0, 0.2] } },
+  { name: 'PIOPA', col: '#35e0c8', v: { ring: 1, R: 38, tube: 3.0, rings: 2, spokes: 8, panels: 0, tanks: 0, tint: 0.2, band: ['#35e0c8', '#d0fff6'] }, pos: V3(8000, -400, -8600), front: V3(0, -1, 0), pl: { kind: 'onyx', r: 500, off: V3(-700, 250, -350), atm: [0.2, 0.9, 0.8] } },
 ];
 const SYSTEMS = ['HELIOS', 'YAPZO']; stations.forEach((s, i) => { s.sys = i < 6 ? 0 : 1; });
 const ST_K = 3;   // station scale: everything is built at 1x and the whole station group is scaled
@@ -761,7 +761,7 @@ const planets = [];
     vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
     fragmentShader: 'uniform vec3 c; uniform float pw; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), pw); gl_FragColor = vec4(c * f, 1.0); }'
   });
-  const PIMG = { KEPLER: ['planet_kepler.webp', 1], 'VEGA GATE': ['planet_vega.webp', 0], AURORA: ['planet_aurora.webp', 1], FROST: ['planet_frost.webp', 0], ORCHID: ['planet_orchid.webp', 0], 'HELIOS PRIME': ['planet_helios.webp', 0], ONYX: ['planet_onyx.webp', 0], SULPHUR: ['planet_sulphur.webp', 0], 'YAPZO PRIME': ['planet_yapzo.webp', 0], CINDER: ['planet_cinder.webp', 0], NIMBUS: ['planet_nimbus.webp', 0] };   // painted surface maps: add one line per planet
+  const PIMG = { 'TIANOG': ['planet_kepler.webp', 1], 'MIRAK': ['planet_vega.webp', 0], 'TEPZONIAX': ['planet_aurora.webp', 1], 'VAJJA': ['planet_frost.webp', 0], 'YAZMIR': ['planet_orchid.webp', 0], 'XIAQA': ['planet_helios.webp', 0], 'PIOPA': ['planet_onyx.webp', 0], 'ERSO': ['planet_sulphur.webp', 0], 'KAIFMA': ['planet_yapzo.webp', 0], 'PEXTRA': ['planet_cinder.webp', 0], 'VELNOR': ['planet_nimbus.webp', 0] };   // painted surface maps: add one line per planet
   for (const s of stations) {
     const p = s.pl; p.pos = s.pos.clone().add(p.off); p.sys = s.sys; planets.push(p);
     p.build = () => { const u = p.mesh.material.uniforms; u.map.value = tex(p.kind); u.aux.value = lastAux || blankAux;
@@ -770,7 +770,7 @@ const planets = [];
         const ac = document.createElement('canvas'); ac.width = 256; ac.height = 128; const x = ac.getContext('2d'); x.drawImage(im, 0, 0, 256, 128); const d = x.getImageData(0, 0, 256, 128), q = d.data;
         for (let i = 0; i < q.length; i += 4) { const r = q[i], g = q[i + 1], bl = q[i + 2], sea = Math.max(0, Math.min(255, (bl - Math.max(r, g * 0.95) - 6) * 9)); q[i] = 0; q[i + 1] = pi[1] ? sea : 0; q[i + 2] = 0; q[i + 3] = 255; }
         x.putImageData(d, 0, 0); const at = new THREE.CanvasTexture(ac); at.wrapS = THREE.RepeatWrapping;
-        u.map.value = t; u.aux.value = at; u.rel.value = 0; u.tx.value.set(1 / im.width, 1 / im.height); }; im.src = f; } };
+        u.map.value = t; u.aux.value = at; u.rel.value = 0; u.tx.value.set(1 / im.width, 1 / im.height); if (p.paintCb) { const cb = p.paintCb; p.paintCb = null; cb(); } }; im.src = f; } };
     const pm = new THREE.Mesh(geo, planetMat(blankTex, p.atm, p.kind === 'lava' || p.kind === 'onyx' ? 0.45 : 0.0, GAS[p.kind] ? 0 : 1)); pm.scale.setScalar(p.r); pm.position.copy(p.pos); pm.rotation.z = 0.3; scene.add(pm); p.mesh = pm;
     if (CLOUDS[p.kind]) { const cm = new THREE.Mesh(geo, cloudMat(cloudTex[planets.length & 1], CLOUDS[p.kind])); cm.scale.setScalar(1.03); pm.add(cm); p.cl = cm; }
     if (MOONS[p.kind]) { const mo = new THREE.Mesh(geo, planetMat(moonTex, [0.55, 0.6, 0.7], 0)); mo.scale.setScalar(MOONS[p.kind]); pm.add(mo); p.moon = mo; p.mt = Math.random() * 6; }
@@ -1139,7 +1139,7 @@ const cMul = (st, gi) => { const x = Math.sin((st + 1) * 12.9898 + gi * 78.233) 
 // ---- 3D planet viewer for the Map tab: a tiny software sphere on a 120px canvas. Pixel lookups are precomputed once, so a frame is ~14k array reads, and it only runs while the tab is open ----
 const pvEnd = { id: 0 };
 function pvStart(cv, k) {
-  const p = stations[k].pl, id = ++pvEnd.id; if (p.build) { p.build(); p.build = null; }
+  const p = stations[k].pl, id = ++pvEnd.id; if (p.build) { p.build(); p.build = null; p.paintCb = () => { if (id === pvEnd.id && cv.isConnected) pvStart(cv, k); }; }   // a painted map arrives a moment later: restart the viewer with it
   let img = p.mesh.material.uniforms.map.value.image; if (!img) return; if (!img.getContext) { const c2 = document.createElement('canvas'); c2.width = 512; c2.height = 256; c2.getContext('2d').drawImage(img, 0, 0, 512, 256); img = c2; }   // a painted map is an <img>: copy it small
   const sw = img.width, sh = img.height, src = img.getContext('2d').getImageData(0, 0, sw, sh).data, N = 120, R = 56, c0 = N / 2, g = cv.getContext('2d'), out = g.createImageData(N, N), o = out.data;
   const U = new Float32Array(N * N), Vr = new Int32Array(N * N), Sh = new Float32Array(N * N), Rm = new Float32Array(N * N), Al = new Uint8Array(N * N), tilt = 0.3, ct = Math.cos(tilt), st = Math.sin(tilt), L = [-0.55, 0.45, 0.7], ll = Math.hypot(...L);
@@ -1252,7 +1252,7 @@ function openShop(msg) {
     { nm: 'ORLA · SPY', t: ['Walls have ears. Mine are better.', 'I know what you did last cycle.', 'Smile. You are being watched.'] },
     { nm: 'VYRA · PIRATE QUEEN', t: ['Fly well, or fly for me.', 'Every pirate out there answers to me.', 'Bow your head, pilot. I am only joking. Almost.'] },
     { nm: 'THE WATCHER · ORACLE', t: ['I know how your last fight ends.', 'The stars remember every pilot who fell.', 'Fear is only a warning. Listen to it.'] }
-  ], TIP = ['Cinder is full of pirates. Go in with full shields.', 'The pirate pilot is always in the middle of the X. Hit the middle.', 'Keep your boost for escaping, not for chasing.', 'Missile packs are cheap. Pirates are not. Buy more.', 'Yapzo pays better than Helios, but the pirates hit harder.', 'A missile cracks even the biggest asteroid in one hit.'];
+  ], TIP = ['Pextra is full of pirates. Go in with full shields.', 'The pirate pilot is always in the middle of the X. Hit the middle.', 'Keep your boost for escaping, not for chasing.', 'Missile packs are cheap. Pirates are not. Buy more.', 'Yapzo pays better than Helios, but the pirates hit harder.', 'A missile cracks even the biggest asteroid in one hit.'];
   const SLOTS = [{ x: 345, y: 344, s: 0.5 }, { x: 440, y: 342, s: 0.46 }, { x: 625, y: 334, s: 0.42 }, { x: 775, y: 340, s: 0.44 }, { x: 885, y: 354, s: 0.5 }];
   // five different faces at every station (a rotating pick from the twelve), cut from one sprite sheet
   const fillLounge = () => { const g = $('lg-pts'), st = S.station | 0, ns = 'http://www.w3.org/2000/svg'; let h = '';
@@ -1657,7 +1657,7 @@ function frame(now) {
   composer.render();
 }
 
-// menu backdrop: the ship idling next to HELIOS PRIME
+// menu backdrop: the ship idling next to XIAQA
 (function menuScene() { S.pos.set(170, -40, 520); _m.lookAt(_zero, V3(-170, 30, -520).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q); S.mode = 'menu'; ST = stats(); for (let i = 0; i < AST_N; i++) spawnAsteroid(asteroids[i], true); })();
 requestAnimationFrame(frame);
 document.addEventListener('visibilitychange', () => { last = performance.now(); if (actx) { document.hidden ? actx.suspend() : actx.resume(); } });
