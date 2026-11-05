@@ -295,8 +295,8 @@ const SHV = [
   { hull: [[-4.2,.28,.22,0],[-3.9,.62,.42,0],[-3.0,.88,.56,0],[-2.94,.88,.56,0],[-1.0,1.0,.62,0],[0.5,1.0,.62,0],[0.56,1.0,.62,0],[1.6,.95,.58,0],[2.2,.8,.5,0],[2.4,.3,.3,0],[2.45,.03,.03,0]], seam: -2.97, pw: 4.5, cz: -2.4, cs: [0.7, 0.12, 1.3], cy: 0.5,
     HC: 0x8e97a6, HD: 0x4a5463, GUN: 0x1e232b, ACC: 0x35d4ff, wing: 0x3b4455, wv: [[0.8, -2.3, 0.12, -0.1], [0.8, 2.3, 0.12, -0.1], [4.7, 3.0, 0.05, -0.02], [4.65, 1.5, 0.05, -0.02]], wl: [4.7, 2.7, -0.35, 0.83], fin: 0, mark: 0xff8a2a, met: 0.85, rough: 0.28, scoop: 0 }
 ], SV = SHV[SHIP_VAR];
-// engine mounts: [x, y, z, size]. The custom ship carries six small engines spaced evenly round its rear ring (an ellipse 0.73 wide x 1.11 tall at z 3.46)
-const ENGS = SHIP_VAR === 4 ? [0, 1, 2, 3, 4, 5].map(i => { const a = (i + 0.5) / 6 * Math.PI * 2; return [Math.cos(a) * 0.73, -0.07 + Math.sin(a) * 1.11, 3.48, 0.45]; })
+// engine mounts: [x, y, z, size]. The custom ship carries six small engines spaced evenly round its rear ring, mounted ON the ring, a little way inside it (ring ellipse 0.73 x 1.11 pulled in by 0.126)
+const ENGS = SHIP_VAR === 4 ? [0, 1, 2, 3, 4, 5].map(i => { const a = (i + 0.5) / 6 * Math.PI * 2; return [Math.cos(a) * 0.625, -0.072 + Math.sin(a) * 1.005, 3.42, 0.3]; })
   : [-1, 1].map(sd => [sd * 1.75, -0.2, 2.2, 1]);
 const roverBody = (() => {
   const grp = new THREE.Group(), Yc = -0.1;
@@ -500,19 +500,20 @@ const engGeo = new THREE.LatheGeometry(engProf, 20);
 const engPod = new THREE.SphereGeometry(1, 14, 10);
 const bandMat = new THREE.MeshStandardMaterial({ color: 0x6a7488, roughness: 0.5, metalness: 0.2, emissive: 0x1c2230 });
 const coreMat = new THREE.MeshBasicMaterial({ color: 0x2a8fc0, toneMapped: false, fog: false });
+if (SHIP_VAR === 4) {   // the ring becomes a thick metal band that carries the six nozzles
+  const sh = new THREE.Shape(); sh.absellipse(0, 0, 0.82, 1.2, 0, Math.PI * 2, false); const hole = new THREE.Path(); hole.absellipse(0, 0, 0.43, 0.81, 0, Math.PI * 2, true); sh.holes.push(hole);
+  const bg = new THREE.ExtrudeGeometry(sh, { depth: 0.26, curveSegments: 36, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 2 });
+  const band = new THREE.Mesh(bg, new THREE.MeshStandardMaterial({ color: 0x9aa5b8, roughness: 0.34, metalness: 0.6, emissive: 0x1e2430 })); band.position.set(0, -0.072, 3.416); shipBody.add(band);
+}
 for (const [ei, en] of ENGS.entries()) {
   const e = new THREE.Group(); e.position.set(en[0], en[1], en[2]); e.scale.set(0.82 * en[3], 0.82 * en[3], en[3]); if (SHIP_VAR === 4) e.scale.set(en[3], en[3], en[3]);
   if (SHIP_VAR === 4) {
-    // mechanical metal engine, flush on the back of the ring (nothing sticks out on the hull side): mount plate, ribbed housing, open bell nozzle with a hot core
+    // engine nozzle recessed INTO the thick ring band (nothing sticks out): short open bell, hot throat, glowing rim flush with the back of the band
     const mm = (c, r) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: 0.75, emissive: 0x10141b });
-    const mA = mm(0x7c8799, 0.32), mB = mm(0x3a424f, 0.45), mC = mm(0xa7b2c4, 0.28), part = (g, m, z, rx) => { const o = new THREE.Mesh(g, m); o.position.z = z; if (rx) o.rotation.x = Math.PI / 2; e.add(o); return o; };
-    part(new THREE.CylinderGeometry(0.52, 0.52, 0.08, 14), mB, 0.04, 1);          // mount plate against the ring
-    part(new THREE.CylinderGeometry(0.4, 0.44, 0.5, 12), mA, 0.33, 1);            // housing
-    part(new THREE.TorusGeometry(0.43, 0.05, 5, 14), mB, 0.2); part(new THREE.TorusGeometry(0.43, 0.05, 5, 14), mB, 0.42);   // ribs
-    part(new THREE.CylinderGeometry(0.62, 0.4, 0.42, 14, 1, true), new THREE.MeshStandardMaterial({ color: 0xa7b2c4, roughness: 0.28, metalness: 0.75, emissive: 0x10141b, side: THREE.DoubleSide }), 0.78, 1);   // open bell nozzle
-    part(new THREE.CircleGeometry(0.4, 14), coreMat, 0.6);                        // hot throat inside the bell
-    part(new THREE.TorusGeometry(0.62, 0.035, 5, 18), ringMat, 0.99);             // glowing rim
-    for (let b = 0; b < 4; b++) { const bo = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.22), mC); const an = b * Math.PI / 2 + 0.78; bo.position.set(Math.cos(an) * 0.45, Math.sin(an) * 0.45, 0.2); e.add(bo); }   // bolts / struts
+    const part = (g, mt, z, rx) => { const o = new THREE.Mesh(g, mt); o.position.z = z; if (rx) o.rotation.x = Math.PI / 2; e.add(o); return o; };
+    part(new THREE.CylinderGeometry(0.62, 0.38, 0.5, 14, 1, true), new THREE.MeshStandardMaterial({ color: 0xa7b2c4, roughness: 0.28, metalness: 0.75, emissive: 0x10141b, side: THREE.DoubleSide }), 0.74, 1);
+    part(new THREE.CircleGeometry(0.38, 14), coreMat, 0.52);
+    part(new THREE.TorusGeometry(0.62, 0.05, 5, 18), ringMat, 0.99);
   } else {
   const body = new THREE.Mesh(engGeo, engMat); body.rotation.x = Math.PI / 2; e.add(body);
   const lipBand = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.04, 6, 24), ringMat); lipBand.position.z = -0.66; e.add(lipBand);              // glowing intake lip
