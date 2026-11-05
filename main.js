@@ -729,19 +729,19 @@ const _col = new THREE.Color();
 
 // ---------- bolts (lasers) ----------
 const BOLT_N = 120, bolts = [];
-const boltMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.45, 0.45, 17, 8, 8).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, fog: false }), BOLT_N);
-const boltHalo = new THREE.InstancedMesh(new THREE.CylinderGeometry(1.25, 1.25, 19, 8, 8).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }), BOLT_N);
+const boltMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.62, 0.62, 17, 10, 12).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, fog: false }), BOLT_N);
+const boltHalo = new THREE.InstancedMesh(new THREE.CylinderGeometry(2.6, 2.6, 19, 16, 14).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }), BOLT_N);
 boltHalo.frustumCulled = false; boltHalo.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(boltHalo);
 boltMesh.frustumCulled = false; boltMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(boltMesh);
 // laser look, free of cost (same two meshes): white-hot core, coloured edge, a bright head that fades toward a thin tail
 const boltShade = (mat, half, core) => { mat.onBeforeCompile = (sh) => {
   // round, soft bolts instead of square bars: 8-sided tube, rounded nose, pointed tail, glow that fades toward the rim (still the same two meshes)
-  sh.vertexShader = 'varying float vBz; varying float vF;\n' + sh.vertexShader
-    .replace('#include <begin_vertex>', '#include <begin_vertex>\n vBz = clamp((' + half + ' - position.z) / ' + (half * 2) + '.0, 0.0, 1.0); float hd = clamp((vBz - 0.8) / 0.2, 0.0, 1.0); float tl = smoothstep(0.0, 0.14, vBz); transformed.xy *= (0.22 + 0.5 * vBz) * sqrt(max(1.0 - hd * hd, 0.0)) * tl;')
-    .replace('#include <project_vertex>', '#include <project_vertex>\n vec3 nn = normal;\n #ifdef USE_INSTANCING\n nn = mat3(instanceMatrix) * nn;\n #endif\n vF = abs(dot(normalize(normalMatrix * nn), normalize(-mvPosition.xyz)));');
-  sh.fragmentShader = 'varying float vBz; varying float vF;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n ' + (core
+  sh.vertexShader = 'varying float vBz; varying vec3 vN; varying vec3 vP;\n' + sh.vertexShader
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\n vBz = clamp((' + half + ' - position.z) / ' + (half * 2) + '.0, 0.0, 1.0); float hd = clamp((vBz - 0.8) / 0.2, 0.0, 1.0); float tl = smoothstep(0.0, 0.14, vBz); transformed.xy *= (0.22 + 0.5 * vBz)' + (core ? ' * sqrt(max(1.0 - hd * hd, 0.0)) * tl;' : ';'))
+    .replace('#include <project_vertex>', '#include <project_vertex>\n vec3 nn = normal;\n #ifdef USE_INSTANCING\n nn = mat3(instanceMatrix) * nn;\n #endif\n vN = normalMatrix * nn; vP = mvPosition.xyz;');
+  sh.fragmentShader = 'varying float vBz; varying vec3 vN; varying vec3 vP;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n float vF = abs(dot(normalize(vN), normalize(-vP)));\n ' + (core
     ? 'diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), 0.85 * (0.5 + 0.5 * vF)) * (0.45 + 0.65 * vBz);'
-    : 'diffuseColor.rgb *= 0.5 + 0.7 * vBz; diffuseColor.a *= (0.12 + 0.7 * vBz * vBz) * pow(vF, 1.7);')); }; };
+    : 'diffuseColor.rgb *= 0.5 + 0.7 * vBz; diffuseColor.a *= (0.1 + 1.0 * vBz * vBz) * pow(vF, 1.1) * (1.0 - smoothstep(0.84, 1.0, vBz)) * smoothstep(0.0, 0.3, vBz);')); }; };
 boltShade(boltMesh.material, 8.5, true); boltShade(boltHalo.material, 9.5, false);
 for (let i = 0; i < BOLT_N; i++) { bolts.push({ pos: V3(), vel: V3(), life: 0, enemy: false, dmg: 0, sx: 1, sz: 1, hr: 1, wob: 0, age: 0, p1: V3(), p2: V3() }); boltMesh.setColorAt(i, _col.set(0xffffff)); boltHalo.setColorAt(i, _col.set(0x6dfcff)); }
 let boltNext = 0;
