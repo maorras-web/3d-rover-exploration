@@ -481,6 +481,8 @@ const roverBody = (() => {
   grp.add(bm, gm, cm); return grp;
 })();
 shipBody.add(roverBody);
+// the custom ship is wide and its lower wing droops below the hull, so in the hangar it hovers higher above the pad, bobbing gently, over a soft cyan glow
+const DOCK_H = SHIP_VAR === 4 ? 5.2 : 2.1;
 const hoverPads = [];
 // twin engines at the rear: dark nacelles with a glowing nozzle ring; the thrust flames come out of them
 const engMat = new THREE.MeshStandardMaterial({ color: 0xbcc5d4, roughness: 0.4, metalness: 0.12, emissive: 0x3a4458, side: THREE.DoubleSide });
@@ -528,6 +530,8 @@ const flameCore = ENGS.map(en => { const f = glowSprite(0xffffff, 0.9, 0.6); f.p
 const HP = V3(0, -6000, 0);
 const padTiles = [];   // the amber markers on the landing pad (squares in the first system, triangles + circles in YAPZO)
 const hangar = new THREE.Group(); hangar.position.copy(HP); hangar.visible = false; scene.add(hangar);
+const hoverGlow = new THREE.Mesh(new THREE.CircleGeometry(3.4, 28), new THREE.MeshBasicMaterial({ color: 0x35d4ff, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+hoverGlow.rotation.x = -Math.PI / 2; hoverGlow.position.y = 0.66; hoverGlow.visible = SHIP_VAR === 4; hangar.add(hoverGlow);
 {
   const std = (c, e, r, mt) => new THREE.MeshStandardMaterial({ color: c, emissive: e, roughness: r === undefined ? 0.8 : r, metalness: mt === undefined ? 0.35 : mt, flatShading: true, fog: false });
   const glow = (c, o) => new THREE.MeshBasicMaterial({ color: c, transparent: o !== undefined, opacity: o === undefined ? 1 : o, toneMapped: false, fog: false, side: THREE.DoubleSide });
@@ -1377,7 +1381,7 @@ function openShop(msg) {
 
 function dockAt(i) {
   mapSys = -1;
-  tintHangar(stations[i].col); setPad(stations[i].sys); S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + 2.1, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
+  tintHangar(stations[i].col); setPad(stations[i].sys); S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + DOCK_H, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
   for (const e of enemies) { e.active = false; e.g.visible = false; } for (const m of missiles) { m.active = false; m.g.visible = false; } smokeReset();
   buzz(50);
   let msg = 'SHIP REPAIRED';
@@ -1681,8 +1685,9 @@ function frame(now) {
   if (S.mode === 'dock') {
     // hangar view: the ship sits on its platform, the camera swings slowly round it (like Galaxy on Fire 2)
     hangar.visible = true; ship.quaternion.setFromAxisAngle(Y, 0.5); shipBody.rotation.z = 0;
+    if (SHIP_VAR === 4) { S.pos.y = HP.y + DOCK_H + Math.sin(tAcc * 1.3) * 0.14; hoverGlow.material.opacity = 0.2 + Math.sin(tAcc * 1.3) * 0.05; }
     const a = Math.sin(tAcc * 0.17) * 1.05, hy = Math.sin(tAcc * 0.23) * 1.2, land = innerWidth > innerHeight * 1.2, off = land && shopTab !== 'h' ? 1 : 0;
-    camera.position.set(HP.x + Math.sin(a) * 19, HP.y + 7.5 + hy, HP.z + Math.cos(a) * 19); camera.lookAt(HP.x, HP.y + 2.0, HP.z);
+    camera.position.set(HP.x + Math.sin(a) * 19, HP.y + 7.5 + (DOCK_H - 2.1) + hy, HP.z + Math.cos(a) * 19); camera.lookAt(HP.x, HP.y + 2.0 + (DOCK_H - 2.1) * 0.9, HP.z);
     if (!hangarVO || camera.fov !== 46 || off !== vo) { camera.fov = 46; hangarVO = true; vo = off; if (off) camera.setViewOffset(innerWidth, innerHeight, innerWidth * 0.2, 0, innerWidth, innerHeight); else { camera.clearViewOffset(); camera.updateProjectionMatrix(); } }
   } else if (hangarVO) { hangarVO = false; vo = 0; hangar.visible = false; camera.clearViewOffset(); camera.fov = 64; camera.updateProjectionMatrix(); }
   sky.position.copy(camera.position);
