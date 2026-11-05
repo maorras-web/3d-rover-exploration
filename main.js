@@ -282,6 +282,20 @@ const shGl = new THREE.Mesh(new THREE.SphereGeometry(4.6, 20, 14), new THREE.Sha
   fragmentShader: 'uniform float op; uniform float t; varying vec3 vN; varying vec3 vV; varying vec3 vP; void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.0); float r = 0.55 + 0.45 * sin(vP.z * 1.3 + vP.y * 1.7 - t * 16.0); gl_FragColor = vec4(vec3(0.25, 0.65, 1.0) * (f * 1.5 + 0.1) * r * op, 1.0); }' }));
 shGl.scale.set(1, 0.65, 1.3); shGl.visible = false; ship.add(shGl);
 // ---- the ship: a real fighter built from simple solids (one merged vertex-coloured mesh + a glass canopy + a glowing-accent mesh) ----
+const SHIP_VAR = 4;   // which ship design is used: 0 = Interceptor, 1 = Hawk, 2 = Raptor, 3 = Hauler (space-native), 4 = Custom (built in the ship builder)
+const SHV = [
+  { hull: [[-5.3, 0.04, 0.04, -0.13], [-4.9, 0.18, 0.1, -0.09], [-4.2, 0.42, 0.2, -0.03], [-3.2, 0.78, 0.33, 0.04], [-2.2, 1.08, 0.46, 0.05], [-2.14, 1.08, 0.46, 0.05], [-1.0, 1.26, 0.54, 0.05], [0.0, 1.32, 0.56, 0.05], [0.58, 1.26, 0.55, 0.04], [0.64, 1.26, 0.55, 0.04], [1.2, 1.1, 0.52, 0.03], [1.76, 0.94, 0.5, 0.02], [1.82, 0.94, 0.5, 0.02], [2.3, 0.78, 0.45, 0], [2.45, 0.2, 0.2, 0], [2.5, 0.03, 0.03, 0]], seam: -2.17, pw: 3.2, cz: -2.5, cs: [0.8, 0.5, 3.0], cy: 0.46,
+    HC: 0x707c90, HD: 0x4c5568, GUN: 0x262b34, ACC: 0xff8a2a, wing: 0x3b4455, wv: [[0.8, -2.3, 0.12, -0.1], [0.8, 2.3, 0.12, -0.1], [4.7, 3.0, 0.05, -0.02], [4.65, 1.5, 0.05, -0.02]], wl: [4.7, 2.7, -0.35, 0.83], fin: 0, mark: 0xff8a2a, met: 0.85, rough: 0.28, scoop: 1 },
+  { hull: [[-4.3, 0.05, 0.05, 0], [-3.9, 0.28, 0.14, 0], [-3.2, 0.68, 0.32, 0.03], [-2.4, 1.0, 0.5, 0.05], [-2.34, 1.0, 0.5, 0.05], [-1.2, 1.22, 0.64, 0.05], [0.0, 1.3, 0.68, 0.05], [0.58, 1.24, 0.66, 0.04], [0.64, 1.24, 0.66, 0.04], [1.2, 1.08, 0.6, 0.03], [1.76, 0.94, 0.55, 0.02], [1.82, 0.94, 0.55, 0.02], [2.3, 0.78, 0.48, 0], [2.45, 0.2, 0.2, 0], [2.5, 0.03, 0.03, 0]], seam: -2.37, pw: 2.8, cz: -2.0, cs: [1.0, 0.7, 2.4], cy: 0.55,
+    HC: 0xf1f4f9, HD: 0x2d4a7e, GUN: 0x4a566c, ACC: 0x4aa8ff, wing: 0xe3e8f0, wv: [[0.8, -1.3, 0.12, -0.1], [0.8, 2.2, 0.12, -0.1], [3.8, 3.0, 0.05, -0.02], [3.75, 1.9, 0.05, -0.02]], wl: [4.0, 2.3, 0.3, 0.74], fin: 1, mark: 0xd0432e, met: 0.6, rough: 0.34, scoop: 1 },
+  { hull: [[-3.7, 0.06, 0.06, 0], [-3.3, 0.5, 0.28, 0], [-2.6, 0.95, 0.5, 0.02], [-1.62, 1.32, 0.66, 0.05], [-1.56, 1.32, 0.66, 0.05], [-0.2, 1.3, 0.68, 0.05], [0.58, 1.2, 0.65, 0.04], [0.64, 1.2, 0.65, 0.04], [1.2, 1.05, 0.6, 0.03], [1.76, 0.92, 0.55, 0.02], [1.82, 0.92, 0.55, 0.02], [2.3, 0.78, 0.48, 0], [2.45, 0.2, 0.2, 0], [2.5, 0.03, 0.03, 0]], seam: -1.59, pw: 2.5, cz: -1.85, cs: [0.98, 0.62, 2.05], cy: 0.5,
+    HC: 0x3a5f9c, HD: 0x22396a, GUN: 0x161d2c, ACC: 0xffc24a, wing: 0x1c2f58, wv: [[0.8, -1.6, 0.14, -0.12], [0.8, 2.4, 0.14, -0.12], [4.2, 2.2, 0.06, -0.02], [4.1, 0.9, 0.06, -0.02]], wl: [3.9, 2.4, 0.4, 0.88], fin: 2, mark: 0xffc24a, met: 0.9, rough: 0.25, scoop: 0 },
+  { hull: [[-4.2,.28,.22,0],[-3.9,.62,.42,0],[-3.0,.88,.56,0],[-2.94,.88,.56,0],[-1.0,1.0,.62,0],[0.5,1.0,.62,0],[0.56,1.0,.62,0],[1.6,.95,.58,0],[2.2,.8,.5,0],[2.4,.3,.3,0],[2.45,.03,.03,0]], seam: -2.97, pw: 4.5, cz: -2.4, cs: [0.7, 0.12, 1.3], cy: 0.5,
+    HC: 0x8e97a6, HD: 0x4a5463, GUN: 0x1e232b, ACC: 0x35d4ff, wing: 0x3b4455, wv: [[0.8, -2.3, 0.12, -0.1], [0.8, 2.3, 0.12, -0.1], [4.7, 3.0, 0.05, -0.02], [4.65, 1.5, 0.05, -0.02]], wl: [4.7, 2.7, -0.35, 0.83], fin: 0, mark: 0xff8a2a, met: 0.85, rough: 0.28, scoop: 0 },
+  { hull: [[-4.2,.28,.22,0],[-3.9,.62,.42,0],[-3.0,.88,.56,0],[-2.94,.88,.56,0],[-1.0,1.0,.62,0],[0.5,1.0,.62,0],[0.56,1.0,.62,0],[1.6,.95,.58,0],[2.2,.8,.5,0],[2.4,.3,.3,0],[2.45,.03,.03,0]], seam: -2.97, pw: 4.5, cz: -2.4, cs: [0.7, 0.12, 1.3], cy: 0.5,
+    HC: 0x8e97a6, HD: 0x4a5463, GUN: 0x1e232b, ACC: 0x35d4ff, wing: 0x3b4455, wv: [[0.8, -2.3, 0.12, -0.1], [0.8, 2.3, 0.12, -0.1], [4.7, 3.0, 0.05, -0.02], [4.65, 1.5, 0.05, -0.02]], wl: [4.7, 2.7, -0.35, 0.83], fin: 0, mark: 0xff8a2a, met: 0.85, rough: 0.28, scoop: 0 }
+], SV = SHV[SHIP_VAR];
+const ENG = SHIP_VAR === 4 ? [0.62, -0.08, 3.25] : [1.75, -0.2, 2.2];
 const roverBody = (() => {
   const grp = new THREE.Group(), Yc = -0.1;
   const HULL = 0xdde3ec, HULL2 = 0xb4bfcf, DARK = 0x39414d, DARK2 = 0x262c36, RED = 0xd0432e, CY = 0x35d4ff;
@@ -297,9 +311,9 @@ const roverBody = (() => {
   const CYL = (r0, r1, h, seg) => new THREE.CylinderGeometry(r1, r0, h, seg || 10);   // r0 = front (-z) radius, r1 = rear (+z) radius once rotated along z
   const RX = Math.PI / 2;
   // "Warden": a bulbous armoured gunship - rounded dark hull with a glass dome, two long arms carrying cannon pods with glowing rings, twin thrusters at the rear
-  const HC = 0xf0f3f8, HD = 0xc6ceda, GUN = 0x7c8698, ICE = 0x35d4ff;
+  const HC = SV.HC, HD = SV.HD, GUN = SV.GUN, ICE = SV.ACC;
   const loft = (secs, colFn, cx, cy, pw, mt) => {
-    const N = 16, pos = [], idx = [];
+    const N = 22, pos = [], idx = [];
     secs.forEach(s => { for (let j = 0; j < N; j++) { const a = j / N * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a), e = 2 / (pw || 2.6); pos.push(cx + Math.sign(c) * Math.pow(Math.abs(c), e) * s[1], cy + s[3] + Math.sign(sn) * Math.pow(Math.abs(sn), e) * s[2], s[0]); } });
     for (let i = 0; i < secs.length - 1; i++) for (let j = 0; j < N; j++) { const a = i * N + j, b = i * N + (j + 1) % N, c = (i + 1) * N + j, d = (i + 1) * N + (j + 1) % N; idx.push(a, b, c, b, d, c); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
@@ -308,35 +322,116 @@ const roverBody = (() => {
     ng.setAttribute('color', new THREE.BufferAttribute(col, 3)); ng.deleteAttribute('uv'); if (mt) { ng.applyMatrix4(mt); ng.computeVertexNormals(); } body.push(ng);
   };
   // hull: broad rounded front tapering to the rear; panel-grey top, dark belly
-  loft([[-3.7, 0.06, 0.06, 0], [-3.3, 0.5, 0.28, 0], [-2.6, 0.95, 0.5, 0.02], [-1.62, 1.32, 0.66, 0.05], [-1.56, 1.32, 0.66, 0.05], [-0.2, 1.3, 0.68, 0.05], [0.58, 1.2, 0.65, 0.04], [0.64, 1.2, 0.65, 0.04], [1.2, 1.05, 0.6, 0.03], [1.76, 0.92, 0.55, 0.02], [1.82, 0.92, 0.55, 0.02], [2.3, 0.78, 0.48, 0], [2.45, 0.2, 0.2, 0], [2.5, 0.03, 0.03, 0]],
-    (z, y) => (Math.abs(z + 1.59) < 0.04 || Math.abs(z - 0.61) < 0.04 || Math.abs(z - 1.79) < 0.04) ? GUN : (y < -0.3 ? GUN : (y > 0.3 ? HC : HD)), 0, Yc, 2.5);
+  loft(SV.hull,
+    (z, y) => (Math.abs(z - SV.seam) < 0.05 || Math.abs(z - 0.61) < 0.04 || Math.abs(z - 1.79) < 0.04) ? GUN : (SHIP_VAR === 0 && z < -4.55 ? 0x1b2029 : (y < -0.28 ? GUN : (y > 0.3 ? HC : HD))), 0, Yc, SV.pw);
+  if (SV.scoop && SHIP_VAR !== 3) for (const s of [-1, 1]) put(body, B(0.55, 0.42, 1.5), 0x14181f, [s * 1.0, Yc + 0.1, -0.7]);   // dark air-intake scoops on the shoulders
+  if (SHIP_VAR === 0) {
+    // pro pass: sculpted side intakes, dorsal spine hump, LERX strakes, chin intake, canopy frame, wingtip winglets
+    const T = (x, y, z) => new THREE.Matrix4().makeTranslation(x, y, z);
+    for (const s of [-1, 1]) {
+      loft([[-2.7, .05, .05, 0], [-2.3, .26, .2, 0], [-1.3, .32, .26, 0], [-0.2, .22, .2, 0], [0.5, .04, .04, 0]], (z) => z < -2.0 ? 0x10141a : HD, s * 0.98, Yc + 0.02, 2.4);
+      loft([[-2.6, .02, .02, 0], [-1.6, .09, .03, 0], [0.2, .5, .03, 0], [1.0, .05, .02, 0]], () => HC, s * 1.45, Yc + 0.04, 3.0, new THREE.Matrix4().makeRotationY(-s * 0.05));   // leading-edge root strake
+      loft([[0, .02, .02, 0], [0.5, .06, .55, .38], [1.1, .05, .4, .3], [1.6, .015, .06, .05]], (z, y) => y > 0.3 ? 0xff8a2a : HD, 0, 0, 2.2,
+        T(s * 4.7, Yc + 0.05, 2.35).multiply(new THREE.Matrix4().makeRotationZ(-s * 0.35)));   // winglet
+      put(body, B(0.03, 0.03, 1.4), 0x0c0f14, [s * 0.5, Yc + 0.62, -2.3]);   // canopy frame bars
+      put(glow, B(0.18, 0.025, 0.5), 0x35d4ff, [s * 1.0, Yc - 0.22, -2.0]);
+    }
+    loft([[-1.4, .03, .03, 0], [-0.8, .34, .12, 0], [0.5, .4, .16, 0], [1.6, .3, .1, 0], [2.3, .04, .04, 0]], () => HC, 0, Yc + 0.58, 2.4);   // dorsal hump behind the canopy
+    loft([[-3.2, .04, .03, 0], [-2.6, .22, .08, 0], [-1.7, .3, .1, 0], [-1.0, .12, .05, 0]], () => 0x10141a, 0, Yc - 0.5, 2.4);   // chin intake
+    put(body, B(1.1, 0.03, 0.04), 0x0c0f14, [0, Yc + 0.52, -3.6]);
+  }
+  if (SHIP_VAR === 3) {
+    // space-native "Hauler": no wings - a modular hull with ring bands, a radiator mast, struts to the weapon pods, a sensor boom and a dish
+    const ORG = 0xff7a1a, ring = (z, r) => put(body, new THREE.TorusGeometry(r, 0.06, 6, 28), ORG, [0, Yc, z], 0, [1.0, 0.64, 1]);
+    ring(-1.7, 1.0); ring(-0.2, 1.01); ring(1.2, 0.97);
+    for (const s of [-1, 1]) {
+      for (const z of [-0.9, 0.5]) put(body, B(1.5, 0.12, 0.14), HD, [s * 1.72, Yc - 0.3, z], [0, 0, s * 0.08]);   // trusses to the weapon pods
+      put(body, B(0.9, 0.14, 1.0), GUN, [s * 1.0, Yc - 0.28, 1.9]);                                             // engine mount blocks
+      put(body, B(0.3, 0.2, 0.4), GUN, [s * 0.98, Yc + 0.26, -3.5]);                                             // RCS blocks
+      put(body, B(0.3, 0.2, 0.4), GUN, [s * 0.9, Yc + 0.26, 1.9]);
+      put(glow, B(0.05, 0.05, 0.05), s < 0 ? 0xff3a2a : 0x3aff6a, [s * 1.0, Yc + 0.37, -3.5]);
+    }
+    for (const s of [-1, 1]) {   // radiator panels: two flat vanes on a dorsal mast
+      put(body, B(1.7, 0.04, 2.1), 0x24324f, [s * 1.15, Yc + 1.2, 0.5], [0, 0, -s * 0.5]);
+      put(glow, B(0.05, 0.05, 2.1), ORG, [s * 1.92, Yc + 1.05, 0.5], [0, 0, -s * 0.5]);
+      put(body, B(1.5, 0.05, 0.1), GUN, [s * 1.1, Yc + 1.19, 0.2], [0, 0, -s * 0.5]);
+    }
+    put(body, B(0.22, 0.9, 0.5), GUN, [0, Yc + 0.95, 0.5]);                                                      // mast
+    put(body, new THREE.CylinderGeometry(0.04, 0.04, 2.0, 6), GUN, [0, Yc + 0.05, -5.0], [RX, 0, 0]);          // sensor boom
+    put(glow, new THREE.SphereGeometry(0.09, 8, 6), 0xff3a2a, [0, Yc + 0.05, -6.0]);
+    put(body, new THREE.ConeGeometry(0.4, 0.22, 14), HC, [0, Yc + 0.7, 2.0], [-0.6, 0, 0]);                       // dish antenna
+    put(body, B(1.5, 0.5, 0.9), GUN, [0, Yc - 0.05, 2.15]);                                                       // rear drive block
+    put(glow, B(1.0, 0.05, 0.05), ICE, [0, Yc + 0.2, 2.62]);
+    put(body, B(0.9, 0.28, 0.9), HD, [0, Yc - 0.62, -0.3]);                                                       // belly cargo module
+  }
+  if (!SV.scoop && SHIP_VAR !== 3) for (const s of [-1, 1]) { put(body, B(0.7, 0.05, 1.7), 0x6a5420, [s * 0.55, Yc + 0.76, -0.3]); put(body, B(0.7, 0.05, 1.1), 0x6a5420, [s * 0.5, Yc + 0.68, 1.4]); }   // gold armour plates on the back
   // smooth sculpted parts only (no stacked boxes): dorsal spine, shoulder fairings, chin, glass dome, swept arms, cannon pods - all lofted
-  put(glow, B(0.04, 0.04, 2.8), ICE, [-1.12, Yc + 0.2, -0.7], [0, 0.06, 0]); put(glow, B(0.04, 0.04, 2.8), ICE, [1.12, Yc + 0.2, -0.7], [0, -0.06, 0]);
+  put(glow, B(0.04, 0.04, 3.4), ICE, [-1.1, Yc + 0.14, -1.0], [0, 0.08, 0]); put(glow, B(0.04, 0.04, 3.4), ICE, [1.1, Yc + 0.14, -1.0], [0, -0.08, 0]);
   put(glow, B(0.12, 0.03, 1.6), ICE, [0, Yc + 0.66, 0.9]);
-  put(glass, new THREE.SphereGeometry(0.5, 20, 14), 0x4a82b8, [0, Yc + 0.5, -1.85], 0, [0.98, 0.62, 2.05]);
-  put(glow, B(0.05, 0.02, 1.5), 0xcfeaff, [0, Yc + 0.93, -1.9]);   // glint along the canopy
+  put(body, B(0.5, 0.03, 2.4), DARK, [0, Yc + 0.66, 0.0]);   // dark spine plate and a red nose stripe
+  put(glass, new THREE.SphereGeometry(0.5, 20, 14), 0x4a82b8, [0, Yc + SV.cy, SV.cz], 0, SV.cs);
+  put(glow, B(0.04, 0.02, SV.cs[2] * 0.6), 0xcfeaff, [0, Yc + SV.cy + SV.cs[1] * 0.5 - 0.02, SV.cz]);   // glint along the canopy
   for (const s of [-1, 1]) {
     // twin tail fins (they give the ship a proper fighter silhouette from behind) with a glowing edge, and a coloured navigation light on every wing pod
-    loft([[0.35, 0.03, 0.05, 0], [0.9, 0.045, 0.42, 0.34], [1.8, 0.045, 0.56, 0.46], [2.5, 0.02, 0.12, 0.1]], (z, y) => y > 0.5 ? HD : HC, 0, 0, 2.2,
+    if (SHIP_VAR === 3) { /* no fins: space ship */ } else if (SV.fin === 1) loft([[0.45, 0.03, 0.05, 0], [1.0, 0.045, 0.75, 0.62], [1.9, 0.045, 1.0, 0.9], [2.5, 0.02, 0.28, 0.22]], (z, y) => y > 0.9 ? SV.mark : (y > 0.5 ? HD : HC), 0, 0, 2.2,
+      new THREE.Matrix4().makeTranslation(s * 0.95, Yc + 0.22, 0).multiply(new THREE.Matrix4().makeRotationZ(-s * 0.07)));
+    else if (SV.fin === 2) loft([[0.3, 0.03, 0.05, 0], [0.9, 0.05, 0.5, 0.42], [1.9, 0.05, 0.75, 0.66], [2.5, 0.02, 0.2, 0.16]], (z, y) => y > 0.7 ? SV.ACC : HC, 0, 0, 2.2,
+      new THREE.Matrix4().makeTranslation(s * 0.9, Yc + 0.22, 0).multiply(new THREE.Matrix4().makeRotationZ(-s * 0.55)));   // wide V tail
+    else loft([[0.35, 0.03, 0.05, 0], [0.9, 0.045, 0.42, 0.34], [1.8, 0.045, 0.56, 0.46], [2.5, 0.02, 0.12, 0.1]], (z, y) => y > 0.5 ? HD : HC, 0, 0, 2.2,
       new THREE.Matrix4().makeTranslation(s * 0.78, Yc + 0.22, 0).multiply(new THREE.Matrix4().makeRotationZ(-s * 0.28)));
     put(glow, B(0.1, 0.1, 0.1), s < 0 ? 0xff3a2a : 0x3aff6a, [s * 2.6, 0.48, 0.3]);
   }
   for (const s of [-1, 1]) {
-    // swept arm: flat tapered blade from the hull to the pod, blending into both
-    const th = Math.atan2(1.45 * s, -0.5);
-    loft([[-0.95, 0.05, 0.05, 0], [-0.6, 0.42, 0.13, 0], [0, 0.55, 0.17, 0], [0.6, 0.42, 0.13, 0], [0.95, 0.05, 0.05, 0]], (z) => z > 0.2 ? HC : HD, 0, 0, 2.4, new THREE.Matrix4().makeTranslation(s * 1.85, Yc + 0.04, 0.25).multiply(new THREE.Matrix4().makeRotationY(th)));
+    // swept delta wing: a flat wedge from the hull out to the wingtip (thick at the root, thin at the tip) with a glowing leading edge
+    if (SHIP_VAR !== 3) { const Wv = SV.wv, pos = [];
+      Wv.forEach(v => pos.push(s * v[0], Yc + v[2], v[1])); Wv.forEach(v => pos.push(s * v[0] * 0.995, Yc + v[3], v[1]));
+      let ix = [0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6, 0, 4, 5, 0, 5, 1, 1, 5, 6, 1, 6, 2, 2, 6, 7, 2, 7, 3, 3, 7, 4, 3, 4, 0]; if (s < 0) { const r = []; for (let k = 0; k < ix.length; k += 3) r.push(ix[k], ix[k + 2], ix[k + 1]); ix = r; }
+      const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); wg.setIndex(ix); put(body, wg, SV.wing, [0, 0, 0]);
+      if (SV.fin === 1) put(body, B(0.55, 0.035, 0.5), SV.mark, [s * (SV.wv[2][0] - 0.5), Yc + 0.08, SV.wv[2][1] - 0.5]);
+      if (SHIP_VAR === 0) { put(body, new THREE.CylinderGeometry(0.07, 0.09, 2.0, 10), GUN, [s * 4.35, Yc + 0.02, 1.0], [RX, 0, 0]); put(glow, B(0.1, 0.1, 0.12), SV.ACC, [s * 4.35, Yc + 0.02, -0.02]); put(body, B(0.9, 0.02, 0.05), SV.mark, [s * 3.5, Yc + 0.08, 2.65]); }
+      put(body, B(1.5, 0.03, 0.12), DARK2, [s * 2.4, Yc + 0.09, 2.5]); }   // wingtip laser, thin stripe and a dark trailing strip
+    if (SHIP_VAR !== 3) put(glow, B(0.045, 0.03, SV.wl[0]), ICE, [s * SV.wl[1], Yc + 0.1, SV.wl[2]], [0, s * SV.wl[3], 0]);   // glowing leading-edge stripe
+                              // trailing-edge glow near the tip
     // cannon pod: one smooth capsule with a thicker rear collar
-    loft([[-2.4, 0.05, 0.05, 0], [-2.0, 0.2, 0.2, 0], [-1.2, 0.3, 0.3, 0], [0.3, 0.36, 0.36, 0], [0.75, 0.42, 0.42, 0], [1.05, 0.3, 0.3, 0]], (z) => z > 0.2 ? HC : HD, s * 2.6, -0.05, 2.0);
-    put(body, new THREE.CylinderGeometry(0.07, 0.07, 1.2, 8), GUN, [s * 2.6, -0.05, -1.7], [RX, 0, 0]);               // barrel
-    put(glow, new THREE.CylinderGeometry(0.06, 0.06, 0.1, 8), 0xffffff, [s * 2.6, -0.05, -2.32], [RX, 0, 0]);        // muzzle
-    put(glow, new THREE.TorusGeometry(0.34, 0.05, 6, 18), ICE, [s * 2.6, -0.05, 0.9]);                              // glowing ring
-    put(glow, new THREE.TorusGeometry(0.3, 0.03, 6, 18), ICE, [s * 2.6, -0.05, -0.75]);
-    loft([[-0.5, 0.02, 0.04, 0], [0, 0.03, 0.4, 0], [0.8, 0.03, 0.34, 0], [1.1, 0.02, 0.04, 0]], () => HC, s * 2.6, 0.32, 2.0);   // blade fin
+    loft([[-2.4, 0.05, 0.05, 0], [-2.0, 0.2, 0.2, 0], [-1.2, 0.3, 0.3, 0], [0.3, 0.36, 0.36, 0], [0.75, 0.42, 0.42, 0], [1.05, 0.3, 0.3, 0]], (z) => z > 0.2 ? HC : HD, s * 2.6, -0.34, 2.0);
+    put(body, new THREE.CylinderGeometry(0.07, 0.07, 1.2, 8), GUN, [s * 2.6, -0.34, -1.7], [RX, 0, 0]);               // barrel
+    put(glow, new THREE.CylinderGeometry(0.06, 0.06, 0.1, 8), 0xffffff, [s * 2.6, -0.34, -2.32], [RX, 0, 0]);        // muzzle
+    put(glow, new THREE.TorusGeometry(0.34, 0.05, 6, 18), ICE, [s * 2.6, -0.34, 0.9]);                              // glowing ring
+    put(glow, new THREE.TorusGeometry(0.3, 0.03, 6, 18), ICE, [s * 2.6, -0.34, -0.75]);
+    loft([[-0.5, 0.02, 0.04, 0], [0, 0.03, 0.4, 0], [0.8, 0.03, 0.34, 0], [1.1, 0.02, 0.04, 0]], () => HC, s * 2.6, 0.03, 2.0);   // blade fin
   }
   for (const s of [-1, 1]) loft([[-0.63, 0.4, 0.3, 0], [-0.3, 0.42, 0.33, 0], [0.3, 0.42, 0.33, 0], [0.63, 0.38, 0.3, 0]], () => HD, 0, 0, 2.2,
     new THREE.Matrix4().makeTranslation(s * 1.22, -0.25, 1.75).multiply(new THREE.Matrix4().makeRotationY(s * Math.PI / 2)));   // engine pylon: a clean strut from hull to nacelle
   const sface = (c0, c1) => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 32); gr.addColorStop(0, c0); gr.addColorStop(1, c1); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); return c; };
-  const senv = new THREE.CubeTexture([sface('#e8eef8', '#3a4458'), sface('#d5dcea', '#2e374a'), sface('#ffffff', '#f2f6ff'), sface('#10141c', '#1c222e'), sface('#dbe2ee', '#3a4458'), sface('#e8eef8', '#323c50')]); senv.colorSpace = THREE.SRGBColorSpace; senv.needsUpdate = true;
+  const eface = (kind) => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 64);
+    gr.addColorStop(0, '#9fb0c8'); gr.addColorStop(0.42, '#eef3fb'); gr.addColorStop(0.47, '#5a667c'); gr.addColorStop(0.55, '#1b212c'); gr.addColorStop(1, '#0c0f15'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+    if (kind === 1) { const g2 = x.createRadialGradient(22, 18, 0, 22, 18, 20); g2.addColorStop(0, 'rgba(255,255,255,1)'); g2.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g2; x.fillRect(0, 0, 64, 64); } return c; };
+  const topF = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 4, 32, 32, 46); g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#b8c6dc'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return c; })();
+  const botF = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; c.getContext('2d').fillStyle = '#0a0c11'; c.getContext('2d').fillRect(0, 0, 64, 64); return c; })();
+  const senv = new THREE.CubeTexture([eface(1), eface(0), topF, botF, eface(0), eface(0)]); senv.colorSpace = THREE.SRGBColorSpace; senv.needsUpdate = true;
+  if (SHIP_VAR === 4) {
+    // custom ship from the ship builder: a list of simple parts (mirrored when mir=1); the built-in shape above is discarded
+    body.length = 0; glow.length = 0; glass.length = 0;
+    const PJ = [{"t":"sph","x":-0.05,"y":-0.1,"z":0,"rx":0,"ry":0,"rz":0,"sx":2.04,"sy":1.76,"sz":12,"k":1,"c":"#8e97a6","m":"metal","mir":0},{"t":"wing","x":0.4,"y":0.2,"z":-1,"rx":2,"ry":3,"rz":-31,"sx":6.96,"sy":0.26,"sz":2.42,"k":0.6,"c":"#8e97a6","m":"metal","mir":1},{"t":"tor","x":-0.1,"y":0,"z":4.8,"rx":0,"ry":0,"rz":0,"sx":2.04,"sy":3.08,"sz":1,"k":1.85,"c":"#8e97a6","m":"metal","mir":0},{"t":"sph","x":-0.05,"y":0,"z":4.55,"rx":0,"ry":-88,"rz":0,"sx":4.38,"sy":2.6,"sz":1,"k":1,"c":"#8e97a6","m":"metal","mir":0},{"t":"cone","x":-0.1,"y":-0.15,"z":-6.1,"rx":-2,"ry":1,"rz":-180,"sx":0.84,"sy":0.76,"sz":1,"k":1,"c":"#8e97a6","m":"metal","mir":0},{"t":"wing","x":0.65,"y":-0.1,"z":-0.95,"rx":3,"ry":-7,"rz":18,"sx":8,"sy":0.26,"sz":2.3,"k":0.05,"c":"#8e97a6","m":"metal","mir":1}], KS = 0.72, D2R = Math.PI / 180;
+    const pgeo = (p) => { const k = p.k; switch (p.t) {
+      case 'box': { const g = new THREE.BoxGeometry(1, 1, 1), a = g.attributes.position; for (let i = 0; i < a.count; i++) if (a.getZ(i) < 0) { a.setX(i, a.getX(i) * k); a.setY(i, a.getY(i) * k); } return g; }
+      case 'cyl': { const g = new THREE.CylinderGeometry(0.5, 0.5 * k, 1, 16); g.rotateX(Math.PI / 2); return g; }
+      case 'sph': return new THREE.SphereGeometry(0.5, 18, 12);
+      case 'cone': { const g = new THREE.ConeGeometry(0.5, 1, 16); g.rotateX(-Math.PI / 2); return g; }
+      case 'tor': return new THREE.TorusGeometry(0.5, 0.04 * k, 6, 28);
+      default: { const v = [[0, -0.5], [0, 0.5], [1, -0.5 + k + 0.3], [1, -0.5 + k]], pos = []; v.forEach(a => pos.push(a[0], 0.5, a[1])); v.forEach(a => pos.push(a[0], -0.5, a[1]));
+        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex([0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6, 0, 4, 5, 0, 5, 1, 1, 5, 6, 1, 6, 2, 2, 6, 7, 2, 7, 3, 3, 7, 4, 3, 4, 0]); return g; } } };
+    for (const p of PJ) for (const mir of (p.mir ? [0, 1] : [0])) {
+      let g = pgeo(p); g = g.index ? g.toNonIndexed() : g;
+      E.set(p.rx * D2R, (mir ? -p.ry : p.ry) * D2R, (mir ? -p.rz : p.rz) * D2R, 'YXZ'); Q.setFromEuler(E);
+      M4.compose(P.set((mir ? -p.x : p.x) * KS, p.y * KS, p.z * KS), Q, Sc.set((mir ? -p.sx : p.sx) * KS, p.sy * KS, p.sz * KS)); g.applyMatrix4(M4);
+      if (M4.determinant() < 0) { const a = g.attributes.position; for (let i = 0; i < a.count; i += 3) { const x = a.getX(i + 1), y = a.getY(i + 1), z = a.getZ(i + 1); a.setXYZ(i + 1, a.getX(i + 2), a.getY(i + 2), a.getZ(i + 2)); a.setXYZ(i + 2, x, y, z); } }
+      g.computeVertexNormals(); g.deleteAttribute('uv');
+      const c = new THREE.Color(p.c), n = g.attributes.position.count, col = new Float32Array(n * 3); for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3)); (p.m === 'glow' ? glow : p.m === 'glass' ? glass : body).push(g);
+    }
+  }
+  if (SHIP_VAR === 4) { if (!glow.length) put(glow, B(0.01, 0.01, 0.01), 0xffffff, [0, 0, 0]); if (!glass.length) put(glass, B(0.01, 0.01, 0.01), 0x4a82b8, [0, 0, 0]); }
   const bgeo = mergeGeometries(body);
   // armour-plate texture: drawn once in code (panels, seams, rivets, vents, scratches, hazard marks) and mapped per triangle along its dominant axis
   const drawPlates = (x, W, H, bump) => {
@@ -346,7 +441,7 @@ const roverBody = (() => {
     split(0, 0, W, H, 0);
     for (const [px, py, pw, ph] of panels) {
       const t = rn(); x.fillStyle = bump ? `rgb(${170 + t * 40 | 0},${170 + t * 40 | 0},${170 + t * 40 | 0})` : `rgb(${196 + t * 40 | 0},${204 + t * 36 | 0},${216 + t * 30 | 0})`; x.fillRect(px + 2, py + 2, pw - 4, ph - 4);
-      x.strokeStyle = bump ? '#222' : '#4c5466'; x.lineWidth = bump ? 7 : 5; x.strokeRect(px + 2.5, py + 2.5, pw - 5, ph - 5);
+      x.strokeStyle = bump ? '#333' : 'rgba(60,70,90,.7)'; x.lineWidth = bump ? 5 : 3; x.strokeRect(px + 2.5, py + 2.5, pw - 5, ph - 5);
       if (!bump) { x.strokeStyle = 'rgba(255,255,255,.35)'; x.lineWidth = 1.5; x.strokeRect(px + 5, py + 5, pw - 10, ph - 10); }
       x.fillStyle = bump ? '#eee' : '#6c7486'; for (const [rx, ry] of [[9, 9], [pw - 9, 9], [9, ph - 9], [pw - 9, ph - 9]]) { x.beginPath(); x.arc(px + rx, py + ry, 2.2, 0, 7); x.fill(); }   // rivets
       const k = rn();
@@ -358,7 +453,7 @@ const roverBody = (() => {
   const plateMap = canvasTex(512, 512, (x, w, h) => drawPlates(x, w, h, false), [1, 1]);
   const plateBump = canvasTex(512, 512, (x, w, h) => drawPlates(x, w, h, true), [1, 1]); plateBump.colorSpace = THREE.NoColorSpace;
   plateMap.anisotropy = plateBump.anisotropy = 4;
-  { const p = bgeo.attributes.position, uv = new Float32Array(p.count * 2), S3 = 1 / 3.2, a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+  { const p = bgeo.attributes.position, uv = new Float32Array(p.count * 2), S3 = 1 / 2.1, a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
     for (let i = 0; i < p.count; i += 3) {
       a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2); n.crossVectors(b.sub(a), c.sub(a)); const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
       for (let k = 0; k < 3; k++) { const X = p.getX(i + k), Y = p.getY(i + k), Z = p.getZ(i + k); let u, v; if (ay >= ax && ay >= az) { u = X; v = Z; } else if (ax >= az) { u = Z; v = Y; } else { u = X; v = Y; } uv[(i + k) * 2] = u * S3; uv[(i + k) * 2 + 1] = v * S3; }
@@ -376,7 +471,7 @@ const roverBody = (() => {
       f *= 1.7; cl.setXYZ(i, Math.min(1, cl.getX(i) * f), Math.min(1, cl.getY(i) * f), Math.min(1, cl.getZ(i) * f));
     }
   }
-  const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, map: plateMap, bumpMap: plateBump, bumpScale: 1.6, roughness: 0.3, metalness: 0.7, flatShading: false, envMap: senv, envMapIntensity: 1.3, emissive: 0x2a303c });
+  const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, map: plateMap, bumpMap: plateBump, bumpScale: 0.9, roughness: SV.rough, metalness: SV.met, flatShading: false, envMap: senv, envMapIntensity: SHIP_VAR === 0 ? 1.7 : 1.3, emissive: 0x2a303c });
   bmat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float rimK = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 2.6); totalEmissiveRadiance += vec3(0.1, 0.55, 0.85) * rimK * 0.5;'); };   // cyan rim light round the silhouette
   const bm = new THREE.Mesh(bgeo, bmat);
   const gm = new THREE.Mesh(mergeGeometries(glow), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, fog: false }));
@@ -402,7 +497,7 @@ const engPod = new THREE.SphereGeometry(1, 14, 10);
 const bandMat = new THREE.MeshStandardMaterial({ color: 0x6a7488, roughness: 0.5, metalness: 0.2, emissive: 0x1c2230 });
 const coreMat = new THREE.MeshBasicMaterial({ color: 0x2a8fc0, toneMapped: false, fog: false });
 for (const s of [-1, 1]) {
-  const e = new THREE.Group(); e.position.set(s * 1.85, -0.25, 2.2);
+  const e = new THREE.Group(); e.position.set(s * ENG[0], ENG[1], ENG[2]); e.scale.set(0.82, 0.82, 1);
   const body = new THREE.Mesh(engGeo, engMat); body.rotation.x = Math.PI / 2; e.add(body);
   const lipBand = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.04, 6, 24), ringMat); lipBand.position.z = -0.66; e.add(lipBand);              // glowing intake lip
   const band = new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.05, 6, 24), bandMat); band.position.z = 0.22; e.add(band);                           // armoured band
@@ -411,8 +506,8 @@ for (const s of [-1, 1]) {
   FL.forEach((L, k) => { const fc = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 16, 1, true), flameMats[k]); fc.rotation.x = Math.PI / 2; fc.position.set(0, 0, 0.95); fc.userData = { L, ph: s * 1.7 + k }; e.add(fc); flameCones.push(fc); });
   shipBody.add(e);
 }
-const flames = [-1, 1].map(s => { const f = glowSprite(0x7fe9ff, 2.0, 0.42); f.position.set(s * 1.85, -0.25, 3.35); shipBody.add(f); return f; });
-const flameCore = [-1, 1].map(s => { const f = glowSprite(0xffffff, 0.9, 0.6); f.position.set(s * 1.85, -0.25, 3.1); shipBody.add(f); return f; });
+const flames = [-1, 1].map(s => { const f = glowSprite(0x7fe9ff, 1.5, 0.32); f.position.set(s * ENG[0], ENG[1], ENG[2] + 1.15); shipBody.add(f); return f; });
+const flameCore = [-1, 1].map(s => { const f = glowSprite(0xffffff, 0.9, 0.6); f.position.set(s * (ENG[0] + 0.1), ENG[1] - 0.05, ENG[2] + 0.9); shipBody.add(f); return f; });
 
 // ---------- hangar room (Galaxy-on-Fire-style): far away from the world, enclosed, only drawn while docked ----------
 const HP = V3(0, -6000, 0);
@@ -1458,7 +1553,7 @@ function frame(now) {
     }
     if ((firing || keys.Space) && S.fireT <= 0) {
       S.fireT = 0.13; S.side = -S.side;
-      _a.set(S.side * 2.6 * SHIP_K, -0.05 * SHIP_K, -1.6 * SHIP_K).applyQuaternion(S.q).add(S.pos);
+      _a.set(S.side * 2.6 * SHIP_K, -0.34 * SHIP_K, -1.6 * SHIP_K).applyQuaternion(S.q).add(S.pos);
       _b.copy(fwd); if (leadOk) _b.lerp(S._leadDir, 0.85).normalize();
       fireBolt(_a, _b, 560, ST.dmg, false); sfx('laser');
     }
