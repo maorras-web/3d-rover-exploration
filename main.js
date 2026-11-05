@@ -128,13 +128,29 @@ composer.addPass(new RenderPass(scene, camera));
 const bloomPass = new CheapGlow(innerWidth / 2, innerHeight / 2);
 composer.addPass(bloomPass);
   const gradePass = new ShaderPass({
-    uniforms: { tDiffuse: { value: null }, tGlow: { value: null }, tGlow2: { value: null }, uGlow: { value: new THREE.Vector2(0, 0) } },
+    uniforms: { tDiffuse: { value: null }, tGlow: { value: null }, tGlow2: { value: null }, uGlow: { value: new THREE.Vector2(0, 0) }, uTexel: { value: new THREE.Vector2(0.001, 0.001) }, uFx: { value: 0 } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: `
-      uniform sampler2D tDiffuse; uniform sampler2D tGlow; uniform sampler2D tGlow2; uniform vec2 uGlow; varying vec2 vUv;
+      uniform sampler2D tDiffuse; uniform sampler2D tGlow; uniform sampler2D tGlow2; uniform vec2 uGlow; uniform vec2 uTexel; uniform float uFx; varying vec2 vUv;
+      vec3 tx(vec2 uv){ return texture2D(tDiffuse, uv).rgb; }
       float hh(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       void main(){
-        vec3 c = texture2D(tDiffuse, vUv).rgb + texture2D(tGlow, vUv).rgb * uGlow.x + texture2D(tGlow2, vUv).rgb * uGlow.y;
+        vec3 base = tx(vUv);
+        if (uFx > 0.5) {   // edge smoothing (FXAA-lite): only switched on when the phone has no multisampling or the resolution was lowered
+          const vec3 L = vec3(0.299, 0.587, 0.114);
+          vec3 nw = tx(vUv + vec2(-1.0, -1.0) * uTexel), ne = tx(vUv + vec2(1.0, -1.0) * uTexel), sw = tx(vUv + vec2(-1.0, 1.0) * uTexel), se = tx(vUv + vec2(1.0, 1.0) * uTexel);
+          float lM = dot(base, L), lNW = dot(nw, L), lNE = dot(ne, L), lSW = dot(sw, L), lSE = dot(se, L);
+          float lMin = min(lM, min(min(lNW, lNE), min(lSW, lSE))), lMax = max(lM, max(max(lNW, lNE), max(lSW, lSE)));
+          if (lMax - lMin > 0.04) {
+            vec2 dir = vec2(-((lNW + lNE) - (lSW + lSE)), (lNW + lSW) - (lNE + lSE));
+            float dr = max((lNW + lNE + lSW + lSE) * 0.03125, 1.0 / 128.0), rc = 1.0 / (min(abs(dir.x), abs(dir.y)) + dr);
+            dir = clamp(dir * rc, -8.0, 8.0) * uTexel;
+            vec3 a = 0.5 * (tx(vUv + dir * (1.0 / 3.0 - 0.5)) + tx(vUv + dir * (2.0 / 3.0 - 0.5)));
+            vec3 b = a * 0.5 + 0.25 * (tx(vUv + dir * -0.5) + tx(vUv + dir * 0.5));
+            float lB = dot(b, L); base = (lB < lMin || lB > lMax) ? a : b;
+          }
+        }
+        vec3 c = base + texture2D(tGlow, vUv).rgb * uGlow.x + texture2D(tGlow2, vUv).rgb * uGlow.y;
         c = pow(max(c, vec3(0.0)), vec3(0.92));
         float g = dot(c, vec3(0.299, 0.587, 0.114));
         c = mix(vec3(g), c, 1.10);
@@ -156,7 +172,7 @@ composer.addPass(bloomPass);
   });
 composer.addPass(gradePass);
 bloomPass.attach(gradePass.uniforms);
-function applyPR() { renderer.setPixelRatio(pr); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); renderer.setSize(innerWidth, innerHeight, false); }
+function applyPR() { renderer.setPixelRatio(pr); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); renderer.setSize(innerWidth, innerHeight, false); gradePass.uniforms.uTexel.value.set(1 / (innerWidth * pr), 1 / (innerHeight * pr)); gradePass.uniforms.uFx.value = (MSAA_SAMPLES === 0 || pr < 1.35) ? 1 : 0; }
 applyPR();
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); applyPR(); });
 const sun = new THREE.DirectionalLight(0xfff0d8, 2.6); sun.position.set(0.72, 0.677, -0.148); scene.add(sun);
@@ -201,7 +217,7 @@ const skyS = new THREE.Group(); skyS.scale.setScalar(6); sky.add(skyS);      // 
       c[i * 3] = k * (t < 0.2 ? 1.0 : 0.85); c[i * 3 + 1] = k * (t < 0.2 ? 0.85 : 0.92); c[i * 3 + 2] = k * (t < 0.5 ? 1.0 : 0.8);
     }
     const sz = new Float32Array(n);
-    for (let i = 0; i < n; i++) sz[i] = 1.1 + Math.pow(Math.random(), 3) * 2.4;      // mostly small, a few bright big ones
+    for (let i = 0; i < n; i++) sz[i] = i % 60 === 0 ? 6 + Math.random() * 5 : 1.1 + Math.pow(Math.random(), 3) * 2.4;      // mostly small, a few bright big ones, and ~50 big stars with glints
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(p, 3));
     g.setAttribute('aCol', new THREE.BufferAttribute(c, 3));
@@ -209,8 +225,8 @@ const skyS = new THREE.Group(); skyS.scale.setScalar(6); sky.add(skyS);      // 
     const pts = new THREE.Points(g, new THREE.ShaderMaterial({
       transparent: true, depthWrite: false,
       uniforms: { uPR: { value: Math.min(window.devicePixelRatio, 2) } },
-      vertexShader: 'attribute vec3 aCol; attribute float aSize; uniform float uPR; varying vec3 vC; void main(){ vC = aCol; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_PointSize = aSize * uPR; }',
-      fragmentShader: 'varying vec3 vC; void main(){ float d = length(gl_PointCoord - 0.5); if (d > 0.5) discard; gl_FragColor = vec4(vC, smoothstep(0.5, 0.12, d)); }'
+      vertexShader: 'attribute vec3 aCol; attribute float aSize; uniform float uPR; varying vec3 vC; varying float vS; void main(){ vC = aCol; vS = aSize; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_PointSize = aSize * uPR; }',
+      fragmentShader: 'varying vec3 vC; varying float vS; void main(){ vec2 q = gl_PointCoord - 0.5; float d = length(q); if (d > 0.5) discard; float a = smoothstep(0.5, 0.12, d); if (vS > 5.0) { a = max(a, 0.9 * max(0.0, 1.0 - abs(q.x) * 16.0) * max(0.0, 1.0 - abs(q.y) * 2.2)); a = max(a, 0.9 * max(0.0, 1.0 - abs(q.y) * 16.0) * max(0.0, 1.0 - abs(q.x) * 2.2)); } gl_FragColor = vec4(vC * (vS > 5.0 ? 1.6 : 1.0), a); }'
     }));
     pts.frustumCulled = false;
     skyS.add(pts);
@@ -452,7 +468,7 @@ const roverBody = (() => {
     }
     x.lineCap = 'round'; for (let i = 0; i < 40; i++) { const sx = rn() * W, sy = rn() * H, a = rn() * 6.28, l = 6 + rn() * 26; x.strokeStyle = bump ? 'rgba(20,20,20,.5)' : (rn() < 0.5 ? 'rgba(40,46,60,.35)' : 'rgba(255,255,255,.35)'); x.lineWidth = 1; x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx + Math.cos(a) * l, sy + Math.sin(a) * l); x.stroke(); }   // scratches
   };
-  const plateMap = canvasTex(512, 512, (x, w, h) => drawPlates(x, w, h, false), [1, 1]);
+  const plateMap = canvasTex(1024, 1024, (x, w, h) => { x.scale(2, 2); drawPlates(x, w / 2, h / 2, false); }, [1, 1]);
   const plateBump = canvasTex(512, 512, (x, w, h) => drawPlates(x, w, h, true), [1, 1]); plateBump.colorSpace = THREE.NoColorSpace;
   plateMap.anisotropy = plateBump.anisotropy = 4;
   { const p = bgeo.attributes.position, uv = new Float32Array(p.count * 2), S3 = 1 / 2.1, a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
@@ -650,7 +666,7 @@ const asteroids = [], astMeshes = [];
     const m = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.9, metalness: 0.05, flatShading: false, emissive: 0x1c1610 }), AST_PER);
     m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     for (let i = 0; i < AST_PER; i++) {
-      col.setHSL(rnd(0.05, 0.1), rnd(0.1, 0.28), rnd(0.42, 0.62)); m.setColorAt(i, col);
+      { const q = Math.random(); if (q < 0.6) col.setHSL(rnd(0.05, 0.1), rnd(0.1, 0.28), rnd(0.42, 0.62)); else if (q < 0.8) col.setHSL(0.6, rnd(0.02, 0.08), rnd(0.4, 0.6)); else if (q < 0.92) col.setHSL(rnd(0.0, 0.04), rnd(0.3, 0.45), rnd(0.38, 0.5)); else col.setHSL(0.56, rnd(0.15, 0.3), rnd(0.55, 0.72)); } m.setColorAt(i, col);   // brown / grey / rusty iron / icy
       asteroids.push({ x: 0, y: -99999, z: 0, r: 1, hp: 1, rx: Math.random() * 6, ry: Math.random() * 6, rz: Math.random() * 6, ax: rnd(-0.4, 0.4), ay: rnd(-0.4, 0.4), mesh: m, idx: i, active: false });
     }
     scene.add(m); astMeshes.push(m);
@@ -689,14 +705,14 @@ function fireBolt(pos, dir, speed, dmg, enemy) {
 }
 
 // ---------- debris / sparks + explosions ----------
-const DB_N = 220, dbPos = new Float32Array(DB_N * 3), dbVel = new Float32Array(DB_N * 3), dbLife = new Float32Array(DB_N); let dbNext = 0, dbAlive = 0;
+const DB_N = 320, dbCol = new Float32Array(DB_N * 3), dbPos = new Float32Array(DB_N * 3), dbVel = new Float32Array(DB_N * 3), dbLife = new Float32Array(DB_N); let dbNext = 0, dbAlive = 0;
 for (let i = 0; i < DB_N; i++) dbPos[i * 3 + 1] = -99999;
-const dbGeo = new THREE.BufferGeometry(); dbGeo.setAttribute('position', new THREE.BufferAttribute(dbPos, 3));
-const debris = new THREE.Points(dbGeo, new THREE.PointsMaterial({ color: 0xffb040, size: 1.6, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }));
+const dbGeo = new THREE.BufferGeometry(); dbGeo.setAttribute('position', new THREE.BufferAttribute(dbPos, 3)); dbGeo.setAttribute('color', new THREE.BufferAttribute(dbCol, 3));
+const debris = new THREE.Points(dbGeo, new THREE.PointsMaterial({ color: 0xffffff, vertexColors: true, size: 1.6, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }));
 debris.frustumCulled = false; scene.add(debris);
 function sparks(p, n, spd, life) {
-  for (let i = 0; i < n; i++) { const k = dbNext; dbNext = (dbNext + 1) % DB_N; dbPos[k * 3] = p.x; dbPos[k * 3 + 1] = p.y; dbPos[k * 3 + 2] = p.z; _a.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.3, 1) * spd); dbVel[k * 3] = _a.x; dbVel[k * 3 + 1] = _a.y; dbVel[k * 3 + 2] = _a.z; dbLife[k] = rnd(0.4, 1) * life; }
-  dbAlive = DB_N;
+  for (let i = 0; i < n; i++) { const k = dbNext; dbNext = (dbNext + 1) % DB_N; dbPos[k * 3] = p.x; dbPos[k * 3 + 1] = p.y; dbPos[k * 3 + 2] = p.z; { const q = Math.random(); dbCol[k * 3] = 1; dbCol[k * 3 + 1] = q < 0.25 ? 0.95 : q < 0.7 ? 0.6 : 0.3; dbCol[k * 3 + 2] = q < 0.25 ? 0.8 : q < 0.7 ? 0.2 : 0.1; } _a.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.3, 1) * spd); dbVel[k * 3] = _a.x; dbVel[k * 3 + 1] = _a.y; dbVel[k * 3 + 2] = _a.z; dbLife[k] = rnd(0.4, 1) * life; }
+  dbAlive = DB_N; dbGeo.attributes.color.needsUpdate = true;
 }
 const ringTex = canvasTex(128, 128, (x, w, h) => { const g = x.createRadialGradient(64, 64, 34, 64, 64, 62); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.55, 'rgba(255,255,255,0.95)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, w, h); });
 const EXP_N = 8, expl = [];
@@ -707,7 +723,7 @@ function hitFlash(p, big) { const h = hflash[hfNext]; hfNext = (hfNext + 1) % HF
 let explNext = 0;
 function explode(p, size) {
   const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.w.position.copy(p); e.w.visible = size > 12;
-  sparks(p, size > 12 ? 40 : 12, size * 3.2, 1.3); sfx('boom', size);
+  sparks(p, size > 12 ? 64 : 18, size * 3.2, 1.3); sfx('boom', size);
 }
 function updateFx(dt) {
   for (const e of expl) {
