@@ -296,7 +296,7 @@ const SHV = [
     HC: 0x8e97a6, HD: 0x4a5463, GUN: 0x1e232b, ACC: 0x35d4ff, wing: 0x3b4455, wv: [[0.8, -2.3, 0.12, -0.1], [0.8, 2.3, 0.12, -0.1], [4.7, 3.0, 0.05, -0.02], [4.65, 1.5, 0.05, -0.02]], wl: [4.7, 2.7, -0.35, 0.83], fin: 0, mark: 0xff8a2a, met: 0.85, rough: 0.28, scoop: 0 }
 ], SV = SHV[SHIP_VAR];
 // engine mounts: [x, y, z, size]. The custom ship carries six small engines spaced evenly round its rear ring (an ellipse 0.73 wide x 1.11 tall at z 3.46)
-const ENGS = SHIP_VAR === 4 ? [0, 1, 2, 3, 4, 5].map(i => { const a = (i + 0.5) / 6 * Math.PI * 2; return [-0.07 + Math.cos(a) * 0.73, Math.sin(a) * 1.11, 3.48, 0.45]; })
+const ENGS = SHIP_VAR === 4 ? [0, 1, 2, 3, 4, 5].map(i => { const a = (i + 0.5) / 6 * Math.PI * 2; return [Math.cos(a) * 0.73, -0.07 + Math.sin(a) * 1.11, 3.48, 0.45]; })
   : [-1, 1].map(sd => [sd * 1.75, -0.2, 2.2, 1]);
 const roverBody = (() => {
   const grp = new THREE.Group(), Yc = -0.1;
@@ -414,14 +414,14 @@ const roverBody = (() => {
   if (SHIP_VAR === 4) {
     // custom ship from the ship builder: a list of simple parts (mirrored when mir=1); the built-in shape above is discarded
     body.length = 0; glow.length = 0; glass.length = 0;
-    const PJ = [{"t":"sph","x":-0.05,"y":-0.1,"z":0,"rx":0,"ry":0,"rz":0,"sx":2.04,"sy":1.76,"sz":12,"k":1,"c":"#8e97a6","m":"metal","mir":0},{"t":"wing","x":0.4,"y":0.2,"z":-1,"rx":2,"ry":3,"rz":-31,"sx":6.96,"sy":0.26,"sz":2.42,"k":0.6,"c":"#8e97a6","m":"metal","mir":1},{"t":"tor","x":-0.1,"y":0,"z":4.8,"rx":0,"ry":0,"rz":0,"sx":2.04,"sy":3.08,"sz":1,"k":1.85,"c":"#8e97a6","m":"metal","mir":0},{"t":"sph","x":-0.05,"y":0,"z":4.55,"rx":0,"ry":-88,"rz":0,"sx":4.38,"sy":2.6,"sz":1,"k":1,"c":"#8e97a6","m":"metal","mir":0},{"t":"cone","x":-0.1,"y":-0.15,"z":-6.1,"rx":-2,"ry":1,"rz":-180,"sx":0.84,"sy":0.76,"sz":1,"k":1,"c":"#8e97a6","m":"metal","mir":0},{"t":"wing","x":0.65,"y":-0.1,"z":-0.95,"rx":3,"ry":-7,"rz":18,"sx":8,"sy":0.26,"sz":2.3,"k":0.05,"c":"#8e97a6","m":"metal","mir":1}], KS = 0.72, D2R = Math.PI / 180;
+    const PJ = [{"t":"sph","x":0,"y":-0.1,"z":0,"rx":0,"ry":0,"rz":0,"sx":2.04,"sy":1.76,"sz":12,"k":1,"c":"#8e97a6","m":"metal","mir":0},{"t":"wing","x":0.4,"y":0.2,"z":-1,"rx":0,"ry":0,"rz":-31,"sx":6.96,"sy":0.26,"sz":2.42,"k":0.6,"c":"#8e97a6","m":"metal","mir":1},{"t":"tor","x":0,"y":-0.1,"z":4.8,"rx":0,"ry":0,"rz":0,"sx":2.04,"sy":3.08,"sz":1,"k":1.85,"c":"#8e97a6","m":"metal","mir":0},{"t":"sph","x":0,"y":-0.1,"z":4.55,"rx":0,"ry":-88,"rz":0,"sx":4.38,"sy":2.6,"sz":1,"k":1,"c":"#8e97a6","m":"metal","mir":0},{"t":"cone","x":0,"y":-0.1,"z":-6.1,"rx":0,"ry":0,"rz":0,"sx":0.84,"sy":0.76,"sz":1,"k":1,"c":"#8e97a6","m":"metal","mir":0},{"t":"wing","x":0.65,"y":-0.1,"z":-0.95,"rx":0,"ry":0,"rz":18,"sx":8,"sy":0.26,"sz":2.3,"k":0.05,"c":"#8e97a6","m":"metal","mir":1},{"t":"box","x":0.78,"y":-0.1,"z":4.8,"rx":0,"ry":0,"rz":0,"sx":0.45,"sy":0.28,"sz":0.55,"k":1,"c":"#8e97a6","m":"metal","mir":1}], KS = 0.72, D2R = Math.PI / 180;
     const pgeo = (p) => { const k = p.k; switch (p.t) {
       case 'box': { const g = new THREE.BoxGeometry(1, 1, 1), a = g.attributes.position; for (let i = 0; i < a.count; i++) if (a.getZ(i) < 0) { a.setX(i, a.getX(i) * k); a.setY(i, a.getY(i) * k); } return g; }
       case 'cyl': { const g = new THREE.CylinderGeometry(0.5, 0.5 * k, 1, 16); g.rotateX(Math.PI / 2); return g; }
       case 'sph': return new THREE.SphereGeometry(0.5, 18, 12);
       case 'cone': { const g = new THREE.ConeGeometry(0.5, 1, 16); g.rotateX(-Math.PI / 2); return g; }
       case 'tor': return new THREE.TorusGeometry(0.5, 0.04 * k, 6, 28);
-      default: { const v = [[0, -0.5], [0, 0.5], [1, -0.5 + k + 0.3], [1, -0.5 + k]], pos = [,{"t":"box","x":0.72,"y":0,"z":4.8,"rx":0,"ry":0,"rz":0,"sx":0.45,"sy":0.28,"sz":0.55,"k":1,"c":"#8e97a6","m":"metal","mir":0},{"t":"box","x":-0.85,"y":0,"z":4.8,"rx":0,"ry":0,"rz":0,"sx":0.5,"sy":0.28,"sz":0.55,"k":1,"c":"#8e97a6","m":"metal","mir":0}]; v.forEach(a => pos.push(a[0], 0.5, a[1])); v.forEach(a => pos.push(a[0], -0.5, a[1]));
+      default: { const v = [[0, -0.5], [0, 0.5], [1, -0.5 + k + 0.3], [1, -0.5 + k]], pos = [];; v.forEach(a => pos.push(a[0], 0.5, a[1])); v.forEach(a => pos.push(a[0], -0.5, a[1]));
         const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex([0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6, 0, 4, 5, 0, 5, 1, 1, 5, 6, 1, 6, 2, 2, 6, 7, 2, 7, 3, 3, 7, 4, 3, 4, 0]); return g; } } };
     for (const p of PJ) for (const mir of (p.mir ? [0, 1] : [0])) {
       let g = pgeo(p); g = g.index ? g.toNonIndexed() : g;
