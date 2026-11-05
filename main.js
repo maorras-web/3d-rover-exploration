@@ -936,6 +936,7 @@ const planets = [];
     }
   }
 }
+let homeSt = 0;   // the station whose sky layout is in use: it changes only when you launch, dock, warp, or fly up to another station
 const SKY = {"XIAQA":{"TIANOG":{"dir":[0.868,0.066,-0.493],"radiusDeg":0.6},"MIRAK":{"dir":[-0.679,-0.007,-0.734],"radiusDeg":0.4},"TEPZONIAX":{"dir":[0.946,-0.043,0.321],"radiusDeg":0.4},"PEXTRA":{"dir":[-0.891,0.109,0.442],"radiusDeg":0.4},"VAJJA":{"dir":[0.13,0.239,-0.962],"radiusDeg":0.4}},"TIANOG":{"XIAQA":{"dir":[-0.868,-0.066,0.493],"radiusDeg":0.4},"MIRAK":{"dir":[-0.989,-0.047,-0.142],"radiusDeg":0.4},"TEPZONIAX":{"dir":[0.496,-0.115,0.861],"radiusDeg":0.4},"PEXTRA":{"dir":[-0.884,0.034,0.466],"radiusDeg":0.4},"VAJJA":{"dir":[-0.659,0.231,-0.715],"radiusDeg":0.4}},"MIRAK":{"XIAQA":{"dir":[0.679,0.007,0.734],"radiusDeg":0.4},"TIANOG":{"dir":[0.989,0.047,0.142],"radiusDeg":0.4},"TEPZONIAX":{"dir":[0.867,-0.024,0.497],"radiusDeg":0.4},"PEXTRA":{"dir":[-0.375,0.108,0.921],"radiusDeg":0.4},"VAJJA":{"dir":[0.797,0.306,-0.52],"radiusDeg":0.4}},"TEPZONIAX":{"XIAQA":{"dir":[-0.946,0.043,-0.321],"radiusDeg":0.4},"TIANOG":{"dir":[-0.496,0.115,-0.861],"radiusDeg":0.4},"MIRAK":{"dir":[-0.867,0.024,-0.497],"radiusDeg":0.4},"PEXTRA":{"dir":[-0.996,0.08,0.039],"radiusDeg":0.4},"VAJJA":{"dir":[-0.579,0.172,-0.797],"radiusDeg":0.4}},"PEXTRA":{"XIAQA":{"dir":[0.891,-0.109,-0.442],"radiusDeg":0.4},"TIANOG":{"dir":[0.884,-0.034,-0.466],"radiusDeg":0.4},"MIRAK":{"dir":[0.375,-0.108,-0.921],"radiusDeg":0.4},"TEPZONIAX":{"dir":[0.996,-0.08,-0.039],"radiusDeg":0.4},"VAJJA":{"dir":[0.592,0.072,-0.803],"radiusDeg":0.4}},"VAJJA":{"XIAQA":{"dir":[-0.13,-0.239,0.962],"radiusDeg":0.4},"TIANOG":{"dir":[0.659,-0.231,0.715],"radiusDeg":0.4},"MIRAK":{"dir":[-0.797,-0.306,0.52],"radiusDeg":0.4},"TEPZONIAX":{"dir":[0.579,-0.172,0.797],"radiusDeg":0.4},"PEXTRA":{"dir":[-0.592,-0.072,0.803],"radiusDeg":0.4}},"KAIFMA":{"VELNOR":{"dir":[0.908,-0.114,0.404],"radiusDeg":0.4},"YAZMIR":{"dir":[-0.916,0.173,0.362],"radiusDeg":0.4},"ERSO":{"dir":[0.427,0.068,-0.902],"radiusDeg":0.4},"PIOPA":{"dir":[-0.344,-0.192,-0.919],"radiusDeg":0.4}},"VELNOR":{"KAIFMA":{"dir":[-0.908,0.114,-0.404],"radiusDeg":0.4},"YAZMIR":{"dir":[-0.986,0.151,-0.074],"radiusDeg":0.4},"ERSO":{"dir":[-0.277,0.127,-0.952],"radiusDeg":0.4},"PIOPA":{"dir":[-0.704,-0.033,-0.709],"radiusDeg":0.4}},"YAZMIR":{"KAIFMA":{"dir":[0.916,-0.173,-0.362],"radiusDeg":0.4},"VELNOR":{"dir":[0.986,-0.151,0.074],"radiusDeg":0.4},"ERSO":{"dir":[0.675,-0.032,-0.738],"radiusDeg":0.4},"PIOPA":{"dir":[0.335,-0.252,-0.908],"radiusDeg":0.4}},"ERSO":{"KAIFMA":{"dir":[-0.427,-0.068,0.902],"radiusDeg":0.4},"VELNOR":{"dir":[0.277,-0.127,0.952],"radiusDeg":0.4},"YAZMIR":{"dir":[-0.675,0.032,0.738],"radiusDeg":0.4},"PIOPA":{"dir":[-0.925,-0.289,0.247],"radiusDeg":0.4}},"PIOPA":{"KAIFMA":{"dir":[0.344,0.192,0.919],"radiusDeg":0.4},"VELNOR":{"dir":[0.704,0.033,0.709],"radiusDeg":0.4},"YAZMIR":{"dir":[-0.335,0.252,0.908],"radiusDeg":0.4},"ERSO":{"dir":[0.925,0.289,-0.247],"radiusDeg":0.4}}};   // sky layout made in the editor: SKY[planet I stand at][other planet] = direction + apparent radius in degrees
 const VOFF = V3(0, 0, 3000), _pd = V3(), _pv = V3(), _pc = V3(), PCENS = SYSTEMS.map((nm, k) => { const c = V3(); let n = 0; planets.forEach(p => { if (p.sys === k) { c.add(p.pos); n++; } }); return c.multiplyScalar(1 / (n || 1)); });
 let curSys = 0, lastSkySys = 0;   // the system you are in = the system of the nearest station
@@ -1238,7 +1239,7 @@ function updateWarp(dt) {
   WP.t += dt; fwdOf(S.q, fwd); S.speed = 160 + WP.t * 420; S.pos.addScaledVector(fwd, S.speed * dt); S.vel.copy(fwd).multiplyScalar(S.speed);
   fadeEl.style.opacity = Math.max(0, Math.min(1, (WP.t - (WP.far ? 0.95 : 0.45)) / (WP.far ? 0.8 : 0.65))).toFixed(2);
   if (!WP.done && WP.t >= (WP.far ? 1.9 : 1.25)) {
-    WP.done = true; tunnelEl.classList.remove('on'); const st = stations[WP.to];
+    WP.done = true; homeSt = WP.to; tunnelEl.classList.remove('on'); const st = stations[WP.to];
     S.pos.copy(st.pos).addScaledVector(st.pl.off.clone().normalize(), -1100); S.pos.y -= 350;
     _m.lookAt(_zero, _a.copy(st.pos).sub(S.pos).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
     S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); fadeOut();
@@ -1420,7 +1421,7 @@ function openShop(msg) {
 
 function dockAt(i) {
   mapSys = -1;
-  tintHangar(stations[i].col); setPad(stations[i].sys); S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + DOCK_H, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
+  tintHangar(stations[i].col); setPad(stations[i].sys); S.station = i; homeSt = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + DOCK_H, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
   for (const e of enemies) { e.active = false; e.g.visible = false; } for (const m of missiles) { m.active = false; m.g.visible = false; } smokeReset();
   buzz(50);
   let msg = 'SHIP REPAIRED';
@@ -1473,7 +1474,7 @@ function updateDockIn(dt) {   // no flying into the station: the ship is beamed 
 function nearStation() { let best = -1, bd = 200; for (let i = 0; i < stations.length; i++) { const d = S.pos.distanceTo(stations[i].pos); if (d < bd) { bd = d; best = i; } } return best; }
 
 function launchFrom(i) {
-  ST = stats(); S.station = i; const st = stations[i];
+  ST = stats(); S.station = i; homeSt = i; const st = stations[i];
   S.pos.copy(st.pos).addScaledVector(st.front, 48 * ST_K);
   _m.lookAt(_zero, st.front, lookUp(st.front)); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q); entDismissed = i; fadeEl.style.transition = 'none'; fadeEl.style.opacity = '1'; setTimeout(fadeOut, 60);
   S.speed = 60; S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100; S.inv = 2; S.nb = true; S.mode = 'fly'; S.target = null; S.patrolT = 45; S.sx = S.sy = 0;
@@ -1766,7 +1767,9 @@ function frame(now) {
   boltMesh.instanceMatrix.needsUpdate = true; boltHalo.instanceMatrix.needsUpdate = true;
   updCurSys();
   let pBuilt = false; const PSIZE = 2;   // every planet is drawn twice as big
-  fwdOf(S.q, fwd); const here0 = nearPlanet(); let vpI = S.mode === 'dock' ? S.station : 0; if (S.mode !== 'dock') { let bd = 1e18; stations.forEach((q, i) => { if (q.sys === curSys) { const dd = S.pos.distanceToSquared(q.pos); if (dd < bd) { bd = dd; vpI = i; } } }); } let pi = -1; aimCool = Math.max(0, aimCool - dt); const aimOk = S.mode === 'fly' && !trvOn && !entOn && !mapOn && !S.target && aimCool <= 0;
+  fwdOf(S.q, fwd); const here0 = nearPlanet(); if (stations[homeSt].sys !== curSys) { let bd = 1e18; stations.forEach((q, i) => { if (q.sys === curSys) { const dd = S.pos.distanceToSquared(q.pos); if (dd < bd) { bd = dd; homeSt = i; } } }); }
+  stations.forEach((q, i) => { if (i !== homeSt && q.sys === curSys && S.pos.distanceToSquared(q.pos) < 700 * 700) homeSt = i; });   // only flying right up to another station changes the layout; being nearer to it from afar does not
+  const vpI = S.mode === 'dock' ? S.station : homeSt; let pi = -1; aimCool = Math.max(0, aimCool - dt); const aimOk = S.mode === 'fly' && !trvOn && !entOn && !mapOn && !S.target && aimCool <= 0;
   for (const p of planets) { pi++;   // planets are unreachable scenery: drawn along the true direction but at an apparent distance that barely shrinks, with the size you would see from the real distance
     if (p.sys !== curSys) { p.mesh.visible = false; p.fd = null; if (p.rg) p.rg.visible = false; continue; } p.mesh.visible = true; if (p.rg) p.rg.visible = true;
     const own = pi === vpI, tFar = own ? 0 : 1; if (own) _pv.copy(stations[pi].pos); else _pv.copy(PCENS[p.sys]).add(VOFF).lerp(S.pos, 0.02); _a.copy(p.pos).sub(_pv);   // the planet of the station you are at is seen from the station itself: it never grows or shrinks as you fly, so you can never reach it
@@ -1776,7 +1779,7 @@ function frame(now) {
     if (p.build && !pBuilt) { p.build(); p.build = null; pBuilt = true; }   // each planet paints its surface the first time it is in view (one per frame, so there is no long freeze)
     if (p.cl) p.cl.rotation.y += dt * 0.012;
     if (p.moon) { p.mt += dt * 0.04; p.moon.position.set(Math.cos(p.mt) * 1.9, Math.sin(p.mt * 0.7) * 0.3, Math.sin(p.mt) * 1.9); }
-    p.sm = (p.sm || 1) + (((here0 >= 0 && pi !== here0) ? 0.4 : 1) - (p.sm || 1)) * Math.min(1, dt * 1.5); const f = Math.min(PSIZE, 0.75 / a) * p.sm; let tr = a * f;
+    p.sm = (p.sm || 1) + (((here0 >= 0 && pi !== here0) ? 0.4 : 1) - (p.sm || 1)) * Math.min(1, dt * 1.5); const f = Math.min(PSIZE, 0.75 / a) * (own ? 1 : p.sm); let tr = a * f;
     { const cf = pi !== vpI && SKY[stations[vpI].name] && SKY[stations[vpI].name][stations[pi].name]; if (cf) { _pd.set(cf.dir[0], cf.dir[1], cf.dir[2]).normalize(); tr = Math.tan(cf.radiusDeg * Math.PI / 180); }   // every other planet sits where the editor put it, seen from the planet you are at
       if (!p.fd) { p.fd = _pd.clone(); p.fr = tr; } else { const q = Math.min(1, dt * 2.5); p.fd.lerp(_pd, q).normalize(); p.fr += (tr - p.fr) * q; } _pd.copy(p.fd); }
     const af = p.fr; p.mesh.position.copy(S.pos).addScaledVector(_pd, dA);   // while you are at one planet the others shrink to 40% (you can still see them, they just stop dominating the sky)   // double size, but the planet right next to you grows less so it does not swallow the whole sky
