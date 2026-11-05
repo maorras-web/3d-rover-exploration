@@ -761,7 +761,7 @@ const planets = [];
     vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
     fragmentShader: 'uniform vec3 c; uniform float pw; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), pw); gl_FragColor = vec4(c * f, 1.0); }'
   });
-  const PIMG = { KEPLER: ['planet_kepler.webp', 1], 'VEGA GATE': ['planet_vega.webp', 0], AURORA: ['planet_aurora.webp', 1], FROST: ['planet_frost.webp', 0], ORCHID: ['planet_orchid.webp', 0], 'HELIOS PRIME': ['planet_helios.webp', 0] };   // painted surface maps: add one line per planet
+  const PIMG = { KEPLER: ['planet_kepler.webp', 1], 'VEGA GATE': ['planet_vega.webp', 0], AURORA: ['planet_aurora.webp', 1], FROST: ['planet_frost.webp', 0], ORCHID: ['planet_orchid.webp', 0], 'HELIOS PRIME': ['planet_helios.webp', 0], ONYX: ['planet_onyx.webp', 0], SULPHUR: ['planet_sulphur.webp', 0], 'YAPZO PRIME': ['planet_yapzo.webp', 0], CINDER: ['planet_cinder.webp', 0], NIMBUS: ['planet_nimbus.webp', 0] };   // painted surface maps: add one line per planet
   for (const s of stations) {
     const p = s.pl; p.pos = s.pos.clone().add(p.off); p.sys = s.sys; planets.push(p);
     p.build = () => { const u = p.mesh.material.uniforms; u.map.value = tex(p.kind); u.aux.value = lastAux || blankAux;
