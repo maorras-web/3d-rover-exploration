@@ -116,6 +116,8 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x02030a);
 scene.fog = new THREE.FogExp2(0x02030a, 0.0030);
+const SYS_SKY = [new THREE.Color(0x02040d), new THREE.Color(0x0b0502)];   // per-system deep-space tint: HELIOS cold blue, YAPZO warm amber
+const shipRim = { value: new THREE.Color(0.1, 0.55, 0.85) }, RIM_BASE = new THREE.Color(0.1, 0.55, 0.85), rimT = new THREE.Color(), rimP = new THREE.Color();
 const camera = new THREE.PerspectiveCamera(66, innerWidth / innerHeight, 1, 40000);
 scene.add(camera);
 // same render pipeline as the racing game: 4x MSAA 8-bit target, cheap glow (bloom), colour grade
@@ -490,7 +492,7 @@ const roverBody = (() => {
     }
   }
   const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, map: plateMap, bumpMap: plateBump, bumpScale: 0.9, roughness: SV.rough, metalness: SV.met, flatShading: false, envMap: senv, envMapIntensity: SHIP_VAR === 0 ? 1.7 : 1.3, emissive: 0x2a303c });
-  bmat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float rimK = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 2.6); totalEmissiveRadiance += vec3(0.1, 0.55, 0.85) * rimK * 0.5;'); };   // cyan rim light round the silhouette
+  bmat.onBeforeCompile = (sh) => { sh.uniforms.uRimC = shipRim; sh.fragmentShader = 'uniform vec3 uRimC;\n' + sh.fragmentShader; sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float rimK = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 2.6); totalEmissiveRadiance += uRimC * rimK * 0.5;'); };   // cyan rim light round the silhouette
   const bm = new THREE.Mesh(bgeo, bmat);
   const gm = new THREE.Mesh(mergeGeometries(glow), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, fog: false }));
   const cm = new THREE.Mesh(mergeGeometries(glass), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.08, metalness: 0.9, emissive: 0x123e66, transparent: true, opacity: 0.9 }));
@@ -1560,6 +1562,10 @@ function frame(now) {
   if (frames > 60) { if (ema > 24) { slow += dt; fast = 0; } else if (ema < 15) { fast += dt; slow = 0; } else { slow = fast = 0; } if (slow > 1.5 && pr > PR_MIN) { pr = Math.max(PR_MIN, pr * 0.85); applyPR(); slow = 0; } else if (slow > 3 && pr <= PR_MIN + 0.01 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; } if (fast > 5 && pr < PR_MAX) { pr = Math.min(PR_MAX, pr * 1.12); applyPR(); fast = 0; } }
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = '0'; }
   const flying = S.mode === 'fly';
+  { const k = Math.min(1, dt * 0.8), tg = SYS_SKY[curSys] || SYS_SKY[0];   // slow blend of sky + fog to the system's tint
+    scene.background.lerp(tg, k); scene.fog.color.copy(scene.background);
+    let bw = 0, bp = null; if (flying) for (const p of planets) { if (p.sys !== curSys) continue; const w = 1 - (S.pos.distanceTo(p.pos) - p.r) / (p.r * 7); if (w > bw) { bw = w; bp = p; } }   // nearest planet lights the ship's rim in its own colour
+    rimT.copy(RIM_BASE); if (bp) { rimP.setRGB(bp.atm[0], bp.atm[1], bp.atm[2]); rimT.lerp(rimP, Math.min(0.85, bw)); } shipRim.value.lerp(rimT, k * 2); }
   fwdOf(S.q, fwd);
 
   if (flying) {
