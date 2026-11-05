@@ -936,7 +936,7 @@ const planets = [];
     }
   }
 }
-const _pd = V3(), _pc = V3(), PCENS = SYSTEMS.map((nm, k) => { const c = V3(); let n = 0; planets.forEach(p => { if (p.sys === k) { c.add(p.pos); n++; } }); return c.multiplyScalar(1 / (n || 1)); });
+const _pd = V3(), _pv = V3(), _pc = V3(), PCENS = SYSTEMS.map((nm, k) => { const c = V3(); let n = 0; planets.forEach(p => { if (p.sys === k) { c.add(p.pos); n++; } }); return c.multiplyScalar(1 / (n || 1)); });
 let curSys = 0, lastSkySys = 0;   // the system you are in = the system of the nearest station
 const sysBanner = (k) => { const el = document.getElementById('sysbn'); if (!el) return; el.firstChild.textContent = 'ENTERING ' + SYSTEMS[k] + ' SYSTEM'; el.lastChild.textContent = SYSTEM_SUB[k]; el.style.opacity = '1'; setTimeout(() => { el.style.opacity = '0'; }, 3400); };
 const SYSTEM_SUB = ['5 WORLDS', '5 WORLDS \u00B7 AMBER NEBULA'];
@@ -1768,7 +1768,7 @@ function frame(now) {
   fwdOf(S.q, fwd); const here0 = nearPlanet(); let pi = -1; aimCool = Math.max(0, aimCool - dt); const aimOk = S.mode === 'fly' && !trvOn && !entOn && !mapOn && !S.target && aimCool <= 0;
   for (const p of planets) { pi++;   // planets are unreachable scenery: drawn along the true direction but at an apparent distance that barely shrinks, with the size you would see from the real distance
     if (p.sys !== curSys) { p.mesh.visible = false; if (p.rg) p.rg.visible = false; continue; } p.mesh.visible = true; if (p.rg) p.rg.visible = true;
-    _a.copy(p.pos).sub(S.pos); const d = _a.length() || 1, dA = 2600 + 0.03 * d, dS = 2100 + 0.3 * d, a = Math.max(0.026, p.r / Math.max(dS, p.r * 1.6) * (dS > 4000 ? Math.pow(4000 / dS, 1.5) : 1)), k = a * dA / p.r;   // dS: the distance used for size is squeezed, so flying toward a planet barely changes it (it is a backdrop)   // like Galaxy on Fire 2: far planets are tiny discs (about 3 degrees), the one at your station is huge
+    _pv.copy(PCENS[p.sys]).lerp(S.pos, 0.04); _a.copy(p.pos).sub(_pv); const d = _a.length() || 1, dA = 2600 + 0.06 * d, a = Math.max(0.026, p.r / Math.max(d, p.r * 1.6) * (d > 4000 ? Math.pow(4000 / d, 1.5) : 1)), k = a * dA / p.r;   // planets are a sky backdrop: seen from a virtual point that follows you at only 4%, so they hardly move or grow however you fly   // dS: the distance used for size is squeezed, so flying toward a planet barely changes it (it is a backdrop)   // like Galaxy on Fire 2: far planets are tiny discs (about 3 degrees), the one at your station is huge
     const w = clamp((d - 1500) / 2500, 0, 1) * 0.7; _pd.copy(_a).divideScalar(d).multiplyScalar(1 - w).addScaledVector(_pc.copy(p.pos).sub(PCENS[p.sys]).normalize(), w).normalize();   // far planets fan out around the system centre so they never bunch up on screen
     if (p.build && !pBuilt) { p.build(); p.build = null; pBuilt = true; }   // each planet paints its surface the first time it is in view (one per frame, so there is no long freeze)
     if (p.cl) p.cl.rotation.y += dt * 0.012;
