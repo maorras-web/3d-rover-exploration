@@ -295,7 +295,9 @@ const SHV = [
   { hull: [[-4.2,.28,.22,0],[-3.9,.62,.42,0],[-3.0,.88,.56,0],[-2.94,.88,.56,0],[-1.0,1.0,.62,0],[0.5,1.0,.62,0],[0.56,1.0,.62,0],[1.6,.95,.58,0],[2.2,.8,.5,0],[2.4,.3,.3,0],[2.45,.03,.03,0]], seam: -2.97, pw: 4.5, cz: -2.4, cs: [0.7, 0.12, 1.3], cy: 0.5,
     HC: 0x8e97a6, HD: 0x4a5463, GUN: 0x1e232b, ACC: 0x35d4ff, wing: 0x3b4455, wv: [[0.8, -2.3, 0.12, -0.1], [0.8, 2.3, 0.12, -0.1], [4.7, 3.0, 0.05, -0.02], [4.65, 1.5, 0.05, -0.02]], wl: [4.7, 2.7, -0.35, 0.83], fin: 0, mark: 0xff8a2a, met: 0.85, rough: 0.28, scoop: 0 }
 ], SV = SHV[SHIP_VAR];
-const ENG = SHIP_VAR === 4 ? [0.62, -0.08, 3.25] : [1.75, -0.2, 2.2];
+// engine mounts: [x, y, z, size]. The custom ship carries six small engines spaced evenly round its rear ring (an ellipse 0.73 wide x 1.11 tall at z 3.46)
+const ENGS = SHIP_VAR === 4 ? [0, 1, 2, 3, 4, 5].map(i => { const a = (i + 0.5) / 6 * Math.PI * 2; return [-0.07 + Math.cos(a) * 0.73, Math.sin(a) * 1.11, 3.48, 0.45]; })
+  : [-1, 1].map(sd => [sd * 1.75, -0.2, 2.2, 1]);
 const roverBody = (() => {
   const grp = new THREE.Group(), Yc = -0.1;
   const HULL = 0xdde3ec, HULL2 = 0xb4bfcf, DARK = 0x39414d, DARK2 = 0x262c36, RED = 0xd0432e, CY = 0x35d4ff;
@@ -419,7 +421,7 @@ const roverBody = (() => {
       case 'sph': return new THREE.SphereGeometry(0.5, 18, 12);
       case 'cone': { const g = new THREE.ConeGeometry(0.5, 1, 16); g.rotateX(-Math.PI / 2); return g; }
       case 'tor': return new THREE.TorusGeometry(0.5, 0.04 * k, 6, 28);
-      default: { const v = [[0, -0.5], [0, 0.5], [1, -0.5 + k + 0.3], [1, -0.5 + k]], pos = []; v.forEach(a => pos.push(a[0], 0.5, a[1])); v.forEach(a => pos.push(a[0], -0.5, a[1]));
+      default: { const v = [[0, -0.5], [0, 0.5], [1, -0.5 + k + 0.3], [1, -0.5 + k]], pos = [,{"t":"box","x":0.72,"y":0,"z":4.8,"rx":0,"ry":0,"rz":0,"sx":0.45,"sy":0.28,"sz":0.55,"k":1,"c":"#8e97a6","m":"metal","mir":0},{"t":"box","x":-0.85,"y":0,"z":4.8,"rx":0,"ry":0,"rz":0,"sx":0.5,"sy":0.28,"sz":0.55,"k":1,"c":"#8e97a6","m":"metal","mir":0}]; v.forEach(a => pos.push(a[0], 0.5, a[1])); v.forEach(a => pos.push(a[0], -0.5, a[1]));
         const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex([0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6, 0, 4, 5, 0, 5, 1, 1, 5, 6, 1, 6, 2, 2, 6, 7, 2, 7, 3, 3, 7, 4, 3, 4, 0]); return g; } } };
     for (const p of PJ) for (const mir of (p.mir ? [0, 1] : [0])) {
       let g = pgeo(p); g = g.index ? g.toNonIndexed() : g;
@@ -496,18 +498,31 @@ const engGeo = new THREE.LatheGeometry(engProf, 20);
 const engPod = new THREE.SphereGeometry(1, 14, 10);
 const bandMat = new THREE.MeshStandardMaterial({ color: 0x6a7488, roughness: 0.5, metalness: 0.2, emissive: 0x1c2230 });
 const coreMat = new THREE.MeshBasicMaterial({ color: 0x2a8fc0, toneMapped: false, fog: false });
-for (const s of [-1, 1]) {
-  const e = new THREE.Group(); e.position.set(s * ENG[0], ENG[1], ENG[2]); e.scale.set(0.82, 0.82, 1);
+for (const [ei, en] of ENGS.entries()) {
+  const e = new THREE.Group(); e.position.set(en[0], en[1], en[2]); e.scale.set(0.82 * en[3], 0.82 * en[3], en[3]); if (SHIP_VAR === 4) e.scale.set(en[3], en[3], en[3]);
+  if (SHIP_VAR === 4) {
+    // mechanical metal engine, flush on the back of the ring (nothing sticks out on the hull side): mount plate, ribbed housing, open bell nozzle with a hot core
+    const mm = (c, r) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: 0.75, emissive: 0x10141b });
+    const mA = mm(0x7c8799, 0.32), mB = mm(0x3a424f, 0.45), mC = mm(0xa7b2c4, 0.28), part = (g, m, z, rx) => { const o = new THREE.Mesh(g, m); o.position.z = z; if (rx) o.rotation.x = Math.PI / 2; e.add(o); return o; };
+    part(new THREE.CylinderGeometry(0.52, 0.52, 0.08, 14), mB, 0.04, 1);          // mount plate against the ring
+    part(new THREE.CylinderGeometry(0.4, 0.44, 0.5, 12), mA, 0.33, 1);            // housing
+    part(new THREE.TorusGeometry(0.43, 0.05, 5, 14), mB, 0.2); part(new THREE.TorusGeometry(0.43, 0.05, 5, 14), mB, 0.42);   // ribs
+    part(new THREE.CylinderGeometry(0.62, 0.4, 0.42, 14, 1, true), new THREE.MeshStandardMaterial({ color: 0xa7b2c4, roughness: 0.28, metalness: 0.75, emissive: 0x10141b, side: THREE.DoubleSide }), 0.78, 1);   // open bell nozzle
+    part(new THREE.CircleGeometry(0.4, 14), coreMat, 0.6);                        // hot throat inside the bell
+    part(new THREE.TorusGeometry(0.62, 0.035, 5, 18), ringMat, 0.99);             // glowing rim
+    for (let b = 0; b < 4; b++) { const bo = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.22), mC); const an = b * Math.PI / 2 + 0.78; bo.position.set(Math.cos(an) * 0.45, Math.sin(an) * 0.45, 0.2); e.add(bo); }   // bolts / struts
+  } else {
   const body = new THREE.Mesh(engGeo, engMat); body.rotation.x = Math.PI / 2; e.add(body);
   const lipBand = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.04, 6, 24), ringMat); lipBand.position.z = -0.66; e.add(lipBand);              // glowing intake lip
   const band = new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.05, 6, 24), bandMat); band.position.z = 0.22; e.add(band);                           // armoured band
   const core = new THREE.Mesh(new THREE.CircleGeometry(0.43, 20), coreMat); core.position.z = 0.62; e.add(core);                                       // white-hot throat inside the nozzle
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.04, 6, 24), ringMat); ring.position.z = 0.91; e.add(ring);                            // glowing nozzle rim
-  FL.forEach((L, k) => { const fc = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 16, 1, true), flameMats[k]); fc.rotation.x = Math.PI / 2; fc.position.set(0, 0, 0.95); fc.userData = { L, ph: s * 1.7 + k }; e.add(fc); flameCones.push(fc); });
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.04, 6, 24), ringMat); ring.position.z = 0.91; e.add(ring);
+  }                            // glowing nozzle rim
+  FL.forEach((L, k) => { const fc = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 16, 1, true), flameMats[k]); fc.rotation.x = Math.PI / 2; fc.position.set(0, 0, 0.95); fc.userData = { L, ph: ei * 1.7 + k }; e.add(fc); flameCones.push(fc); });
   shipBody.add(e);
 }
-const flames = [-1, 1].map(s => { const f = glowSprite(0x7fe9ff, 1.5, 0.32); f.position.set(s * ENG[0], ENG[1], ENG[2] + 1.15); shipBody.add(f); return f; });
-const flameCore = [-1, 1].map(s => { const f = glowSprite(0xffffff, 0.9, 0.6); f.position.set(s * (ENG[0] + 0.1), ENG[1] - 0.05, ENG[2] + 0.9); shipBody.add(f); return f; });
+const flames = ENGS.map(en => { const f = glowSprite(0x7fe9ff, 1.5, 0.32); f.position.set(en[0], en[1], en[2] + 1.15 * en[3]); f.userData.sc = en[3] < 1 ? 0.45 : 1; shipBody.add(f); return f; });
+const flameCore = ENGS.map(en => { const f = glowSprite(0xffffff, 0.9, 0.6); f.position.set(en[0] + (en[3] < 1 ? 0 : Math.sign(en[0]) * 0.1), en[1] - (en[3] < 1 ? 0 : 0.05), en[2] + 0.9 * en[3]); f.userData.sc = en[3] < 1 ? 0.45 : 1; shipBody.add(f); return f; });
 
 // ---------- hangar room (Galaxy-on-Fire-style): far away from the world, enclosed, only drawn while docked ----------
 const HP = V3(0, -6000, 0);
@@ -1653,7 +1668,7 @@ function frame(now) {
   const vis = S.mode !== 'wreck', blink = S.inv > 0 && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
   { const on = S.mode !== 'dock'; flames.forEach(f => f.visible = on); flameCore.forEach(f => f.visible = on); flameCones.forEach(f => f.visible = on); hoverPads.forEach(p => p.visible = on); }
   const fl = 0.7 + S.speed / 220 + (S.boosting ? 0.9 : 0), flick = 0.9 + Math.sin(tAcc * 50) * 0.1;
-  flames.forEach(f => { f.scale.setScalar(1.9 * fl * flick); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => f.scale.setScalar(0.7 * fl * flick)); flameMats.forEach((fm, k) => fm.color.setHex(flameCols[k][S.boosting ? 1 : 0])); flameCones.forEach(c => { const u = c.userData, L = u.L, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + u.ph) + 0.05 * Math.sin(tAcc * 91 + u.ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); c.scale.set(r, len, r); c.position.z = 0.9 + len / 2; });
+  flames.forEach(f => { f.scale.setScalar(1.9 * fl * flick * f.userData.sc); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => f.scale.setScalar(0.7 * fl * flick * f.userData.sc)); flameMats.forEach((fm, k) => fm.color.setHex(flameCols[k][S.boosting ? 1 : 0])); flameCones.forEach(c => { const u = c.userData, L = u.L, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + u.ph) + 0.05 * Math.sin(tAcc * 91 + u.ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); c.scale.set(r, len, r); c.position.z = 0.9 + len / 2; });
   for (const e of enemies) if (e.active) { e.g.children[1].scale.setScalar(5 + Math.sin(tAcc * 40 + e.pos.x) * 0.6); }
   S.camQ.slerp(S.q, 1 - Math.exp(-7 * dt));
   const cd = 17 + S.speed * 0.014;
