@@ -1240,7 +1240,7 @@ function updateWarp(dt) {
   fadeEl.style.opacity = Math.max(0, Math.min(1, (WP.t - (WP.far ? 0.95 : 0.45)) / (WP.far ? 0.8 : 0.65))).toFixed(2);
   if (!WP.done && WP.t >= (WP.far ? 1.9 : 1.25)) {
     WP.done = true; homeSt = WP.to; tunnelEl.classList.remove('on'); const st = stations[WP.to];
-    S.pos.copy(st.pos).addScaledVector(st.pl.off.clone().normalize(), -1100); S.pos.y -= 350;
+    { const od = st.pl.off.clone().normalize(), pp = V3().crossVectors(od, Y); if (pp.lengthSq() < 0.01) pp.set(1, 0, 0); pp.normalize(); S.pos.copy(st.pos).addScaledVector(od, -1100 * 0.57).addScaledVector(pp, -1100 * 0.82); }   // arrive 55 degrees off to the side of the planet, so the station is seen against space beside it and not in front of its middle
     _m.lookAt(_zero, _a.copy(st.pos).sub(S.pos).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
     S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); fadeOut();
   }
@@ -1791,7 +1791,7 @@ function frame(now) {
     if (fi > 0.01 || flOn) { flOn = fi > 0.01; flareEl.style.opacity = fi.toFixed(2); if (flOn) { const W = innerWidth, H = innerHeight, sx = (_fl.x + 1) / 2 * W, sy = (1 - _fl.y) / 2 * H, cx = W / 2, cy = H / 2;
       for (let q = 0; q < flGh.length; q++) { const g = flGh[q], t = FLT[q]; g.style.transform = 'translate(' + (sx + (cx - sx) * t - FLS[q] / 2).toFixed(0) + 'px,' + (sy + (cy - sy) * t - FLS[q] / 2).toFixed(0) + 'px)'; } } }   // sun lens flare: a glow on the sun plus ghost discs along the line through the screen centre
   }
-  for (const st of stations) { st.g.visible = S.pos.distanceTo(st.pos) < STN_VIS; }
+  stations.forEach((st, i) => { st.g.visible = i === homeSt && S.pos.distanceTo(st.pos) < STN_VIS; });   // only the station of the region you are in exists in space; the others are reached by travel, so none can pop out of a planet
   updateTraffic();
   dustMat.uniforms.uCam.value.copy(camera.position); dustMat.uniforms.uVel.value.copy(S.vel);
   dustMat.uniforms.uK.value = 0.012 + (S.boosting ? 0.05 : 0.008); dustMat.uniforms.uAlpha.value = S.mode === 'dock' ? 0 : 0.22 + clamp(S.speed / 170, 0, 1) * 0.35 + (S.boosting ? 0.2 : 0);
