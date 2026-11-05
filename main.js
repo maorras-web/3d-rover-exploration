@@ -118,6 +118,7 @@ scene.background = new THREE.Color(0x02030a);
 scene.fog = new THREE.FogExp2(0x02030a, 0.0030);
 const SYS_SKY = [new THREE.Color(0x02040d), new THREE.Color(0x0b0502)];   // per-system deep-space tint: HELIOS cold blue, YAPZO warm amber
 const shipRim = { value: new THREE.Color(0.1, 0.55, 0.85) }, RIM_BASE = new THREE.Color(0.1, 0.55, 0.85), rimT = new THREE.Color(), rimP = new THREE.Color();
+const starT = { value: 0 }; let navPts = null, fxBlur = 0;   // star twinkle clock, wing-tip lights, boost blur amount
 const camera = new THREE.PerspectiveCamera(66, innerWidth / innerHeight, 1, 40000);
 scene.add(camera);
 // same render pipeline as the racing game: 4x MSAA 8-bit target, cheap glow (bloom), colour grade
@@ -130,10 +131,10 @@ composer.addPass(new RenderPass(scene, camera));
 const bloomPass = new CheapGlow(innerWidth / 2, innerHeight / 2);
 composer.addPass(bloomPass);
   const gradePass = new ShaderPass({
-    uniforms: { tDiffuse: { value: null }, tGlow: { value: null }, tGlow2: { value: null }, uGlow: { value: new THREE.Vector2(0, 0) }, uTexel: { value: new THREE.Vector2(0.001, 0.001) }, uFx: { value: 0 } },
+    uniforms: { tDiffuse: { value: null }, tGlow: { value: null }, tGlow2: { value: null }, uGlow: { value: new THREE.Vector2(0, 0) }, uTexel: { value: new THREE.Vector2(0.001, 0.001) }, uFx: { value: 0 }, uCA: { value: 0.02 }, uBl: { value: 0 } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: `
-      uniform sampler2D tDiffuse; uniform sampler2D tGlow; uniform sampler2D tGlow2; uniform vec2 uGlow; uniform vec2 uTexel; uniform float uFx; varying vec2 vUv;
+      uniform sampler2D tDiffuse; uniform sampler2D tGlow; uniform sampler2D tGlow2; uniform vec2 uGlow; uniform vec2 uTexel; uniform float uFx; uniform float uCA; uniform float uBl; varying vec2 vUv;
       vec3 tx(vec2 uv){ return texture2D(tDiffuse, uv).rgb; }
       float hh(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       void main(){
@@ -152,6 +153,9 @@ composer.addPass(bloomPass);
             float lB = dot(b, L); base = (lB < lMin || lB > lMax) ? a : b;
           }
         }
+        { vec2 o = vUv - 0.5; float r2 = dot(o, o);
+          float ca = r2 * uCA; base = vec3(tx(vUv + o * ca).r, base.g, tx(vUv - o * ca).b);   // lens colour fringing, stronger toward the corners
+          if (uBl > 0.01) { float w = uBl * r2; base = (base + tx(vUv - o * w * 0.6) + tx(vUv - o * w * 1.2) + tx(vUv - o * w * 1.8)) * 0.25; } }   // boost: the edges of the screen streak outward
         vec3 c = base + texture2D(tGlow, vUv).rgb * uGlow.x + texture2D(tGlow2, vUv).rgb * uGlow.y;
         c = pow(max(c, vec3(0.0)), vec3(0.92));
         float g = dot(c, vec3(0.299, 0.587, 0.114));
@@ -226,9 +230,9 @@ const skyS = new THREE.Group(); skyS.scale.setScalar(6); sky.add(skyS);      // 
     g.setAttribute('aSize', new THREE.BufferAttribute(sz, 1));
     const pts = new THREE.Points(g, new THREE.ShaderMaterial({
       transparent: true, depthWrite: false,
-      uniforms: { uPR: { value: Math.min(window.devicePixelRatio, 2) } },
+      uniforms: { uPR: { value: Math.min(window.devicePixelRatio, 2) }, uT: starT },
       vertexShader: 'attribute vec3 aCol; attribute float aSize; uniform float uPR; varying vec3 vC; varying float vS; void main(){ vC = aCol; vS = aSize; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_PointSize = aSize * uPR; }',
-      fragmentShader: 'varying vec3 vC; varying float vS; void main(){ vec2 q = gl_PointCoord - 0.5; float d = length(q); if (d > 0.5) discard; float a = smoothstep(0.5, 0.12, d); if (vS > 5.0) { a = max(a, 0.9 * max(0.0, 1.0 - abs(q.x) * 16.0) * max(0.0, 1.0 - abs(q.y) * 2.2)); a = max(a, 0.9 * max(0.0, 1.0 - abs(q.y) * 16.0) * max(0.0, 1.0 - abs(q.x) * 2.2)); } gl_FragColor = vec4(vC * (vS > 5.0 ? 1.6 : 1.0), a); }'
+      fragmentShader: 'uniform float uT; varying vec3 vC; varying float vS; void main(){ vec2 q = gl_PointCoord - 0.5; float d = length(q); if (d > 0.5) discard; float a = smoothstep(0.5, 0.12, d); if (vS > 5.0) { a = max(a, 0.9 * max(0.0, 1.0 - abs(q.x) * 16.0) * max(0.0, 1.0 - abs(q.y) * 2.2)); a = max(a, 0.9 * max(0.0, 1.0 - abs(q.y) * 16.0) * max(0.0, 1.0 - abs(q.x) * 2.2)); } a *= 0.72 + 0.28 * sin(uT * (0.9 + vS * 0.35) + vC.r * 61.0 + vC.b * 37.0 + vS * 23.0); gl_FragColor = vec4(vC * (vS > 5.0 ? 1.6 : 1.0), a); }'
     }));
     pts.frustumCulled = false;
     skyS.add(pts);
@@ -494,6 +498,11 @@ const roverBody = (() => {
   const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, map: plateMap, bumpMap: plateBump, bumpScale: 0.9, roughness: SV.rough, metalness: SV.met, flatShading: false, envMap: senv, envMapIntensity: SHIP_VAR === 0 ? 1.7 : 1.3, emissive: 0x2a303c });
   bmat.onBeforeCompile = (sh) => { sh.uniforms.uRimC = shipRim; sh.fragmentShader = 'uniform vec3 uRimC;\n' + sh.fragmentShader; sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float rimK = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 2.6); totalEmissiveRadiance += uRimC * rimK * 0.5;'); };   // cyan rim light round the silhouette
   const bm = new THREE.Mesh(bgeo, bmat);
+  { const pa = bgeo.attributes.position; let mx = 0; for (let i = 0; i < pa.count; i++) mx = Math.max(mx, Math.abs(pa.getX(i)));   // find the two wing tips from the real geometry
+    const tp = [[0, 0, 0, 0], [0, 0, 0, 0]]; for (let i = 0; i < pa.count; i++) { const x = pa.getX(i); if (Math.abs(x) > mx * 0.97) { const t = tp[x < 0 ? 0 : 1]; t[0] += x; t[1] += pa.getY(i); t[2] += pa.getZ(i); t[3]++; } }
+    const nv = [], nc = []; tp.forEach((t, k) => { if (t[3]) { nv.push(t[0] / t[3] + (k ? 0.35 : -0.35), t[1] / t[3] + 0.12, t[2] / t[3]); nc.push(...(k ? [0.2, 1, 0.35] : [1, 0.15, 0.15])); } });
+    if (nv.length) { const ng = new THREE.BufferGeometry(); ng.setAttribute('position', new THREE.Float32BufferAttribute(nv, 3)); ng.setAttribute('color', new THREE.Float32BufferAttribute(nc, 3));
+      navPts = new THREE.Points(ng, new THREE.PointsMaterial({ map: glowTex, vertexColors: true, size: 11, sizeAttenuation: false, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false })); navPts.frustumCulled = false; bm.add(navPts); } }
   const gm = new THREE.Mesh(mergeGeometries(glow), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, fog: false }));
   const cm = new THREE.Mesh(mergeGeometries(glass), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.08, metalness: 0.9, emissive: 0x123e66, transparent: true, opacity: 0.9 }));
   grp.add(bm, gm, cm); return grp;
@@ -1565,6 +1574,8 @@ function frame(now) {
   if (frames > 60) { if (ema > 24) { slow += dt; fast = 0; } else if (ema < 15) { fast += dt; slow = 0; } else { slow = fast = 0; } if (slow > 1.5 && pr > PR_MIN) { pr = Math.max(PR_MIN, pr * 0.85); applyPR(); slow = 0; } else if (slow > 3 && pr <= PR_MIN + 0.01 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; } if (fast > 5 && pr < PR_MAX) { pr = Math.min(PR_MAX, pr * 1.12); applyPR(); fast = 0; } }
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = '0'; }
   const flying = S.mode === 'fly';
+  starT.value = tAcc; fxBlur += (((S.boosting && flying) ? 1 : 0) - fxBlur) * Math.min(1, dt * 4); { const gu = gradePass.uniforms; gu.uBl.value = fxBlur * 1.1; gu.uCA.value = 0.02 + 0.05 * fxBlur; }
+  if (navPts) { navPts.visible = S.mode !== 'wreck'; navPts.material.opacity = (tAcc * 0.8) % 1 < 0.22 ? 1 : 0.3; }   // wing-tip lights: red left, green right, a quick blink
   { const k = Math.min(1, dt * 0.8), tg = SYS_SKY[curSys] || SYS_SKY[0];   // slow blend of sky + fog to the system's tint
     scene.background.lerp(tg, k); scene.fog.color.copy(scene.background);
     let bw = 0, bp = null; if (flying) for (const p of planets) { if (p.sys !== curSys) continue; const w = 1 - (S.pos.distanceTo(p.pos) - p.r) / (p.r * 7); if (w > bw) { bw = w; bp = p; } }   // nearest planet lights the ship's rim in its own colour
