@@ -275,6 +275,12 @@ spaceSun.position.copy(SUN_DIR).multiplyScalar(450);
 const SHIP_K = 1.7;   // the whole ship is drawn 1.7x bigger
 const ship = new THREE.Group(); ship.scale.setScalar(SHIP_K); scene.add(ship);
 const shipBody = new THREE.Group(); ship.add(shipBody);
+// shield bubble: a see-through glowing shell that ripples for a moment whenever the shield absorbs a hit (hidden otherwise, so it costs nothing)
+const shGl = new THREE.Mesh(new THREE.SphereGeometry(4.6, 20, 14), new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+  uniforms: { op: { value: 0 }, t: { value: 0 } },
+  vertexShader: 'varying vec3 vN; varying vec3 vV; varying vec3 vP; void main(){ vP = position; vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+  fragmentShader: 'uniform float op; uniform float t; varying vec3 vN; varying vec3 vV; varying vec3 vP; void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.0); float r = 0.55 + 0.45 * sin(vP.z * 1.3 + vP.y * 1.7 - t * 16.0); gl_FragColor = vec4(vec3(0.25, 0.65, 1.0) * (f * 1.5 + 0.1) * r * op, 1.0); }' }));
+shGl.scale.set(1, 0.65, 1.3); shGl.visible = false; ship.add(shGl);
 // ---- the ship: a real fighter built from simple solids (one merged vertex-coloured mesh + a glass canopy + a glowing-accent mesh) ----
 const roverBody = (() => {
   const grp = new THREE.Group(), Yc = -0.1;
@@ -989,7 +995,7 @@ function updateMissiles(dt) {
 function damagePlayer(d) {
   if (S.inv > 0 || S.mode !== 'fly') return;
   S.regenT = 3.5; S.shake = Math.max(S.shake, 0.5);
-  if (S.shield > 0) { S.shield -= d; if (S.shield < 0) { S.hull += S.shield; S.shield = 0; } flash('shield'); }
+  if (S.shield > 0) { S.shGlow = 1; S.shield -= d; if (S.shield < 0) { S.hull += S.shield; S.shield = 0; } flash('shield'); }
   else { S.hull -= d; flash('hull'); S.shake = 1; buzz(40); }
   sfx('hit');
   if (S.hull <= 0) { S.hull = 0; wrecked(); }
@@ -1024,6 +1030,8 @@ function cycleTarget() {
   let i = list.findIndex(o => o.e === S.target); S.target = list[(i + 1) % list.length].e; sfx('lock');
 }
 let trvOn = false, aimCool = 0;
+const spdEl = $('spd'), flareEl = $('flare'), flGh = [...flareEl.children], FLT = [0, 0.3, 0.62, 1.1, 1.5], FLS = [260, 46, 80, 38, 110], _fl = V3(); let spdOn = false, flOn = false;
+flGh.forEach((g, q) => { g.style.width = g.style.height = FLS[q] + 'px'; });
 const nearPlanet = () => { let b = -1, bd = 3500; for (let i = 0; i < planets.length; i++) { const d = S.pos.distanceTo(stations[i].pos); if (d < bd) { bd = d; b = i; } } return b; };
 // warp to another planet: short fade, then you arrive in front of that planet's station
 const WP = { t: 0, to: 0, done: false };
@@ -1504,6 +1512,7 @@ function frame(now) {
   if (S.mode === 'dockin') updateDockIn(dt); else if (S.mode === 'warp') updateWarp(dt);
   // ---- ship + camera ----
   ship.position.copy(S.pos); ship.quaternion.copy(S.q); shipBody.rotation.z = S.roll;
+  if (S.shGlow > 0) { S.shGlow = Math.max(0, S.shGlow - dt * 2.4); shGl.visible = S.shGlow > 0; shGl.material.uniforms.op.value = S.shGlow; shGl.material.uniforms.t.value = tAcc; }
   const vis = S.mode !== 'wreck', blink = S.inv > 0 && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
   { const on = S.mode !== 'dock'; flames.forEach(f => f.visible = on); flameCore.forEach(f => f.visible = on); flameCones.forEach(f => f.visible = on); hoverPads.forEach(p => p.visible = on); }
   const fl = 0.7 + S.speed / 220 + (S.boosting ? 0.9 : 0), flick = 0.9 + Math.sin(tAcc * 50) * 0.1;
@@ -1515,8 +1524,8 @@ function frame(now) {
   _qa.setFromAxisAngle(X, -0.07); camera.quaternion.copy(S.camQ).multiply(_qa);
   if (S.shake > 0) { const a = S.shake * 0.35; camera.position.x += Math.sin(tAcc * 71) * a; camera.position.y += Math.sin(tAcc * 83) * a; }
   _qa.setFromAxisAngle(Z, -S.sx * 0.05); camera.quaternion.multiply(_qa);
-  const wantFov = 64 + clamp(S.speed / 150, 0, 1.4) * 12 + (S.boosting ? 6 : 0);
-  if (Math.abs(camera.fov - wantFov) > 0.05) { camera.fov = damp(camera.fov, wantFov, 4, dt); camera.updateProjectionMatrix(); }
+  const wantFov = 64 + clamp(S.speed / 150, 0, 1.4) * 12 + (S.boosting ? 13 : 0);
+  if (Math.abs(camera.fov - wantFov) > 0.05) { camera.fov = damp(camera.fov, wantFov, S.boosting ? 6 : 3.5, dt); camera.updateProjectionMatrix(); }
   if (S.mode === 'dock') {
     // hangar view: the ship sits on its platform, the camera swings slowly round it (like Galaxy on Fire 2)
     hangar.visible = true; ship.quaternion.setFromAxisAngle(Y, 0.5); shipBody.rotation.z = 0;
@@ -1564,9 +1573,14 @@ function frame(now) {
     if (aimOk && pi !== here0 && fwd.dot(_pd) > Math.cos(Math.max(0.07, a * f * 1.3))) { p.aim = (p.aim || 0) + dt; if (p.aim > 0.9) { p.aim = 0; S.tPlanet = pi; sfx('lock'); trvOn = true; $('trv-name').textContent = stations[pi].name; $('trv-dlg').style.display = 'flex'; } } else p.aim = 0;   // hold the crosshair on a planet for ~1 s and the game asks if you want to go there
     p.mesh.scale.setScalar(p.r * k * f); if (p.rg) { p.rg.position.copy(p.mesh.position); p.rg.scale.setScalar(k * f); }
   }
+  { const bo = S.boosting && S.mode === 'fly'; if (bo !== spdOn) { spdOn = bo; spdEl.style.opacity = bo ? '1' : '0'; }
+    let fi = 0; if (S.mode === 'fly' || S.mode === 'wreck') { _fl.copy(SUN_DIR).multiplyScalar(9000).add(camera.position).project(camera); if (_fl.z < 1) fi = clamp(1.2 - Math.max(Math.abs(_fl.x), Math.abs(_fl.y)), 0, 1); }
+    if (fi > 0.01 || flOn) { flOn = fi > 0.01; flareEl.style.opacity = fi.toFixed(2); if (flOn) { const W = innerWidth, H = innerHeight, sx = (_fl.x + 1) / 2 * W, sy = (1 - _fl.y) / 2 * H, cx = W / 2, cy = H / 2;
+      for (let q = 0; q < flGh.length; q++) { const g = flGh[q], t = FLT[q]; g.style.transform = 'translate(' + (sx + (cx - sx) * t - FLS[q] / 2).toFixed(0) + 'px,' + (sy + (cy - sy) * t - FLS[q] / 2).toFixed(0) + 'px)'; } } }   // sun lens flare: a glow on the sun plus ghost discs along the line through the screen centre
+  }
   for (const st of stations) { st.g.visible = S.pos.distanceTo(st.pos) < STN_VIS; }
   dustMat.uniforms.uCam.value.copy(camera.position); dustMat.uniforms.uVel.value.copy(S.vel);
-  dustMat.uniforms.uK.value = 0.012 + (S.boosting ? 0.02 : 0.008); dustMat.uniforms.uAlpha.value = S.mode === 'dock' ? 0 : 0.22 + clamp(S.speed / 170, 0, 1) * 0.35 + (S.boosting ? 0.2 : 0);
+  dustMat.uniforms.uK.value = 0.012 + (S.boosting ? 0.05 : 0.008); dustMat.uniforms.uAlpha.value = S.mode === 'dock' ? 0 : 0.22 + clamp(S.speed / 170, 0, 1) * 0.35 + (S.boosting ? 0.2 : 0);
 
   // ---- HUD ----
   $('b-sh').style.transform = `scaleX(${clamp(S.shield / ST.shieldMax, 0, 1).toFixed(3)})`;
