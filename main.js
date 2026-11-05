@@ -689,7 +689,7 @@ stations.forEach(s => s.pos.multiplyScalar(SYS_K));
 stations.forEach(s => { s.front.normalize(); s.g = (s.v.ring ? buildStationB : buildStation)(s.name, s.col, s.v); s.g.scale.setScalar(ST_K); s.g.position.copy(s.pos); s.g.up.set(0, 0, 1); s.g.lookAt(s.pos.clone().add(s.front)); scene.add(s.g); });
 const planets = [];
 {
-  const geo = new THREE.SphereGeometry(1, 48, 32);
+  const geo = new THREE.SphereGeometry(1, 48, 32), geoLo = new THREE.SphereGeometry(1, 14, 9);   // geoLo: cheap sphere for planets that are only a small disc on screen
   const rn = (n) => Math.random() * n;
   // ---- procedural planet surfaces: tileable value-noise (fBm), painted once into a canvas, no per-frame cost ----
   const NT = new Float32Array(65536); for (let i = 0; i < 65536; i++) NT[i] = Math.random();
@@ -761,7 +761,7 @@ const planets = [];
     const pm = new THREE.Mesh(geo, planetMat(blankTex, p.atm, p.kind === 'lava' || p.kind === 'onyx' ? 0.45 : 0.0)); pm.scale.setScalar(p.r); pm.position.copy(p.pos); pm.rotation.z = 0.3; scene.add(pm); p.mesh = pm;
     if (CLOUDS[p.kind]) { const cm = new THREE.Mesh(geo, cloudMat(cloudTex[planets.length & 1], CLOUDS[p.kind])); cm.scale.setScalar(1.03); pm.add(cm); p.cl = cm; }
     if (MOONS[p.kind]) { const mo = new THREE.Mesh(geo, planetMat(moonTex, [0.55, 0.6, 0.7], 0)); mo.scale.setScalar(MOONS[p.kind]); pm.add(mo); p.moon = mo; p.mt = Math.random() * 6; }
-    { const hm = new THREE.Mesh(geo, haloMat(p.atm)); hm.scale.setScalar(1.12); pm.add(hm); }
+    p.g0 = geo; p.g1 = geoLo; { const hm = new THREE.Mesh(geo, haloMat(p.atm)); p.hm = hm; hm.scale.setScalar(1.12); pm.add(hm); }
     if (p.ring) {
       const cv = document.createElement('canvas'); cv.width = cv.height = 256; const x = cv.getContext('2d');
       for (let r = 128; r > 0; r -= 1.5) { const t = r / 128, inRing = t > 0.62 && t < 0.99, a = inRing ? 0.25 + 0.55 * Math.abs(Math.sin(r * 0.55) * Math.cos(r * 0.17)) : 0; x.strokeStyle = 'rgba(' + (225 - (r % 7) * 6) + ',' + (190 - (r % 5) * 6) + ',' + (150 - (r % 9) * 4) + ',' + (t > 0.78 && t < 0.82 ? 0.05 : a) + ')'; x.lineWidth = 1.7; x.beginPath(); x.arc(128, 128, r, 0, Math.PI * 2); x.stroke(); }
@@ -1023,7 +1023,7 @@ function cycleTarget() {
   S.tPlanet = -1; if (trvOn) { trvOn = false; $('trv-dlg').style.display = 'none'; }
   let i = list.findIndex(o => o.e === S.target); S.target = list[(i + 1) % list.length].e; sfx('lock');
 }
-let trvOn = false;
+let trvOn = false, aimCool = 0;
 const nearPlanet = () => { let b = -1, bd = 3500; for (let i = 0; i < planets.length; i++) { const d = S.pos.distanceTo(stations[i].pos); if (d < bd) { bd = d; b = i; } } return b; };
 // warp to another planet: short fade, then you arrive in front of that planet's station
 const WP = { t: 0, to: 0, done: false };
@@ -1253,7 +1253,7 @@ function closeMap() { mapOn = false; mapOv.style.display = 'none'; }
 $('b-map').addEventListener('click', () => { setPause(false); mapOn ? closeMap() : openMap(); });
 $('map-x').addEventListener('click', closeMap);
 $('trv-yes').addEventListener('click', () => { trvOn = false; $('trv-dlg').style.display = 'none'; initAudio(); if (S.tPlanet >= 0) startWarp(S.tPlanet); });
-$('trv-no').addEventListener('click', () => { trvOn = false; S.tPlanet = -1; $('trv-dlg').style.display = 'none'; });
+$('trv-no').addEventListener('click', () => { aimCool = 8; trvOn = false; S.tPlanet = -1; $('trv-dlg').style.display = 'none'; });
 $('ent-yes').addEventListener('click', () => { entOn = false; $('ent-dlg').style.display = 'none'; initAudio(); tryDock(); });
 $('ent-no').addEventListener('click', () => { entOn = false; entDismissed = entFor; $('ent-dlg').style.display = 'none'; });
 function tryDock() {
@@ -1551,14 +1551,17 @@ function frame(now) {
   boltMesh.instanceMatrix.needsUpdate = true; boltHalo.instanceMatrix.needsUpdate = true;
   updCurSys();
   let pBuilt = false; const PSIZE = 2;   // every planet is drawn twice as big
-  for (const p of planets) {   // planets are unreachable scenery: drawn along the true direction but at an apparent distance that barely shrinks, with the size you would see from the real distance
+  fwdOf(S.q, fwd); const here0 = nearPlanet(); let pi = -1; aimCool = Math.max(0, aimCool - dt); const aimOk = S.mode === 'fly' && !trvOn && !entOn && !mapOn && !S.target && aimCool <= 0;
+  for (const p of planets) { pi++;   // planets are unreachable scenery: drawn along the true direction but at an apparent distance that barely shrinks, with the size you would see from the real distance
     if (p.sys !== curSys) { p.mesh.visible = false; if (p.rg) p.rg.visible = false; continue; } p.mesh.visible = true; if (p.rg) p.rg.visible = true;
     _a.copy(p.pos).sub(S.pos); const d = _a.length() || 1, dA = 2600 + 0.12 * d, a = Math.max(0.026, p.r / Math.max(d, p.r * 1.6) * (d > 4000 ? Math.pow(4000 / d, 1.5) : 1)), k = a * dA / p.r;   // like Galaxy on Fire 2: far planets are tiny discs (about 3 degrees), the one at your station is huge
     const w = clamp((d - 1500) / 2500, 0, 1) * 0.7; _pd.copy(_a).divideScalar(d).multiplyScalar(1 - w).addScaledVector(_pc.copy(p.pos).sub(PCENS[p.sys]).normalize(), w).normalize();   // far planets fan out around the system centre so they never bunch up on screen
     if (p.build && !pBuilt) { p.build(); p.build = null; pBuilt = true; }   // each planet paints its surface the first time it is in view (one per frame, so there is no long freeze)
     if (p.cl) p.cl.rotation.y += dt * 0.012;
     if (p.moon) { p.mt += dt * 0.04; p.moon.position.set(Math.cos(p.mt) * 1.9, Math.sin(p.mt * 0.7) * 0.3, Math.sin(p.mt) * 1.9); }
-    p.mesh.position.copy(S.pos).addScaledVector(_pd, dA); const f = Math.min(PSIZE, 0.75 / a);   // double size, but the planet right next to you grows less so it does not swallow the whole sky
+    p.mesh.position.copy(S.pos).addScaledVector(_pd, dA); p.sm = (p.sm || 1) + (((here0 >= 0 && pi !== here0) ? 0.4 : 1) - (p.sm || 1)) * Math.min(1, dt * 1.5); const f = Math.min(PSIZE, 0.75 / a) * p.sm;   // while you are at one planet the others shrink to 40% (you can still see them, they just stop dominating the sky)   // double size, but the planet right next to you grows less so it does not swallow the whole sky
+    { const lo = a * f < 0.085; if (lo !== p.lo) { p.lo = lo; p.mesh.geometry = lo ? p.g1 : p.g0; if (p.hm) p.hm.geometry = p.mesh.geometry; if (p.cl) p.cl.visible = !lo; if (p.moon) p.moon.visible = !lo; } }   // LOD: far planets (small discs) drop clouds, moon and sphere detail
+    if (aimOk && pi !== here0 && fwd.dot(_pd) > Math.cos(Math.max(0.07, a * f * 1.3))) { p.aim = (p.aim || 0) + dt; if (p.aim > 0.9) { p.aim = 0; S.tPlanet = pi; sfx('lock'); trvOn = true; $('trv-name').textContent = stations[pi].name; $('trv-dlg').style.display = 'flex'; } } else p.aim = 0;   // hold the crosshair on a planet for ~1 s and the game asks if you want to go there
     p.mesh.scale.setScalar(p.r * k * f); if (p.rg) { p.rg.position.copy(p.mesh.position); p.rg.scale.setScalar(k * f); }
   }
   for (const st of stations) { st.g.visible = S.pos.distanceTo(st.pos) < STN_VIS; }
