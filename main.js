@@ -974,6 +974,7 @@ function fireMissile() {
   m.g.position.copy(S.pos).addScaledVector(fwd, 5.5).addScaledVector(_a.set(0, -0.6, 0).applyQuaternion(S.q), 1); m.g.quaternion.copy(S.q); m.vel.copy(fwd).multiplyScalar(S.speed + 110);
 }
 function updateMissiles(dt) {
+  updateSmoke(dt);
   for (const m of missiles) {
     if (!m.active) continue; m.life -= dt;
     const t = m.target && m.target.active ? m.target : null;
@@ -986,7 +987,7 @@ function updateMissiles(dt) {
     { let hitA = false; for (let j = 0; j < AST_N; j++) { const a = asteroids[j]; if (!a.active) continue; const dx = a.x - m.g.position.x, dy = a.y - m.g.position.y, dz = a.z - m.g.position.z, rr = a.r + 2; if (dx * dx + dy * dy + dz * dz < rr * rr) { hitAsteroid(a, 9999); hitA = true; break; } }
       if (hitA) { m.active = false; m.g.visible = false; explode(m.g.position, 9); continue; } }
     const sp = Math.min(330, m.vel.length() + 260 * dt); m.vel.copy(_a).multiplyScalar(sp); m.g.position.addScaledVector(m.vel, dt);
-    m.body.rotation.z += dt * 9; m.fc.scale.z = 2.2 + Math.random() * 0.9;
+    m.body.rotation.z += dt * 9; m.fc.scale.z = 2.2 + Math.random() * 0.9; smokePuff(_b.copy(m.g.position).addScaledVector(_a, -3.6));
     if (m.life <= 0) { m.active = false; m.g.visible = false; explode(m.g.position, 5); }
   }
 }
@@ -1028,6 +1029,40 @@ function cycleTarget() {
   }
   S.tPlanet = -1; if (trvOn) { trvOn = false; $('trv-dlg').style.display = 'none'; }
   let i = list.findIndex(o => o.e === S.target); S.target = list[(i + 1) % list.length].e; sfx('lock');
+}
+// ---- missile smoke trail: one shared Points cloud (ring buffer of puffs). A puff is born at the nozzle, then only its age changes, so the whole trail is one draw call ----
+const SM_N = 320, smPos = new Float32Array(SM_N * 3), smAge = new Float32Array(SM_N).fill(1); let smNext = 0, smAlive = 0;
+const smGeo = new THREE.BufferGeometry(); smGeo.setAttribute('position', new THREE.BufferAttribute(smPos, 3)); smGeo.setAttribute('age', new THREE.BufferAttribute(smAge, 1));
+const smMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, fog: false, uniforms: { px: { value: 600 } },
+  vertexShader: 'attribute float age; uniform float px; varying float vA; void main(){ vA = age; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = age >= 1.0 ? 0.0 : (3.0 + age * 10.0) * px / max(1.0, -mv.z); gl_Position = projectionMatrix * mv; }',
+  fragmentShader: 'varying float vA; void main(){ float d = length(gl_PointCoord - 0.5); float a = (1.0 - smoothstep(0.05, 0.5, d)) * pow(max(0.0, 1.0 - vA), 1.6) * 0.6; vec3 c = mix(vec3(1.0, 0.72, 0.38), vec3(0.62, 0.66, 0.74), smoothstep(0.0, 0.3, vA)); gl_FragColor = vec4(c, a); }' });
+const smoke = new THREE.Points(smGeo, smMat); smoke.frustumCulled = false; scene.add(smoke);
+function smokePuff(p) { const k = smNext; smNext = (smNext + 1) % SM_N; smPos[k * 3] = p.x; smPos[k * 3 + 1] = p.y; smPos[k * 3 + 2] = p.z; smAge[k] = 0; smAlive = SM_N; smGeo.attributes.position.needsUpdate = true; }
+function updateSmoke(dt) { if (!smAlive) return; smMat.uniforms.px.value = innerHeight * 0.85; let any = false; for (let i = 0; i < SM_N; i++) if (smAge[i] < 1) { smAge[i] = Math.min(1, smAge[i] + dt / 1.5); any = true; } smGeo.attributes.age.needsUpdate = true; if (!any) smAlive = 0; }
+const smokeReset = () => { smAge.fill(1); smAlive = 0; smGeo.attributes.age.needsUpdate = true; };
+// ---- station traffic: three little ships circle every station you are near (one instanced mesh, only the near stations are updated, no interaction) ----
+const TR_K = 3, TR_N = stations.length * TR_K;
+const trGeo = (() => { const parts = [], add = (g, c) => { g = g.toNonIndexed(); g.deleteAttribute('uv'); const n = g.attributes.position.count, col = new Float32Array(n * 3), cc = new THREE.Color(c); for (let i = 0; i < n; i++) { col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b; } g.setAttribute('color', new THREE.BufferAttribute(col, 3)); parts.push(g); };
+  const body = new THREE.BoxGeometry(1.5, 0.7, 5); add(body, 0xcfd6e0);
+  const nose = new THREE.ConeGeometry(0.75, 2.2, 4); nose.rotateX(-Math.PI / 2); nose.translate(0, 0, -3.5); add(nose, 0xe2e8f0);
+  const wing = new THREE.BoxGeometry(6, 0.14, 1.8); wing.translate(0, -0.1, 1); add(wing, 0x6b7689);
+  const fin = new THREE.BoxGeometry(0.14, 1.3, 1.2); fin.translate(0, 0.8, 2); add(fin, 0x8a95a8);
+  return mergeGeometries(parts); })();
+const trMesh = new THREE.InstancedMesh(trGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65, metalness: 0.05, emissive: 0x8b97ac }), TR_N); trMesh.frustumCulled = false; trMesh.count = 0; scene.add(trMesh);
+const trLpos = new Float32Array(TR_N * 3), trLGeo = new THREE.BufferGeometry(); trLGeo.setAttribute('position', new THREE.BufferAttribute(trLpos, 3));
+const trLights = new THREE.Points(trLGeo, new THREE.PointsMaterial({ color: 0x7fd8ff, size: 6, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false })); trLights.frustumCulled = false; trLights.visible = false; scene.add(trLights);
+const _tc = new THREE.Color(), TR_U = [], TR_V = [];
+stations.forEach((st, k) => { const n = V3(Math.sin(k * 1.7), 1.2, Math.cos(k * 2.3)).normalize(), u = V3(1, 0, 0).cross(n).normalize(), v = n.clone().cross(u); TR_U.push(u); TR_V.push(v); });
+const _tq = new THREE.Quaternion(), _tp = V3(), _tt = V3(), _ts = V3(2.6, 2.6, 2.6);
+function updateTraffic() {
+  let n = 0;
+  for (let k = 0; k < stations.length; k++) { const st = stations[k]; if (!st.g.visible) continue;
+    for (let j = 0; j < TR_K; j++) { const dir = (j & 1) ? -1 : 1, th = tAcc * dir * (0.13 - j * 0.02) + j * 2.09 + k, R = 175 + j * 48, c = Math.cos(th), sn = Math.sin(th), u = TR_U[k], v = TR_V[k];
+      _tp.set(st.pos.x + (u.x * c + v.x * sn) * R, st.pos.y + (u.y * c + v.y * sn) * R, st.pos.z + (u.z * c + v.z * sn) * R);
+      _tt.set((-u.x * sn + v.x * c) * dir, (-u.y * sn + v.y * c) * dir, (-u.z * sn + v.z * c) * dir);
+      _m.lookAt(_zero, _tt, Y); _tq.setFromRotationMatrix(_m); trMesh.setMatrixAt(n, dummy.matrix.compose(_tp, _tq, _ts)); trMesh.setColorAt(n, _tc.setHSL((k * 0.13 + j * 0.31) % 1, 0.25, 0.9));
+      trLpos[n * 3] = _tp.x - _tt.x * 8; trLpos[n * 3 + 1] = _tp.y - _tt.y * 8; trLpos[n * 3 + 2] = _tp.z - _tt.z * 8; n++; } }
+  trMesh.count = n; trLights.visible = n > 0; if (n) { trMesh.instanceMatrix.needsUpdate = true; if (trMesh.instanceColor) trMesh.instanceColor.needsUpdate = true; trLGeo.attributes.position.needsUpdate = true; trLGeo.setDrawRange(0, n); }
 }
 let trvOn = false, aimCool = 0;
 const spdEl = $('spd'), flareEl = $('flare'), flGh = [...flareEl.children], FLT = [0, 0.3, 0.62, 1.1, 1.5], FLS = [260, 46, 80, 38, 110], _fl = V3(); let spdOn = false, flOn = false;
@@ -1226,7 +1261,7 @@ function openShop(msg) {
 function dockAt(i) {
   mapSys = -1;
   tintHangar(stations[i].col); setPad(stations[i].sys); S.station = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + 2.1, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
-  for (const e of enemies) { e.active = false; e.g.visible = false; } for (const m of missiles) { m.active = false; m.g.visible = false; }
+  for (const e of enemies) { e.active = false; e.g.visible = false; } for (const m of missiles) { m.active = false; m.g.visible = false; } smokeReset();
   buzz(50);
   let msg = 'SHIP REPAIRED';
   if (S.mission && S.mission.type === 'delivery' && S.mission.to === i) { const r = S.mission.reward; completeMission(); msg = 'DELIVERY COMPLETE  +' + r; }
@@ -1579,6 +1614,7 @@ function frame(now) {
       for (let q = 0; q < flGh.length; q++) { const g = flGh[q], t = FLT[q]; g.style.transform = 'translate(' + (sx + (cx - sx) * t - FLS[q] / 2).toFixed(0) + 'px,' + (sy + (cy - sy) * t - FLS[q] / 2).toFixed(0) + 'px)'; } } }   // sun lens flare: a glow on the sun plus ghost discs along the line through the screen centre
   }
   for (const st of stations) { st.g.visible = S.pos.distanceTo(st.pos) < STN_VIS; }
+  updateTraffic();
   dustMat.uniforms.uCam.value.copy(camera.position); dustMat.uniforms.uVel.value.copy(S.vel);
   dustMat.uniforms.uK.value = 0.012 + (S.boosting ? 0.05 : 0.008); dustMat.uniforms.uAlpha.value = S.mode === 'dock' ? 0 : 0.22 + clamp(S.speed / 170, 0, 1) * 0.35 + (S.boosting ? 0.2 : 0);
 
