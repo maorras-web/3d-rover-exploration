@@ -882,7 +882,7 @@ const planets = [];
   };
   // cloud layers (two shared textures, white with an alpha made from noise) - drawn on a slightly bigger sphere that turns slowly
   const cloudTex = [0, 1].map(s => { const cv = paint((u, v) => { const n = fbm(u + s * 0.37, v, 6, 5), a = Math.max(0, Math.min(1, (n - 0.54) / 0.13)); return [255, 255, 255, a * 235]; }, 256, 128); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t; });
-  const MOONS = { ocean: 0.2, desert: 0.16, jungle: 0.18, ice: 0.14, bloom: 0.17 };
+  const MOONS = {};   // moons removed
   const moonTex = (() => { const cv = paint((u, v) => { const h = fbm(u, v, 8, 5), cr = 1 - Math.abs(2 * fbm(u + 0.3, v, 16, 3) - 1), g = 95 + 90 * h - (cr > 0.9 ? 40 : 0); return [g, g * 0.97, g * 0.93]; }, 128, 64); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t; })();
   const CLOUDS = { ocean: 0.95, jungle: 0.85, bloom: 0.7, toxic: 0.6, ice: 0.22, storm: 0.45, desert: 0.3 };
   const SUN = sun.position.clone().normalize(); const blankAux = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); blankAux.needsUpdate = true; const blankTex = new THREE.DataTexture(new Uint8Array([40, 44, 56, 255]), 1, 1); blankTex.needsUpdate = true; blankTex.colorSpace = THREE.SRGBColorSpace;
@@ -1231,7 +1231,7 @@ function updateWarp(dt) {
     WP.done = true; tunnelEl.classList.remove('on'); const st = stations[WP.to];
     S.pos.copy(st.pos).addScaledVector(st.pl.off.clone().normalize(), -1100); S.pos.y -= 350;
     _m.lookAt(_zero, _a.copy(st.pos).sub(S.pos).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
-    S.speed = 50; S.inv = 2; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); fadeOut();
+    S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); fadeOut();
   }
 }
 
@@ -1466,11 +1466,14 @@ function launchFrom(i) {
   ST = stats(); S.station = i; const st = stations[i];
   S.pos.copy(st.pos).addScaledVector(st.front, 48 * ST_K);
   _m.lookAt(_zero, st.front, lookUp(st.front)); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q); entDismissed = i; fadeEl.style.transition = 'none'; fadeEl.style.opacity = '1'; setTimeout(fadeOut, 60);
-  S.speed = 60; S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100; S.inv = 2; S.mode = 'fly'; S.target = null; S.patrolT = 45; S.sx = S.sy = 0;
+  S.speed = 60; S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100; S.inv = 2; S.nb = true; S.mode = 'fly'; S.target = null; S.patrolT = 45; S.sx = S.sy = 0;
   for (const a of asteroids) a.active = false; for (const l of loot) l.active = false;
   document.body.classList.remove('docked'); $('shop').classList.remove('show');
 }
-function startGame() { initAudio(); unlockMusic(); if (actx && actx.state === 'suspended') actx.resume(); $('start').classList.remove('show'); updateMissionHud(); launchFrom(0); offered = genMissions(0); }
+function startGame() { initAudio(); unlockMusic(); if (actx && actx.state === 'suspended') actx.resume(); $('start').classList.remove('show'); updateMissionHud(); offered = genMissions(0);
+  ST = stats(); mapSys = -1; tintHangar(stations[0].col); setPad(stations[0].sys); S.station = 0; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + DOCK_H, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
+  fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0';
+  setTimeout(() => { fadeEl.style.transition = 'opacity .5s'; fadeEl.style.opacity = '1'; }, 2300); setTimeout(() => { if (S.mode === 'dock' && !$('shop').classList.contains('show')) launchFrom(0); }, 2850); }   // the game opens inside the station hangar, then the ship launches out
 $('go-start').addEventListener('click', startGame);
 $('go-start').textContent = 'LAUNCH';
 { const b = document.createElement('div'); b.style.cssText = 'margin-top:10px;font-size:10px;opacity:.5;letter-spacing:2px'; b.textContent = 'BUILD ' + BUILD; $('go-start').parentNode.appendChild(b); }
@@ -1676,7 +1679,7 @@ function frame(now) {
       const a = asteroids[i]; if (!a.active) continue; const dx = S.pos.x - a.x, dy = S.pos.y - a.y, dz2 = S.pos.z - a.z, rr = a.r * 0.9 + 2.4;
       if (dx * dx + dy * dy + dz2 * dz2 < rr * rr) {
         const d = Math.sqrt(dx * dx + dy * dy + dz2 * dz2) || 1; S.pos.set(a.x + dx / d * rr, a.y + dy / d * rr, a.z + dz2 / d * rr);
-        if (S.inv <= 0) { const dmg = clamp(6 + S.speed * 0.14 + a.r * 0.4, 6, 50); damagePlayer(dmg); S.inv = 0.6; S.speed *= 0.5; }
+        if (S.inv <= 0) { const dmg = clamp(6 + S.speed * 0.14 + a.r * 0.4, 6, 50); damagePlayer(dmg); S.inv = 0.6; S.nb = false; S.speed *= 0.5; }
       }
     }
     if (S.inv > 0) S.inv -= dt;
@@ -1702,7 +1705,7 @@ function frame(now) {
   // ---- ship + camera ----
   ship.position.copy(S.pos); ship.quaternion.copy(S.q); shipBody.rotation.z = S.roll;
   if (S.shGlow > 0) { S.shGlow = Math.max(0, S.shGlow - dt * 2.4); shGl.visible = S.shGlow > 0; shGl.material.uniforms.op.value = S.shGlow; shGl.material.uniforms.t.value = tAcc; }
-  const vis = S.mode !== 'wreck', blink = S.inv > 0 && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
+  const vis = S.mode !== 'wreck', blink = S.inv > 0 && !S.nb && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
   { const on = S.mode !== 'dock'; flames.forEach(f => f.visible = on); flameCore.forEach(f => f.visible = on); flameCones.forEach(f => f.visible = on); FINST.forEach(f => f.im.visible = on); hoverPads.forEach(p => p.visible = on); }
   const fl = 0.7 + S.speed / 220 + (S.boosting ? 0.9 : 0), flick = 0.9 + Math.sin(tAcc * 50) * 0.1;
   flames.forEach(f => { if (f.userData.pts) f.material.size = 2.9 * fl * flick * f.userData.sc; else f.scale.setScalar(1.9 * fl * flick * f.userData.sc); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => { if (f.userData.pts) f.material.size = 1.05 * fl * flick * f.userData.sc; else f.scale.setScalar(0.7 * fl * flick * f.userData.sc); }); flameMats.forEach((fm, k) => fm.color.setHex(flameCols[k][S.boosting ? 1 : 0])); FINST.forEach(F => { const L = F.L, es = ENGS[0][3]; ENGS.forEach((en, i) => { const ph = i * 1.7 + F.k, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + ph) + 0.05 * Math.sin(tAcc * 91 + ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); _fd.position.set(en[0], en[1], en[2] + es * (0.9 + len / 2)); _fd.rotation.set(Math.PI / 2, 0, 0); _fd.scale.set(r * es, len * es, r * es); _fd.updateMatrix(); F.im.setMatrixAt(i, _fd.matrix); }); F.im.instanceMatrix.needsUpdate = true; });
@@ -1754,7 +1757,7 @@ function frame(now) {
   fwdOf(S.q, fwd); const here0 = nearPlanet(); let pi = -1; aimCool = Math.max(0, aimCool - dt); const aimOk = S.mode === 'fly' && !trvOn && !entOn && !mapOn && !S.target && aimCool <= 0;
   for (const p of planets) { pi++;   // planets are unreachable scenery: drawn along the true direction but at an apparent distance that barely shrinks, with the size you would see from the real distance
     if (p.sys !== curSys) { p.mesh.visible = false; if (p.rg) p.rg.visible = false; continue; } p.mesh.visible = true; if (p.rg) p.rg.visible = true;
-    _a.copy(p.pos).sub(S.pos); const d = _a.length() || 1, dA = 2600 + 0.12 * d, a = Math.max(0.026, p.r / Math.max(d, p.r * 1.6) * (d > 4000 ? Math.pow(4000 / d, 1.5) : 1)), k = a * dA / p.r;   // like Galaxy on Fire 2: far planets are tiny discs (about 3 degrees), the one at your station is huge
+    _a.copy(p.pos).sub(S.pos); const d = _a.length() || 1, dA = 2600 + 0.03 * d, dS = 2100 + 0.3 * d, a = Math.max(0.026, p.r / Math.max(dS, p.r * 1.6) * (dS > 4000 ? Math.pow(4000 / dS, 1.5) : 1)), k = a * dA / p.r;   // dS: the distance used for size is squeezed, so flying toward a planet barely changes it (it is a backdrop)   // like Galaxy on Fire 2: far planets are tiny discs (about 3 degrees), the one at your station is huge
     const w = clamp((d - 1500) / 2500, 0, 1) * 0.7; _pd.copy(_a).divideScalar(d).multiplyScalar(1 - w).addScaledVector(_pc.copy(p.pos).sub(PCENS[p.sys]).normalize(), w).normalize();   // far planets fan out around the system centre so they never bunch up on screen
     if (p.build && !pBuilt) { p.build(); p.build = null; pBuilt = true; }   // each planet paints its surface the first time it is in view (one per frame, so there is no long freeze)
     if (p.cl) p.cl.rotation.y += dt * 0.012;
