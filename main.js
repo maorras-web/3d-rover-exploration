@@ -717,6 +717,13 @@ const boltMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 0.7, 17), ne
 const boltHalo = new THREE.InstancedMesh(new THREE.BoxGeometry(1.9, 1.9, 19), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }), BOLT_N);
 boltHalo.frustumCulled = false; boltHalo.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(boltHalo);
 boltMesh.frustumCulled = false; boltMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(boltMesh);
+// laser look, free of cost (same two meshes): white-hot core, coloured edge, a bright head that fades toward a thin tail
+const boltShade = (mat, half, core) => { mat.onBeforeCompile = (sh) => {
+  sh.vertexShader = 'varying float vBz;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vBz = clamp((' + half + ' - position.z) / ' + (half * 2) + '.0, 0.0, 1.0); transformed.xy *= 0.22 + 0.5 * vBz;');
+  sh.fragmentShader = 'varying float vBz;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n ' + (core
+    ? 'diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), 0.72) * (0.45 + 0.65 * vBz);'
+    : 'diffuseColor.rgb *= 0.5 + 0.7 * vBz; diffuseColor.a *= 0.12 + 0.7 * vBz * vBz;')); }; };
+boltShade(boltMesh.material, 8.5, true); boltShade(boltHalo.material, 9.5, false);
 for (let i = 0; i < BOLT_N; i++) { bolts.push({ pos: V3(), vel: V3(), life: 0, enemy: false, dmg: 0 }); boltMesh.setColorAt(i, _col.set(0xffffff)); boltHalo.setColorAt(i, _col.set(0x6dfcff)); }
 let boltNext = 0;
 function fireBolt(pos, dir, speed, dmg, enemy) {
