@@ -725,7 +725,7 @@ const planets = [];
       cv = paint((u, v) => { const wv = fbm(u, v, 4, 5), w2 = fbm(u + 0.3, v, 8, 4), ph = v * nb + (wv - 0.5) * 3.2 * calm + (w2 - 0.5) * 1.1, c = cyc(cols, ph), sh = 0.9 + 0.2 * fbm(u, v, 16, 3), sp = SPOT[kind]; if (sp) { const ex = (((u - sp[0] + 1.5) % 1) - 0.5) * 2, ey = v - sp[1], q = ex * ex / 0.011 + ey * ey / 0.0032; if (q < 1) { const t = 1 - q, k = Math.min(1, t * 1.6) * 0.9, sw = 0.85 + 0.3 * Math.sin(Math.atan2(ey * 3, ex) * 3 + q * 9); return [(c[0] + (sp[2][0] - c[0]) * k) * sw, (c[1] + (sp[2][1] - c[1]) * k) * sw, (c[2] + (sp[2][2] - c[2]) * k) * sw]; } } return [c[0] * sh, c[1] * sh, c[2] * sh]; }, SW, SH);
     } else if (kind === 'lava' || kind === 'onyx') {
       const gl = kind === 'lava' ? [255, 110, 30] : [53, 224, 200], lo = kind === 'lava' ? [24, 10, 8] : [14, 22, 26], hi = kind === 'lava' ? [80, 40, 30] : [34, 52, 60];
-      cv = paint((u, v) => { const h = fbm(u, v, 8, 5), r = 1 - Math.abs(2 * fbm(u + 0.5, v, 8, 5) - 1), cr = Math.max(0, Math.min(1, (r - 0.9) / 0.07)), hot = cr * cr * (3 - 2 * cr), t = h; return [0, 1, 2].map(c => (lo[c] + (hi[c] - lo[c]) * t) * (1 - hot) + gl[c] * hot + (hot > 0.7 ? 80 * (hot - 0.7) : 0)); }, SW, SH);
+      cv = paint((u, v) => { const h = fbm(u, v, 8, 5), r = 1 - Math.abs(2 * fbm(u + 0.5, v, 8, 5) - 1), cr = Math.max(0, Math.min(1, (r - 0.945) / 0.04)), hot = cr * cr * (3 - 2 * cr), t = h; return [0, 1, 2].map(c => (lo[c] + (hi[c] - lo[c]) * t) * (1 - hot) + gl[c] * hot + (hot > 0.7 ? 80 * (hot - 0.7) : 0)); }, SW, SH);
     } else {
       const W = WORLD[kind] || WORLD.ice, sea = W[0], seaR = W[1], landR = W[2], cap = W[3];
       aux = new Uint8ClampedArray(SW * SH * 4); const lights = kind === 'ocean' || kind === 'jungle' || kind === 'bloom';
@@ -743,10 +743,10 @@ const planets = [];
   const moonTex = (() => { const cv = paint((u, v) => { const h = fbm(u, v, 8, 5), cr = 1 - Math.abs(2 * fbm(u + 0.3, v, 16, 3) - 1), g = 95 + 90 * h - (cr > 0.9 ? 40 : 0); return [g, g * 0.97, g * 0.93]; }, 128, 64); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t; })();
   const CLOUDS = { ocean: 0.95, jungle: 0.85, bloom: 0.7, toxic: 0.6, ice: 0.22, storm: 0.45, desert: 0.3 };
   const SUN = sun.position.clone().normalize(); const blankAux = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); blankAux.needsUpdate = true; const blankTex = new THREE.DataTexture(new Uint8Array([40, 44, 56, 255]), 1, 1); blankTex.needsUpdate = true; blankTex.colorSpace = THREE.SRGBColorSpace;
-  const planetMat = (tx, atm, emis) => new THREE.ShaderMaterial({ fog: false,
-    uniforms: { map: { value: tx }, aux: { value: blankAux }, L: { value: SUN }, atm: { value: new THREE.Color(atm[0], atm[1], atm[2]) }, emis: { value: emis } },
+  const planetMat = (tx, atm, emis, rel) => new THREE.ShaderMaterial({ fog: false,
+    uniforms: { map: { value: tx }, aux: { value: blankAux }, L: { value: SUN }, atm: { value: new THREE.Color(atm[0], atm[1], atm[2]) }, emis: { value: emis }, rel: { value: rel || 0 }, tx: { value: new THREE.Vector2(1 / 512, 1 / 256) } },
     vertexShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv = uv; vN = normalize(mat3(modelMatrix) * normal); vec4 wp = modelMatrix * vec4(position, 1.0); vV = normalize(cameraPosition - wp.xyz); gl_Position = projectionMatrix * viewMatrix * wp; }',
-    fragmentShader: 'uniform sampler2D map; uniform sampler2D aux; uniform vec3 L; uniform vec3 atm; uniform float emis; varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vec3 n = normalize(vN); vec3 ax = texture2D(aux, vUv).rgb; vec3 Lp = normalize(L + 0.9 * normalize(vV)); float d = dot(n, Lp); float lit = smoothstep(-0.25, 0.55, d); vec3 b = texture2D(map, vUv).rgb; vec3 col = b * (0.2 + 1.1 * lit) + b * emis; float fr = pow(1.0 - max(dot(n, normalize(vV)), 0.0), 3.0); col += atm * fr * (0.1 + 0.9 * smoothstep(-0.35, 0.5, d)) * 0.8; float tw = smoothstep(-0.05, 0.12, d) * (1.0 - smoothstep(0.12, 0.4, d)); col += atm * tw * 0.12; col += vec3(1.0, 0.82, 0.5) * ax.r * (1.0 - smoothstep(-0.05, 0.3, d)) * 1.3; col += vec3(1.0, 0.95, 0.85) * pow(max(dot(reflect(-Lp, n), normalize(vV)), 0.0), 28.0) * ax.g * 0.45; gl_FragColor = vec4(col, 1.0); }' });
+    fragmentShader: 'uniform sampler2D map; uniform sampler2D aux; uniform vec3 L; uniform vec3 atm; uniform float emis; uniform float rel; uniform vec2 tx; varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vec3 n = normalize(vN); vec3 ax = texture2D(aux, vUv).rgb; vec3 Lp = normalize(L + 0.9 * normalize(vV)); float d = dot(n, Lp); float lit = smoothstep(-0.25, 0.55, d); vec3 b = texture2D(map, vUv).rgb; if (rel > 0.0) { vec3 wl = vec3(0.3, 0.59, 0.11); float h0 = dot(b, wl), hu = dot(texture2D(map, vUv + vec2(tx.x * 1.6, 0.0)).rgb, wl), hv = dot(texture2D(map, vUv + vec2(0.0, tx.y * 1.6)).rgb, wl); vec3 ea = normalize(cross(vec3(0.0, 1.0, 0.0), n)); vec3 no = cross(n, ea); vec2 gq = clamp(vec2(hu - h0, hv - h0), -0.012, 0.012); vec3 n2 = normalize(n - (ea * gq.x + no * gq.y) * 22.0 * rel); lit = clamp(lit + (dot(n2, Lp) - d) * 1.5 * rel * smoothstep(-0.1, 0.4, d), 0.0, 1.2); } vec3 col = b * (0.2 + 1.1 * lit) + b * emis; float fr = pow(1.0 - max(dot(n, normalize(vV)), 0.0), 3.0); col += atm * fr * (0.1 + 0.9 * smoothstep(-0.35, 0.5, d)) * 0.8; float tw = smoothstep(-0.05, 0.12, d) * (1.0 - smoothstep(0.12, 0.4, d)); col += atm * tw * 0.12; col += vec3(1.0, 0.82, 0.5) * ax.r * (1.0 - smoothstep(-0.05, 0.3, d)) * 1.3; col += vec3(1.0, 0.95, 0.85) * pow(max(dot(reflect(-Lp, n), normalize(vV)), 0.0), 28.0) * ax.g * 0.45; gl_FragColor = vec4(col, 1.0); }' });
   const cloudMat = (tx, op) => new THREE.ShaderMaterial({ transparent: true, depthWrite: false, fog: false,
     uniforms: { map: { value: tx }, L: { value: SUN }, op: { value: op } },
     vertexShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv = uv; vN = normalize(mat3(modelMatrix) * normal); vec4 wp = modelMatrix * vec4(position, 1.0); vV = normalize(cameraPosition - wp.xyz); gl_Position = projectionMatrix * viewMatrix * wp; }',
@@ -761,10 +761,17 @@ const planets = [];
     vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
     fragmentShader: 'uniform vec3 c; uniform float pw; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), pw); gl_FragColor = vec4(c * f, 1.0); }'
   });
+  const PIMG = { KEPLER: ['planet_kepler.webp', 1], 'VEGA GATE': ['planet_vega.webp', 0], AURORA: ['planet_aurora.webp', 1], FROST: ['planet_frost.webp', 0], ORCHID: ['planet_orchid.webp', 0], 'HELIOS PRIME': ['planet_helios.webp', 0] };   // painted surface maps: add one line per planet
   for (const s of stations) {
     const p = s.pl; p.pos = s.pos.clone().add(p.off); p.sys = s.sys; planets.push(p);
-    p.build = () => { const u = p.mesh.material.uniforms; u.map.value = tex(p.kind); u.aux.value = lastAux || blankAux; };
-    const pm = new THREE.Mesh(geo, planetMat(blankTex, p.atm, p.kind === 'lava' || p.kind === 'onyx' ? 0.45 : 0.0)); pm.scale.setScalar(p.r); pm.position.copy(p.pos); pm.rotation.z = 0.3; scene.add(pm); p.mesh = pm;
+    p.build = () => { const u = p.mesh.material.uniforms; u.map.value = tex(p.kind); u.aux.value = lastAux || blankAux;
+      const pi = PIMG[s.name], f = pi && pi[0]; if (f) { const im = new Image(); im.onload = () => {   // a hand-made painting replaces the generated surface (the generated one stays if the file is missing)
+        const t = new THREE.Texture(im); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.anisotropy = 4; t.needsUpdate = true;
+        const ac = document.createElement('canvas'); ac.width = 256; ac.height = 128; const x = ac.getContext('2d'); x.drawImage(im, 0, 0, 256, 128); const d = x.getImageData(0, 0, 256, 128), q = d.data;
+        for (let i = 0; i < q.length; i += 4) { const r = q[i], g = q[i + 1], bl = q[i + 2], sea = Math.max(0, Math.min(255, (bl - Math.max(r, g * 0.95) - 6) * 9)); q[i] = 0; q[i + 1] = pi[1] ? sea : 0; q[i + 2] = 0; q[i + 3] = 255; }
+        x.putImageData(d, 0, 0); const at = new THREE.CanvasTexture(ac); at.wrapS = THREE.RepeatWrapping;
+        u.map.value = t; u.aux.value = at; u.rel.value = 0; u.tx.value.set(1 / im.width, 1 / im.height); }; im.src = f; } };
+    const pm = new THREE.Mesh(geo, planetMat(blankTex, p.atm, p.kind === 'lava' || p.kind === 'onyx' ? 0.45 : 0.0, GAS[p.kind] ? 0 : 1)); pm.scale.setScalar(p.r); pm.position.copy(p.pos); pm.rotation.z = 0.3; scene.add(pm); p.mesh = pm;
     if (CLOUDS[p.kind]) { const cm = new THREE.Mesh(geo, cloudMat(cloudTex[planets.length & 1], CLOUDS[p.kind])); cm.scale.setScalar(1.03); pm.add(cm); p.cl = cm; }
     if (MOONS[p.kind]) { const mo = new THREE.Mesh(geo, planetMat(moonTex, [0.55, 0.6, 0.7], 0)); mo.scale.setScalar(MOONS[p.kind]); pm.add(mo); p.moon = mo; p.mt = Math.random() * 6; }
     p.g0 = geo; p.g1 = geoLo; { const hm = new THREE.Mesh(geo, haloMat(p.atm)); p.hm = hm; hm.scale.setScalar(1.12); pm.add(hm); }
@@ -1069,16 +1076,16 @@ const spdEl = $('spd'), flareEl = $('flare'), flGh = [...flareEl.children], FLT 
 flGh.forEach((g, q) => { g.style.width = g.style.height = FLS[q] + 'px'; });
 const nearPlanet = () => { let b = -1, bd = 3500; for (let i = 0; i < planets.length; i++) { const d = S.pos.distanceTo(stations[i].pos); if (d < bd) { bd = d; b = i; } } return b; };
 // warp to another planet: short fade, then you arrive in front of that planet's station
-const WP = { t: 0, to: 0, done: false };
+const WP = { t: 0, to: 0, done: false, far: false }, tunnelEl = document.getElementById('tunnel');
 function startWarp(i) {
-  if (S.mode !== 'fly') return; WP.t = 0; WP.to = i; WP.done = false; S.mode = 'warp'; S.tPlanet = -1; S.target = null; S.boosting = false; S.sx = S.sy = 0;
-  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; sfx('boost');
+  if (S.mode !== 'fly') return; WP.t = 0; WP.to = i; WP.done = false; WP.far = stations[i].sys !== curSys; S.mode = 'warp'; S.tPlanet = -1; S.target = null; S.boosting = false; S.sx = S.sy = 0;
+  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; sfx('boost'); if (WP.far) tunnelEl.classList.add('on');   // jump tunnel: pure CSS, runs on the GPU
 }
 function updateWarp(dt) {
   WP.t += dt; fwdOf(S.q, fwd); S.speed = 160 + WP.t * 420; S.pos.addScaledVector(fwd, S.speed * dt); S.vel.copy(fwd).multiplyScalar(S.speed);
-  fadeEl.style.opacity = Math.max(0, Math.min(1, (WP.t - 0.45) / 0.65)).toFixed(2);
-  if (!WP.done && WP.t >= 1.25) {
-    WP.done = true; const st = stations[WP.to];
+  fadeEl.style.opacity = Math.max(0, Math.min(1, (WP.t - (WP.far ? 0.95 : 0.45)) / (WP.far ? 0.8 : 0.65))).toFixed(2);
+  if (!WP.done && WP.t >= (WP.far ? 1.9 : 1.25)) {
+    WP.done = true; tunnelEl.classList.remove('on'); const st = stations[WP.to];
     S.pos.copy(st.pos).addScaledVector(st.pl.off.clone().normalize(), -1100); S.pos.y -= 350;
     _m.lookAt(_zero, _a.copy(st.pos).sub(S.pos).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
     S.speed = 50; S.inv = 2; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); fadeOut();
@@ -1133,7 +1140,7 @@ const cMul = (st, gi) => { const x = Math.sin((st + 1) * 12.9898 + gi * 78.233) 
 const pvEnd = { id: 0 };
 function pvStart(cv, k) {
   const p = stations[k].pl, id = ++pvEnd.id; if (p.build) { p.build(); p.build = null; }
-  const img = p.mesh.material.uniforms.map.value.image; if (!img || !img.getContext) return;
+  let img = p.mesh.material.uniforms.map.value.image; if (!img) return; if (!img.getContext) { const c2 = document.createElement('canvas'); c2.width = 512; c2.height = 256; c2.getContext('2d').drawImage(img, 0, 0, 512, 256); img = c2; }   // a painted map is an <img>: copy it small
   const sw = img.width, sh = img.height, src = img.getContext('2d').getImageData(0, 0, sw, sh).data, N = 120, R = 56, c0 = N / 2, g = cv.getContext('2d'), out = g.createImageData(N, N), o = out.data;
   const U = new Float32Array(N * N), Vr = new Int32Array(N * N), Sh = new Float32Array(N * N), Rm = new Float32Array(N * N), Al = new Uint8Array(N * N), tilt = 0.3, ct = Math.cos(tilt), st = Math.sin(tilt), L = [-0.55, 0.45, 0.7], ll = Math.hypot(...L);
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const i = y * N + x, nx = (x + 0.5 - c0) / R, ny = -(y + 0.5 - c0) / R, r2 = nx * nx + ny * ny; if (r2 >= 1.06) continue;
