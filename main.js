@@ -90,7 +90,13 @@ const SAVE_KEY = 'starCourier2';
 let save = { credits: 100, up: [0, 0, 0, 0], missiles: 4, kills: 0, inv: false, snd: true, cargo: [0, 0, 0, 0, 0] };
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && Array.isArray(s.up)) save = Object.assign(save, s); } catch (e) { }
 if (!Array.isArray(save.cargo) || save.cargo.length !== 5) save.cargo = [0, 0, 0, 0, 0];
+if (!save.wpn || !Array.isArray(save.wpn.owned)) save.wpn = { owned: [0], cur: 0 };   // weapons bought and the one in use
 const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { } };
+let wpnChipEl = null;
+function wpnChip() { if (!wpnChipEl) { wpnChipEl = document.createElement('button'); wpnChipEl.id = 'b-wpn'; wpnChipEl.style.cssText = 'height:38px;padding:0 12px;border-radius:10px;border:1px solid currentColor;background:rgba(8,16,34,.62);font:800 11px system-ui,Arial,sans-serif;letter-spacing:1.5px;pointer-events:auto;white-space:nowrap';
+    wpnChipEl.addEventListener('click', cycleWpn); const tr = document.getElementById('top-right'); if (tr) tr.insertBefore(wpnChipEl, tr.firstChild); }
+  const w = curW(); wpnChipEl.textContent = w.name; wpnChipEl.style.color = '#' + w.c.toString(16).padStart(6, '0'); wpnChipEl.style.display = save.wpn.owned.length > 1 ? '' : 'none'; }
+function cycleWpn() { const o = save.wpn.owned, k = (o.indexOf(save.wpn.cur) + 1) % o.length; save.wpn.cur = o[k]; persist(); wpnChip(); S.fireT = Math.max(S.fireT, 0.15); toast(curW().name, 0.8); }
 
 const UPG = [
   { name: 'LASERS', desc: 'More damage per shot', max: 6 },
@@ -106,6 +112,16 @@ const stats = () => ({
   cruise: 92 * (1 + 0.07 * save.up[3]),
 });
 let ST = stats();
+// weapons: gameplay numbers (rate = seconds between shots, spd = bolt speed, dm = damage multiplier per bolt) and bolt look (colour, thickness, length, hit size, corkscrew)
+const WPN = [
+  { name: 'PULSE LASER', desc: 'Standard twin pulse cannons', price: 0, rate: 0.13, spd: 560, dm: 1, n: 1, c: 0x6dfcff, t: 1, l: 1, hr: 1, wob: 0 },
+  { name: 'ION LANCE', desc: 'Thin, very fast, hard-hitting beam', price: 400, rate: 0.26, spd: 950, dm: 2.6, n: 1, c: 0x4a90ff, t: 0.55, l: 1.5, hr: 0.8, wob: 0 },
+  { name: 'PLASMA WEAVER', desc: 'Corkscrewing plasma that is hard to dodge', price: 700, rate: 0.16, spd: 470, dm: 1.55, n: 1, c: 0x4dff6a, t: 0.85, l: 0.7, hr: 1.1, wob: 1 },
+  { name: 'SALVO', desc: 'Three bolts in a fan, great up close', price: 900, rate: 0.34, spd: 620, dm: 1.0, n: 3, c: 0x3be8ff, t: 0.7, l: 0.55, hr: 0.9, wob: 0 },
+  { name: 'VOID PULSE', desc: 'Burst of three segments in a line', price: 1300, rate: 0.45, spd: 640, dm: 1.35, n: 3, c: 0xb06bff, t: 1, l: 0.4, hr: 1, wob: 0 },
+  { name: 'SOLAR BEAM', desc: 'Slow, huge, devastating', price: 2000, rate: 0.6, spd: 700, dm: 6.5, n: 1, c: 0xffd23a, t: 2.6, l: 1.8, hr: 2.2, wob: 0 },
+];
+const curW = () => WPN[save.wpn.cur] || WPN[0];
 
 // ---------- renderer / scene ----------
 const canvas = $('c');
@@ -713,23 +729,28 @@ const _col = new THREE.Color();
 
 // ---------- bolts (lasers) ----------
 const BOLT_N = 120, bolts = [];
-const boltMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 0.7, 17), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, fog: false }), BOLT_N);
-const boltHalo = new THREE.InstancedMesh(new THREE.BoxGeometry(1.9, 1.9, 19), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }), BOLT_N);
+const boltMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.45, 0.45, 17, 8, 8).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, fog: false }), BOLT_N);
+const boltHalo = new THREE.InstancedMesh(new THREE.CylinderGeometry(1.25, 1.25, 19, 8, 8).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }), BOLT_N);
 boltHalo.frustumCulled = false; boltHalo.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(boltHalo);
 boltMesh.frustumCulled = false; boltMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(boltMesh);
 // laser look, free of cost (same two meshes): white-hot core, coloured edge, a bright head that fades toward a thin tail
 const boltShade = (mat, half, core) => { mat.onBeforeCompile = (sh) => {
-  sh.vertexShader = 'varying float vBz;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vBz = clamp((' + half + ' - position.z) / ' + (half * 2) + '.0, 0.0, 1.0); transformed.xy *= 0.22 + 0.5 * vBz;');
-  sh.fragmentShader = 'varying float vBz;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n ' + (core
-    ? 'diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), 0.72) * (0.45 + 0.65 * vBz);'
-    : 'diffuseColor.rgb *= 0.5 + 0.7 * vBz; diffuseColor.a *= 0.12 + 0.7 * vBz * vBz;')); }; };
+  // round, soft bolts instead of square bars: 8-sided tube, rounded nose, pointed tail, glow that fades toward the rim (still the same two meshes)
+  sh.vertexShader = 'varying float vBz; varying float vF;\n' + sh.vertexShader
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\n vBz = clamp((' + half + ' - position.z) / ' + (half * 2) + '.0, 0.0, 1.0); float hd = clamp((vBz - 0.8) / 0.2, 0.0, 1.0); float tl = smoothstep(0.0, 0.14, vBz); transformed.xy *= (0.22 + 0.5 * vBz) * sqrt(max(1.0 - hd * hd, 0.0)) * tl;')
+    .replace('#include <project_vertex>', '#include <project_vertex>\n vec3 nn = normal;\n #ifdef USE_INSTANCING\n nn = mat3(instanceMatrix) * nn;\n #endif\n vF = abs(dot(normalize(normalMatrix * nn), normalize(-mvPosition.xyz)));');
+  sh.fragmentShader = 'varying float vBz; varying float vF;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n ' + (core
+    ? 'diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), 0.85 * (0.5 + 0.5 * vF)) * (0.45 + 0.65 * vBz);'
+    : 'diffuseColor.rgb *= 0.5 + 0.7 * vBz; diffuseColor.a *= (0.12 + 0.7 * vBz * vBz) * pow(vF, 1.7);')); }; };
 boltShade(boltMesh.material, 8.5, true); boltShade(boltHalo.material, 9.5, false);
-for (let i = 0; i < BOLT_N; i++) { bolts.push({ pos: V3(), vel: V3(), life: 0, enemy: false, dmg: 0 }); boltMesh.setColorAt(i, _col.set(0xffffff)); boltHalo.setColorAt(i, _col.set(0x6dfcff)); }
+for (let i = 0; i < BOLT_N; i++) { bolts.push({ pos: V3(), vel: V3(), life: 0, enemy: false, dmg: 0, sx: 1, sz: 1, hr: 1, wob: 0, age: 0, p1: V3(), p2: V3() }); boltMesh.setColorAt(i, _col.set(0xffffff)); boltHalo.setColorAt(i, _col.set(0x6dfcff)); }
 let boltNext = 0;
-function fireBolt(pos, dir, speed, dmg, enemy) {
-  const b = bolts[boltNext]; boltNext = (boltNext + 1) % BOLT_N;
+function fireBolt(pos, dir, speed, dmg, enemy, w) {
+  const b = bolts[boltNext]; boltNext = (boltNext + 1) % BOLT_N; w = enemy ? WPN[0] : (w || WPN[0]);
   b.pos.copy(pos); b.vel.copy(dir).multiplyScalar(speed); b.life = enemy ? 2.6 : 1.7; b.enemy = enemy; b.dmg = dmg;
-  { const bi = bolts.indexOf(b); _col.set(enemy ? 0xff5a2a : 0x6dfcff); boltMesh.setColorAt(bi, _col); boltHalo.setColorAt(bi, _col); boltMesh.instanceColor.needsUpdate = true; boltHalo.instanceColor.needsUpdate = true; }
+  b.sx = w.t; b.sz = w.l; b.hr = w.hr; b.wob = w.wob; b.age = 0;
+  if (w.wob) { b.p1.crossVectors(dir, Y); if (b.p1.lengthSq() < 0.01) b.p1.set(1, 0, 0); b.p1.normalize(); b.p2.crossVectors(dir, b.p1).normalize(); }
+  { const bi = bolts.indexOf(b); _col.set(enemy ? 0xff5a2a : w.c); boltMesh.setColorAt(bi, _col); boltHalo.setColorAt(bi, _col); boltMesh.instanceColor.needsUpdate = true; boltHalo.instanceColor.needsUpdate = true; }
 }
 
 // ---------- debris / sparks + explosions ----------
@@ -1065,7 +1086,7 @@ function updateAudio() {
 // ---------- throttle: touch any free spot on the right half and drag up = faster, down = slower / full stop (like Galaxy on Fire 2) ----------
 // ---------- input ----------
 const keys = {}; let touchX = 0, touchY = 0, firing = false, boostHeld = false;
-addEventListener('keydown', (e) => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); if (e.code === 'KeyT') cycleTarget(); if (e.code === 'KeyM') fireMissile(); if (e.code === 'KeyE') tryDock(); });
+addEventListener('keydown', (e) => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); if (e.code === 'KeyT') cycleTarget(); if (e.code === 'KeyQ') cycleWpn(); if (e.code === 'KeyM') fireMissile(); if (e.code === 'KeyE') tryDock(); });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 let stickId = null, stickOx = 0, stickOy = 0; let STICK_R = 62;
 const stickEl = $('stick'), knob = $('knob');
@@ -1249,7 +1270,7 @@ function updateWarp(dt) {
     WP.done = true; homeSt = WP.to; tunnelEl.classList.remove('on'); const st = stations[WP.to];
     { const od = st.pl.off.clone().normalize(), pp = V3().crossVectors(od, Y); if (pp.lengthSq() < 0.01) pp.set(1, 0, 0); pp.normalize(); S.pos.copy(st.pos).addScaledVector(od, -1100 * 0.57).addScaledVector(pp, -1100 * 0.82); }   // arrive 55 degrees off to the side of the planet, so the station is seen against space beside it and not in front of its middle
     _m.lookAt(_zero, _a.copy(st.pos).sub(S.pos).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
-    S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); fadeOut();
+    S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); wpnChip(); fadeOut();
   }
 }
 
@@ -1382,9 +1403,13 @@ function openShop(msg) {
   } else {
     const prev = (i) => { const c = stats(); save.up[i]++; const n = stats(); save.up[i]--; return [
       `${c.dmg.toFixed(0)} → ${n.dmg.toFixed(0)} damage`, `${c.shieldMax} → ${n.shieldMax} shield`, `${c.hullMax} → ${n.hullMax} hull`, `${Math.round(c.cruise)} → ${Math.round(n.cruise)} m/s`][i]; };
-    const tg = document.createElement('div'); tg.className = 'subtg'; tg.innerHTML = `<button class="${shopSub === 'u' ? 'on' : ''}" data-s="u">UPGRADES</button><button class="${shopSub === 'c' ? 'on' : ''}" data-s="c">CARGO</button>`;
+    const tg = document.createElement('div'); tg.className = 'subtg'; tg.innerHTML = `<button class="${shopSub === 'u' ? 'on' : ''}" data-s="u">UPGRADES</button><button class="${shopSub === 'w' ? 'on' : ''}" data-s="w">WEAPONS</button><button class="${shopSub === 'c' ? 'on' : ''}" data-s="c">CARGO</button>`;
     tg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { shopSub = b.dataset.s; sfx('ui'); openShop(msg); })); list.appendChild(tg);
-    if (shopSub === 'c') {
+    if (shopSub === 'w') {
+      WPN.forEach((w, i) => { const own = save.wpn.owned.includes(i), cur = save.wpn.cur === i, per = ST.dmg * w.dm * (w.n || 1), st = `${Math.round(per)} dmg per ${w.n > 1 ? 'volley' : 'shot'} · ${(1 / w.rate).toFixed(1)} shots/s`;
+        row(w.name, w.desc + '  ·  ' + st, '', cur ? 'EQUIPPED' : own ? 'EQUIP' : '◆ ' + w.price, cur || (!own && save.credits < w.price), () => { if (!own) { save.credits -= w.price; save.wpn.owned.push(i); } save.wpn.cur = i; persist(); refreshHud(); wpnChip(); sfx('pick'); openShop(msg); }, 0); });
+      const ft = document.createElement('div'); ft.className = 'spec-lg'; ft.textContent = 'Buy a weapon once, then switch any time here or with the weapon button in flight.'; list.appendChild(ft);
+    } else if (shopSub === 'c') {
       const used = save.cargo.reduce((x, y) => x + y, 0), hd = document.createElement('div'); hd.className = 'spec-ft'; hd.innerHTML = `<span>HOLD <b>${used}/${HOLD}</b></span><span>PRICES AT <b>${stations[S.station].name}</b></span>`; list.appendChild(hd);
       GOODS.forEach((g, gi) => { const m = cMul(S.station, gi), bp = Math.round(g.base * m), sp = Math.round(g.base * m * 0.9), tag = m < 0.9 ? '  ·  CHEAP HERE' : m > 1.18 ? '  ·  SELLS HIGH' : '';
         row(g.nm + '  ×' + save.cargo[gi], g.desc + tag, '', '◆ ' + bp, save.credits < bp || used >= HOLD, () => { save.credits -= bp; save.cargo[gi]++; persist(); refreshHud(); sfx('pick'); openShop(msg); }, 'c' + gi);
@@ -1622,27 +1647,31 @@ function frame(now) {
     if (!S.target) { for (const e of enemies) if (e.active) { _a.copy(e.pos).sub(S.pos); const d = _a.length(); if (d < 900 && fwd.dot(_a) / d > 0.6) { S.target = e; sfx('lock'); break; } } }
     let leadOk = false;
     if (S.target) {
-      const e = S.target; _a.copy(e.pos).sub(S.pos); const d = _a.length(); const tt = d / 560;
+      const e = S.target; _a.copy(e.pos).sub(S.pos); const d = _a.length(); const tt = d / curW().spd;
       _b.copy(e.pos).addScaledVector(e.vel, tt).addScaledVector(S.vel, -tt * 0.0); S.lead = (S.lead || V3()).copy(_b);
       _c.copy(_b).sub(S.pos).normalize(); leadOk = Math.acos(clamp(fwd.dot(_c), -1, 1)) < 0.22; S._leadDir = (S._leadDir || V3()).copy(_c);
     }
     if ((firing || keys.Space) && S.fireT <= 0) {
-      S.fireT = 0.13; S.side = -S.side;
+      S.side = -S.side;
       _a.set(S.side * 2.6 * SHIP_K, -0.34 * SHIP_K, -1.6 * SHIP_K).applyQuaternion(S.q).add(S.pos);
       _b.copy(fwd); if (leadOk) _b.lerp(S._leadDir, 0.85).normalize();
-      fireBolt(_a, _b, 560, ST.dmg, false); sfx('laser');
+      const W = curW(); S.fireT = W.rate;
+      if (W.n === 1) fireBolt(_a, _b, W.spd, ST.dmg * W.dm, false, W);
+      else if (W === WPN[3]) { _d.crossVectors(_b, Y).normalize(); for (let q = -1; q <= 1; q++) { _c.copy(_b).addScaledVector(_d, q * 0.07).normalize(); fireBolt(_a, _c, W.spd, ST.dmg * W.dm, false, W); } }   // salvo: a fan of three
+      else for (let q = 0; q < W.n; q++) { _c.copy(_a).addScaledVector(_b, -13 * q); fireBolt(_c, _b, W.spd, ST.dmg * W.dm, false, W); }   // void pulse: three dashes in a row
+      sfx('laser');
     }
 
     // ---- bolts ----
     for (let i = 0; i < BOLT_N; i++) {
       const b = bolts[i]; if (b.life <= 0) continue; b.life -= dt;
-      _a.copy(b.pos); b.pos.addScaledVector(b.vel, dt);
+      _a.copy(b.pos); b.pos.addScaledVector(b.vel, dt); if (b.wob) { b.age += dt; const ph = b.age * 16; b.pos.addScaledVector(b.p1, Math.cos(ph) * 48 * dt).addScaledVector(b.p2, Math.sin(ph) * 48 * dt); }
       if (b.enemy) {
         _c.copy(S.pos).sub(_a); const seg = _d.copy(b.pos).sub(_a), sl = seg.lengthSq(), t = clamp(_c.dot(seg) / (sl || 1), 0, 1);
         _c.copy(_a).addScaledVector(seg, t).sub(S.pos); if (_c.lengthSq() < 9) { b.life = 0; damagePlayer(b.dmg); }
       } else {
         let hit = false;
-        for (const e of enemies) { if (!e.active) continue; const seg = _d.copy(b.pos).sub(_a), sl = seg.lengthSq(); _c.copy(e.pos).sub(_a); const t = clamp(_c.dot(seg) / (sl || 1), 0, 1); _c.copy(_a).addScaledVector(seg, t).sub(e.pos); if (_c.lengthSq() < 42) { b.life = 0; damageEnemy(e, b.dmg, b.pos); hit = true; break; } }
+        for (const e of enemies) { if (!e.active) continue; const seg = _d.copy(b.pos).sub(_a), sl = seg.lengthSq(); _c.copy(e.pos).sub(_a); const t = clamp(_c.dot(seg) / (sl || 1), 0, 1); _c.copy(_a).addScaledVector(seg, t).sub(e.pos); if (_c.lengthSq() < 42 * b.hr) { b.life = 0; damageEnemy(e, b.dmg, b.pos); hit = true; break; } }
         if (!hit) for (let j = 0; j < AST_N; j++) {
           const a = asteroids[j]; if (!a.active) continue; _c.set(a.x - b.pos.x, a.y - b.pos.y, a.z - b.pos.z); const rr = a.r * 0.95;
           if (_c.lengthSq() < rr * rr) {
@@ -1768,7 +1797,7 @@ function frame(now) {
   for (let i = 0; i < BOLT_N; i++) {
     const b = bolts[i];
     if (b.life <= 0) { dummy.position.set(0, -99999, 0); dummy.scale.setScalar(0.0001); dummy.quaternion.identity(); }
-    else { dummy.position.copy(b.pos); dummy.scale.set(1, 1, 1); _m.lookAt(_zero, b.vel, Y); dummy.quaternion.setFromRotationMatrix(_m); }
+    else { dummy.position.copy(b.pos); dummy.scale.set(b.sx, b.sx, b.sz); _m.lookAt(_zero, b.vel, Y); dummy.quaternion.setFromRotationMatrix(_m); }
     dummy.updateMatrix(); boltMesh.setMatrixAt(i, dummy.matrix); boltHalo.setMatrixAt(i, dummy.matrix);
   }
   boltMesh.instanceMatrix.needsUpdate = true; boltHalo.instanceMatrix.needsUpdate = true;
