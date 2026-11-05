@@ -521,15 +521,17 @@ if (SHIP_VAR === 4) {   // the ring becomes a thick metal band that carries the 
   const bg = new THREE.ExtrudeGeometry(sh, { depth: 0.26, curveSegments: 36, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 2 });
   const band = new THREE.Mesh(bg, new THREE.MeshStandardMaterial({ color: 0x9aa5b8, roughness: 0.34, metalness: 0.6, emissive: 0x1e2430 })); band.position.set(0, -0.072, 3.416); shipBody.add(band);
 }
+const mBell = [], mCore = [], mRim = [], FINST = [], _fd = new THREE.Object3D();
 for (const [ei, en] of ENGS.entries()) {
   const e = new THREE.Group(); e.position.set(en[0], en[1], en[2]); e.scale.set(0.82 * en[3], 0.82 * en[3], en[3]); if (SHIP_VAR === 4) e.scale.set(en[3], en[3], en[3]);
   if (SHIP_VAR === 4) {
-    // engine nozzle recessed INTO the thick ring band (nothing sticks out): short open bell, hot throat, glowing rim flush with the back of the band
-    const mm = (c, r) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: 0.75, emissive: 0x10141b });
-    const part = (g, mt, z, rx) => { const o = new THREE.Mesh(g, mt); o.position.z = z; if (rx) o.rotation.x = Math.PI / 2; e.add(o); return o; };
-    part(new THREE.CylinderGeometry(0.62, 0.38, 0.5, 14, 1, true), new THREE.MeshStandardMaterial({ color: 0xa7b2c4, roughness: 0.28, metalness: 0.75, emissive: 0x10141b, side: THREE.DoubleSide }), 0.74, 1);
-    part(new THREE.CircleGeometry(0.38, 14), coreMat, 0.52);
-    part(new THREE.TorusGeometry(0.62, 0.05, 5, 18), ringMat, 0.99);
+    // engine nozzle recessed INTO the thick ring band (nothing sticks out): short open bell, hot throat, glowing rim flush with the back of the band.
+    // all six engines are baked into ONE mesh per material (3 draw calls instead of 18)
+    e.updateMatrix();
+    const part = (g, mt, z, rx) => { g = g.clone(); if (rx) g.rotateX(Math.PI / 2); g.translate(0, 0, z); g.applyMatrix4(e.matrix); mt.push(g); };
+    part(new THREE.CylinderGeometry(0.62, 0.38, 0.5, 14, 1, true), mBell, 0.74, 1);
+    part(new THREE.CircleGeometry(0.38, 14), mCore, 0.52);
+    part(new THREE.TorusGeometry(0.62, 0.05, 5, 18), mRim, 0.99);
   } else {
   const body = new THREE.Mesh(engGeo, engMat); body.rotation.x = Math.PI / 2; e.add(body);
   const lipBand = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.04, 6, 24), ringMat); lipBand.position.z = -0.66; e.add(lipBand);              // glowing intake lip
@@ -537,11 +539,19 @@ for (const [ei, en] of ENGS.entries()) {
   const core = new THREE.Mesh(new THREE.CircleGeometry(0.43, 20), coreMat); core.position.z = 0.62; e.add(core);                                       // white-hot throat inside the nozzle
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.04, 6, 24), ringMat); ring.position.z = 0.91; e.add(ring);
   }                            // glowing nozzle rim
+  if (SHIP_VAR !== 4) {
   FL.forEach((L, k) => { const fc = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 16, 1, true), flameMats[k]); fc.rotation.x = Math.PI / 2; fc.position.set(0, 0, 0.95); fc.userData = { L, ph: ei * 1.7 + k }; e.add(fc); flameCones.push(fc); });
-  shipBody.add(e);
+  }
+  if (SHIP_VAR !== 4) shipBody.add(e);
 }
-const flames = ENGS.map(en => { const f = glowSprite(0x7fe9ff, 1.5, 0.32); f.position.set(en[0], en[1], en[2] + 1.15 * en[3]); f.userData.sc = en[3] < 1 ? 0.45 : 1; shipBody.add(f); return f; });
-const flameCore = ENGS.map(en => { const f = glowSprite(0xffffff, 0.9, 0.6); f.position.set(en[0] + (en[3] < 1 ? 0 : Math.sign(en[0]) * 0.1), en[1] - (en[3] < 1 ? 0 : 0.05), en[2] + 0.9 * en[3]); f.userData.sc = en[3] < 1 ? 0.45 : 1; shipBody.add(f); return f; });
+if (SHIP_VAR === 4) {
+  shipBody.add(new THREE.Mesh(mergeGeometries(mBell), new THREE.MeshStandardMaterial({ color: 0xa7b2c4, roughness: 0.28, metalness: 0.75, emissive: 0x10141b, side: THREE.DoubleSide })), new THREE.Mesh(mergeGeometries(mCore), coreMat), new THREE.Mesh(mergeGeometries(mRim), ringMat));
+  FL.forEach((L, k) => { const im = new THREE.InstancedMesh(new THREE.ConeGeometry(1, 1, 16, 1, true), flameMats[k], ENGS.length); im.frustumCulled = false; im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); shipBody.add(im); FINST.push({ im, k, L }); });   // flames: 3 instanced meshes for all six engines
+}
+const glowPts = (color, op, zf) => { const g = new THREE.BufferGeometry(), p = new Float32Array(ENGS.length * 3); ENGS.forEach((en, i) => { p[i * 3] = en[0]; p[i * 3 + 1] = en[1]; p[i * 3 + 2] = en[2] + zf * en[3]; }); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  const o = new THREE.Points(g, new THREE.PointsMaterial({ map: glowTex, color, size: 1, sizeAttenuation: true, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false })); o.frustumCulled = false; o.userData.sc = 0.45; o.userData.pts = 1; shipBody.add(o); return o; };   // one draw call for all six glows
+const flames = SHIP_VAR === 4 ? [glowPts(0x7fe9ff, 0.32, 1.15)] : ENGS.map(en => { const f = glowSprite(0x7fe9ff, 1.5, 0.32); f.position.set(en[0], en[1], en[2] + 1.15 * en[3]); f.userData.sc = en[3] < 1 ? 0.45 : 1; shipBody.add(f); return f; });
+const flameCore = SHIP_VAR === 4 ? [glowPts(0xffffff, 0.6, 0.9)] : ENGS.map(en => { const f = glowSprite(0xffffff, 0.9, 0.6); f.position.set(en[0] + (en[3] < 1 ? 0 : Math.sign(en[0]) * 0.1), en[1] - (en[3] < 1 ? 0 : 0.05), en[2] + 0.9 * en[3]); f.userData.sc = en[3] < 1 ? 0.45 : 1; shipBody.add(f); return f; });
 
 // ---------- hangar room (Galaxy-on-Fire-style): far away from the world, enclosed, only drawn while docked ----------
 const HP = V3(0, -6000, 0);
@@ -1687,9 +1697,10 @@ function frame(now) {
   ship.position.copy(S.pos); ship.quaternion.copy(S.q); shipBody.rotation.z = S.roll;
   if (S.shGlow > 0) { S.shGlow = Math.max(0, S.shGlow - dt * 2.4); shGl.visible = S.shGlow > 0; shGl.material.uniforms.op.value = S.shGlow; shGl.material.uniforms.t.value = tAcc; }
   const vis = S.mode !== 'wreck', blink = S.inv > 0 && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
-  { const on = S.mode !== 'dock'; flames.forEach(f => f.visible = on); flameCore.forEach(f => f.visible = on); flameCones.forEach(f => f.visible = on); hoverPads.forEach(p => p.visible = on); }
+  { const on = S.mode !== 'dock'; flames.forEach(f => f.visible = on); flameCore.forEach(f => f.visible = on); flameCones.forEach(f => f.visible = on); FINST.forEach(f => f.im.visible = on); hoverPads.forEach(p => p.visible = on); }
   const fl = 0.7 + S.speed / 220 + (S.boosting ? 0.9 : 0), flick = 0.9 + Math.sin(tAcc * 50) * 0.1;
-  flames.forEach(f => { f.scale.setScalar(1.9 * fl * flick * f.userData.sc); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => f.scale.setScalar(0.7 * fl * flick * f.userData.sc)); flameMats.forEach((fm, k) => fm.color.setHex(flameCols[k][S.boosting ? 1 : 0])); flameCones.forEach(c => { const u = c.userData, L = u.L, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + u.ph) + 0.05 * Math.sin(tAcc * 91 + u.ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); c.scale.set(r, len, r); c.position.z = 0.9 + len / 2; });
+  flames.forEach(f => { if (f.userData.pts) f.material.size = 2.9 * fl * flick * f.userData.sc; else f.scale.setScalar(1.9 * fl * flick * f.userData.sc); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => { if (f.userData.pts) f.material.size = 1.05 * fl * flick * f.userData.sc; else f.scale.setScalar(0.7 * fl * flick * f.userData.sc); }); flameMats.forEach((fm, k) => fm.color.setHex(flameCols[k][S.boosting ? 1 : 0])); FINST.forEach(F => { const L = F.L, es = ENGS[0][3]; ENGS.forEach((en, i) => { const ph = i * 1.7 + F.k, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + ph) + 0.05 * Math.sin(tAcc * 91 + ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); _fd.position.set(en[0], en[1], en[2] + es * (0.9 + len / 2)); _fd.rotation.set(Math.PI / 2, 0, 0); _fd.scale.set(r * es, len * es, r * es); _fd.updateMatrix(); F.im.setMatrixAt(i, _fd.matrix); }); F.im.instanceMatrix.needsUpdate = true; });
+  flameCones.forEach(c => { const u = c.userData, L = u.L, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + u.ph) + 0.05 * Math.sin(tAcc * 91 + u.ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); c.scale.set(r, len, r); c.position.z = 0.9 + len / 2; });
   for (const e of enemies) if (e.active) { e.g.children[1].scale.setScalar(5 + Math.sin(tAcc * 40 + e.pos.x) * 0.6); }
   S.camQ.slerp(S.q, 1 - Math.exp(-7 * dt));
   const cd = 17 + S.speed * 0.014;
