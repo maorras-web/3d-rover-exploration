@@ -607,8 +607,19 @@ hoverGlow.rotation.x = -Math.PI / 2; hoverGlow.position.y = 0.66; hoverGlow.visi
   const wallTex = canvasTex(512, 128, (x, w, h) => { x.fillStyle = '#222'; x.fillRect(0, 0, w, h); x.strokeStyle = '#333'; x.lineWidth = 3; for (let i = 0; i <= 16; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.stroke(); } x.fillStyle = '#666'; for (let i = 0; i < 16; i++) x.fillRect(i * 32 + 6, 20, 20, 8); }, [3, 1]);
   add(new THREE.CylinderGeometry(WR, WR, WH, 48, 1, true), new THREE.MeshStandardMaterial({ map: wallTex, emissive: 0x2f7a46, emissiveMap: wallTex, roughness: 0.9, metalness: 0.2, side: THREE.BackSide, fog: false }), 0, WH / 2, 0);
   add(new THREE.CircleGeometry(WR, 48), std(0x1b2a22, 0x14301f), 0, WH, 0).rotation.x = Math.PI / 2;
-  const floorTex = canvasTex(512, 512, (x, w, h) => { x.fillStyle = '#222'; x.fillRect(0, 0, w, h); x.strokeStyle = '#3a3a3a'; x.lineWidth = 2; for (let i = 0; i <= 16; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.moveTo(0, i * 32); x.lineTo(w, i * 32); x.stroke(); } });
-  const fl = add(new THREE.CircleGeometry(WR, 48), new THREE.MeshStandardMaterial({ map: floorTex, emissive: 0x2c6a40, emissiveMap: floorTex, roughness: 0.7, metalness: 0.4, fog: false }), 0, -0.6, 0); fl.rotation.x = -Math.PI / 2;
+  // glossy deck: bevelled steel plates with seams and rivets, a fake environment to reflect (one tiny cube texture) and low roughness, so the pad rings and the ship's glow slide across the floor
+  const floorTex = canvasTex(512, 512, (x, w, h) => { x.fillStyle = '#2a2d2c'; x.fillRect(0, 0, w, h); for (let i = 0; i < 40; i++) { x.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.12)'; x.fillRect(((Math.random() * 4) | 0) * 128, ((Math.random() * 4) | 0) * 128, 128, 128); } x.strokeStyle = '#0c0e0d'; x.lineWidth = 3; for (let i = 0; i <= 4; i++) { x.beginPath(); x.moveTo(i * 128, 0); x.lineTo(i * 128, h); x.moveTo(0, i * 128); x.lineTo(w, i * 128); x.stroke(); } stnBevel(x, w, h, 128); x.fillStyle = 'rgba(200,210,205,0.5)'; for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) for (const [dx, dy] of [[10, 10], [118, 10], [10, 118], [118, 118]]) x.fillRect(i * 128 + dx, j * 128 + dy, 3, 3); }, [7, 7]);
+  const floorBump = canvasTex(256, 256, (x, w, h) => { x.fillStyle = '#aaa'; x.fillRect(0, 0, w, h); x.strokeStyle = '#222'; x.lineWidth = 3; for (let i = 0; i <= 4; i++) { x.beginPath(); x.moveTo(i * 64, 0); x.lineTo(i * 64, h); x.moveTo(0, i * 64); x.lineTo(w, i * 64); x.stroke(); } }, [7, 7]); floorBump.colorSpace = THREE.NoColorSpace;
+  const hEnv = (() => { const f = (draw) => { const c = document.createElement('canvas'); c.width = c.height = 32; draw(c.getContext('2d')); return c; };
+    const wall = f(x => { x.fillStyle = '#0c0e12'; x.fillRect(0, 0, 32, 32); x.fillStyle = '#c8d0e8'; x.fillRect(0, 11, 32, 3); x.fillRect(0, 22, 32, 2); }), top = f(x => { x.fillStyle = '#1a1e28'; x.fillRect(0, 0, 32, 32); x.fillStyle = '#e8eeff'; x.fillRect(10, 10, 12, 12); }), bot = f(x => { x.fillStyle = '#050706'; x.fillRect(0, 0, 32, 32); });
+    const t = new THREE.CubeTexture([wall, wall, top, bot, wall, wall]); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; return t; })();
+  const fl = add(new THREE.CircleGeometry(WR, 48), new THREE.MeshStandardMaterial({ map: floorTex, bumpMap: floorBump, bumpScale: 1.0, emissive: 0x2c6a40, emissiveMap: floorTex, roughness: 0.28, metalness: 0.75, envMap: hEnv, envMapIntensity: 1.1, fog: false }), 0, -0.6, 0); fl.rotation.x = -Math.PI / 2;
+  // floor decals: a hazard-striped ring round the pad and a landing number in front of it
+  const hazTex = canvasTex(256, 256, (x, w, h) => { x.fillStyle = '#1a1c1b'; x.fillRect(0, 0, w, h); x.fillStyle = '#e8b030'; for (let i = -h; i < w + h; i += 40) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i + 20, 0); x.lineTo(i + 20 + h, h); x.lineTo(i + h, h); x.fill(); } }, [1, 1]);
+  const decalMat = (map) => new THREE.MeshBasicMaterial({ map, transparent: true, opacity: 0.7, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, toneMapped: false, fog: false });
+  const hz = add(new THREE.RingGeometry(13.2, 14.4, 64), decalMat(hazTex), 0, -0.57, 0); hz.rotation.x = -Math.PI / 2;
+  const numTex = canvasTex(256, 128, (x, w, h) => { x.fillStyle = 'rgba(0,0,0,0)'; x.clearRect(0, 0, w, h); x.fillStyle = '#dfe8e2'; x.font = 'bold 92px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('L-07', w / 2, h / 2 + 4); x.fillStyle = '#e8b030'; x.fillRect(16, 8, w - 32, 6); x.fillRect(16, h - 14, w - 32, 6); }, [1, 1]);
+  const nm = add(new THREE.PlaneGeometry(7, 3.5), decalMat(numTex), 0, -0.56, 19); nm.rotation.x = -Math.PI / 2;
   // glowing wall strips
   [3.2, 20.5].forEach(y => add(new THREE.CylinderGeometry(WR - 0.3, WR - 0.3, 0.5, 48, 1, true), glow(0x44ff88, 0.85), 0, y, 0).material.side = THREE.BackSide);
   // big orange window on the back wall (towards -z): asteroid field in a red-orange glow
@@ -625,10 +636,23 @@ hoverGlow.rotation.x = -Math.PI / 2; hoverGlow.position.y = 0.66; hoverGlow.visi
   for (let k = 0; k < 9; k++) { const t = (k - 4) * 0.21, r = 9.0; const o = add(new THREE.BoxGeometry(0.9, 0.14, 1.0), glow(0xc8ffb0), Math.sin(t) * r, 0.58, Math.cos(t) * r); o.rotation.y = t; padTiles.push(o); }
   // crates and pillars around the walls
   let sd = 7; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  // cargo containers and tanks: ribbed panels, corner brackets, hazard bands and bevelled edges painted once into one shared texture (the old crates were plain flat-shaded boxes)
+  const crateTex = canvasTex(256, 256, (x, w, h) => {
+    x.fillStyle = '#c4ccc8'; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < w; i += 16) { x.fillStyle = 'rgba(0,0,0,0.22)'; x.fillRect(i, 14, 4, h - 28); x.fillStyle = 'rgba(255,255,255,0.18)'; x.fillRect(i + 4, 14, 2, h - 28); }   // vertical ribs
+    x.fillStyle = '#6d7a74'; x.fillRect(0, 0, w, 14); x.fillRect(0, h - 14, w, 14);   // top / bottom rails
+    x.fillStyle = '#e8b030'; for (let i = -h; i < w; i += 28) { x.beginPath(); x.moveTo(i, h - 14); x.lineTo(i + 14, h - 14); x.lineTo(i + 28, h - 2); x.lineTo(i + 14, h - 2); x.fill(); }   // hazard band
+    x.fillStyle = '#4a5550'; for (const [cx, cy] of [[0, 0], [w - 22, 0], [0, h - 22], [w - 22, h - 22]]) x.fillRect(cx, cy, 22, 22);   // corner brackets
+    x.fillStyle = 'rgba(20,30,26,0.8)'; x.font = 'bold 26px monospace'; x.fillText('MX-' + (40 + ((rn() * 59) | 0)), 70, 118);   // stencil code
+    stnBevel(x, w, h, 256); x.strokeStyle = 'rgba(0,0,0,0.5)'; x.lineWidth = 4; x.strokeRect(2, 2, w - 4, h - 4);
+  }, [1, 1]);
+  const crateBump = canvasTex(256, 256, (x, w, h) => { x.fillStyle = '#999'; x.fillRect(0, 0, w, h); for (let i = 0; i < w; i += 16) { x.fillStyle = '#333'; x.fillRect(i, 14, 4, h - 28); } x.fillStyle = '#ddd'; x.fillRect(0, 0, w, 14); x.fillRect(0, h - 14, w, 14); }, [1, 1]); crateBump.colorSpace = THREE.NoColorSpace;
+  const crateMats = [0x4f7a62, 0x5a7088, 0x7a6a50].map(c => new THREE.MeshStandardMaterial({ color: c, map: crateTex, bumpMap: crateBump, bumpScale: 1.2, emissive: 0x5a8a70, emissiveMap: crateTex, roughness: 0.55, metalness: 0.4, fog: false }));
   for (let i = 0; i < 26; i++) {
-    const a = rn() * Math.PI * 2, r = 25 + rn() * 11, w = 2.5 + rn() * 4, h = 2 + rn() * 5, d = 2.5 + rn() * 4;
-    const c = add(new THREE.BoxGeometry(w, h, d), std(0x3a5a48 + ((rn() * 16 | 0) << 8), 0x1f4a32, 0.7, 0.4), Math.sin(a) * r, h / 2 - 0.6, Math.cos(a) * r); c.rotation.y = rn() * 3;
-    if (rn() > 0.5) add(new THREE.BoxGeometry(w * 0.6, 0.18, 0.05), glow(0x5aff9a), Math.sin(a) * r, h * 0.7 - 0.6, Math.cos(a) * r).rotation.y = c.rotation.y + 0.0;
+    const a = rn() * Math.PI * 2, r = 25 + rn() * 11, w = 2.5 + rn() * 4, h = 2 + rn() * 5, d = 2.5 + rn() * 4, M = crateMats[(rn() * 3) | 0];
+    const tank = rn() < 0.25, c = add(tank ? new THREE.CylinderGeometry(w * 0.45, w * 0.45, h, 16) : new THREE.BoxGeometry(w, h, d), M, Math.sin(a) * r, h / 2 - 0.6, Math.cos(a) * r); c.rotation.y = rn() * 3;
+    if (!tank && rn() > 0.4) add(new THREE.BoxGeometry(w * 0.7, 0.14, 0.06), glow(0x5aff9a), Math.sin(a) * r, h * 0.82 - 0.6, Math.cos(a) * r).rotation.y = c.rotation.y;   // light strip near the top
+    if (rn() > 0.5) { const cap = add(new THREE.BoxGeometry(w * 0.9, 0.12, d * 0.9), std(0x2a3a32, 0x142a1c, 0.6, 0.5), Math.sin(a) * r, h - 0.55, Math.cos(a) * r); cap.rotation.y = c.rotation.y; cap.visible = !tank; }   // lid plate
   }
   for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + 0.39; add(new THREE.CylinderGeometry(1.1, 1.1, WH, 8), std(0x2f4a3b, 0x1c3a28), Math.sin(a) * (WR - 1.4), WH / 2, Math.cos(a) * (WR - 1.4)); }
 }
@@ -1964,7 +1988,7 @@ function frame(now) {
   }
   boltMesh.instanceMatrix.needsUpdate = true; boltHalo.instanceMatrix.needsUpdate = true;
   updCurSys();
-  let pBuilt = false; const PSIZE = 2, PSEE = 0.5;   // every planet is drawn twice as big
+  let pBuilt = false; const PSIZE = 2, PSEE = 0.5, PFAR = 8;   // every planet is drawn twice as big
   fwdOf(S.q, fwd); const here0 = nearPlanet(); if (stations[homeSt].sys !== curSys) { let bd = 1e18; stations.forEach((q, i) => { if (q.sys === curSys) { const dd = S.pos.distanceToSquared(q.pos); if (dd < bd) { bd = dd; homeSt = i; } } }); }
   const vpI = S.mode === 'dock' ? S.station : homeSt; let pi = -1; aimCool = Math.max(0, aimCool - dt); const aimOk = S.mode === 'fly' && !trvOn && !entOn && !mapOn && !S.target && aimCool <= 0;
   for (const p of planets) { pi++;   // planets are unreachable scenery: drawn along the true direction but at an apparent distance that barely shrinks, with the size you would see from the real distance
@@ -1980,9 +2004,10 @@ function frame(now) {
     { const cf = pi !== vpI && SKY[stations[vpI].name] && SKY[stations[vpI].name][stations[pi].name]; if (cf) { _pd.set(cf.dir[0], cf.dir[1], cf.dir[2]).normalize(); tr = Math.tan(cf.radiusDeg * PLANET_K * Math.PI / 180); }   // every other planet sits where the editor put it, seen from the planet you are at
       if (!p.fd) { p.fd = _pd.clone(); p.fr = tr; } else { const q = Math.min(1, dt * 2.5); p.fd.lerp(_pd, q).normalize(); p.fr += (tr - p.fr) * q; } _pd.copy(p.fd); }
     const af = p.fr; p.mesh.position.copy(S.pos).addScaledVector(_pd, dA);   // while you are at one planet the others shrink to 40% (you can still see them, they just stop dominating the sky)   // double size, but the planet right next to you grows less so it does not swallow the whole sky
-    { const lo = af < 0.085; if (lo !== p.lo) { p.lo = lo; p.mesh.geometry = lo ? p.g1 : p.g0; if (p.hm) p.hm.geometry = p.mesh.geometry; if (p.cl) p.cl.visible = !lo; if (p.moon) p.moon.visible = !lo; } }   // LOD: far planets (small discs) drop clouds, moon and sphere detail
+    const vf = pi !== vpI ? PFAR : 1;   // purely visual: planets of other stations are drawn PFAR times bigger (the aiming/lock logic keeps using the real size)
+    { const lo = af * vf < 0.085; if (lo !== p.lo) { p.lo = lo; p.mesh.geometry = lo ? p.g1 : p.g0; if (p.hm) p.hm.geometry = p.mesh.geometry; if (p.cl) p.cl.visible = !lo; if (p.moon) p.moon.visible = !lo; } }   // LOD: far planets (small discs) drop clouds, moon and sphere detail
     if (aimOk && pi !== here0 && pi !== vpI && fwd.dot(_pd) > Math.cos(Math.max(0.07, af * 1.3))) { p.aim = (p.aim || 0) + dt; if (p.aim > 0.9) { p.aim = 0; S.tPlanet = pi; sfx('lock'); trvOn = true; $('trv-name').textContent = stations[pi].name; $('trv-dlg').style.display = 'flex'; } } else p.aim = 0;   // hold the crosshair on a planet for ~1 s and the game asks if you want to go there
-    p.mesh.scale.setScalar(af * dA); if (p.rg) { p.rg.position.copy(p.mesh.position); p.rg.scale.setScalar(af * dA / p.r); }
+    p.mesh.scale.setScalar(af * dA * vf); if (p.rg) { p.rg.position.copy(p.mesh.position); p.rg.scale.setScalar(af * dA * vf / p.r); }
   }
   { const bo = S.boosting && S.mode === 'fly'; if (bo !== spdOn) { spdOn = bo; spdEl.style.opacity = bo ? '1' : '0'; }
     let fi = 0; if (S.mode === 'fly' || S.mode === 'wreck') { _fl.copy(SUN_DIR).multiplyScalar(9000).add(camera.position).project(camera); if (_fl.z < 1) fi = clamp(1.2 - Math.max(Math.abs(_fl.x), Math.abs(_fl.y)), 0, 1); }
