@@ -684,6 +684,38 @@ const dustMat = new THREE.ShaderMaterial({
 
 // ---------- asteroids ----------
 const AST_PER = 40, AST_N = AST_PER * 3, ASTR = 520;
+// rock surface baked once at load into a small tileable texture: R = relief (pits, craters with raised rims), G = dark/light patches. Applied in the shader with three-way (triplanar) mapping, so there are no UV seams and no extra geometry.
+const rockTex = (() => {
+  const N = 256, hgt = new Float32Array(N * N), alb = new Float32Array(N * N);
+  const hash = (x, y, sd) => { const t = Math.sin(x * 127.1 + y * 311.7 + sd * 74.7) * 43758.5453; return t - Math.floor(t); };
+  const vnoise = (u, v, g, sd) => { const x = u * g, y = v * g, ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy), w = (a) => ((a % g) + g) % g;
+    const a = hash(w(ix), w(iy), sd), b = hash(w(ix + 1), w(iy), sd), c = hash(w(ix), w(iy + 1), sd), d = hash(w(ix + 1), w(iy + 1), sd); return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy; };
+  const fbm = (u, v, sd) => { let t = 0, a = 0.5, g = 4; for (let o = 0; o < 5; o++) { t += a * vnoise(u, v, g, sd + o); a *= 0.5; g *= 2; } return t; };
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const u = x / N, v = y / N; hgt[y * N + x] = fbm(u, v, 1) * 0.55; alb[y * N + x] = fbm(u, v, 9); }
+  for (let c = 0; c < 70; c++) {   // craters: many small, a few large; bowl plus raised rim, wrapped so the texture tiles
+    const cx = Math.random() * N, cy = Math.random() * N, rad = 4 + 34 * Math.pow(Math.random(), 2.4), dep = 0.5 + Math.random() * 0.4, R = Math.ceil(rad * 1.5);
+    for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) { const t = Math.hypot(dx, dy) / rad; if (t > 1.5) continue; const px = (Math.round(cx) + dx + N) % N, py = (Math.round(cy) + dy + N) % N, i = py * N + px;
+      if (t < 1) { hgt[i] -= dep * (1 - t * t) * 0.55; alb[i] -= 0.12 * (1 - t); } const q = (t - 1.06) / 0.2; hgt[i] += dep * 0.32 * Math.exp(-q * q); }
+  }
+  let lo = 1e9, hi = -1e9; for (let i = 0; i < N * N; i++) { lo = Math.min(lo, hgt[i]); hi = Math.max(hi, hgt[i]); }
+  const data = new Uint8Array(N * N * 4); for (let i = 0; i < N * N; i++) { data[i * 4] = 255 * (hgt[i] - lo) / (hi - lo); data[i * 4 + 1] = 255 * clamp(alb[i] * 1.5 + 0.1, 0, 1); data[i * 4 + 2] = 0; data[i * 4 + 3] = 255; }
+  const t = new THREE.DataTexture(data, N, N, THREE.RGBAFormat); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.anisotropy = 1; t.needsUpdate = true; return t;
+})();
+const rockShade = (mat) => { mat.onBeforeCompile = (sh) => {
+  sh.uniforms.uRock = { value: rockTex };
+  sh.vertexShader = 'varying vec3 vOP; varying vec3 vNO; varying float vSc;\n' + sh.vertexShader
+    .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n vNO = objectNormal;')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\n vOP = position; vSc = length(vec3(instanceMatrix[0]));');
+  sh.fragmentShader = 'uniform sampler2D uRock; varying vec3 vOP; varying vec3 vNO; varying float vSc;\n' + sh.fragmentShader
+    .replace('#include <color_fragment>', `#include <color_fragment>
+      vec3 rw = pow(abs(normalize(vNO)), vec3(4.0)); rw /= (rw.x + rw.y + rw.z);
+      vec3 rpa = vOP * 1.15;
+      vec2 rA = texture2D(uRock, rpa.yz).rg * rw.x + texture2D(uRock, rpa.xz).rg * rw.y + texture2D(uRock, rpa.xy).rg * rw.z;
+      diffuseColor.rgb *= 0.55 + 0.8 * rA.g * (0.8 + 0.4 * rA.r);`)
+    .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      { float rh = rA.r * 0.05 * vSc;
+        vec3 sX = dFdx(-vViewPosition), sY = dFdy(-vViewPosition); vec3 R1 = cross(sY, normal), R2 = cross(normal, sX); float fDet = dot(sX, R1); fDet *= (float(gl_FrontFacing) * 2.0 - 1.0);
+        vec3 vG = sign(fDet) * (dFdx(rh) * R1 + dFdy(rh) * R2); normal = normalize(abs(fDet) * normal - vG); }`); }; };
 const asteroids = [], astMeshes = [];
 {
   const col = new THREE.Color();
@@ -694,13 +726,13 @@ const asteroids = [], astMeshes = [];
     const craters = []; for (let c = 0; c < 4; c++) craters.push(V3(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize());
     for (let i = 0; i < p.count; i++) {
       v.fromBufferAttribute(p, i).normalize();
-      let k = 1 + 0.07 * Math.sin(v.x * 2.4 + ph[0]) * Math.sin(v.y * 2.1 + ph[1]) + 0.05 * Math.sin(v.z * 3.1 + v.x * 1.7 + ph[2]) + 0.025 * Math.sin(v.y * 5.3 + v.z * 4.1 + ph[3]);
+      let k = 1 + 0.12 * Math.sin(v.x * 2.4 + ph[0]) * Math.sin(v.y * 2.1 + ph[1]) + 0.08 * Math.sin(v.z * 3.1 + v.x * 1.7 + ph[2]) + 0.05 * Math.sin(v.y * 5.3 + v.z * 4.1 + ph[3]) + 0.03 * Math.sin(v.x * 8.7 + v.y * 7.1 + ph[0]);
       for (const c of craters) { const d = v.dot(c); if (d > 0.9) { const t = (d - 0.9) / 0.1; k -= 0.075 * t * t * (3 - 2 * t); } }
       p.setXYZ(i, v.x * k * (0.88 + s * 0.12), v.y * k * (1.0 - s * 0.04), v.z * k * (1.1 - s * 0.1));
     }
     g.computeVertexNormals();
     { const cc = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const n = 0.82 + 0.18 * Math.sin(v.x * 6.1 + ph[0]) * Math.sin(v.y * 5.3 + ph[1]) * Math.sin(v.z * 6.7 + ph[2]); cc[i * 3] = n; cc[i * 3 + 1] = n * 0.97; cc[i * 3 + 2] = n * 0.93; } g.setAttribute('color', new THREE.BufferAttribute(cc, 3)); }
-    const m = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.9, metalness: 0.05, flatShading: false, emissive: 0x1c1610 }), AST_PER);
+    const m = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.9, metalness: 0.05, flatShading: false, emissive: 0x0e0b08 }), AST_PER); rockShade(m.material);
     m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     for (let i = 0; i < AST_PER; i++) {
       { const q = Math.random(); if (q < 0.6) col.setHSL(rnd(0.05, 0.1), rnd(0.1, 0.28), rnd(0.42, 0.62)); else if (q < 0.8) col.setHSL(0.6, rnd(0.02, 0.08), rnd(0.4, 0.6)); else if (q < 0.92) col.setHSL(rnd(0.0, 0.04), rnd(0.3, 0.45), rnd(0.38, 0.5)); else col.setHSL(0.56, rnd(0.15, 0.3), rnd(0.55, 0.72)); } m.setColorAt(i, col);   // brown / grey / rusty iron / icy
