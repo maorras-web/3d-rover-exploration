@@ -927,6 +927,12 @@ function buildStation(name, col, V) {
   const face = (c0, c1) => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 32); gr.addColorStop(0, c0); gr.addColorStop(1, c1); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); return c; };
   const env = new THREE.CubeTexture([face('#1b2a44', '#3a78c8'), face('#1b2a44', '#2d5fa8'), face('#050810', '#0a1020'), face('#4a8ad8', '#8fc0f0'), face('#16223a', '#2f68b4'), face('#1b2a44', '#3a78c8')]); env.colorSpace = THREE.SRGBColorSpace; env.needsUpdate = true;
   const skin = new THREE.MeshStandardMaterial({ color: new THREE.Color(0xc4ccdc).lerp(new THREE.Color(col), 0.5), map: plate, bumpMap: plate, bumpScale: 3, roughness: 0.38, metalness: 0.78, envMap: stnEnv, envMapIntensity: 1.5, emissive: 0xffffff, emissiveMap: dots, emissiveIntensity: 1.2, fog: false, flatShading: !!V.seg }); stnLit(skin, 1.1);
+  const citLight = (m) => { const prev = m.onBeforeCompile; m.onBeforeCompile = (sh) => { prev(sh); sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', 'float nyv = normalize(normal).y; outgoingLight *= mix(vec3(0.42, 0.5, 0.7), vec3(1.45, 1.35, 1.25), smoothstep(-0.3, 0.55, sl)); outgoingLight += vec3(0.6, 0.7, 0.9) * smoothstep(0.14, 0.0, abs(nyv - 0.45)) * 0.4 * (0.4 + 0.6 * smoothstep(-0.3, 0.5, sl)); outgoingLight += vec3(0.08, 0.22, 0.6) * smoothstep(0.2, 0.0, abs(nyv + 0.5)) * 0.45;\n#include <opaque_fragment>'); }; return m; };
+  const citEnv = (() => { const cv = () => { const c = document.createElement('canvas'); c.width = c.height = 64; return c; }, f = (k) => { const c = cv(), x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 64); gr.addColorStop(0, '#3a4358'); gr.addColorStop(0.16, '#eef3ff'); gr.addColorStop(0.3, '#6f7c96'); gr.addColorStop(0.4, '#f6f8ff'); gr.addColorStop(0.47, '#2a3246'); gr.addColorStop(0.55, '#07090f'); gr.addColorStop(0.7, '#101624'); gr.addColorStop(0.86, '#33466e'); gr.addColorStop(1, '#0c1220'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); x.fillStyle = 'rgba(255,255,255,0.9)'; x.fillRect(k ? 6 : 40, 0, 4, 64); return c; };
+    const top = cv(), tx = top.getContext('2d'), tg = tx.createRadialGradient(32, 32, 4, 32, 32, 46); tg.addColorStop(0, '#dbe5f7'); tg.addColorStop(1, '#4a566a'); tx.fillStyle = tg; tx.fillRect(0, 0, 64, 64); const bot = cv(); bot.getContext('2d').fillStyle = '#1a2640'; bot.getContext('2d').fillRect(0, 0, 64, 64);
+    const t = new THREE.CubeTexture([f(1), f(0), top, bot, f(0), f(0)]); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; return t; })();   // chrome-like studio reflections: bright bands, dark horizon, blue ground
+  const cpan = (rx, ry) => canvasTex(256, 256, (x, w, h) => { x.fillStyle = '#d8d8d8'; x.fillRect(0, 0, w, h); const cw = [48, 80, 64, 32, 80], ch = [64, 32, 96, 64]; let py = 0, j = 0; while (py < h) { const rh = ch[j++ % 4]; let px = (j * 24) % 64 - 64, i = j; while (px < w) { const cwd = cw[i++ % 5], v = 175 + ((Math.random() * 70) | 0); x.fillStyle = 'rgb(' + v + ',' + v + ',' + (v + 6) + ')'; x.fillRect(px, py, cwd, rh); x.strokeStyle = 'rgba(0,0,0,0.85)'; x.lineWidth = 3; x.strokeRect(px, py, cwd, rh); x.strokeStyle = 'rgba(255,255,255,0.55)'; x.lineWidth = 1; x.strokeRect(px + 3, py + 3, cwd - 6, rh - 6); x.fillStyle = 'rgba(0,0,0,0.55)'; for (const [qx, qy] of [[7, 7], [cwd - 8, 7], [7, rh - 8], [cwd - 8, rh - 8]]) { x.beginPath(); x.arc(px + qx, py + qy, 1.6, 0, 7); x.fill(); } if (Math.random() < 0.35) { x.fillStyle = 'rgba(0,0,0,0.6)'; for (let q = 0; q < 3; q++) x.fillRect(px + 12, py + rh * 0.35 + q * 5, cwd - 24, 2); } px += cwd; } py += rh; } }, [rx, ry]);   // engraved panel lines + rivets: one tiny texture, free at run time
+  if (V.citadel) { skin.color.set(0x4c5464); skin.map = cpan(9, 3); skin.bumpMap = skin.map; skin.bumpScale = 2.2; skin.roughness = 0.3; skin.metalness = 1.0; skin.envMap = citEnv; skin.envMapIntensity = 1.8; skin.emissiveIntensity = 1.1; citLight(skin); }   // polished gunmetal: mirror reflections of the studio bands
   const parts = [], Mx = new THREE.Matrix4(), Qq = new THREE.Quaternion(), Pp = new THREE.Vector3(), Ss = new THREE.Vector3();
   const put = (geo, pos, quat, scl) => { Mx.compose(Pp.set(pos[0], pos[1], pos[2]), quat || Qq.identity(), Ss.set(scl ? scl[0] : 1, scl ? scl[1] : 1, scl ? scl[2] : 1)); geo.applyMatrix4(Mx); parts.push(geo); };
   // spindle station: a smooth pearl-shaped hull, a glowing halo ring held on slim struts, swept tail blades round the hangar mouth and a crown of swept antennae
@@ -936,20 +942,50 @@ function buildStation(name, col, V) {
     [[0, -58], [3, -54], [7, -44], [10, -30], [11.2, -14], [10.8, 2], [10.2, 12], [10, 18], [10, 30], [11.5, 32]],
     [[0, -52], [6, -50], [14, -44], [20, -36], [22.5, -28], [19, -20], [12.5, -15], [12, -13], [16, -9], [22, -2], [23, 6], [19, 14], [13, 18], [10.5, 22], [10, 30], [11.5, 32]]];
   const prof = PROFS[V.prof || 0], hr = V.hr || 38, hz = V.hz || -19, kk = hr / 38;
-  const lathe = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), V.seg || 28); lathe.rotateX(Math.PI / 2); parts.push(lathe);
-  const legN = parts.length;   // everything pushed from here to the antennae = struts + tail blades -> polished leg metal instead of the window-lit hull
+  if (!V.citadel) { const lathe = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), V.seg || 28); lathe.rotateX(Math.PI / 2); parts.push(lathe); }
+  if (V.citadel) {   // citadel station, windowed parts (lit windows): a thick tower with a mid belt and three heavy arms under the saucer; the hangar mouth stays at the +z end
+    const cz = (rp, rm, h, z, seg, x, y) => { const q = new THREE.CylinderGeometry(rp, rm, h, seg || 14); q.rotateX(Math.PI / 2); put(q, [x || 0, y || 0, z]); };   // cylinder along z (rp = radius at the +z end)
+    const sp = new THREE.LatheGeometry([[0, -26], [9, -25], [12, -22], [12, -8], [11, -6], [11, 14], [12.5, 16], [12.5, 24], [11.5, 27], [11.5, 32]].map(q => new THREE.Vector2(q[0], q[1])), 24); sp.rotateX(Math.PI / 2); parts.push(sp);
+    cz(14.5, 14.5, 9, -13, 18);   // lit habitat belt round the tower
+    for (let k = 0; k < 3; k++) { const an = k * 2.0944 + 0.52, d = new THREE.Vector3(Math.cos(an), Math.sin(an), 0), q = Qq.clone().setFromUnitVectors(Y, d);
+      put(new THREE.CylinderGeometry(6.4, 6.4, 40, 16), [d.x * 30, d.y * 30, -16], q);   // arm body
+      put(new THREE.SphereGeometry(1, 16, 10), [d.x * 50, d.y * 50, -16], null, [6.4, 6.4, 6.4]);   // rounded tip
+      put(new THREE.BoxGeometry(1, 1, 1), [d.x * 30, d.y * 30, -21.6], Qq.clone().setFromAxisAngle(Z, an), [26, 7, 3.2]); }   // armoured block on top of each arm
+  }
+  const citNz = [], legN = parts.length;   // everything pushed from here to the antennae = struts + tail blades -> polished leg metal instead of the window-lit hull
   // struts from the hull to the halo ring
   for (let k = 0; k < V.ribs; k++) { const an = k * Math.PI * 2 / V.ribs + 0.2; put(new THREE.BoxGeometry(1, 1, 1), [Math.cos(an) * 30 * kk, Math.sin(an) * 30 * kk, hz], Qq.clone().setFromAxisAngle(Z, an), [13 * kk, 1.4, 3]); }
   // swept tail blades round the hangar mouth (long, thin, leaning outwards)
   for (let k = 0; k < V.fins; k++) { const an = k * Math.PI * 2 / V.fins, d = new THREE.Vector3(Math.cos(an) * 0.2, Math.sin(an) * 0.2, 1).normalize(); put(new THREE.SphereGeometry(1, 12, 8), [Math.cos(an) * 14, Math.sin(an) * 14, 36], Qq.clone().setFromUnitVectors(Z, d), [V.fw * 0.75, 1.5, 22]); }
+  if (V.citadel) {   // polished-metal parts: the saucer, its details, collars and angular armour plates
+    const cz = (rp, rm, h, z, seg, x, y) => { const q = new THREE.CylinderGeometry(rp, rm, h, seg || 14); q.rotateX(Math.PI / 2); put(q, [x || 0, y || 0, z]); };
+    put(new THREE.SphereGeometry(1, 16, 10), [0, 0, -45], null, [8, 8, 5]);   // dome
+    cz(14, 10, 5, -41, 10); cz(26, 16, 6, -36.5, 10); cz(34, 32, 4.4, -32, 10); cz(24, 34, 6, -27, 10);   // the stepped ten-sided saucer
+    cz(16, 16, 4, -22, 12);   // collar under the saucer
+    cz(0.6, 0.6, 24, -57, 6, 2, 0); cz(0.45, 0.45, 13, -52, 6, -3, 2.5);   // two masts
+    for (let k = 0; k < 20; k++) { const an = k * Math.PI / 10 + 0.157, q = Qq.clone().setFromAxisAngle(Z, an); put(new THREE.BoxGeometry(1, 1, 1), [Math.cos(an) * 23, Math.sin(an) * 23, -39.9], q, [10, 1.3, 1.8]); put(new THREE.BoxGeometry(1, 1, 1), [Math.cos(an) * 33, Math.sin(an) * 33, -30.3], q, [3.4, 2.4, 3.6]); }   // radial ribs on top and armour blocks on the rim
+    for (let k = 0; k < 10; k++) { const an = k * Math.PI / 5; put(new THREE.SphereGeometry(1, 10, 6), [Math.cos(an) * 27, Math.sin(an) * 27, -23.6], null, [2.8, 2.8, 1.8]); }   // turret domes under the saucer
+    for (let k = 0; k < 3; k++) cz(20 - k * 5, 20 - k * 5 - 2, 1.2, -49 + k * 0.4, 10);   // sensor rings on the dome
+    for (const z of [-4, 6, 16, 23]) cz(12.6, 12.6, 1.5, z, 24);   // collars on the tower
+    { const sk = new THREE.CylinderGeometry(19, 12.8, 9, 24, 1, true); sk.rotateX(Math.PI / 2); put(sk, [0, 0, 28.5]); }   // flared open skirt round the hangar mouth
+    put(new THREE.TorusGeometry(19, 1.5, 8, 28), [0, 0, 33]); put(new THREE.TorusGeometry(13.2, 1.4, 8, 24), [0, 0, 25.5]); put(new THREE.TorusGeometry(15.6, 0.9, 6, 24), [0, 0, 29.5]);   // heavy rim and bracing rings (open in the middle)
+    for (let k = 0; k < 8; k++) { const an = k * 0.7854 + 0.39, q = Qq.clone().setFromAxisAngle(Z, an); put(new THREE.BoxGeometry(1, 1, 1), [Math.cos(an) * 15.5, Math.sin(an) * 15.5, 24], q, [7, 2.2, 14]);   // buttresses from the tower to the rim
+      put(new THREE.CylinderGeometry(1.7, 2.6, 5, 8), [Math.cos(an) * 19, Math.sin(an) * 19, 36], Qq.clone().setFromUnitVectors(Y, new THREE.Vector3(0, 0, 1))); citNz.push([Math.cos(an) * 19, Math.sin(an) * 19, 39, 1.0]); }   // engine nozzles with a glow at the tail
+    for (const z of [20, 26]) { const bd = new THREE.CylinderGeometry(16.5, 16.5, 1.2, 24, 1, true); bd.rotateX(Math.PI / 2); put(bd, [0, 0, z + 5]); }
+    for (let k = 0; k < 3; k++) { const an = k * 2.0944 + 0.52, d = new THREE.Vector3(Math.cos(an), Math.sin(an), 0), q = Qq.clone().setFromUnitVectors(Y, d);
+      for (const r of [16, 27, 38]) put(new THREE.CylinderGeometry(7, 7, 1.5, 16), [d.x * r, d.y * r, -16], q);
+      const fa = k * 2.0944 + 1.57, fq = Qq.clone().setFromAxisAngle(Z, fa);
+      for (const [R, z, L, W] of [[16, 14, 28, 9], [19.5, 19, 18, 6]]) { const pl = new THREE.CylinderGeometry(0.5, 0.5, 1, 4); pl.rotateX(Math.PI / 2); pl.rotateZ(Math.PI / 4); put(pl, [Math.cos(fa) * R, Math.sin(fa) * R, z], fq, [W * 0.55, W, L]); } }   // angular armour plates down the lower tower
+  }
   const legs = parts.splice(legN);
   // crown of swept antennae (they lean back from the nose)
   const navG = []; const navAt = (x, y, z, r) => { const q = navSph(r || 1.2); q.translate(x, y, z); navG.push(q); };
   for (let hk = 0; hk < V.horns; hk++) { const an = hk * Math.PI * 2 / V.horns + 0.3, d = new THREE.Vector3(Math.cos(an) * 0.7, Math.sin(an) * 0.7, -0.7).normalize(), hh = 14 + 14 * V.hl; put(new THREE.ConeGeometry(1.5, hh, 8), [Math.cos(an) * 14, Math.sin(an) * 14, -43 - 3 * V.hl], Qq.clone().setFromUnitVectors(Y, d)); navAt(Math.cos(an) * 14 + d.x * hh * 0.5, Math.sin(an) * 14 + d.y * hh * 0.5, -43 - 3 * V.hl + d.z * hh * 0.5, 1.1); }
   if (V.spire) { put(new THREE.ConeGeometry(2, 34, 8), [0, 0, -69], Qq.clone().setFromUnitVectors(Y, new THREE.Vector3(0, 0, -1))); navAt(0, 0, -86, 1.5); }
-  for (let k = 0; k < 4; k++) navAt(Math.cos(k * 1.5708 + 0.4) * hr, Math.sin(k * 1.5708 + 0.4) * hr, hz, 1.6);   // four marker lights on the halo
+  if (V.citadel) { for (const q of citNz) navAt(q[0], q[1], q[2], q[3]); navAt(2, 0, -64, 1.5); navAt(-3, 2.5, -56, 1.2); for (let k = 0; k < 3; k++) { const an = k * 2.0944 + 0.52; navAt(Math.cos(an) * 52, Math.sin(an) * 52, -16, 1.6); } }
+  else for (let k = 0; k < 4; k++) navAt(Math.cos(k * 1.5708 + 0.4) * hr, Math.sin(k * 1.5708 + 0.4) * hr, hz, 1.6);   // four marker lights on the halo
   for (let k = 0; k < 3; k++) navAt(Math.cos(k * 2.0944) * 10.5, Math.sin(k * 2.0944) * 10.5, 31, 0.9);   // and three round the hangar mouth
-  { // halo: a dark ring carrying a row of lit light-panels, with a thin glowing rail above and below it (instead of one thick solid band)
+  if (!V.citadel) { // halo: a dark ring carrying a row of lit light-panels, with a thin glowing rail above and below it (instead of one thick solid band)
     const hbTex = canvasTex(256, 16, (x, w, h) => { x.fillStyle = '#10151d'; x.fillRect(0, 0, w, h); for (let i = 0; i < 32; i++) { x.fillStyle = i % 4 === 0 ? V.band[1] : V.band[0]; x.fillRect(i * 8 + 1, 3, 6, 10); } }, [3, 1]);
     const halo = new THREE.Mesh(new THREE.CylinderGeometry(hr, hr, 3.4, 72, 1, true), new THREE.MeshBasicMaterial({ map: hbTex, color: 0x9a9a9a, toneMapped: false, fog: false, side: THREE.DoubleSide })); halo.rotation.x = Math.PI / 2; halo.position.z = hz; g.add(halo);
     const r1 = new THREE.TorusGeometry(hr, 0.55, 5, 72), r2 = r1.clone(); r1.translate(0, 0, hz - 1.9); r2.translate(0, 0, hz + 1.9);
@@ -958,7 +994,7 @@ function buildStation(name, col, V) {
   g.add(new THREE.Mesh(mergeGeometries(navG), stnNav));
   g.add(stnCap(10.9, 25)); stnApproach(g, 15, 46, 14);
   { const hg = glowSprite(new THREE.Color(V.band[0]).getHex(), 46, 0.55); hg.position.set(0, 0, 38); g.add(hg); }   // light spilling out of the hangar mouth
-  g.add(new THREE.Mesh(mergeGeometries(parts), skin)); g.add(new THREE.Mesh(mergeGeometries(legs), stnLegMat(col, 0.3)));
+  g.add(new THREE.Mesh(mergeGeometries(parts), skin)); { const lm = stnLegMat(col, 0.3); if (V.citadel) { lm.color.set(0x525a6a); lm.map = cpan(2, 2); lm.bumpMap = lm.map; lm.bumpScale = 2.4; lm.roughness = 0.18; lm.metalness = 1.0; lm.envMap = citEnv; lm.envMapIntensity = 1.7; citLight(lm); } g.add(new THREE.Mesh(mergeGeometries(legs), lm)); }
   const beacon = glowSprite(0x6fe8ff, 1, 0);   // kept only because the frame loop pulses it; not added to the scene
   g.userData = { spin, beacon };
   return g;
@@ -1006,7 +1042,7 @@ function buildStationB(name, col, V) {
 // ---------- solar system: six planets in different colours, each with exactly ONE station in orbit next to it ----------
 // pl.off = where the planet sits relative to its station (the station is always about one planet-radius + 400 away from the surface)
 const stations = [
-  { name: 'XIAQA', col: '#ffa040', v: { fins: 6, fw: 4.6, ribs: 8, horns: 2, hl: 1, ringN: 11, tint: 0.25, band: ['#4dff7a', '#ffd24a'] }, pos: V3(0, 0, 0), front: V3(0, -1, 0), pl: { kind: 'gas', r: 620, off: V3(-900, -150, -640), atm: [1.0, 0.55, 0.26], ring: true } },
+  { name: 'XIAQA', col: '#ffa040', v: { citadel: 1, big: 2.3, fins: 0, fw: 4.6, ribs: 0, horns: 0, hl: 1, ringN: 11, tint: 0.25, band: ['#4dff7a', '#ffd24a'] }, pos: V3(0, 0, 0), front: V3(0, -1, 0), pl: { kind: 'gas', r: 620, off: V3(-900, -150, -640), atm: [1.0, 0.55, 0.26], ring: true } },
   { name: 'TIANOG', col: '#4aa0ff', v: { prof: 1, hr: 21, sxy: 0.9, big: 1.35, fins: 4, fw: 5.4, ribs: 6, horns: 0, spire: 1, hl: 1, ringN: 8, tint: 0.35, band: ['#4aa0ff', '#ffffff'] }, pos: V3(1800, 260, -1500), front: V3(0, -1, 0), pl: { kind: 'ocean', r: 420, off: V3(700, -300, -500), atm: [0.28, 0.58, 1.0] } },
   { name: 'MIRAK', col: '#b46bff', v: { sxy: 1.3, sz: 0.75, big: 1.1, fins: 8, fw: 3.2, ribs: 10, horns: 4, hl: 0.8, ringN: 14, tint: 0.4, band: ['#d49aff', '#ff5ad2'] }, pos: V3(-2100, -180, -2000), front: V3(0, -1, 0), pl: { kind: 'purple', r: 460, off: V3(-500, 200, -800), atm: [0.7, 0.35, 1.0], ring: true } },
   { name: 'TEPZONIAX', col: '#4cff8a', v: { prof: 2, hz: -15, hr: 30, big: 1.9, fins: 5, fw: 4.2, ribs: 5, horns: 2, hl: 1.4, ringN: 10, tint: 0.4, band: ['#4cff8a', '#bfffd8'] }, pos: V3(3400, -350, 900), front: V3(0, -1, 0), pl: { kind: 'jungle', r: 520, off: V3(800, 200, 500), atm: [0.3, 1.0, 0.55] } },
@@ -1020,6 +1056,7 @@ const stations = [
   { name: 'PIOPA', col: '#35e0c8', v: { big: 1.5, ring: 1, R: 38, tube: 3.0, rings: 2, spokes: 8, panels: 0, tanks: 0, tint: 0.2, band: ['#35e0c8', '#d0fff6'] }, pos: V3(8000, -400, -8600), front: V3(0, -1, 0), pl: { kind: 'onyx', r: 500, off: V3(-700, 250, -350), atm: [0.2, 0.9, 0.8] } },
 ];
 const SYSTEMS = ['PIKRO', 'YAPZO']; stations.forEach((s, i) => { s.sys = i < 6 ? 0 : 1; });
+// (no cloning for now: only XIAQA has the new citadel design, the other stations keep their own)
 const ST_K = 3;   // station scale: everything is built at 1x and the whole station group is scaled
 const SYS_K = 2.2;   // spread the system out: distance between stations x2.2 (planets move with their stations)
 stations.forEach(s => s.pos.multiplyScalar(SYS_K));
@@ -1949,7 +1986,7 @@ function frame(now) {
       }
     }
     if (S.inv > 0) S.inv -= dt;
-    for (const st of stations) { if (!st.g.visible) continue; _a.copy(S.pos).sub(st.pos); const d = _a.length(); if (d < 40 * ST_K) { S.pos.copy(st.pos).addScaledVector(_a.multiplyScalar(40 * ST_K / (d || 1)), 1); S.speed *= 0.6; } }
+    for (const st of stations) { if (!st.g.visible) continue; _a.copy(S.pos).sub(st.pos); const d = _a.length(), cr = 40 * ST_K * (st.v.citadel ? st.v.big : 1); if (d < cr) { S.pos.copy(st.pos).addScaledVector(_a.multiplyScalar(cr / (d || 1)), 1); S.speed *= 0.6; } }   // the big citadel has a bigger solid core
     // planets are scenery: they can never be reached (see the planet placement in the world animation)
     const mag = 20 + 0;
     for (let i = 0; i < LOOT_N; i++) {
