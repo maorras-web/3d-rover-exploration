@@ -981,6 +981,8 @@ const SYSTEMS = ['HELIOS', 'YAPZO']; stations.forEach((s, i) => { s.sys = i < 6 
 const ST_K = 3;   // station scale: everything is built at 1x and the whole station group is scaled
 const SYS_K = 2.2;   // spread the system out: distance between stations x2.2 (planets move with their stations)
 stations.forEach(s => s.pos.multiplyScalar(SYS_K));
+const PLANET_K = 1;   // planets are scaled down so the whole planet (and its rings) fits in view from the station; the gap between surface and station stays the same
+stations.forEach(s => { const p = s.pl, gap = p.off.length() - p.r; p.r *= PLANET_K; p.off.setLength(gap + p.r); });
 stations.forEach(s => { s.front.normalize(); s.g = (s.v.ring ? buildStationB : buildStation)(s.name, s.col, s.v); s.g.scale.set(ST_K * (s.v.big || 1) * (s.v.sxy || 1), ST_K * (s.v.big || 1) * (s.v.sxy || 1), ST_K * (s.v.big || 1) * (s.v.sz || 1)); s.g.position.copy(s.pos); s.g.up.set(0, 0, 1); s.g.lookAt(s.pos.clone().add(s.front)); scene.add(s.g); });
 const planets = [];
 {
@@ -1962,7 +1964,7 @@ function frame(now) {
   }
   boltMesh.instanceMatrix.needsUpdate = true; boltHalo.instanceMatrix.needsUpdate = true;
   updCurSys();
-  let pBuilt = false; const PSIZE = 2;   // every planet is drawn twice as big
+  let pBuilt = false; const PSIZE = 2, PSEE = 0.5;   // every planet is drawn twice as big
   fwdOf(S.q, fwd); const here0 = nearPlanet(); if (stations[homeSt].sys !== curSys) { let bd = 1e18; stations.forEach((q, i) => { if (q.sys === curSys) { const dd = S.pos.distanceToSquared(q.pos); if (dd < bd) { bd = dd; homeSt = i; } } }); }
   const vpI = S.mode === 'dock' ? S.station : homeSt; let pi = -1; aimCool = Math.max(0, aimCool - dt); const aimOk = S.mode === 'fly' && !trvOn && !entOn && !mapOn && !S.target && aimCool <= 0;
   for (const p of planets) { pi++;   // planets are unreachable scenery: drawn along the true direction but at an apparent distance that barely shrinks, with the size you would see from the real distance
@@ -1974,8 +1976,8 @@ function frame(now) {
     if (p.build && !pBuilt) { p.build(); p.build = null; pBuilt = true; }   // each planet paints its surface the first time it is in view (one per frame, so there is no long freeze)
     if (p.cl) p.cl.rotation.y += dt * 0.012;
     if (p.moon) { p.mt += dt * 0.04; p.moon.position.set(Math.cos(p.mt) * 1.9, Math.sin(p.mt * 0.7) * 0.3, Math.sin(p.mt) * 1.9); }
-    p.sm = (p.sm || 1) + (((here0 >= 0 && pi !== here0) ? 0.4 : 1) - (p.sm || 1)) * Math.min(1, dt * 1.5); const f = Math.min(PSIZE, 0.75 / a) * (own ? 1 : p.sm); let tr = a * f;
-    { const cf = pi !== vpI && SKY[stations[vpI].name] && SKY[stations[vpI].name][stations[pi].name]; if (cf) { _pd.set(cf.dir[0], cf.dir[1], cf.dir[2]).normalize(); tr = Math.tan(cf.radiusDeg * Math.PI / 180); }   // every other planet sits where the editor put it, seen from the planet you are at
+    p.sm = (p.sm || 1) + (((here0 >= 0 && pi !== here0) ? 0.4 : 1) - (p.sm || 1)) * Math.min(1, dt * 1.5); const f = Math.min(PSIZE, 0.75 / a) * (own ? 1 : p.sm); let tr = a * f; if (own) tr = Math.min(tr, p.rg ? PSEE * 0.82 : PSEE);   // the planet of your own station is capped so the whole disc (and its rings, 1.7x wider) always fits on screen
+    { const cf = pi !== vpI && SKY[stations[vpI].name] && SKY[stations[vpI].name][stations[pi].name]; if (cf) { _pd.set(cf.dir[0], cf.dir[1], cf.dir[2]).normalize(); tr = Math.tan(cf.radiusDeg * PLANET_K * Math.PI / 180); }   // every other planet sits where the editor put it, seen from the planet you are at
       if (!p.fd) { p.fd = _pd.clone(); p.fr = tr; } else { const q = Math.min(1, dt * 2.5); p.fd.lerp(_pd, q).normalize(); p.fr += (tr - p.fr) * q; } _pd.copy(p.fd); }
     const af = p.fr; p.mesh.position.copy(S.pos).addScaledVector(_pd, dA);   // while you are at one planet the others shrink to 40% (you can still see them, they just stop dominating the sky)   // double size, but the planet right next to you grows less so it does not swallow the whole sky
     { const lo = af < 0.085; if (lo !== p.lo) { p.lo = lo; p.mesh.geometry = lo ? p.g1 : p.g0; if (p.hm) p.hm.geometry = p.mesh.geometry; if (p.cl) p.cl.visible = !lo; if (p.moon) p.moon.visible = !lo; } }   // LOD: far planets (small discs) drop clouds, moon and sphere detail
