@@ -853,6 +853,7 @@ function stnGrime(x, w, h, cell, label) {
 }
 const stnRun = [0, 1, 2].map(() => new THREE.MeshBasicMaterial({ color: 0x223040, toneMapped: false, fog: false }));   // approach lights: three rings that light up one after another, pointing the way into the hangar
 function stnApproach(g, r, z0, dz, col) { for (let q = 0; q < 3; q++) { const a = []; for (let k = 0; k < 6; k++) { const sp = navSph(1.0); sp.translate(Math.cos(k * 1.0472) * r, Math.sin(k * 1.0472) * r, z0 + q * dz); a.push(sp); } g.add(new THREE.Mesh(mergeGeometries(a), stnRun[q])); } }
+const stnLegMat = (col, t) => stnLit(new THREE.MeshStandardMaterial({ color: new THREE.Color(0xc4ccdc).lerp(new THREE.Color(col), t), roughness: 0.22, metalness: 0.95, envMap: stnEnv, envMapIntensity: 1.5, fog: false }), 1.0);   // legs / struts / fins: plain polished metal in the station's colour, no lit windows
 const stnSunV = { value: new THREE.Vector3(0.7, 0.6, 0.3) };
 function stnLit(m, k) {
   m.onBeforeCompile = (sh) => { sh.uniforms.uSunV = stnSunV;
@@ -871,32 +872,39 @@ function buildStation(name, col, V) {
   // cheap fake reflections: a tiny 6-face canvas cube (blue planet below/behind, black space above) gives the glossy sheen of the reference
   const face = (c0, c1) => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 32); gr.addColorStop(0, c0); gr.addColorStop(1, c1); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); return c; };
   const env = new THREE.CubeTexture([face('#1b2a44', '#3a78c8'), face('#1b2a44', '#2d5fa8'), face('#050810', '#0a1020'), face('#4a8ad8', '#8fc0f0'), face('#16223a', '#2f68b4'), face('#1b2a44', '#3a78c8')]); env.colorSpace = THREE.SRGBColorSpace; env.needsUpdate = true;
-  const skin = new THREE.MeshStandardMaterial({ color: new THREE.Color(0xc4ccdc).lerp(new THREE.Color(col), 0.5), map: plate, bumpMap: plate, bumpScale: 3, roughness: 0.38, metalness: 0.78, envMap: stnEnv, envMapIntensity: 1.5, emissive: 0xffffff, emissiveMap: dots, emissiveIntensity: 1.2, fog: false }); stnLit(skin, 1.1);
+  const skin = new THREE.MeshStandardMaterial({ color: new THREE.Color(0xc4ccdc).lerp(new THREE.Color(col), 0.5), map: plate, bumpMap: plate, bumpScale: 3, roughness: 0.38, metalness: 0.78, envMap: stnEnv, envMapIntensity: 1.5, emissive: 0xffffff, emissiveMap: dots, emissiveIntensity: 1.2, fog: false, flatShading: !!V.seg }); stnLit(skin, 1.1);
   const parts = [], Mx = new THREE.Matrix4(), Qq = new THREE.Quaternion(), Pp = new THREE.Vector3(), Ss = new THREE.Vector3();
   const put = (geo, pos, quat, scl) => { Mx.compose(Pp.set(pos[0], pos[1], pos[2]), quat || Qq.identity(), Ss.set(scl ? scl[0] : 1, scl ? scl[1] : 1, scl ? scl[2] : 1)); geo.applyMatrix4(Mx); parts.push(geo); };
   // spindle station: a smooth pearl-shaped hull, a glowing halo ring held on slim struts, swept tail blades round the hangar mouth and a crown of swept antennae
-  const prof = [[0, -52], [4, -50.5], [10, -46], [17, -39], [22, -30], [25, -20], [24.5, -10], [20, -1], [14, 6], [10.5, 11], [10, 16], [10, 30], [11.5, 32]];
-  const lathe = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), 28); lathe.rotateX(Math.PI / 2); parts.push(lathe);
+  // hull silhouettes: 0 pearl, 1 slim needle, 2 twin-lobe (two bulbs and a waist); every one keeps the same open hangar tube at the +z end
+  const PROFS = [
+    [[0, -52], [4, -50.5], [10, -46], [17, -39], [22, -30], [25, -20], [24.5, -10], [20, -1], [14, 6], [10.5, 11], [10, 16], [10, 30], [11.5, 32]],
+    [[0, -58], [3, -54], [7, -44], [10, -30], [11.2, -14], [10.8, 2], [10.2, 12], [10, 18], [10, 30], [11.5, 32]],
+    [[0, -52], [6, -50], [14, -44], [20, -36], [22.5, -28], [19, -20], [12.5, -15], [12, -13], [16, -9], [22, -2], [23, 6], [19, 14], [13, 18], [10.5, 22], [10, 30], [11.5, 32]]];
+  const prof = PROFS[V.prof || 0], hr = V.hr || 38, hz = V.hz || -19, kk = hr / 38;
+  const lathe = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), V.seg || 28); lathe.rotateX(Math.PI / 2); parts.push(lathe);
+  const legN = parts.length;   // everything pushed from here to the antennae = struts + tail blades -> polished leg metal instead of the window-lit hull
   // struts from the hull to the halo ring
-  for (let k = 0; k < V.ribs; k++) { const an = k * Math.PI * 2 / V.ribs + 0.2; put(new THREE.BoxGeometry(1, 1, 1), [Math.cos(an) * 30, Math.sin(an) * 30, -19], Qq.clone().setFromAxisAngle(Z, an), [13, 1.4, 3]); }
+  for (let k = 0; k < V.ribs; k++) { const an = k * Math.PI * 2 / V.ribs + 0.2; put(new THREE.BoxGeometry(1, 1, 1), [Math.cos(an) * 30 * kk, Math.sin(an) * 30 * kk, hz], Qq.clone().setFromAxisAngle(Z, an), [13 * kk, 1.4, 3]); }
   // swept tail blades round the hangar mouth (long, thin, leaning outwards)
   for (let k = 0; k < V.fins; k++) { const an = k * Math.PI * 2 / V.fins, d = new THREE.Vector3(Math.cos(an) * 0.2, Math.sin(an) * 0.2, 1).normalize(); put(new THREE.SphereGeometry(1, 12, 8), [Math.cos(an) * 14, Math.sin(an) * 14, 36], Qq.clone().setFromUnitVectors(Z, d), [V.fw * 0.75, 1.5, 22]); }
+  const legs = parts.splice(legN);
   // crown of swept antennae (they lean back from the nose)
   const navG = []; const navAt = (x, y, z, r) => { const q = navSph(r || 1.2); q.translate(x, y, z); navG.push(q); };
   for (let hk = 0; hk < V.horns; hk++) { const an = hk * Math.PI * 2 / V.horns + 0.3, d = new THREE.Vector3(Math.cos(an) * 0.7, Math.sin(an) * 0.7, -0.7).normalize(), hh = 14 + 14 * V.hl; put(new THREE.ConeGeometry(1.5, hh, 8), [Math.cos(an) * 14, Math.sin(an) * 14, -43 - 3 * V.hl], Qq.clone().setFromUnitVectors(Y, d)); navAt(Math.cos(an) * 14 + d.x * hh * 0.5, Math.sin(an) * 14 + d.y * hh * 0.5, -43 - 3 * V.hl + d.z * hh * 0.5, 1.1); }
   if (V.spire) { put(new THREE.ConeGeometry(2, 34, 8), [0, 0, -69], Qq.clone().setFromUnitVectors(Y, new THREE.Vector3(0, 0, -1))); navAt(0, 0, -86, 1.5); }
-  for (let k = 0; k < 4; k++) navAt(Math.cos(k * 1.5708 + 0.4) * 38, Math.sin(k * 1.5708 + 0.4) * 38, -19, 1.6);   // four marker lights on the halo
+  for (let k = 0; k < 4; k++) navAt(Math.cos(k * 1.5708 + 0.4) * hr, Math.sin(k * 1.5708 + 0.4) * hr, hz, 1.6);   // four marker lights on the halo
   for (let k = 0; k < 3; k++) navAt(Math.cos(k * 2.0944) * 10.5, Math.sin(k * 2.0944) * 10.5, 31, 0.9);   // and three round the hangar mouth
   { // halo: a dark ring carrying a row of lit light-panels, with a thin glowing rail above and below it (instead of one thick solid band)
     const hbTex = canvasTex(256, 16, (x, w, h) => { x.fillStyle = '#10151d'; x.fillRect(0, 0, w, h); for (let i = 0; i < 32; i++) { x.fillStyle = i % 4 === 0 ? V.band[1] : V.band[0]; x.fillRect(i * 8 + 1, 3, 6, 10); } }, [3, 1]);
-    const halo = new THREE.Mesh(new THREE.CylinderGeometry(38, 38, 3.4, 72, 1, true), new THREE.MeshBasicMaterial({ map: hbTex, color: 0x9a9a9a, toneMapped: false, fog: false, side: THREE.DoubleSide })); halo.rotation.x = Math.PI / 2; halo.position.z = -19; g.add(halo);
-    const r1 = new THREE.TorusGeometry(38, 0.55, 5, 72), r2 = r1.clone(); r1.translate(0, 0, -19 - 1.9); r2.translate(0, 0, -19 + 1.9);
+    const halo = new THREE.Mesh(new THREE.CylinderGeometry(hr, hr, 3.4, 72, 1, true), new THREE.MeshBasicMaterial({ map: hbTex, color: 0x9a9a9a, toneMapped: false, fog: false, side: THREE.DoubleSide })); halo.rotation.x = Math.PI / 2; halo.position.z = hz; g.add(halo);
+    const r1 = new THREE.TorusGeometry(hr, 0.55, 5, 72), r2 = r1.clone(); r1.translate(0, 0, hz - 1.9); r2.translate(0, 0, hz + 1.9);
     g.add(new THREE.Mesh(mergeGeometries([r1, r2]), new THREE.MeshBasicMaterial({ color: new THREE.Color(V.band[0]).multiplyScalar(0.55), toneMapped: false, fog: false })));
   }
   g.add(new THREE.Mesh(mergeGeometries(navG), stnNav));
   g.add(stnCap(10.9, 25)); stnApproach(g, 15, 46, 14);
   { const hg = glowSprite(new THREE.Color(V.band[0]).getHex(), 46, 0.55); hg.position.set(0, 0, 38); g.add(hg); }   // light spilling out of the hangar mouth
-  g.add(new THREE.Mesh(mergeGeometries(parts), skin));
+  g.add(new THREE.Mesh(mergeGeometries(parts), skin)); g.add(new THREE.Mesh(mergeGeometries(legs), stnLegMat(col, 0.3)));
   const beacon = glowSprite(0x6fe8ff, 1, 0);   // kept only because the frame loop pulses it; not added to the scene
   g.userData = { spin, beacon };
   return g;
@@ -922,9 +930,10 @@ function buildStationB(name, col, V) {
   for (let k = 0; k < (V.panels || 0); k++) { const sd = k % 2 ? -1 : 1, z = -38 + (k >> 1) * -9; put(parts, new THREE.BoxGeometry(14, 1.2, 1.2), [sd * 15, 0, z]); put(pparts, new THREE.BoxGeometry(24, 0.6, 12), [sd * 33, 0, z]); }
   // fuel tanks on the hub
   for (let k = 0; k < (V.tanks || 0); k++) { const an = k * Math.PI * 2 / V.tanks; put(parts, new THREE.SphereGeometry(5, 12, 9), [Math.cos(an) * 14, Math.sin(an) * 14, 12]); }
+  const legN = parts.length;
   // docking cage at the +z end: open frame of pylons round the mouth
   for (let k = 0; k < 6; k++) { const an = k * Math.PI / 3; put(parts, new THREE.BoxGeometry(2.2, 2.2, 22), [Math.cos(an) * 17, Math.sin(an) * 17, 42]); }
-  g.add(new THREE.Mesh(mergeGeometries(parts), skin)); if (pparts.length) g.add(new THREE.Mesh(mergeGeometries(pparts), panelMat));
+  const legs = parts.splice(legN); g.add(new THREE.Mesh(mergeGeometries(parts), skin)); g.add(new THREE.Mesh(mergeGeometries(legs), stnLegMat(col, 0.3))); if (pparts.length) g.add(new THREE.Mesh(mergeGeometries(pparts), panelMat));
   // glowing strips: rim of the cage, a lit band on the wheel
   const glow = (c) => new THREE.MeshBasicMaterial({ color: c, toneMapped: false, fog: false });
   const cage = new THREE.Mesh(new THREE.TorusGeometry(17, 0.8, 6, 36), glow(V.band[0])); cage.position.z = 53; g.add(cage);
@@ -944,23 +953,23 @@ function buildStationB(name, col, V) {
 // pl.off = where the planet sits relative to its station (the station is always about one planet-radius + 400 away from the surface)
 const stations = [
   { name: 'XIAQA', col: '#ffa040', v: { fins: 6, fw: 4.6, ribs: 8, horns: 2, hl: 1, ringN: 11, tint: 0.25, band: ['#4dff7a', '#ffd24a'] }, pos: V3(0, 0, 0), front: V3(0, -1, 0), pl: { kind: 'gas', r: 620, off: V3(-900, -150, -640), atm: [1.0, 0.55, 0.26], ring: true } },
-  { name: 'TIANOG', col: '#4aa0ff', v: { fins: 4, fw: 5.4, ribs: 6, horns: 0, spire: 1, hl: 1, ringN: 8, tint: 0.35, band: ['#4aa0ff', '#ffffff'] }, pos: V3(1800, 260, -1500), front: V3(0, -1, 0), pl: { kind: 'ocean', r: 420, off: V3(700, -300, -500), atm: [0.28, 0.58, 1.0] } },
-  { name: 'MIRAK', col: '#b46bff', v: { fins: 8, fw: 3.2, ribs: 10, horns: 4, hl: 0.8, ringN: 14, tint: 0.4, band: ['#d49aff', '#ff5ad2'] }, pos: V3(-2100, -180, -2000), front: V3(0, -1, 0), pl: { kind: 'purple', r: 460, off: V3(-500, 200, -800), atm: [0.7, 0.35, 1.0], ring: true } },
-  { name: 'TEPZONIAX', col: '#4cff8a', v: { fins: 5, fw: 4.2, ribs: 5, horns: 2, hl: 1.4, ringN: 10, tint: 0.4, band: ['#4cff8a', '#bfffd8'] }, pos: V3(3400, -350, 900), front: V3(0, -1, 0), pl: { kind: 'jungle', r: 520, off: V3(800, 200, 500), atm: [0.3, 1.0, 0.55] } },
-  { name: 'PEXTRA', col: '#ff4a2a', v: { fins: 3, fw: 6.4, ribs: 8, horns: 6, hl: 0.55, ringN: 6, tint: 0.45, band: ['#ff7a24', '#ffd24a'] }, pos: V3(-3600, 400, 1200), front: V3(0, -1, 0), pl: { kind: 'lava', r: 380, off: V3(-600, -100, 500), atm: [1.0, 0.3, 0.15] } },
-  { name: 'VAJJA', col: '#9fe8ff', v: { fins: 6, fw: 3.6, ribs: 0, horns: 0, spire: 1, hl: 1, ringN: 12, tint: 0.35, band: ['#9fe8ff', '#ffffff'] }, pos: V3(400, 700, -3800), front: V3(0, -1, 0), pl: { kind: 'ice', r: 480, off: V3(-700, 300, -300), atm: [0.6, 0.9, 1.0] } },
+  { name: 'TIANOG', col: '#4aa0ff', v: { prof: 1, hr: 21, sxy: 0.9, big: 1.35, fins: 4, fw: 5.4, ribs: 6, horns: 0, spire: 1, hl: 1, ringN: 8, tint: 0.35, band: ['#4aa0ff', '#ffffff'] }, pos: V3(1800, 260, -1500), front: V3(0, -1, 0), pl: { kind: 'ocean', r: 420, off: V3(700, -300, -500), atm: [0.28, 0.58, 1.0] } },
+  { name: 'MIRAK', col: '#b46bff', v: { sxy: 1.3, sz: 0.75, big: 1.1, fins: 8, fw: 3.2, ribs: 10, horns: 4, hl: 0.8, ringN: 14, tint: 0.4, band: ['#d49aff', '#ff5ad2'] }, pos: V3(-2100, -180, -2000), front: V3(0, -1, 0), pl: { kind: 'purple', r: 460, off: V3(-500, 200, -800), atm: [0.7, 0.35, 1.0], ring: true } },
+  { name: 'TEPZONIAX', col: '#4cff8a', v: { prof: 2, hz: -15, hr: 30, big: 1.9, fins: 5, fw: 4.2, ribs: 5, horns: 2, hl: 1.4, ringN: 10, tint: 0.4, band: ['#4cff8a', '#bfffd8'] }, pos: V3(3400, -350, 900), front: V3(0, -1, 0), pl: { kind: 'jungle', r: 520, off: V3(800, 200, 500), atm: [0.3, 1.0, 0.55] } },
+  { name: 'PEXTRA', col: '#ff4a2a', v: { seg: 6, sz: 1.25, fins: 3, fw: 6.4, ribs: 8, horns: 6, hl: 0.55, ringN: 6, tint: 0.45, band: ['#ff7a24', '#ffd24a'] }, pos: V3(-3600, 400, 1200), front: V3(0, -1, 0), pl: { kind: 'lava', r: 380, off: V3(-600, -100, 500), atm: [1.0, 0.3, 0.15] } },
+  { name: 'VAJJA', col: '#9fe8ff', v: { big: 2.6, fins: 6, fw: 3.6, ribs: 0, horns: 0, spire: 1, hl: 1, ringN: 12, tint: 0.35, band: ['#9fe8ff', '#ffffff'] }, pos: V3(400, 700, -3800), front: V3(0, -1, 0), pl: { kind: 'ice', r: 480, off: V3(-700, 300, -300), atm: [0.6, 0.9, 1.0] } },
   // ---- YAPZO system: five more worlds, far away from the first system (reach it from the star map) ----
-  { name: 'KAIFMA', col: '#ffcc55', v: { ring: 1, R: 34, tube: 3.8, spokes: 4, panels: 2, tanks: 0, tint: 0.12, band: ['#ffcc55', '#ffffff'] }, pos: V3(9000, 300, -6000), front: V3(0, -1, 0), pl: { kind: 'desert', r: 560, off: V3(-850, -150, -600), atm: [1.0, 0.75, 0.3] } },
+  { name: 'KAIFMA', col: '#ffcc55', v: { big: 1.25, ring: 1, R: 34, tube: 3.8, spokes: 4, panels: 2, tanks: 0, tint: 0.12, band: ['#ffcc55', '#ffffff'] }, pos: V3(9000, 300, -6000), front: V3(0, -1, 0), pl: { kind: 'desert', r: 560, off: V3(-850, -150, -600), atm: [1.0, 0.75, 0.3] } },
   { name: 'VELNOR', col: '#7aa8ff', v: { ring: 1, R: 30, tube: 3.2, rings: 2, spokes: 3, panels: 0, tanks: 3, tint: 0.2, band: ['#7aa8ff', '#ffffff'] }, pos: V3(11000, 0, -4800), front: V3(0, -1, 0), pl: { kind: 'storm', r: 600, off: V3(800, -250, -550), atm: [0.4, 0.6, 1.0], ring: true } },
-  { name: 'YAZMIR', col: '#ff6ad0', v: { ring: 1, R: 36, tube: 2.6, spokes: 6, panels: 2, tanks: 0, tint: 0.28, band: ['#ff6ad0', '#ffd0f0'] }, pos: V3(6700, 550, -5100), front: V3(0, -1, 0), pl: { kind: 'bloom', r: 440, off: V3(-550, 200, -700), atm: [1.0, 0.4, 0.8] } },
-  { name: 'ERSO', col: '#c8ff3a', v: { ring: 1, R: 26, tube: 4.4, spokes: 5, panels: 4, tanks: 4, tint: 0.3, band: ['#c8ff3a', '#ffffff'] }, pos: V3(9800, 400, -9200), front: V3(0, -1, 0), pl: { kind: 'toxic', r: 400, off: V3(650, 150, -450), atm: [0.7, 1.0, 0.2] } },
-  { name: 'PIOPA', col: '#35e0c8', v: { ring: 1, R: 38, tube: 3.0, rings: 2, spokes: 8, panels: 0, tanks: 0, tint: 0.2, band: ['#35e0c8', '#d0fff6'] }, pos: V3(8000, -400, -8600), front: V3(0, -1, 0), pl: { kind: 'onyx', r: 500, off: V3(-700, 250, -350), atm: [0.2, 0.9, 0.8] } },
+  { name: 'YAZMIR', col: '#ff6ad0', v: { big: 1.8, ring: 1, R: 36, tube: 2.6, spokes: 6, panels: 2, tanks: 0, tint: 0.28, band: ['#ff6ad0', '#ffd0f0'] }, pos: V3(6700, 550, -5100), front: V3(0, -1, 0), pl: { kind: 'bloom', r: 440, off: V3(-550, 200, -700), atm: [1.0, 0.4, 0.8] } },
+  { name: 'ERSO', col: '#c8ff3a', v: { big: 2.3, ring: 1, R: 26, tube: 4.4, spokes: 5, panels: 4, tanks: 4, tint: 0.3, band: ['#c8ff3a', '#ffffff'] }, pos: V3(9800, 400, -9200), front: V3(0, -1, 0), pl: { kind: 'toxic', r: 400, off: V3(650, 150, -450), atm: [0.7, 1.0, 0.2] } },
+  { name: 'PIOPA', col: '#35e0c8', v: { big: 1.5, ring: 1, R: 38, tube: 3.0, rings: 2, spokes: 8, panels: 0, tanks: 0, tint: 0.2, band: ['#35e0c8', '#d0fff6'] }, pos: V3(8000, -400, -8600), front: V3(0, -1, 0), pl: { kind: 'onyx', r: 500, off: V3(-700, 250, -350), atm: [0.2, 0.9, 0.8] } },
 ];
 const SYSTEMS = ['HELIOS', 'YAPZO']; stations.forEach((s, i) => { s.sys = i < 6 ? 0 : 1; });
 const ST_K = 3;   // station scale: everything is built at 1x and the whole station group is scaled
 const SYS_K = 2.2;   // spread the system out: distance between stations x2.2 (planets move with their stations)
 stations.forEach(s => s.pos.multiplyScalar(SYS_K));
-stations.forEach(s => { s.front.normalize(); s.g = (s.v.ring ? buildStationB : buildStation)(s.name, s.col, s.v); s.g.scale.setScalar(ST_K); s.g.position.copy(s.pos); s.g.up.set(0, 0, 1); s.g.lookAt(s.pos.clone().add(s.front)); scene.add(s.g); });
+stations.forEach(s => { s.front.normalize(); s.g = (s.v.ring ? buildStationB : buildStation)(s.name, s.col, s.v); s.g.scale.set(ST_K * (s.v.big || 1) * (s.v.sxy || 1), ST_K * (s.v.big || 1) * (s.v.sxy || 1), ST_K * (s.v.big || 1) * (s.v.sz || 1)); s.g.position.copy(s.pos); s.g.up.set(0, 0, 1); s.g.lookAt(s.pos.clone().add(s.front)); scene.add(s.g); });
 const planets = [];
 {
   const geo = new THREE.SphereGeometry(1, 48, 32), geoLo = new THREE.SphereGeometry(1, 14, 9);   // geoLo: cheap sphere for planets that are only a small disc on screen
@@ -1623,7 +1632,7 @@ function updateDockIn(dt) {   // no flying into the station: the ship is beamed 
   fadeEl.style.opacity = Math.min(1, DK.t / 0.55).toFixed(2);
   if (DK.t >= 0.65) { dockAt(DK.i); fadeOut(); }
 }
-function nearStation() { let best = -1, bd = 200; for (let i = 0; i < stations.length; i++) { const d = S.pos.distanceTo(stations[i].pos); if (d < bd) { bd = d; best = i; } } return best; }
+function nearStation() { let best = -1, bd = 200; for (let i = 0; i < stations.length; i++) { const d = S.pos.distanceTo(stations[i].pos) / (stations[i].v.big || 1); if (d < bd) { bd = d; best = i; } } return best; }
 
 function launchFrom(i) {
   ST = stats(); S.station = i; homeSt = i; const st = stations[i];
