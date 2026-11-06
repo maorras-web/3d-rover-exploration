@@ -683,7 +683,7 @@ const dustMat = new THREE.ShaderMaterial({
 }
 
 // ---------- asteroids ----------
-const AST_PER = 40, AST_N = AST_PER * 3, ASTR = 520;
+const AST_PER = 28, AST_N = AST_PER * 3, ASTR = 520;
 // rock surface baked once at load into a small tileable texture: R = relief (pits, craters with raised rims), G = dark/light patches. Applied in the shader with three-way (triplanar) mapping, so there are no UV seams and no extra geometry.
 const rockTex = (() => {
   const N = 256, hgt = new Float32Array(N * N), alb = new Float32Array(N * N);
@@ -703,17 +703,17 @@ const rockTex = (() => {
 })();
 const rockShade = (mat) => { mat.onBeforeCompile = (sh) => {
   sh.uniforms.uRock = { value: rockTex };
-  sh.vertexShader = 'varying vec3 vOP; varying vec3 vNO; varying float vSc;\n' + sh.vertexShader
+  sh.vertexShader = 'varying vec3 vOP; varying vec3 vNO; varying float vSc; varying float vLod;\n' + sh.vertexShader
     .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n vNO = objectNormal;')
-    .replace('#include <begin_vertex>', '#include <begin_vertex>\n vOP = position; vSc = length(vec3(instanceMatrix[0]));');
-  sh.fragmentShader = 'uniform sampler2D uRock; varying vec3 vOP; varying vec3 vNO; varying float vSc;\n' + sh.fragmentShader
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\n vOP = position; vSc = length(vec3(instanceMatrix[0])); vLod = smoothstep(0.012, 0.03, vSc / max(length((modelViewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz), 1.0));   // 0 when far or tiny on screen: skip the rock detail');
+  sh.fragmentShader = 'uniform sampler2D uRock; varying vec3 vOP; varying vec3 vNO; varying float vSc; varying float vLod;\n' + sh.fragmentShader
     .replace('#include <color_fragment>', `#include <color_fragment>
-      vec3 rw = pow(abs(normalize(vNO)), vec3(4.0)); rw /= (rw.x + rw.y + rw.z);
-      vec3 rpa = vOP * 1.15;
-      vec2 rA = texture2D(uRock, rpa.yz).rg * rw.x + texture2D(uRock, rpa.xz).rg * rw.y + texture2D(uRock, rpa.xy).rg * rw.z;
+      vec2 rA = vec2(0.5, 0.55);
+      if (vLod > 0.0) { vec3 rw = pow(abs(normalize(vNO)), vec3(4.0)); rw /= (rw.x + rw.y + rw.z); vec3 rpa = vOP * 1.15;
+        rA = mix(rA, texture2D(uRock, rpa.yz).rg * rw.x + texture2D(uRock, rpa.xz).rg * rw.y + texture2D(uRock, rpa.xy).rg * rw.z, vLod); }
       diffuseColor.rgb *= 0.55 + 0.8 * rA.g * (0.8 + 0.4 * rA.r);`)
     .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-      { float rh = rA.r * 0.05 * vSc;
+      if (vLod > 0.0) { float rh = rA.r * 0.05 * vSc;
         vec3 sX = dFdx(-vViewPosition), sY = dFdy(-vViewPosition); vec3 R1 = cross(sY, normal), R2 = cross(normal, sX); float fDet = dot(sX, R1); fDet *= (float(gl_FrontFacing) * 2.0 - 1.0);
         vec3 vG = sign(fDet) * (dFdx(rh) * R1 + dFdy(rh) * R2); normal = normalize(abs(fDet) * normal - vG); }`); }; };
 const asteroids = [], astMeshes = [];
@@ -1582,7 +1582,7 @@ function spawnAsteroid(a, first) {
   a.active = false; a.y = -99999;
 }
 function updateSpawns() {
-  fwdOf(S.q, fwd); let act = 0; const target = 85;
+  fwdOf(S.q, fwd); let act = 0; const target = 62;
   for (let i = 0; i < AST_N; i++) {
     const a = asteroids[i];
     if (a.active) { _b.set(a.x - S.pos.x, a.y - S.pos.y, a.z - S.pos.z); const d2 = _b.lengthSq(); if (d2 > ASTR * ASTR * 1.1 || (d2 > 200 * 200 && _b.dot(fwd) < 0 && d2 > 330 * 330)) a.active = false; }
