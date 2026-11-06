@@ -310,6 +310,7 @@ spaceSun.position.copy(SUN_DIR).multiplyScalar(450);
 const sunGlow = glowSprite(0xfff0c0, 110, 0.9); sunGlow.position.copy(spaceSun.position); skyS.add(sunGlow);
 
 // ---------- player ship ----------
+const MUZ = [[2.315, 0.7, -2.2], [-2.315, 0.7, -2.2], [2.145, 0.7, -2.2], [-2.145, 0.7, -2.2]];   // gun muzzles (ship units): outer and inner barrel of the twin cannon on each upper wing; the shots leave from here
 const SHIP_K = 1.7;   // the whole ship is drawn 1.7x bigger
 const ship = new THREE.Group(); ship.scale.setScalar(SHIP_K); scene.add(ship);
 const shipBody = new THREE.Group(); ship.add(shipBody);
@@ -444,11 +445,11 @@ const roverBody = (() => {
     new THREE.Matrix4().makeTranslation(s * 1.22, -0.25, 1.75).multiply(new THREE.Matrix4().makeRotationY(s * Math.PI / 2)));   // engine pylon: a clean strut from hull to nacelle
   const sface = (c0, c1) => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 32); gr.addColorStop(0, c0); gr.addColorStop(1, c1); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); return c; };
   const eface = (kind) => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 64);
-    if (SHIP_VAR === 4) { gr.addColorStop(0, '#7f8ca4'); gr.addColorStop(0.36, '#c9d3e4'); gr.addColorStop(0.46, '#6b778d'); gr.addColorStop(0.52, '#262d3b'); gr.addColorStop(0.8, '#3b4658'); gr.addColorStop(1, '#2a3242'); } else { gr.addColorStop(0, '#9fb0c8'); gr.addColorStop(0.42, '#eef3fb'); gr.addColorStop(0.47, '#5a667c'); gr.addColorStop(0.55, '#1b212c'); gr.addColorStop(1, '#0c0f15'); } x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+    if (SHIP_VAR === 4) { gr.addColorStop(0, '#4c566a'); gr.addColorStop(0.36, '#a9b5ca'); gr.addColorStop(0.46, '#3d4659'); gr.addColorStop(0.52, '#10141c'); gr.addColorStop(0.8, '#1d2430'); gr.addColorStop(1, '#0f131b'); } else { gr.addColorStop(0, '#9fb0c8'); gr.addColorStop(0.42, '#eef3fb'); gr.addColorStop(0.47, '#5a667c'); gr.addColorStop(0.55, '#1b212c'); gr.addColorStop(1, '#0c0f15'); } x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
     if (SHIP_VAR === 4) { x.fillStyle = 'rgba(255,255,255,0.95)'; x.fillRect(0, 12, 64, 3); x.fillStyle = 'rgba(40,220,255,0.6)'; x.fillRect(0, 52, 64, 4); x.fillStyle = 'rgba(255,255,255,0.8)'; x.fillRect(kind === 1 ? 6 : 40, 0, 4, 64); }
     if (kind === 1) { const g2 = x.createRadialGradient(22, 18, 0, 22, 18, 20); g2.addColorStop(0, 'rgba(255,255,255,1)'); g2.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g2; x.fillRect(0, 0, 64, 64); } return c; };
-  const topF = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 4, 32, 32, 46); g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#b8c6dc'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return c; })();
-  const botF = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; c.getContext('2d').fillStyle = SHIP_VAR === 4 ? '#2c3444' : '#0a0c11'; c.getContext('2d').fillRect(0, 0, 64, 64); return c; })();
+  const topF = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 4, 32, 32, 46); g.addColorStop(0, SHIP_VAR === 4 ? '#c5d0e2' : '#ffffff'); g.addColorStop(1, SHIP_VAR === 4 ? '#4a566a' : '#b8c6dc'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return c; })();
+  const botF = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; c.getContext('2d').fillStyle = SHIP_VAR === 4 ? '#141922' : '#0a0c11'; c.getContext('2d').fillRect(0, 0, 64, 64); return c; })();
   const senv = new THREE.CubeTexture([eface(1), eface(0), topF, botF, eface(0), eface(0)]); senv.colorSpace = THREE.SRGBColorSpace; senv.needsUpdate = true;
   if (SHIP_VAR === 4) {
     // custom ship from the ship builder: a list of simple parts (mirrored when mir=1); the built-in shape above is discarded
@@ -474,6 +475,18 @@ const roverBody = (() => {
       const c = new THREE.Color(p.c), n = g.attributes.position.count, col = new Float32Array(n * 3); for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
       g.setAttribute('color', new THREE.BufferAttribute(col, 3)); (p.m === 'glow' ? glow : p.m === 'glass' ? glass : body).push(g);
     }
+    // guns: a slim, streamlined twin-barrel cannon lying on top of each upper wing (visible from the chase camera), its barrels reaching past the leading edge
+    const CY = (r, h, n) => new THREE.CylinderGeometry(r, r, h, n || 10);
+    for (const sg of [-1, 1]) { const x = sg * 2.23, y = 0.7;
+      put(body, new THREE.SphereGeometry(0.5, 16, 12), HD, [x, y - 0.02, -0.55], null, [0.36, 0.22, 1.6]);   // streamlined fairing
+      put(body, new THREE.SphereGeometry(0.5, 12, 8), HC, [x, y + 0.05, -0.45], null, [0.24, 0.12, 1.1]);     // lighter top blister
+      put(body, CY(0.13, 0.35, 12), GUN, [x, y, -1.45], [RX, 0, 0]);                                           // barrel housing
+      put(glow, CY(0.18, 0.03, 16), ICE, [x, y, -1.05], [RX, 0, 0]);                                           // glowing collar
+      for (const d of [-0.085, 0.085]) {
+        put(body, CY(0.05, 0.95), GUN, [x + d, y, -1.7], [RX, 0, 0]);
+        put(body, CY(0.075, 0.09), HC, [x + d, y, -2.14], [RX, 0, 0]); put(body, CY(0.07, 0.06), HC, [x + d, y, -1.6], [RX, 0, 0]);
+        put(glow, CY(0.045, 0.04, 8), 0xffffff, [x + d, y, -2.21], [RX, 0, 0]); }
+      put(glow, B(0.025, 0.035, 0.75), ICE, [x + sg * 0.15, y - 0.02, -0.5]); }
   }
   if (SHIP_VAR === 4) { if (!glow.length) put(glow, B(0.01, 0.01, 0.01), 0xffffff, [0, 0, 0]); if (!glass.length) put(glass, B(0.01, 0.01, 0.01), 0x4a82b8, [0, 0, 0]); }
   const bgeo = mergeGeometries(body);
@@ -516,7 +529,8 @@ const roverBody = (() => {
       f *= 1.7; cl.setXYZ(i, Math.min(1, cl.getX(i) * f), Math.min(1, cl.getY(i) * f), Math.min(1, cl.getZ(i) * f));
     }
   }
-  const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, map: plateMap, bumpMap: plateBump, bumpScale: SHIP_VAR === 4 ? 1.7 : 0.9, roughness: SHIP_VAR === 4 ? 0.26 : SV.rough, metalness: SHIP_VAR === 4 ? 0.96 : SV.met, flatShading: false, envMap: senv, envMapIntensity: SHIP_VAR === 0 ? 1.7 : SHIP_VAR === 4 ? 1.35 : 1.3, emissive: SHIP_VAR === 4 ? 0x262e3e : 0x2a303c });
+  const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, map: plateMap, bumpMap: plateBump, bumpScale: SHIP_VAR === 4 ? 1.7 : 0.9, roughness: SHIP_VAR === 4 ? 0.32 : SV.rough, metalness: SHIP_VAR === 4 ? 0.96 : SV.met, flatShading: false, envMap: senv, envMapIntensity: SHIP_VAR === 0 ? 1.7 : SHIP_VAR === 4 ? 1.15 : 1.3, emissive: SHIP_VAR === 4 ? 0x07090e : 0x2a303c });
+  if (SHIP_VAR === 4) bmat.color.setRGB(0.42, 0.43, 0.47);   // darker gunmetal: the hull colours are multiplied down, the reflections stay bright
   bmat.onBeforeCompile = (sh) => { sh.uniforms.uRimC = shipRim;
     if (SHIP_VAR === 4) {   // accent stripes + sheen, all in the existing fragment shader (no extra draw calls)
       sh.vertexShader = 'varying vec3 vLP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vLP = position;');
@@ -591,6 +605,9 @@ const glowPts = (color, op, zf) => { const g = new THREE.BufferGeometry(), p = n
   const o = new THREE.Points(g, new THREE.PointsMaterial({ map: glowTex, color, size: 1, sizeAttenuation: true, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false })); o.frustumCulled = false; o.userData.sc = 0.45; o.userData.pts = 1; shipBody.add(o); return o; };   // one draw call for all six glows
 const flames = SHIP_VAR === 4 ? [glowPts(0x7fe9ff, 0.32, 1.15)] : ENGS.map(en => { const f = glowSprite(0x7fe9ff, 1.5, 0.32); f.position.set(en[0], en[1], en[2] + 1.15 * en[3]); f.userData.sc = en[3] < 1 ? 0.45 : 1; shipBody.add(f); return f; });
 const flameCore = SHIP_VAR === 4 ? [glowPts(0xffffff, 0.6, 0.9)] : ENGS.map(en => { const f = glowSprite(0xffffff, 0.9, 0.6); f.position.set(en[0] + (en[3] < 1 ? 0 : Math.sign(en[0]) * 0.1), en[1] - (en[3] < 1 ? 0 : 0.05), en[2] + 0.9 * en[3]); f.userData.sc = en[3] < 1 ? 0.45 : 1; shipBody.add(f); return f; });
+// muzzle flashes: one small glow per gun, lit for a moment on every shot (4 sprites, nothing else)
+const mFlash = MUZ.map(m => { const f = glowSprite(0xffffff, 2.3, 0); f.position.set(m[0], m[1], m[2] - 0.15); f.visible = false; ship.add(f); return f; });
+function flashMuzzle(i, c) { const f = mFlash[i]; f.material.color.setHex(c); f.material.opacity = 1; f.userData.t = 1; f.visible = true; }
 
 // ---------- hangar room (Galaxy-on-Fire-style): far away from the world, enclosed, only drawn while docked ----------
 const HP = V3(0, -6000, 0);
@@ -798,7 +815,7 @@ const _col = new THREE.Color();
 // ---------- bolts (lasers) ----------
 const BOLT_N = 120, bolts = [];
 const boltMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.62, 0.62, 17, 10, 12).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, fog: false }), BOLT_N);
-const boltHalo = new THREE.InstancedMesh(new THREE.CylinderGeometry(2.6, 2.6, 19, 16, 14).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }), BOLT_N);
+const boltHalo = new THREE.InstancedMesh(new THREE.CylinderGeometry(3.3, 3.3, 19, 16, 14).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.62, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }), BOLT_N);
 boltHalo.frustumCulled = false; boltHalo.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(boltHalo);
 boltMesh.frustumCulled = false; boltMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(boltMesh);
 // laser look, free of cost (same two meshes): white-hot core, coloured edge, a bright head that fades toward a thin tail
@@ -808,15 +825,15 @@ const boltShade = (mat, half, core) => { mat.onBeforeCompile = (sh) => {
     .replace('#include <begin_vertex>', '#include <begin_vertex>\n vBz = clamp((' + half + ' - position.z) / ' + (half * 2) + '.0, 0.0, 1.0); float hd = clamp((vBz - 0.8) / 0.2, 0.0, 1.0); float tl = smoothstep(0.0, 0.14, vBz); transformed.xy *= (0.22 + 0.5 * vBz)' + (core ? ' * sqrt(max(1.0 - hd * hd, 0.0)) * tl;' : ';'))
     .replace('#include <project_vertex>', '#include <project_vertex>\n vec3 nn = normal;\n #ifdef USE_INSTANCING\n nn = mat3(instanceMatrix) * nn;\n #endif\n vN = normalMatrix * nn; vP = mvPosition.xyz;');
   sh.fragmentShader = 'varying float vBz; varying vec3 vN; varying vec3 vP;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n float vF = abs(dot(normalize(vN), normalize(-vP)));\n ' + (core
-    ? 'diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), 0.85 * (0.5 + 0.5 * vF)) * (0.45 + 0.65 * vBz);'
-    : 'diffuseColor.rgb *= 0.5 + 0.7 * vBz; diffuseColor.a *= (0.1 + 1.0 * vBz * vBz) * pow(vF, 1.1) * (1.0 - smoothstep(0.84, 1.0, vBz)) * smoothstep(0.0, 0.3, vBz);')); }; };
+    ? 'diffuseColor.rgb = mix(diffuseColor.rgb * 1.25, vec3(1.0), 0.9 * vF * vF) * (0.5 + 0.7 * vBz);'
+    : 'diffuseColor.rgb *= 0.9 + 0.9 * vBz; diffuseColor.a *= (0.22 + 1.2 * vBz * vBz) * pow(vF, 0.75) * (1.0 - smoothstep(0.84, 1.0, vBz)) * smoothstep(0.0, 0.3, vBz);')); }; };
 boltShade(boltMesh.material, 8.5, true); boltShade(boltHalo.material, 9.5, false);
 for (let i = 0; i < BOLT_N; i++) { bolts.push({ pos: V3(), vel: V3(), life: 0, enemy: false, dmg: 0, sx: 1, sz: 1, hr: 1, wob: 0, age: 0, p1: V3(), p2: V3() }); boltMesh.setColorAt(i, _col.set(0xffffff)); boltHalo.setColorAt(i, _col.set(0x6dfcff)); }
 let boltNext = 0;
 function fireBolt(pos, dir, speed, dmg, enemy, w) {
   const b = bolts[boltNext]; boltNext = (boltNext + 1) % BOLT_N; w = enemy ? WPN[0] : (w || WPN[0]);
   b.pos.copy(pos); b.vel.copy(dir).multiplyScalar(speed); b.life = enemy ? 2.6 : 1.7; b.enemy = enemy; b.dmg = dmg;
-  b.sx = w.t; b.sz = w.l; b.hr = w.hr; b.wob = w.wob; b.age = 0;
+  b.sx = w.t * 1.3; b.sz = w.l * 1.2; b.hr = w.hr; b.wob = w.wob; b.age = 0;
   if (w.wob) { b.p1.crossVectors(dir, Y); if (b.p1.lengthSq() < 0.01) b.p1.set(1, 0, 0); b.p1.normalize(); b.p2.crossVectors(dir, b.p1).normalize(); }
   { const bi = bolts.indexOf(b); _col.set(enemy ? 0xff5a2a : w.c); boltMesh.setColorAt(bi, _col); boltHalo.setColorAt(bi, _col); boltMesh.instanceColor.needsUpdate = true; boltHalo.instanceColor.needsUpdate = true; }
 }
@@ -1850,9 +1867,11 @@ function frame(now) {
     }
     if ((firing || keys.Space) && S.fireT <= 0) {
       S.side = -S.side;
-      _a.set(S.side * 2.6 * SHIP_K, -0.34 * SHIP_K, -1.6 * SHIP_K).applyQuaternion(S.q).add(S.pos);
+      S.gi = ((S.gi | 0) + 1) % MUZ.length; const mz = MUZ[S.gi], bx = 0;   // the four guns fire in turn
+      _a.set((mz[0] + bx) * SHIP_K, mz[1] * SHIP_K, mz[2] * SHIP_K).applyQuaternion(S.q).add(S.pos);
       _b.copy(fwd); if (leadOk) _b.lerp(S._leadDir, 0.85).normalize();
-      const W = curW(); S.fireT = W.rate;
+      { const cd = S.target ? clamp(S.target.pos.distanceTo(S.pos), 120, 900) : 450; _c.copy(S.pos).addScaledVector(_b, cd).sub(_a).normalize(); _b.copy(_c); }   // the shots from the wide-set guns meet at the crosshair
+      const W = curW(); S.fireT = W.rate; flashMuzzle(S.gi, W.c);
       if (W.n === 1) fireBolt(_a, _b, W.spd, ST.dmg * W.dm, false, W);
       else if (W === WPN[3]) { _d.crossVectors(_b, Y).normalize(); for (let q = -1; q <= 1; q++) { _c.copy(_b).addScaledVector(_d, q * 0.07).normalize(); fireBolt(_a, _c, W.spd, ST.dmg * W.dm, false, W); } }   // salvo: a fan of three
       else for (let q = 0; q < W.n; q++) { _c.copy(_a).addScaledVector(_b, -13 * q); fireBolt(_c, _b, W.spd, ST.dmg * W.dm, false, W); }   // void pulse: three dashes in a row
@@ -1953,6 +1972,7 @@ function frame(now) {
   if (S.shGlow > 0) { S.shGlow = Math.max(0, S.shGlow - dt * 2.4); shGl.visible = S.shGlow > 0; shGl.material.uniforms.op.value = S.shGlow; shGl.material.uniforms.t.value = tAcc; }
   const vis = S.mode !== 'wreck', blink = S.inv > 0 && !S.nb && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
   { const on = S.mode !== 'dock'; flames.forEach(f => f.visible = on); flameCore.forEach(f => f.visible = on); flameCones.forEach(f => f.visible = on); FINST.forEach(f => f.im.visible = on); hoverPads.forEach(p => p.visible = on); }
+  for (const f of mFlash) if (f.visible) { f.userData.t -= dt * 9; if (f.userData.t <= 0) f.visible = false; else { f.material.opacity = f.userData.t; f.scale.setScalar(2.3 * (0.5 + 0.7 * f.userData.t)); } }
   const fl = 0.7 + S.speed / 220 + (S.boosting ? 0.9 : 0), flick = 0.9 + Math.sin(tAcc * 50) * 0.1;
   flames.forEach(f => { if (f.userData.pts) f.material.size = 2.9 * fl * flick * f.userData.sc; else f.scale.setScalar(1.9 * fl * flick * f.userData.sc); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => { if (f.userData.pts) f.material.size = 1.05 * fl * flick * f.userData.sc; else f.scale.setScalar(0.7 * fl * flick * f.userData.sc); }); flameMats.forEach((fm, k) => fm.color.setHex(flameCols[k][S.boosting ? 1 : 0])); FINST.forEach(F => { const L = F.L, es = ENGS[0][3]; ENGS.forEach((en, i) => { const ph = i * 1.7 + F.k, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + ph) + 0.05 * Math.sin(tAcc * 91 + ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); _fd.position.set(en[0], en[1], en[2] + es * (0.9 + len / 2)); _fd.rotation.set(Math.PI / 2, 0, 0); _fd.scale.set(r * es, len * es, r * es); _fd.updateMatrix(); F.im.setMatrixAt(i, _fd.matrix); }); F.im.instanceMatrix.needsUpdate = true; });
   flameCones.forEach(c => { const u = c.userData, L = u.L, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + u.ph) + 0.05 * Math.sin(tAcc * 91 + u.ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); c.scale.set(r, len, r); c.position.z = 0.9 + len / 2; });
