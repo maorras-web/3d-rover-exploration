@@ -422,6 +422,73 @@
   .edlg{display:none!important}
   #fade{position:fixed;inset:0;z-index:45;background:#000;opacity:0;pointer-events:none}
   .mk.pl{font-size:9px;opacity:.9}.mk.pl i{width:14px;height:14px}.mk.lock{opacity:1}.mk.lock i{width:30px;height:30px;border-style:dashed;box-shadow:0 0 14px currentColor}
+
+  /* ===== station screens polish (static CSS only, no animation, no blur: zero per-frame cost) ===== */
+  #shop .panel{background:linear-gradient(180deg,rgba(14,26,44,.9),rgba(5,10,20,.94) 55%,rgba(4,8,16,.96));border:1px solid rgba(110,175,235,.32);border-radius:6px;box-shadow:0 8px 28px rgba(0,0,0,.55),inset 0 1px 0 rgba(160,215,255,.22),inset 0 0 40px rgba(40,110,200,.07)}
+  #shop .panel::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;border-radius:6px;
+    background:
+      linear-gradient(#7ef0ff,#7ef0ff) top left/16px 2px no-repeat,linear-gradient(#7ef0ff,#7ef0ff) top left/2px 16px no-repeat,
+      linear-gradient(#7ef0ff,#7ef0ff) top right/16px 2px no-repeat,linear-gradient(#7ef0ff,#7ef0ff) top right/2px 16px no-repeat,
+      linear-gradient(#7ef0ff,#7ef0ff) bottom left/16px 2px no-repeat,linear-gradient(#7ef0ff,#7ef0ff) bottom left/2px 16px no-repeat,
+      linear-gradient(#7ef0ff,#7ef0ff) bottom right/16px 2px no-repeat,linear-gradient(#7ef0ff,#7ef0ff) bottom right/2px 16px no-repeat;opacity:.7}
+  #shop #shop-list{scrollbar-width:thin;scrollbar-color:rgba(126,240,255,.4) transparent}
+  /* clean bottom edge: rows fade out instead of being cut, room to scroll the last row fully into view */
+  #shop #shop-list{padding-bottom:30px;-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 28px),rgba(0,0,0,0));mask-image:linear-gradient(180deg,#000 calc(100% - 28px),rgba(0,0,0,0))}
+  /* the tab buttons stay pinned at the top while the list scrolls */
+  #shop #shop-list .subtg{position:sticky;top:-8px;z-index:5;margin:-8px -10px 6px;padding:8px 10px 6px;background:linear-gradient(180deg,rgba(10,18,32,.98) 80%,rgba(10,18,32,.9));border-bottom:1px solid rgba(126,200,255,.18)}
+  /* the tab buttons stay pinned at the top while the list scrolls under them */
+  #shop #shop-list .subtg{position:sticky;top:-8px;z-index:5;margin:-8px -10px 6px;padding:8px 10px 8px;background:linear-gradient(180deg,rgba(8,16,30,.98) 80%,rgba(8,16,30,.85))}
+  #shop #shop-list::-webkit-scrollbar{width:4px}
+  #shop #shop-list::-webkit-scrollbar-thumb{background:rgba(126,240,255,.45);border-radius:2px}
+  #shop #shop-list::-webkit-scrollbar-track{background:transparent}
+  /* shop rows: cleaner cards with a lit edge */
+  .row{position:relative;overflow:hidden;margin:6px 0;padding:8px 12px 8px 14px;border:1px solid rgba(126,200,255,.2);border-left:3px solid #4fd8ff;border-radius:3px 14px 14px 3px;background:linear-gradient(90deg,rgba(40,90,150,.28),rgba(10,22,40,.82) 38%,rgba(8,16,30,.88));box-shadow:inset 0 1px 0 rgba(200,235,255,.08),0 2px 6px rgba(0,0,0,.35)}
+  .row::after{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:linear-gradient(90deg,rgba(126,240,255,.7),rgba(126,240,255,0) 60%)}
+  .row .nm{letter-spacing:1.6px;color:#f2f8ff;text-shadow:0 1px 2px #000}
+  .row .nm span{color:#a9c4e0;opacity:1;letter-spacing:.3px;line-height:1.3}
+  .row .ico{border-radius:12px;box-shadow:0 0 12px -2px var(--c,#7ef0ff),inset 0 0 10px -3px var(--c,#7ef0ff),inset 0 1px 0 rgba(255,255,255,.18)}
+  .row .lv{font:800 11px/1 monospace;letter-spacing:3px;color:#9ff3ff;text-shadow:0 0 6px rgba(126,240,255,.55);padding:0 4px}
+  .buy{position:relative;padding:8px 16px;border-radius:20px;border:1px solid #ffd978;background:linear-gradient(180deg,rgba(255,224,138,.3),rgba(190,140,40,.16));color:#ffeab0;text-shadow:0 1px 2px rgba(0,0,0,.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 0 12px rgba(255,200,90,.22);letter-spacing:.5px}
+  .buy:active{transform:translateY(1px);filter:brightness(1.2)}
+  .buy[disabled],.buy:disabled{background:rgba(70,80,96,.28);border-color:rgba(150,160,175,.4);color:#8d98a8;box-shadow:none;text-shadow:none;opacity:1}
+  .buy.sell{background:linear-gradient(180deg,rgba(127,227,160,.28),rgba(40,120,70,.16));border-color:#8cf0ae;color:#c3ffd6;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 0 12px rgba(100,240,150,.2)}
+  /* sub tabs (UPGRADES / WEAPONS / CARGO, map systems) */
+  .subtg button{padding:9px 0;border-radius:4px 4px 12px 12px;border:1px solid rgba(126,200,255,.28);border-bottom:2px solid rgba(126,200,255,.28);background:linear-gradient(180deg,rgba(26,52,86,.65),rgba(8,18,32,.8));color:#8fd0f5;letter-spacing:3px;text-shadow:0 1px 2px #000}
+  .subtg button.on{color:#fff;border-color:#7ef0ff;border-bottom:2px solid #7ef0ff;background:linear-gradient(180deg,rgba(60,140,190,.55),rgba(14,50,80,.8));box-shadow:0 0 14px rgba(126,240,255,.28),inset 0 1px 0 rgba(255,255,255,.2)}
+  /* ship status: segmented glowing bars */
+  .spec-hd{position:relative;padding:4px 2px 10px;margin-bottom:4px;border-bottom:1px solid rgba(126,240,255,.25)}
+  .spec-hd::after{content:"";position:absolute;left:0;bottom:-1px;width:84px;height:2px;background:#7ef0ff;box-shadow:0 0 8px #7ef0ff}
+  .spec-hd b{font-size:17px;letter-spacing:4px;color:#b8f7ff;text-shadow:0 0 12px rgba(126,240,255,.45)}
+  .spec-hd span{opacity:.78;letter-spacing:.4px}
+  .spec{grid-template-columns:128px 1fr 88px;margin:9px 0}
+  .spec .sl{opacity:.9;color:#c5dcf2;letter-spacing:1.8px}
+  .spec .sv{font:800 12px system-ui,Arial,sans-serif;color:#ffe08a;text-shadow:0 0 8px rgba(255,200,80,.35);font-variant-numeric:tabular-nums}
+  .spec .sb{height:12px;border-radius:3px;background:rgba(4,12,24,.85);border:1px solid rgba(126,200,255,.35);box-shadow:inset 0 1px 3px rgba(0,0,0,.7)}
+  .spec .sb i{background:linear-gradient(90deg,#2b9fd0,#6fe3ff 70%,#d6fbff);box-shadow:0 0 10px rgba(110,230,255,.55)}
+  .spec .sb i.nx{background:linear-gradient(90deg,rgba(255,224,138,.5),rgba(255,224,138,.28));box-shadow:none}
+  .spec .sb::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(10% - 1px),rgba(2,8,18,.85) calc(10% - 1px),rgba(2,8,18,.85) 10%)}
+  .spec-ft{margin:14px 0 4px;padding:8px 10px;border-radius:4px;background:rgba(10,24,42,.6);border:1px solid rgba(126,200,255,.18);letter-spacing:1.4px;opacity:1;color:#bcd2ea}
+  .spec-ft b{color:#ffe08a;font-size:12px}
+  .spec-lg{opacity:.55;margin-top:6px;letter-spacing:.3px}
+  /* map: tactical grid, glowing stations, tidier planet card */
+  .smap{background:radial-gradient(ellipse at 40% 45%,rgba(30,60,100,.55),rgba(4,9,18,.85) 75%),repeating-linear-gradient(0deg,transparent 0,transparent 23px,rgba(110,170,240,.07) 23px,rgba(110,170,240,.07) 24px),repeating-linear-gradient(90deg,transparent 0,transparent 23px,rgba(110,170,240,.07) 23px,rgba(110,170,240,.07) 24px);border:1px solid rgba(110,175,235,.3);border-radius:4px;box-shadow:inset 0 0 40px rgba(0,0,0,.55)}
+  .smap .sn i{width:14px;height:14px;border:2px solid rgba(255,255,255,.85);box-sizing:border-box;position:relative}
+  .smap .sn i::after{content:"";position:absolute;inset:-8px;border-radius:50%;border:1px solid rgba(255,255,255,.22)}
+  .smap .sn.here i{width:18px;height:18px;transform:translate(-2px,-2px);border-color:#fff}
+  .smap .sn.here i::after{inset:-9px;border:1.5px solid rgba(255,200,96,.65)}
+  .smap .sn.tgt i::after{border:1.5px dashed rgba(95,255,176,.8)}
+  .smap .sn span{font-size:12px;letter-spacing:1.4px;color:#eef6ff}
+  .smap .sn span small{font-size:10px;letter-spacing:1px;color:#9ec4e8;opacity:1}
+  .smap .sn.here span small{color:#ffd57a}
+  .smap .sn.here span{left:26px}.smap .sn.here.fl span{left:auto;right:26px}
+  .smap .pvw{background:linear-gradient(180deg,rgba(14,30,52,.86),rgba(5,12,22,.9));border:1px solid rgba(126,200,255,.4);border-radius:10px;box-shadow:0 0 18px rgba(40,110,200,.25),inset 0 1px 0 rgba(200,235,255,.15)}
+  .pvw b{letter-spacing:3px;color:#e4f3ff;text-shadow:0 0 8px rgba(126,200,255,.5)}
+  .sysw button{padding:6px 14px;border-radius:4px 4px 10px 10px;background:linear-gradient(180deg,rgba(26,52,86,.7),rgba(6,14,26,.85));border-color:rgba(126,200,255,.35)}
+  .sysw button.on{background:linear-gradient(180deg,rgba(60,140,190,.55),rgba(14,50,80,.8));color:#fff;border-color:#7ef0ff;box-shadow:0 0 12px rgba(126,240,255,.3)}
+  /* left menu + credits */
+  .nv{height:29px;border-radius:3px;border:1px solid rgba(120,170,225,.5);border-left:3px solid rgba(120,170,225,.7);letter-spacing:.6px}
+  .nv.on{border-left-color:#ffd070;box-shadow:0 0 12px rgba(255,190,80,.3),inset 0 1px 0 rgba(255,255,255,.25)}
+  #shop-cr{border-radius:3px;box-shadow:0 0 12px rgba(255,200,90,.25),inset 0 1px 0 rgba(255,255,255,.25)}
 </style>
 </head>
 <body>
