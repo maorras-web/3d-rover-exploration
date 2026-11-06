@@ -444,10 +444,11 @@ const roverBody = (() => {
     new THREE.Matrix4().makeTranslation(s * 1.22, -0.25, 1.75).multiply(new THREE.Matrix4().makeRotationY(s * Math.PI / 2)));   // engine pylon: a clean strut from hull to nacelle
   const sface = (c0, c1) => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 32); gr.addColorStop(0, c0); gr.addColorStop(1, c1); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); return c; };
   const eface = (kind) => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 64);
-    gr.addColorStop(0, '#9fb0c8'); gr.addColorStop(0.42, '#eef3fb'); gr.addColorStop(0.47, '#5a667c'); gr.addColorStop(0.55, '#1b212c'); gr.addColorStop(1, '#0c0f15'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+    if (SHIP_VAR === 4) { gr.addColorStop(0, '#7f8ca4'); gr.addColorStop(0.36, '#c9d3e4'); gr.addColorStop(0.46, '#6b778d'); gr.addColorStop(0.52, '#262d3b'); gr.addColorStop(0.8, '#3b4658'); gr.addColorStop(1, '#2a3242'); } else { gr.addColorStop(0, '#9fb0c8'); gr.addColorStop(0.42, '#eef3fb'); gr.addColorStop(0.47, '#5a667c'); gr.addColorStop(0.55, '#1b212c'); gr.addColorStop(1, '#0c0f15'); } x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+    if (SHIP_VAR === 4) { x.fillStyle = 'rgba(255,255,255,0.95)'; x.fillRect(0, 12, 64, 3); x.fillStyle = 'rgba(40,220,255,0.6)'; x.fillRect(0, 52, 64, 4); x.fillStyle = 'rgba(255,255,255,0.8)'; x.fillRect(kind === 1 ? 6 : 40, 0, 4, 64); }
     if (kind === 1) { const g2 = x.createRadialGradient(22, 18, 0, 22, 18, 20); g2.addColorStop(0, 'rgba(255,255,255,1)'); g2.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g2; x.fillRect(0, 0, 64, 64); } return c; };
   const topF = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 4, 32, 32, 46); g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#b8c6dc'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return c; })();
-  const botF = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; c.getContext('2d').fillStyle = '#0a0c11'; c.getContext('2d').fillRect(0, 0, 64, 64); return c; })();
+  const botF = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; c.getContext('2d').fillStyle = SHIP_VAR === 4 ? '#2c3444' : '#0a0c11'; c.getContext('2d').fillRect(0, 0, 64, 64); return c; })();
   const senv = new THREE.CubeTexture([eface(1), eface(0), topF, botF, eface(0), eface(0)]); senv.colorSpace = THREE.SRGBColorSpace; senv.needsUpdate = true;
   if (SHIP_VAR === 4) {
     // custom ship from the ship builder: a list of simple parts (mirrored when mir=1); the built-in shape above is discarded
@@ -459,8 +460,11 @@ const roverBody = (() => {
       case 'sph': return new THREE.SphereGeometry(0.5, 18, 12);
       case 'cone': { const g = new THREE.ConeGeometry(0.5, 1, 16); g.rotateX(-Math.PI / 2); return g; }
       case 'tor': return new THREE.TorusGeometry(0.5, 0.04 * k, 6, 28);
-      default: { const v = [[0, -0.5], [0, 0.5], [1, -0.5 + k + 0.3], [1, -0.5 + k]], pos = [];; v.forEach(a => pos.push(a[0], 0.5, a[1])); v.forEach(a => pos.push(a[0], -0.5, a[1]));
-        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex([0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6, 0, 4, 5, 0, 5, 1, 1, 5, 6, 1, 6, 2, 2, 6, 7, 2, 7, 3, 3, 7, 4, 3, 4, 0]); return g; } } };
+      default: {   // tapered, curved airfoil wing: swept leading edge, thickness fades to a sharp tip, lens-shaped cross-section (was a flat boxy wedge)
+        const NS = 6, NC = 6, pos = [], pt = (t, c, up) => { const zl = -0.5 + k * Math.pow(t, 1.5), zt = 0.5 + (k - 0.92) * Math.pow(t, 0.9), th = (Math.pow(Math.sin(Math.PI * c), 0.3) * 0.94 + 0.06) * (1 - 0.15 * t); return [t, up * 0.5 * th, zl + (zt - zl) * c]; };
+        for (let i = 0; i < NS; i++) for (let j = 0; j < NC; j++) { const t0 = i / NS, t1 = (i + 1) / NS, c0 = j / NC, c1 = (j + 1) / NC;
+          for (const up of [1, -1]) { const A = pt(t0, c0, up), B = pt(t0, c1, up), C = pt(t1, c0, up), D = pt(t1, c1, up), tri = up > 0 ? [A, B, C, B, D, C] : [A, C, B, B, C, D]; tri.forEach(q => pos.push(q[0], q[1], q[2])); } }
+        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); return g; } } };
     for (const p of PJ) for (const mir of (p.mir ? [0, 1] : [0])) {
       let g = pgeo(p); g = g.index ? g.toNonIndexed() : g;
       E.set(p.rx * D2R, (mir ? -p.ry : p.ry) * D2R, (mir ? -p.rz : p.rz) * D2R, 'YXZ'); Q.setFromEuler(E);
@@ -477,18 +481,19 @@ const roverBody = (() => {
   const drawPlates = (x, W, H, bump) => {
     let sd = 11; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
     x.fillStyle = bump ? '#bbb' : '#d5dae4'; x.fillRect(0, 0, W, H);
-    const panels = []; const split = (px, py, pw, ph, d) => { if (d > 3 || (d > 1 && rn() < 0.22) || pw < 70 || ph < 70) { panels.push([px, py, pw, ph]); return; } if ((pw > ph) ^ (rn() < 0.2)) { const c = pw * (0.35 + rn() * 0.3); split(px, py, c, ph, d + 1); split(px + c, py, pw - c, ph, d + 1); } else { const c = ph * (0.35 + rn() * 0.3); split(px, py, pw, c, d + 1); split(px, py + c, pw, ph - c, d + 1); } };
+    const panels = []; const split = (px, py, pw, ph, d) => { if (d > 2 || (d > 0 && rn() < 0.3) || pw < 90 || ph < 90) { panels.push([px, py, pw, ph]); return; } if ((pw > ph) ^ (rn() < 0.2)) { const c = pw * (0.35 + rn() * 0.3); split(px, py, c, ph, d + 1); split(px + c, py, pw - c, ph, d + 1); } else { const c = ph * (0.35 + rn() * 0.3); split(px, py, pw, c, d + 1); split(px, py + c, pw, ph - c, d + 1); } };
     split(0, 0, W, H, 0);
     for (const [px, py, pw, ph] of panels) {
       const t = rn(); x.fillStyle = bump ? `rgb(${170 + t * 40 | 0},${170 + t * 40 | 0},${170 + t * 40 | 0})` : `rgb(${196 + t * 40 | 0},${204 + t * 36 | 0},${216 + t * 30 | 0})`; x.fillRect(px + 2, py + 2, pw - 4, ph - 4);
-      x.strokeStyle = bump ? '#333' : 'rgba(60,70,90,.7)'; x.lineWidth = bump ? 5 : 3; x.strokeRect(px + 2.5, py + 2.5, pw - 5, ph - 5);
-      if (!bump) { x.strokeStyle = 'rgba(255,255,255,.35)'; x.lineWidth = 1.5; x.strokeRect(px + 5, py + 5, pw - 10, ph - 10); }
+      x.strokeStyle = bump ? '#555' : 'rgba(60,70,90,.4)'; x.lineWidth = bump ? 4 : 2; x.strokeRect(px + 2.5, py + 2.5, pw - 5, ph - 5);
+      if (!bump) { x.strokeStyle = 'rgba(255,255,255,.12)'; x.lineWidth = 1; x.strokeRect(px + 5, py + 5, pw - 10, ph - 10); }
+      if (!bump) { let bg = x.createLinearGradient(px, py, px, py + ph); bg.addColorStop(0, 'rgba(255,255,255,0.22)'); bg.addColorStop(0.1, 'rgba(255,255,255,0)'); bg.addColorStop(0.88, 'rgba(0,0,0,0)'); bg.addColorStop(1, 'rgba(0,0,0,0.42)'); x.fillStyle = bg; x.fillRect(px + 2, py + 2, pw - 4, ph - 4); bg = x.createLinearGradient(px, py, px + pw, py); bg.addColorStop(0, 'rgba(255,255,255,0.14)'); bg.addColorStop(0.08, 'rgba(255,255,255,0)'); bg.addColorStop(0.92, 'rgba(0,0,0,0)'); bg.addColorStop(1, 'rgba(0,0,0,0.3)'); x.fillStyle = bg; x.fillRect(px + 2, py + 2, pw - 4, ph - 4); }   // bevel + baked AO, same trick as the stations
       x.fillStyle = bump ? '#eee' : '#6c7486'; for (const [rx, ry] of [[9, 9], [pw - 9, 9], [9, ph - 9], [pw - 9, ph - 9]]) { x.beginPath(); x.arc(px + rx, py + ry, 2.2, 0, 7); x.fill(); }   // rivets
       const k = rn();
-      if (k < 0.2 && pw > 90 && ph > 90) { x.strokeStyle = bump ? '#222' : '#2c3240'; x.lineWidth = 3; for (let i = 0; i < 5; i++) { const yy = py + ph * 0.3 + i * ph * 0.1; x.beginPath(); x.moveTo(px + pw * 0.2, yy); x.lineTo(px + pw * 0.8, yy); x.stroke(); } }   // vent slats
-      else if (k < 0.32 && !bump) { x.fillStyle = rn() < 0.5 ? 'rgba(255,120,40,.85)' : 'rgba(53,212,255,.8)'; x.fillRect(px + pw * 0.15, py + ph * 0.45, pw * 0.7, 7); }   // marking stripe
+      if (k < 0.06 && pw > 90 && ph > 90) { x.strokeStyle = bump ? '#222' : '#2c3240'; x.lineWidth = 3; for (let i = 0; i < 5; i++) { const yy = py + ph * 0.3 + i * ph * 0.1; x.beginPath(); x.moveTo(px + pw * 0.2, yy); x.lineTo(px + pw * 0.8, yy); x.stroke(); } }   // vent slats
+      else if (k < 0.12 && !bump) { x.fillStyle = rn() < 0.5 ? 'rgba(53,212,255,.85)' : 'rgba(53,212,255,.85)'; x.fillRect(px + pw * 0.1, py + ph * 0.4, pw * 0.8, 14); }   // marking stripe
     }
-    x.lineCap = 'round'; for (let i = 0; i < 40; i++) { const sx = rn() * W, sy = rn() * H, a = rn() * 6.28, l = 6 + rn() * 26; x.strokeStyle = bump ? 'rgba(20,20,20,.5)' : (rn() < 0.5 ? 'rgba(40,46,60,.35)' : 'rgba(255,255,255,.35)'); x.lineWidth = 1; x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx + Math.cos(a) * l, sy + Math.sin(a) * l); x.stroke(); }   // scratches
+    x.lineCap = 'round'; for (let i = 0; i < 4; i++) { const sx = rn() * W, sy = rn() * H, a = rn() * 6.28, l = 6 + rn() * 26; x.strokeStyle = bump ? 'rgba(20,20,20,.5)' : (rn() < 0.5 ? 'rgba(40,46,60,.35)' : 'rgba(255,255,255,.35)'); x.lineWidth = 1; x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx + Math.cos(a) * l, sy + Math.sin(a) * l); x.stroke(); }   // scratches
   };
   const plateMap = canvasTex(1024, 1024, (x, w, h) => { x.scale(2, 2); drawPlates(x, w / 2, h / 2, false); }, [1, 1]);
   const plateBump = canvasTex(512, 512, (x, w, h) => drawPlates(x, w, h, true), [1, 1]); plateBump.colorSpace = THREE.NoColorSpace;
@@ -511,8 +516,15 @@ const roverBody = (() => {
       f *= 1.7; cl.setXYZ(i, Math.min(1, cl.getX(i) * f), Math.min(1, cl.getY(i) * f), Math.min(1, cl.getZ(i) * f));
     }
   }
-  const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, map: plateMap, bumpMap: plateBump, bumpScale: 0.9, roughness: SV.rough, metalness: SV.met, flatShading: false, envMap: senv, envMapIntensity: SHIP_VAR === 0 ? 1.7 : 1.3, emissive: 0x2a303c });
-  bmat.onBeforeCompile = (sh) => { sh.uniforms.uRimC = shipRim; sh.fragmentShader = 'uniform vec3 uRimC;\n' + sh.fragmentShader; sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float rimK = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 2.6); totalEmissiveRadiance += uRimC * rimK * 0.5;'); };   // cyan rim light round the silhouette
+  const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, map: plateMap, bumpMap: plateBump, bumpScale: SHIP_VAR === 4 ? 1.7 : 0.9, roughness: SHIP_VAR === 4 ? 0.26 : SV.rough, metalness: SHIP_VAR === 4 ? 0.96 : SV.met, flatShading: false, envMap: senv, envMapIntensity: SHIP_VAR === 0 ? 1.7 : SHIP_VAR === 4 ? 1.35 : 1.3, emissive: SHIP_VAR === 4 ? 0x262e3e : 0x2a303c });
+  bmat.onBeforeCompile = (sh) => { sh.uniforms.uRimC = shipRim;
+    if (SHIP_VAR === 4) {   // accent stripes + sheen, all in the existing fragment shader (no extra draw calls)
+      sh.vertexShader = 'varying vec3 vLP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vLP = position;');
+      sh.fragmentShader = 'varying vec3 vLP;\n' + sh.fragmentShader;
+      sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float sx = abs(vLP.x), stp = smoothstep(0.0, 0.03, sin(vLP.z * 0.8 + sx * 1.4) * 0.5 + 0.5 - 0.6) * smoothstep(0.05, 0.2, sx) * (1.0 - smoothstep(2.6, 3.2, sx)); totalEmissiveRadiance += vec3(0.0); diffuseColor.rgb *= 1.0 + 0.0 * stp;');
+    } sh.fragmentShader = 'uniform vec3 uRimC;\n' + sh.fragmentShader; sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float rimK = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 2.6); totalEmissiveRadiance += uRimC * rimK * 0.5;');
+    if (SHIP_VAR === 4) { sh.uniforms.uSunV = stnSunV; sh.fragmentShader = 'uniform vec3 uSunV;\n' + sh.fragmentShader.replace('#include <opaque_fragment>', 'float sl = dot(normalize(normal), uSunV); float rimF = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0); vec3 rimC = mix(vec3(0.10, 0.22, 0.5), vec3(1.0, 0.78, 0.5), smoothstep(-0.25, 0.5, sl)); outgoingLight += rimC * rimF * (0.3 + 0.7 * smoothstep(-0.4, 0.6, sl)) * 0.9; outgoingLight *= mix(0.9, 1.12, smoothstep(-0.35, 0.55, sl));\n#include <opaque_fragment>'); }
+  };   // cyan rim light round the silhouette
   const bm = new THREE.Mesh(bgeo, bmat);
   { const pa = bgeo.attributes.position; let mx = 0; for (let i = 0; i < pa.count; i++) mx = Math.max(mx, Math.abs(pa.getX(i)));   // find the two wing tips from the real geometry
     const tp = [[0, 0, 0, 0], [0, 0, 0, 0]]; for (let i = 0; i < pa.count; i++) { const x = pa.getX(i); if (Math.abs(x) > mx * 0.97) { const t = tp[x < 0 ? 0 : 1]; t[0] += x; t[1] += pa.getY(i); t[2] += pa.getZ(i); t[3]++; } }
