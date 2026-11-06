@@ -489,6 +489,19 @@
   .nv{height:29px;border-radius:3px;border:1px solid rgba(120,170,225,.5);border-left:3px solid rgba(120,170,225,.7);letter-spacing:.6px}
   .nv.on{border-left-color:#ffd070;box-shadow:0 0 12px rgba(255,190,80,.3),inset 0 1px 0 rgba(255,255,255,.25)}
   #shop-cr{border-radius:3px;box-shadow:0 0 12px rgba(255,200,90,.25),inset 0 1px 0 rgba(255,255,255,.25)}
+
+  /* ===== flight HUD polish ===== */
+  #tgt span{display:inline-block;margin-top:2px;padding:2px 8px;border-radius:9px;background:rgba(16,6,10,.72);border:1px solid rgba(255,106,90,.55);color:#ffc2b8;text-shadow:0 1px 2px #000;letter-spacing:1.4px}
+  #tgt .hb{width:58px;height:5px;border:1px solid rgba(0,0,0,.45)}
+  #tgt .br{width:58px;height:58px}
+  .mk span{text-shadow:0 0 3px #000,0 0 6px #000,0 1px 2px #000}
+  body.crit::after{content:"";position:fixed;inset:0;z-index:8;pointer-events:none;background:radial-gradient(ellipse at center,rgba(255,0,0,0) 55%,rgba(255,30,20,.38) 100%);animation:critp 1.1s ease-in-out infinite alternate}
+  @keyframes critp{from{opacity:.35}to{opacity:1}}
+  body.docked::after{display:none!important}
+
+  /* ===== radar: wide low glass scanner with corner brackets (see-through, so the ship shows behind it) ===== */
+  #radar{width:160px;height:68px;border:0;border-radius:0;background:none;box-shadow:none;bottom:calc(4px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);filter:drop-shadow(0 0 5px rgba(80,200,240,.35))}
+  @media (max-height:380px){#radar{width:140px;height:60px}}
 </style>
 </head>
 <body>
@@ -506,7 +519,7 @@
 <div id="sysbn"><div></div><small></small></div>
 
 <div id="top-left" class="hud">
-  <div class="pr gold"><svg class="ic" viewBox="0 0 24 24"><path d="M3 7.5l15-3 1 4a2 2 0 0 0-1.6 3.2l.6 3.3-15 3-1-4A2 2 0 0 0 3.6 11z"/></svg><b id="credits">0</b><small>Cr</small><span class="sp"></span><span class="ks"><svg class="ic" viewBox="0 0 24 24"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11a1.5 1.5 0 0 1 1.5 1.5V17H18v1.5h-2.5V17h-7v1.5H6V17H3.5v-4.5A1.5 1.5 0 0 1 5 11zm2.2-.5h9.6l-1-3H8.2zM7 13.2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4zm10 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z"/></svg><span id="kills"></span></span></div>
+  <div class="pr gold"><svg class="ic" viewBox="0 0 24 24"><path d="M3 7.5l15-3 1 4a2 2 0 0 0-1.6 3.2l.6 3.3-15 3-1-4A2 2 0 0 0 3.6 11z"/></svg><b id="credits">0</b><small>Cr</small><span class="sp"></span><span class="ks"><svg class="ic" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12zM11 1h2v4h-2zm0 18h2v4h-2zM1 11h4v2H1zm18 0h4v2h-4zm-7-1a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg><span id="kills"></span></span></div>
   <div class="pr"><span class="nm">Shield</span><div class="pbar"><i id="b-sh"></i></div><svg class="ic ri" style="color:#7fd0ff" viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><path d="M12 5l4.8 1.8V11c0 3-2.2 5.6-4.8 7z" fill="#e4f3ff" fill-opacity=".55"/></svg></div>
   <div class="pr"><span class="nm">Hull</span><div class="pbar"><i id="b-hu"></i></div><svg class="ic ri" style="color:#d890d8" viewBox="0 0 24 24"><path d="M12 20.5s-5-3-5-6.5A2.8 2.8 0 0 1 12 12.5 2.8 2.8 0 0 1 17 14c0 3.5-5 6.5-5 6.5zM6 11L1.5 7.5l1 5.5 4 1zM18 11l4.5-3.5-1 5.5-4 1z"/></svg></div>
   <div class="pr"><span class="nm">Boost</span><div class="pbar"><i id="b-bo"></i></div><svg class="ic ri" style="color:#ffb35a" viewBox="0 0 24 24"><path d="M12 2s6 6 6 11a6 6 0 0 1-12 0c0-2 1-3.5 2-5 0 2 1 3 2 3 0-4 0-6 2-9z"/></svg></div>
@@ -527,7 +540,7 @@
 </style>
 <div id="top-right" class="hud"><button class="sbtn" id="b-pause"><svg class="ics" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" stroke-width="3.2"/></svg></button></div><div id="pause-ov"><div class="pbox"><div class="pt">PAUSED</div><button class="pitem go" id="b-resume"><svg class="ics" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="currentColor"/></svg><span>RESUME</span></button><button class="pitem" id="b-map"><svg class="ics" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9" ry="4.5"/><path d="M12 3v3M12 18v3"/></svg><span>STAR MAP</span></button><button class="pitem" id="b-fs"><svg class="ics" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg><span>FULLSCREEN</span></button><button class="pitem" id="b-inv"><svg class="ics" viewBox="0 0 24 24"><path d="M8 4v15M4 8l4-4 4 4M16 20V5M12 16l4 4 4-4"/></svg><span>INVERT CONTROLS</span><i></i></button><button class="pitem" id="b-snd"><svg class="ics" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/></svg><span>SOUND</span><i></i></button></div></div>
 <div id="speed" class="hud"><span id="kmh">0</span><small>m/s</small></div>
-<canvas id="radar" class="hud" width="208" height="208"></canvas>
+<canvas id="radar" class="hud" width="320" height="136"></canvas>
 
 <div id="stick" class="hud"><div class="base"></div><div class="knob" id="knob"></div></div>
 <div id="rb-bg"></div>
@@ -646,11 +659,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=274', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=280', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=274'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=280'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>

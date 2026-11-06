@@ -93,7 +93,7 @@ if (!Array.isArray(save.cargo) || save.cargo.length !== 5) save.cargo = [0, 0, 0
 if (!save.wpn || !Array.isArray(save.wpn.owned)) save.wpn = { owned: [0], cur: 0 };   // weapons bought and the one in use
 const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { } };
 let wpnChipEl = null;
-function wpnChip() { if (!wpnChipEl) { wpnChipEl = document.createElement('button'); wpnChipEl.id = 'b-wpn'; wpnChipEl.style.cssText = 'height:38px;padding:0 12px;border-radius:10px;border:1px solid currentColor;background:rgba(8,16,34,.62);font:800 11px system-ui,Arial,sans-serif;letter-spacing:1.5px;pointer-events:auto;white-space:nowrap';
+function wpnChip() { if (!wpnChipEl) { wpnChipEl = document.createElement('button'); wpnChipEl.id = 'b-wpn'; wpnChipEl.style.cssText = 'height:38px;padding:0 13px;border-radius:9px;border:1.5px solid rgba(150,200,245,.55);background:linear-gradient(160deg,#27456f,#122342);box-shadow:inset 0 1px 0 rgba(255,255,255,.18);font:800 11px system-ui,Arial,sans-serif;letter-spacing:1.5px;text-shadow:0 0 8px currentColor,0 1px 2px #000;pointer-events:auto;white-space:nowrap';
     wpnChipEl.addEventListener('click', cycleWpn); const tr = document.getElementById('top-right'); if (tr) tr.insertBefore(wpnChipEl, tr.firstChild); }
   const w = curW(); wpnChipEl.textContent = w.name; wpnChipEl.style.color = '#' + w.c.toString(16).padStart(6, '0'); wpnChipEl.style.display = save.wpn.owned.length > 1 ? '' : 'none'; }
 function cycleWpn() { const o = save.wpn.owned, k = (o.indexOf(save.wpn.cur) + 1) % o.length; save.wpn.cur = o[k]; persist(); wpnChip(); S.fireT = Math.max(S.fireT, 0.15); toast(curW().name, 0.8); }
@@ -1582,14 +1582,25 @@ function place(el, worldPos, label, edge, hideIfBehind) {
   arrow.style.display = 'block'; dot.style.display = 'none'; arrow.style.transform = `rotate(${Math.atan2(nx, ny) * 180 / Math.PI}deg)`; return false;
 }
 function drawRadar() {
-  const c = rctx, W = 208, R = 98, cx = 104, cy = 104, range = 1500, k = R / range;
-  c.clearRect(0, 0, W, W);
-  c.strokeStyle = 'rgba(126,240,255,.28)'; c.lineWidth = 1.5; c.beginPath(); c.arc(cx, cy, R * 0.5, 0, 7); c.stroke(); c.beginPath(); c.moveTo(cx - R, cy); c.lineTo(cx + R, cy); c.moveTo(cx, cy - R); c.lineTo(cx, cy + R); c.stroke();
+  // wide, low glass scanner: top-down, forward = up, wider than tall so it stays below the ship
+  const c = rctx, W = 320, H = 136, cx = 160, cy = 68, RX = 152, RZ = 60, range = 1500, kx = RX / range, kz = RZ / range;
+  c.clearRect(0, 0, W, H);
+  c.fillStyle = 'rgba(8,26,40,.34)'; c.fillRect(cx - RX, cy - RZ, RX * 2, RZ * 2);
+  const fov = c.createLinearGradient(0, cy - RZ, 0, cy); fov.addColorStop(0, 'rgba(126,240,255,.16)'); fov.addColorStop(1, 'rgba(126,240,255,0)');
+  c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx - RX * 0.5, cy - RZ); c.lineTo(cx + RX * 0.5, cy - RZ); c.closePath(); c.fillStyle = fov; c.fill();
+  c.strokeStyle = 'rgba(126,240,255,.2)'; c.lineWidth = 1.5; c.beginPath();
+  c.moveTo(cx, cy - RZ); c.lineTo(cx, cy + RZ); c.moveTo(cx - RX, cy); c.lineTo(cx + RX, cy);
+  c.rect(cx - RX / 2, cy - RZ / 2, RX, RZ); c.stroke();
+  c.strokeStyle = 'rgba(160,248,255,.9)'; c.lineWidth = 3; c.beginPath(); const L = 22;
+  c.moveTo(cx - RX, cy - RZ + L); c.lineTo(cx - RX, cy - RZ); c.lineTo(cx - RX + L, cy - RZ);
+  c.moveTo(cx + RX - L, cy - RZ); c.lineTo(cx + RX, cy - RZ); c.lineTo(cx + RX, cy - RZ + L);
+  c.moveTo(cx - RX, cy + RZ - L); c.lineTo(cx - RX, cy + RZ); c.lineTo(cx - RX + L, cy + RZ);
+  c.moveTo(cx + RX - L, cy + RZ); c.lineTo(cx + RX, cy + RZ); c.lineTo(cx + RX, cy + RZ - L); c.stroke();
   qInv.copy(S.q).invert();
   const dot = (p, col, size, sq) => {
-    _c.copy(p).sub(S.pos).applyQuaternion(qInv); let x = _c.x, z = _c.z, y = _c.y; const d = Math.hypot(x, z); let a = 1;
+    _c.copy(p).sub(S.pos).applyQuaternion(qInv); let x = _c.x, z = _c.z; const y = _c.y, d = Math.max(Math.abs(x), Math.abs(z)); let a = 1;
     if (d > range) { x *= range / d; z *= range / d; a = 0.45; }
-    const px = cx + x * k, py = cy + z * k, ey = clamp(y * k * 0.6, -26, 26);
+    const px = cx + x * kx, py = cy + z * kz, ey = clamp(y * kz * 0.5, -16, 16);
     c.globalAlpha = a; c.strokeStyle = col; c.fillStyle = col; c.lineWidth = 1.5; c.beginPath(); c.moveTo(px, py); c.lineTo(px, py - ey); c.stroke();
     if (sq) c.fillRect(px - size, py - ey - size, size * 2, size * 2); else { c.beginPath(); c.arc(px, py - ey, size, 0, 7); c.fill(); } c.globalAlpha = 1;
   };
@@ -1598,7 +1609,7 @@ function drawRadar() {
   if (S.mission && S.mission.type === 'delivery') dot(stations[S.mission.to].pos, '#ffd166', 6, true);
   for (const l of loot) if (l.active) dot(l.pos, '#ffd166', 2.2);
   for (const e of enemies) if (e.active) dot(e.pos, e === S.target ? '#ffffff' : '#ff5a4a', e === S.target ? 5 : 4);
-  c.fillStyle = '#9ff3ff'; c.beginPath(); c.moveTo(cx, cy - 8); c.lineTo(cx + 6, cy + 6); c.lineTo(cx - 6, cy + 6); c.closePath(); c.fill();
+  c.fillStyle = '#b6f8ff'; c.beginPath(); c.moveTo(cx, cy - 9); c.lineTo(cx + 8, cy + 6); c.lineTo(cx, cy + 3); c.lineTo(cx - 8, cy + 6); c.closePath(); c.fill();
 }
 
 function frame(now) {
@@ -1833,6 +1844,7 @@ function frame(now) {
   dustMat.uniforms.uK.value = 0.012 + (S.boosting ? 0.05 : 0.008); dustMat.uniforms.uAlpha.value = S.mode === 'dock' ? 0 : 0.22 + clamp(S.speed / 170, 0, 1) * 0.35 + (S.boosting ? 0.2 : 0);
 
   // ---- HUD ----
+  document.body.classList.toggle('crit', S.mode === 'fly' && S.hull > 0 && S.hull < ST.hullMax * 0.3);   // red edge glow when the hull is nearly gone
   $('b-sh').style.transform = `scaleX(${clamp(S.shield / ST.shieldMax, 0, 1).toFixed(3)})`;
   $('b-hu').style.transform = `scaleX(${clamp(S.hull / ST.hullMax, 0, 1).toFixed(3)})`;
   $('b-bo').style.transform = `scaleX(${clamp(S.boost / 100, 0, 1).toFixed(3)})`;
