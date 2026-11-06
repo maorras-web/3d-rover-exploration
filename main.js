@@ -1307,7 +1307,7 @@ const updateMissHud = () => { $('miss-n').textContent = save.missiles; const e =
 refreshHud(); updateMissHud(); $('kills').textContent = save.kills;
 
 // station music: loops while docked, fades in/out; never starts until the player has tapped (browser rule)
-const stMus = new Audio('station.mp3?v=1'); stMus.loop = true; stMus.preload = 'auto'; stMus.volume = 0; let stVol = 0, stUnlocked = false;
+const stMus = new Audio('station.mp3?v=2'); stMus.loop = true; stMus.preload = 'auto'; stMus.volume = 0; let stVol = 0, stUnlocked = false;
 function unlockMusic() { if (stUnlocked) return; stUnlocked = true; try { const p = stMus.play(); if (p && p.then) p.then(() => { if (stVol <= 0.01) stMus.pause(); }).catch(() => { stUnlocked = false; }); } catch (e) { stUnlocked = false; } }
 function updateMusic(dt) {
   const want = S.mode === 'dock' && save.snd && !document.hidden ? 0.6 : 0;
