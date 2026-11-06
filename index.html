@@ -42,12 +42,18 @@
   #cross:after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:rgba(159,243,255,.8);border-radius:50%}
   #flash{inset:0;opacity:0;transition:opacity .25s}
   #tunnel{position:fixed;inset:0;z-index:46;pointer-events:none;opacity:0;overflow:hidden;transition:opacity .5s}#tunnel.on{opacity:1;transition:opacity .35s}
-  #tunnel i{position:absolute;left:50%;top:50%;width:260vmax;height:260vmax;margin:-130vmax 0 0 -130vmax;background:repeating-conic-gradient(from 0deg,rgba(140,200,255,0) 0 3deg,rgba(160,215,255,.55) 3.4deg 3.8deg,rgba(255,255,255,.85) 4deg 4.2deg,rgba(140,200,255,0) 4.6deg 7.3deg,rgba(255,150,230,.4) 7.6deg 7.9deg,rgba(140,200,255,0) 8.3deg 11deg);-webkit-mask-image:radial-gradient(circle,transparent 3%,#000 14%,#000 40%,transparent 62%);mask-image:radial-gradient(circle,transparent 3%,#000 14%,#000 40%,transparent 62%);will-change:transform}
-  #tunnel.on i{animation:tn 1.9s cubic-bezier(.5,0,.9,.6) forwards}
-  #tunnel b{position:absolute;inset:0;background:radial-gradient(circle at center,rgba(255,255,255,.95) 0,rgba(150,205,255,.55) 6%,rgba(60,80,200,.25) 20%,rgba(0,0,0,0) 55%);transform:scale(.4);opacity:.6}
-  #tunnel.on b{animation:tg 1.9s ease-in forwards}
-  @keyframes tn{from{transform:scale(.15) rotate(0)}to{transform:scale(1) rotate(70deg)}}
-  @keyframes tg{from{transform:scale(.3);opacity:.5}to{transform:scale(1.6);opacity:1}}
+  #tunnel i,#tunnel i:after{position:absolute;left:50%;top:50%;width:150vmax;height:150vmax;margin:-75vmax 0 0 -75vmax;will-change:transform}
+  #tunnel i{background:radial-gradient(circle,rgba(0,0,0,0) 0,rgba(0,0,0,0) 26%,rgba(150,200,255,.0) 28%,rgba(190,225,255,.55) 33%,rgba(120,150,255,.25) 38%,rgba(0,0,0,0) 46%)}
+  #tunnel i:after{content:"";margin:0;left:0;top:0;width:100%;height:100%;background:radial-gradient(circle,rgba(0,0,0,0) 0,rgba(0,0,0,0) 26%,rgba(255,160,235,.0) 28%,rgba(255,180,240,.38) 33%,rgba(160,120,255,.18) 38%,rgba(0,0,0,0) 46%)}
+  #tunnel.on i{animation:ring 1.5s cubic-bezier(.3,.1,.6,1) forwards}
+  #tunnel.on i:after{animation:ring 1.5s cubic-bezier(.3,.1,.6,1) .4s backwards forwards}
+  #tunnel:after{content:"";position:absolute;inset:0;background:radial-gradient(circle at center,rgba(0,0,0,0) 22%,rgba(6,12,46,.55) 62%,rgba(2,4,20,.9) 100%);opacity:0}
+  #tunnel.on:after{animation:tv 1.9s ease-in forwards}
+  #tunnel b{position:absolute;inset:0;background:radial-gradient(circle at center,rgba(255,255,255,.9) 0,rgba(170,210,255,.5) 5%,rgba(80,100,255,.2) 22%,rgba(0,0,0,0) 58%);transform:scale(.25);opacity:.4}
+  #tunnel.on b{animation:tg 1.9s cubic-bezier(.5,0,.9,.5) forwards}
+  @keyframes ring{from{transform:scale(.07);opacity:.9}70%{opacity:.6}to{transform:scale(1);opacity:0}}
+  @keyframes tv{from{opacity:0}35%{opacity:.8}to{opacity:1}}
+  @keyframes tg{from{transform:scale(.2);opacity:.35}70%{opacity:.8}to{transform:scale(2.4);opacity:1}}
   #spd{inset:0;opacity:0;transition:opacity .35s;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 52%,rgba(90,190,255,.3) 100%)}
   #flare{inset:0;opacity:0;overflow:hidden}#flare i{position:absolute;left:0;top:0;border-radius:50%;will-change:transform}
   #flare i:nth-child(1){background:radial-gradient(circle,rgba(255,244,214,.75),rgba(255,200,120,.25) 35%,rgba(255,180,90,0) 70%)}
@@ -659,11 +665,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=307', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=312', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=307'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=312'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>

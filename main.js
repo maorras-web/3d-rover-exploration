@@ -132,7 +132,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x02030a);
 scene.fog = new THREE.FogExp2(0x02030a, 0.0030);
-const SYS_SKY = [new THREE.Color(0x02040d), new THREE.Color(0x0b0502)];   // per-system deep-space tint: HELIOS cold blue, YAPZO warm amber
+const SYS_SKY = [new THREE.Color(0x02040d), new THREE.Color(0x0b0502)];   // per-system deep-space tint: PIKRO cold blue, YAPZO warm amber
 const shipRim = { value: new THREE.Color(0.1, 0.55, 0.85) }, RIM_BASE = new THREE.Color(0.1, 0.55, 0.85), rimT = new THREE.Color(), rimP = new THREE.Color();
 const starT = { value: 0 }; let navPts = null, fxBlur = 0;   // star twinkle clock, wing-tip lights, boost blur amount
 const camera = new THREE.PerspectiveCamera(66, innerWidth / innerHeight, 1, 40000);
@@ -307,7 +307,7 @@ const skyS = new THREE.Group(); skyS.scale.setScalar(6); sky.add(skyS);      // 
     return m;
   })();
 spaceSun.position.copy(SUN_DIR).multiplyScalar(450);
-{ const g1 = glowSprite(0xfff0c0, 110, 0.9); g1.position.copy(spaceSun.position); skyS.add(g1); }
+const sunGlow = glowSprite(0xfff0c0, 110, 0.9); sunGlow.position.copy(spaceSun.position); skyS.add(sunGlow);
 
 // ---------- player ship ----------
 const SHIP_K = 1.7;   // the whole ship is drawn 1.7x bigger
@@ -523,7 +523,7 @@ const roverBody = (() => {
       sh.fragmentShader = 'varying vec3 vLP;\n' + sh.fragmentShader;
       sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float sx = abs(vLP.x), stp = smoothstep(0.0, 0.03, sin(vLP.z * 0.8 + sx * 1.4) * 0.5 + 0.5 - 0.6) * smoothstep(0.05, 0.2, sx) * (1.0 - smoothstep(2.6, 3.2, sx)); totalEmissiveRadiance += vec3(0.0); diffuseColor.rgb *= 1.0 + 0.0 * stp;');
     } sh.fragmentShader = 'uniform vec3 uRimC;\n' + sh.fragmentShader; sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float rimK = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 2.6); totalEmissiveRadiance += uRimC * rimK * 0.5;');
-    if (SHIP_VAR === 4) { sh.uniforms.uSunV = stnSunV; sh.fragmentShader = 'uniform vec3 uSunV;\n' + sh.fragmentShader.replace('#include <opaque_fragment>', 'float sl = dot(normalize(normal), uSunV); float rimF = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0); vec3 rimC = mix(vec3(0.10, 0.22, 0.5), vec3(1.0, 0.78, 0.5), smoothstep(-0.25, 0.5, sl)); outgoingLight += rimC * rimF * (0.3 + 0.7 * smoothstep(-0.4, 0.6, sl)) * 0.9; outgoingLight *= mix(0.9, 1.12, smoothstep(-0.35, 0.55, sl));\n#include <opaque_fragment>'); }
+    if (SHIP_VAR === 4) { sh.uniforms.uSunV = stnSunV; sh.uniforms.uSunC = sunRim; sh.fragmentShader = 'uniform vec3 uSunV;\nuniform vec3 uSunC;\n' + sh.fragmentShader.replace('#include <opaque_fragment>', 'float sl = dot(normalize(normal), uSunV); float rimF = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0); vec3 rimC = mix(vec3(0.10, 0.22, 0.5), uSunC, smoothstep(-0.25, 0.5, sl)); outgoingLight += rimC * rimF * (0.3 + 0.7 * smoothstep(-0.4, 0.6, sl)) * 0.9; outgoingLight *= mix(0.9, 1.12, smoothstep(-0.35, 0.55, sl));\n#include <opaque_fragment>'); }
   };   // cyan rim light round the silhouette
   const bm = new THREE.Mesh(bgeo, bmat);
   { const pa = bgeo.attributes.position; let mx = 0; for (let i = 0; i < pa.count; i++) mx = Math.max(mx, Math.abs(pa.getX(i)));   // find the two wing tips from the real geometry
@@ -890,12 +890,12 @@ function stnGrime(x, w, h, cell, label) {
 const stnRun = [0, 1, 2].map(() => new THREE.MeshBasicMaterial({ color: 0x223040, toneMapped: false, fog: false }));   // approach lights: three rings that light up one after another, pointing the way into the hangar
 function stnApproach(g, r, z0, dz, col) { for (let q = 0; q < 3; q++) { const a = []; for (let k = 0; k < 6; k++) { const sp = navSph(1.0); sp.translate(Math.cos(k * 1.0472) * r, Math.sin(k * 1.0472) * r, z0 + q * dz); a.push(sp); } g.add(new THREE.Mesh(mergeGeometries(a), stnRun[q])); } }
 const stnLegMat = (col, t) => stnLit(new THREE.MeshStandardMaterial({ color: new THREE.Color(0xc4ccdc).lerp(new THREE.Color(col), t), roughness: 0.22, metalness: 0.95, envMap: stnEnv, envMapIntensity: 1.5, fog: false }), 1.0);   // legs / struts / fins: plain polished metal in the station's colour, no lit windows
-const stnSunV = { value: new THREE.Vector3(0.7, 0.6, 0.3) };
+const stnSunV = { value: new THREE.Vector3(0.7, 0.6, 0.3) }, sunRim = { value: new THREE.Color(1.0, 0.75, 0.45) };   // sunRim: the sun's colour as seen on rims of ships and stations (changes per system)
 function stnLit(m, k) {
-  m.onBeforeCompile = (sh) => { sh.uniforms.uSunV = stnSunV;
-    sh.fragmentShader = 'uniform vec3 uSunV;\n' + sh.fragmentShader
+  m.onBeforeCompile = (sh) => { sh.uniforms.uSunV = stnSunV; sh.uniforms.uSunC = sunRim;
+    sh.fragmentShader = 'uniform vec3 uSunV;\nuniform vec3 uSunC;\n' + sh.fragmentShader
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float sl = dot(normalize(normal), uSunV); totalEmissiveRadiance *= mix(1.9, 0.3, smoothstep(-0.15, 0.35, sl));')
-      .replace('#include <opaque_fragment>', 'float rimF = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0); vec3 rimC = mix(vec3(0.10, 0.22, 0.5), vec3(1.0, 0.72, 0.42), smoothstep(-0.25, 0.5, sl)); outgoingLight += diffuseColor.rgb * vec3(0.45, 0.55, 0.85) * 0.2 * (1.0 - smoothstep(-0.2, 0.4, sl)); outgoingLight = mix(outgoingLight, vec3(0.04, 0.07, 0.15), smoothstep(500.0, 2600.0, length(vViewPosition)) * 0.55); outgoingLight += rimC * rimF * (0.25 + 0.75 * smoothstep(-0.4, 0.6, sl)) * ' + k.toFixed(2) + ';\n#include <opaque_fragment>'); };
+      .replace('#include <opaque_fragment>', 'float rimF = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0); vec3 rimC = mix(vec3(0.10, 0.22, 0.5), uSunC, smoothstep(-0.25, 0.5, sl)); outgoingLight += diffuseColor.rgb * vec3(0.45, 0.55, 0.85) * 0.2 * (1.0 - smoothstep(-0.2, 0.4, sl)); outgoingLight = mix(outgoingLight, vec3(0.04, 0.07, 0.15), smoothstep(500.0, 2600.0, length(vViewPosition)) * 0.55); outgoingLight += rimC * rimF * (0.25 + 0.75 * smoothstep(-0.4, 0.6, sl)) * ' + k.toFixed(2) + ';\n#include <opaque_fragment>'); };
   return m;
 }
 function buildStation(name, col, V) {
@@ -1001,7 +1001,7 @@ const stations = [
   { name: 'ERSO', col: '#c8ff3a', v: { big: 2.3, ring: 1, R: 26, tube: 4.4, spokes: 5, panels: 4, tanks: 4, tint: 0.3, band: ['#c8ff3a', '#ffffff'] }, pos: V3(9800, 400, -9200), front: V3(0, -1, 0), pl: { kind: 'toxic', r: 400, off: V3(650, 150, -450), atm: [0.7, 1.0, 0.2] } },
   { name: 'PIOPA', col: '#35e0c8', v: { big: 1.5, ring: 1, R: 38, tube: 3.0, rings: 2, spokes: 8, panels: 0, tanks: 0, tint: 0.2, band: ['#35e0c8', '#d0fff6'] }, pos: V3(8000, -400, -8600), front: V3(0, -1, 0), pl: { kind: 'onyx', r: 500, off: V3(-700, 250, -350), atm: [0.2, 0.9, 0.8] } },
 ];
-const SYSTEMS = ['HELIOS', 'YAPZO']; stations.forEach((s, i) => { s.sys = i < 6 ? 0 : 1; });
+const SYSTEMS = ['PIKRO', 'YAPZO']; stations.forEach((s, i) => { s.sys = i < 6 ? 0 : 1; });
 const ST_K = 3;   // station scale: everything is built at 1x and the whole station group is scaled
 const SYS_K = 2.2;   // spread the system out: distance between stations x2.2 (planets move with their stations)
 stations.forEach(s => s.pos.multiplyScalar(SYS_K));
@@ -1110,7 +1110,11 @@ const VOFF = V3(0, 0, 3000), _pd = V3(), _pv = V3(), _pc = V3(), PCENS = SYSTEMS
 let curSys = 0, lastSkySys = 0;   // the system you are in = the system of the nearest station
 const sysBanner = (k) => { const el = document.getElementById('sysbn'); if (!el) return; el.firstChild.textContent = 'ENTERING ' + SYSTEMS[k] + ' SYSTEM'; el.lastChild.textContent = SYSTEM_SUB[k]; el.style.opacity = '1'; setTimeout(() => { el.style.opacity = '0'; }, 3400); };
 const SYSTEM_SUB = ['5 WORLDS', '5 WORLDS \u00B7 AMBER NEBULA'];
-const updCurSys = () => { if (S.mode === 'dock') { curSys = stations[S.station].sys; return; } let b = 1e18; for (const s of stations) { const d = S.pos.distanceToSquared(s.pos); if (d < b) { b = d; curSys = s.sys; } } if (curSys !== lastSkySys) { lastSkySys = curSys; spaceNebula.userData.setSys(curSys); if (S.mode !== 'dock') setTimeout(() => sysBanner(curSys), 900); } };
+// the sun's colour per system: PIKRO warm white-yellow, YAPZO a slightly dark blue (disc, glow, sunlight, lens flare and the warm rim light on ships and stations)
+const SUNS = [{ disc: [1.0, 0.96, 0.82], glow: 0xfff0c0, light: 0xfff0d8, rim: [1.0, 0.75, 0.45], fl: '255,244,214', fl2: '255,200,120' }, { disc: [0.3, 0.5, 1.0], glow: 0x3a62e0, light: 0x8aa4ff, rim: [0.3, 0.5, 1.0], fl: '150,190,255', fl2: '70,110,255' }];
+const applySun = (k) => { const c = SUNS[k] || SUNS[0]; spaceSun.material.color.setRGB(c.disc[0], c.disc[1], c.disc[2]); sunGlow.material.color.setHex(c.glow); sun.color.setHex(c.light); sunRim.value.setRGB(c.rim[0], c.rim[1], c.rim[2]);
+  const f1 = flareEl.children[0]; if (f1) f1.style.background = 'radial-gradient(circle,rgba(' + c.fl + ',.75),rgba(' + c.fl2 + ',.25) 35%,rgba(' + c.fl2 + ',0) 70%)'; };
+const updCurSys = () => { if (S.mode === 'dock') { curSys = stations[S.station].sys; return; } let b = 1e18; for (const s of stations) { const d = S.pos.distanceToSquared(s.pos); if (d < b) { b = d; curSys = s.sys; } } if (curSys !== lastSkySys) { lastSkySys = curSys; spaceNebula.userData.setSys(curSys); applySun(curSys); if (S.mode !== 'dock') setTimeout(() => sysBanner(curSys), 900); } };
 const firstOfSys = (k) => stations.findIndex(s => s.sys === k);
 const lookUp = (d) => Math.abs(d.y) > 0.98 ? Z : Y;   // up-vector that is never parallel to the view direction
 const dockPoint = (st, out) => out.copy(st.pos).addScaledVector(st.front, 58);
@@ -1437,12 +1441,12 @@ function startWarp(i) {
 }
 function updateWarp(dt) {
   WP.t += dt; fwdOf(S.q, fwd); S.speed = 160 + WP.t * 420; S.pos.addScaledVector(fwd, S.speed * dt); S.vel.copy(fwd).multiplyScalar(S.speed);
-  fadeEl.style.opacity = Math.max(0, Math.min(1, (WP.t - (WP.far ? 0.95 : 0.45)) / (WP.far ? 0.8 : 0.65))).toFixed(2);
+  if (WP.far) fadeEl.style.background = '#dfe9ff'; fadeEl.style.opacity = Math.max(0, Math.min(1, (WP.t - (WP.far ? 1.25 : 0.45)) / (WP.far ? 0.65 : 0.65))).toFixed(2);   // long jumps end in a white flash instead of a black cut
   if (!WP.done && WP.t >= (WP.far ? 1.9 : 1.25)) {
     WP.done = true; homeSt = WP.to; tunnelEl.classList.remove('on'); const st = stations[WP.to];
     { const od = st.pl.off.clone().normalize(), pp = V3().crossVectors(od, Y); if (pp.lengthSq() < 0.01) pp.set(1, 0, 0); pp.normalize(); S.pos.copy(st.pos).addScaledVector(od, -1100 * 0.57).addScaledVector(pp, -1100 * 0.82); }   // arrive 55 degrees off to the side of the planet, so the station is seen against space beside it and not in front of its middle
     _m.lookAt(_zero, _a.copy(st.pos).sub(S.pos).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
-    S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); wpnChip(); fadeOut();
+    S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); wpnChip(); fadeOut(); if (WP.far) { fadeEl.style.transition = 'opacity 1.1s ease-out'; setTimeout(() => { fadeEl.style.background = ''; }, 1300); }
   }
 }
 
@@ -1952,7 +1956,7 @@ function frame(now) {
   _qa.setFromAxisAngle(X, -0.07); camera.quaternion.copy(S.camQ).multiply(_qa);
   if (S.shake > 0) { const a = S.shake * 0.35; camera.position.x += Math.sin(tAcc * 71) * a; camera.position.y += Math.sin(tAcc * 83) * a; }
   _qa.setFromAxisAngle(Z, -S.sx * 0.05); camera.quaternion.multiply(_qa);
-  const wantFov = 64 + clamp(S.speed / 150, 0, 1.4) * 12 + (S.boosting ? 13 : 0);
+  const wantFov = 64 + clamp(S.speed / 150, 0, 1.4) * 12 + (S.boosting ? 13 : 0) + (S.mode === 'warp' && WP.far ? Math.min(34, WP.t * 24) : 0);   // jump: the view stretches wide, then springs back on arrival
   if (Math.abs(camera.fov - wantFov) > 0.05) { camera.fov = damp(camera.fov, wantFov, S.boosting ? 6 : 3.5, dt); camera.updateProjectionMatrix(); }
   if (S.mode === 'dock') {
     // hangar view: the ship sits on its platform, the camera swings slowly round it (like Galaxy on Fire 2)
