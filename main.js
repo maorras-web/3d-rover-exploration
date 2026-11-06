@@ -1441,9 +1441,9 @@ function startWarp(i) {
 }
 function updateWarp(dt) {
   WP.t += dt; fwdOf(S.q, fwd); S.speed = 160 + WP.t * 420; S.pos.addScaledVector(fwd, S.speed * dt); S.vel.copy(fwd).multiplyScalar(S.speed);
-  if (WP.far) fadeEl.style.background = '#dfe9ff'; fadeEl.style.opacity = Math.max(0, Math.min(1, (WP.t - (WP.far ? 1.25 : 0.45)) / (WP.far ? 0.65 : 0.65))).toFixed(2);   // long jumps end in a white flash instead of a black cut
+  if (WP.far) fadeEl.style.background = '#dfe9ff'; fadeEl.style.opacity = Math.max(0, Math.min(1, (WP.t - (WP.far ? 1.25 : 0.45)) / 0.65)).toFixed(2);   // long jumps end in a white flash instead of a black cut
   if (!WP.done && WP.t >= (WP.far ? 1.9 : 1.25)) {
-    WP.done = true; homeSt = WP.to; tunnelEl.classList.remove('on'); const st = stations[WP.to];
+    WP.done = true; homeSt = WP.to; for (const q of planets) { q.fd = null; q.vf = 0; q.sm = 1; }   /* the sky layout of the new home snaps into place while the screen is white (before, the other planets slid and resized for a second after arriving) */ tunnelEl.classList.remove('on'); const st = stations[WP.to];
     { const od = st.pl.off.clone().normalize(), pp = V3().crossVectors(od, Y); if (pp.lengthSq() < 0.01) pp.set(1, 0, 0); pp.normalize(); S.pos.copy(st.pos).addScaledVector(od, -1100 * 0.57).addScaledVector(pp, -1100 * 0.82); }   // arrive 55 degrees off to the side of the planet, so the station is seen against space beside it and not in front of its middle
     _m.lookAt(_zero, _a.copy(st.pos).sub(S.pos).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
     S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); wpnChip(); fadeOut(); if (WP.far) { fadeEl.style.transition = 'opacity 1.1s ease-out'; setTimeout(() => { fadeEl.style.background = ''; }, 1300); }
@@ -2008,7 +2008,8 @@ function frame(now) {
     { const cf = pi !== vpI && SKY[stations[vpI].name] && SKY[stations[vpI].name][stations[pi].name]; if (cf) { _pd.set(cf.dir[0], cf.dir[1], cf.dir[2]).normalize(); tr = Math.tan(cf.radiusDeg * PLANET_K * Math.PI / 180); }   // every other planet sits where the editor put it, seen from the planet you are at
       if (!p.fd) { p.fd = _pd.clone(); p.fr = tr; } else { const q = Math.min(1, dt * 2.5); p.fd.lerp(_pd, q).normalize(); p.fr += (tr - p.fr) * q; } _pd.copy(p.fd); }
     const af = p.fr; p.mesh.position.copy(S.pos).addScaledVector(_pd, dA);   // while you are at one planet the others shrink to 40% (you can still see them, they just stop dominating the sky)   // double size, but the planet right next to you grows less so it does not swallow the whole sky
-    const vf = pi !== vpI ? PFAR : 1;   // purely visual: planets of other stations are drawn PFAR times bigger (the aiming/lock logic keeps using the real size)
+    let vfT = 1; if (pi !== vpI) { vfT = PFAR; for (let q = 0; q < planets.length; q++) { const o = planets[q]; if (q === pi || q === vpI || o.sys !== p.sys || !o.fd) continue; const sep = Math.acos(clamp(p.fd.dot(o.fd), -1, 1)), rp = Math.max(1e-4, af * (p.rg ? 1.7 : 1)); vfT = Math.min(vfT, 0.42 * sep / rp); } vfT = Math.max(1, vfT); }   // neighbours that sit close together in the sky are only enlarged as far as they stay apart (no overlapping discs or rings)
+    p.vf = p.vf ? p.vf + (vfT - p.vf) * Math.min(1, dt * 3) : vfT; const vf = p.vf;   // purely visual: planets of other stations are drawn PFAR times bigger (the aiming/lock logic keeps using the real size)
     { const lo = af * vf < 0.085; if (lo !== p.lo) { p.lo = lo; p.mesh.geometry = lo ? p.g1 : p.g0; if (p.hm) p.hm.geometry = p.mesh.geometry; if (p.cl) p.cl.visible = !lo; if (p.moon) p.moon.visible = !lo; } }   // LOD: far planets (small discs) drop clouds, moon and sphere detail
     if (aimOk && pi !== here0 && pi !== vpI && fwd.dot(_pd) > Math.cos(Math.max(0.07, af * 1.3))) { p.aim = (p.aim || 0) + dt; if (p.aim > 0.9) { p.aim = 0; S.tPlanet = pi; sfx('lock'); trvOn = true; $('trv-name').textContent = stations[pi].name; $('trv-dlg').style.display = 'flex'; } } else p.aim = 0;   // hold the crosshair on a planet for ~1 s and the game asks if you want to go there
     p.mesh.scale.setScalar(af * dA * vf); if (p.rg) { p.rg.position.copy(p.mesh.position); p.rg.scale.setScalar(af * dA * vf / p.r); }
