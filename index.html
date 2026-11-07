@@ -485,6 +485,8 @@
   .smap .sn i{width:14px;height:14px;border:2px solid rgba(255,255,255,.85);box-sizing:border-box;position:relative}
   .smap .sn i::after{content:"";position:absolute;inset:-8px;border-radius:50%;border:1px solid rgba(255,255,255,.22)}
   .smap .sn.here i{width:18px;height:18px;transform:translate(-2px,-2px);border-color:#fff}
+  .smap .sn{transform:translate(-12px,-12px)}.smap .sn i{width:24px;height:24px}.smap .sn i::after{inset:-11px}.smap .sn.here i{width:30px;height:30px;transform:translate(-3px,-3px)}   /* bigger star dots */
+  .smap .sn span{left:32px;top:-2px;font-size:13px}.smap .sn.fl span{left:auto;right:32px}.smap .sn.here span{left:44px}.smap .sn.fl.here span{left:auto;right:44px}
   .smap .sn.here i::after{inset:-9px;border:1.5px solid rgba(255,200,96,.65)}
   .smap .sn.tgt i::after{border:1.5px dashed rgba(95,255,176,.8)}
   .smap .sn span{font-size:12px;letter-spacing:1.4px;color:#eef6ff}
@@ -669,11 +671,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=349', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=350', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=349'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=350'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>
