@@ -885,20 +885,20 @@ let explNext = 0;
 const boomQ = [], _bq = new THREE.Vector3();   // chain blasts: a big explosion is followed by 3 small ones a moment later (reuses the same pooled sprites - no new objects in the scene)
 function explode(p, size) {
   const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.w.position.copy(p); e.w.visible = size > 12;
-  sparks(p, size > 12 ? 90 : 18, size * 3.2, 1.3); sfx('boom', size);
+  sparks(p, size > 12 ? 55 : 18, size * 3.2, 1.3); sfx('boom', size);
   if (size > 12) { fxUntil = performance.now() + 3000; for (let i = 0; i < 3; i++) boomQ.push({ t: 0.1 + i * 0.13 + Math.random() * 0.08, x: p.x + (Math.random() - 0.5) * size * 1.6, y: p.y + (Math.random() - 0.5) * size * 1.6, z: p.z + (Math.random() - 0.5) * size * 1.6, s: size * (0.32 + Math.random() * 0.2) });
     for (let i = 0; i < 9; i++) { _bq.set((Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8).add(p); smokePuff(_bq); }   // a cloud of smoke that lingers where the ship was
   }
-  if (size > 12) { e.size = size * 2.3; blastStreaks(p, size); const dd = p.distanceTo(S.pos), it = Math.min(1, 1.2 - dd / 380); if (it > 0.05) { const fe = $('flash'); fe.style.transition = 'none'; fe.style.background = 'radial-gradient(ellipse at center,rgba(255,255,230,1) 0,rgba(255,225,140,.9) 45%,rgba(255,140,50,.55) 100%)'; fe.style.opacity = it.toFixed(2); void fe.offsetWidth; fe.style.transition = 'opacity 1.2s ease-out'; fe.style.opacity = '0'; } }
+  if (size > 12) { e.size = size * 1.7; blastStreaks(p, size); const dd = p.distanceTo(S.pos), it = Math.min(1, 1.2 - dd / 380); if (it > 0.05) { const fe = $('flash'); fe.style.transition = 'none'; fe.style.background = 'radial-gradient(ellipse at center,rgba(255,245,215,.55) 0,rgba(255,200,110,.18) 28%,rgba(255,140,50,0) 55%)'; fe.style.opacity = (it * 0.7).toFixed(2); void fe.offsetWidth; fe.style.transition = 'opacity .8s ease-out'; fe.style.opacity = '0'; } }
 }
 function updateFx(dt) {
   updateDying(dt); updateStreaks(dt);
   for (let i = boomQ.length - 1; i >= 0; i--) { const q = boomQ[i]; q.t -= dt; if (q.t <= 0) { boomQ.splice(i, 1); explode(_bq.set(q.x, q.y, q.z), q.s); } }
   for (const e of expl) {
     if (e.t > 1) { if (e.f.visible) e.f.visible = e.r.visible = e.w.visible = false; continue; }
-    e.t += dt * 1.5; const k = e.t, s = e.size * (0.5 + k * 2.4);
+    e.t += dt * 1.5; const k = e.t, dc = camera.position.distanceTo(e.f.position), s = Math.min(e.size * (0.4 + k * 1.5), dc * 0.5 + 3);   // never bigger than about the screen: pixels outside the view cost nothing, pixels piled up inside it do
     e.f.scale.set(s, s, 1); e.f.material.opacity = Math.max(0, 1 - k) * 0.95; e.f.material.color.setRGB(1, Math.max(0.12, 0.9 - k * 0.8), Math.max(0.03, 0.5 - k * 0.5)); e.r.scale.set(s * 0.45, s * 0.45, 1); e.r.material.opacity = Math.max(0, 1 - k * 2.2);
-    if (e.w.visible) { const ws = e.size * (1 + k * 7); e.w.scale.set(ws, ws, 1); e.w.material.opacity = Math.max(0, 1 - k) * 0.8; }
+    if (e.w.visible) { const ws = Math.min(e.size * (1 + k * 4.5), dc * 0.75 + 3); e.w.scale.set(ws, ws, 1); e.w.material.opacity = Math.max(0, 1 - k) * 0.8; }
   }
   for (const h of hflash) { if (h.t > 1) { if (h.s.visible) h.s.visible = false; continue; } h.t += dt * 7; const s = (3 + h.t * 5) * h.big; h.s.scale.set(s, s, 1); h.s.material.opacity = Math.max(0, 1 - h.t); }
   if (!dbAlive) return; let any = false;
