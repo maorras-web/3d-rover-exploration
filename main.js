@@ -126,7 +126,7 @@ const curW = () => WPN[save.wpn.cur] || WPN[0];
 // ---------- renderer / scene ----------
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-let PR_MAX = Math.min(window.devicePixelRatio || 1, 2), pr = PR_MAX; const PR_MIN = 0.75; let fxUntil = 0;   // fxUntil: a big blast is a short, one-off load - the auto-quality ignores it
+let PR_MAX = Math.min(window.devicePixelRatio || 1, 2), pr = PR_MAX; const PR_MIN = 0.75; let fxUntil = 0, lastDrop = 0;   // fxUntil: a big blast is a short, one-off load - the auto-quality ignores it
 renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15; renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
@@ -1949,7 +1949,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   let dt = (now - last) / 1000; last = now; if (paused || dt > 0.05) dt = paused ? 0 : 0.05; if (dt <= 0) return;
   tAcc += dt; ema += (dt * 1000 - ema) * 0.05; frames++;
-  if (frames > 60) { if (now < fxUntil) { slow = 0; fast = 0; } else if (ema > 24) { slow += dt; fast = 0; } else if (ema < 15) { fast += dt; slow = 0; } else { slow = fast = 0; } if (slow > 1.5 && pr > PR_MIN) { pr = Math.max(PR_MIN, pr * 0.85); applyPR(); slow = 0; } else if (slow > 3 && pr <= PR_MIN + 0.01 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; } if (fast > 2 && pr < PR_MAX) { pr = Math.min(PR_MAX, pr * 1.2); applyPR(); fast = 0; } }
+  if (frames > 60) { if (now < fxUntil) { slow = 0; fast = 0; } else if (ema > 24) { slow += dt; fast = 0; } else if (ema < 18.5) { fast += dt; slow = 0; } else { slow = fast = 0; } if (slow > 1.5 && pr > PR_MIN) { pr = Math.max(PR_MIN, pr * 0.85); applyPR(); slow = 0; lastDrop = now; } else if (slow > 3 && pr <= PR_MIN + 0.01 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; } if (fast > 3 && pr < PR_MAX && now - lastDrop > 12000) { pr = Math.min(PR_MAX, pr * 1.2); applyPR(); fast = 0; } }
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = '0'; }
   const flying = S.mode === 'fly';
   starT.value = tAcc; fxBlur += (((S.boosting && flying) ? 1 : 0) - fxBlur) * Math.min(1, dt * 4); { const gu = gradePass.uniforms; gu.uBl.value = fxBlur * 1.1; gu.uCA.value = 0.02 + 0.05 * fxBlur; }
