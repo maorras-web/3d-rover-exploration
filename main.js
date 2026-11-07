@@ -126,7 +126,7 @@ const curW = () => WPN[save.wpn.cur] || WPN[0];
 // ---------- renderer / scene ----------
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-let PR_MAX = Math.min(window.devicePixelRatio || 1, 2), pr = PR_MAX; const PR_MIN = 0.6;
+let PR_MAX = Math.min(window.devicePixelRatio || 1, 2), pr = PR_MAX; const PR_MIN = 0.75; let fxUntil = 0;   // fxUntil: a big blast is a short, one-off load - the auto-quality ignores it
 renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15; renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
@@ -886,7 +886,7 @@ const boomQ = [], _bq = new THREE.Vector3();   // chain blasts: a big explosion 
 function explode(p, size) {
   const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.w.position.copy(p); e.w.visible = size > 12;
   sparks(p, size > 12 ? 90 : 18, size * 3.2, 1.3); sfx('boom', size);
-  if (size > 12) { for (let i = 0; i < 3; i++) boomQ.push({ t: 0.1 + i * 0.13 + Math.random() * 0.08, x: p.x + (Math.random() - 0.5) * size * 1.6, y: p.y + (Math.random() - 0.5) * size * 1.6, z: p.z + (Math.random() - 0.5) * size * 1.6, s: size * (0.32 + Math.random() * 0.2) });
+  if (size > 12) { fxUntil = performance.now() + 3000; for (let i = 0; i < 3; i++) boomQ.push({ t: 0.1 + i * 0.13 + Math.random() * 0.08, x: p.x + (Math.random() - 0.5) * size * 1.6, y: p.y + (Math.random() - 0.5) * size * 1.6, z: p.z + (Math.random() - 0.5) * size * 1.6, s: size * (0.32 + Math.random() * 0.2) });
     for (let i = 0; i < 9; i++) { _bq.set((Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8).add(p); smokePuff(_bq); }   // a cloud of smoke that lingers where the ship was
   }
   if (size > 12) { e.size = size * 2.3; blastStreaks(p, size); const dd = p.distanceTo(S.pos), it = Math.min(1, 1.2 - dd / 380); if (it > 0.05) { const fe = $('flash'); fe.style.transition = 'none'; fe.style.background = 'radial-gradient(ellipse at center,rgba(255,255,230,1) 0,rgba(255,225,140,.9) 45%,rgba(255,140,50,.55) 100%)'; fe.style.opacity = it.toFixed(2); void fe.offsetWidth; fe.style.transition = 'opacity 1.2s ease-out'; fe.style.opacity = '0'; } }
@@ -1949,7 +1949,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   let dt = (now - last) / 1000; last = now; if (paused || dt > 0.05) dt = paused ? 0 : 0.05; if (dt <= 0) return;
   tAcc += dt; ema += (dt * 1000 - ema) * 0.05; frames++;
-  if (frames > 60) { if (ema > 24) { slow += dt; fast = 0; } else if (ema < 15) { fast += dt; slow = 0; } else { slow = fast = 0; } if (slow > 1.5 && pr > PR_MIN) { pr = Math.max(PR_MIN, pr * 0.85); applyPR(); slow = 0; } else if (slow > 3 && pr <= PR_MIN + 0.01 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; } if (fast > 5 && pr < PR_MAX) { pr = Math.min(PR_MAX, pr * 1.12); applyPR(); fast = 0; } }
+  if (frames > 60) { if (now < fxUntil) { slow = 0; fast = 0; } else if (ema > 24) { slow += dt; fast = 0; } else if (ema < 15) { fast += dt; slow = 0; } else { slow = fast = 0; } if (slow > 1.5 && pr > PR_MIN) { pr = Math.max(PR_MIN, pr * 0.85); applyPR(); slow = 0; } else if (slow > 3 && pr <= PR_MIN + 0.01 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; } if (fast > 2 && pr < PR_MAX) { pr = Math.min(PR_MAX, pr * 1.2); applyPR(); fast = 0; } }
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = '0'; }
   const flying = S.mode === 'fly';
   starT.value = tAcc; fxBlur += (((S.boosting && flying) ? 1 : 0) - fxBlur) * Math.min(1, dt * 4); { const gu = gradePass.uniforms; gu.uBl.value = fxBlur * 1.1; gu.uCA.value = 0.02 + 0.05 * fxBlur; }
