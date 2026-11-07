@@ -843,7 +843,8 @@ function fireBolt(pos, dir, speed, dmg, enemy, w) {
 const DB_N = 320, dbCol = new Float32Array(DB_N * 3), dbPos = new Float32Array(DB_N * 3), dbVel = new Float32Array(DB_N * 3), dbLife = new Float32Array(DB_N); let dbNext = 0, dbAlive = 0;
 for (let i = 0; i < DB_N; i++) dbPos[i * 3 + 1] = -99999;
 const dbGeo = new THREE.BufferGeometry(); dbGeo.setAttribute('position', new THREE.BufferAttribute(dbPos, 3)); dbGeo.setAttribute('color', new THREE.BufferAttribute(dbCol, 3));
-const debris = new THREE.Points(dbGeo, new THREE.PointsMaterial({ color: 0xffffff, vertexColors: true, size: 1.6, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }));
+const sparkTex = canvasTex(32, 32, (x) => { const g = x.createRadialGradient(16, 16, 0, 16, 16, 16); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, 'rgba(255,255,255,0.85)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 32, 32); });   // round soft spark instead of a square pixel
+const debris = new THREE.Points(dbGeo, new THREE.PointsMaterial({ map: sparkTex, alphaTest: 0.01, color: 0xffffff, vertexColors: true, size: 2.4, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }));
 debris.frustumCulled = false; scene.add(debris);
 function sparks(p, n, spd, life) {
   for (let i = 0; i < n; i++) { const k = dbNext; dbNext = (dbNext + 1) % DB_N; dbPos[k * 3] = p.x; dbPos[k * 3 + 1] = p.y; dbPos[k * 3 + 2] = p.z; { const q = Math.random(); dbCol[k * 3] = 1; dbCol[k * 3 + 1] = q < 0.25 ? 0.95 : q < 0.7 ? 0.6 : 0.3; dbCol[k * 3 + 2] = q < 0.25 ? 0.8 : q < 0.7 ? 0.2 : 0.1; } _a.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.3, 1) * spd); dbVel[k * 3] = _a.x; dbVel[k * 3 + 1] = _a.y; dbVel[k * 3 + 2] = _a.z; dbLife[k] = rnd(0.4, 1) * life; }
@@ -855,16 +856,40 @@ for (let i = 0; i < EXP_N; i++) { const f = glowSprite(0xffa040, 1, 0), r = glow
 // tiny bright flash where a laser/missile hits
 const HF_N = 6, hflash = []; for (let i = 0; i < HF_N; i++) { const s = glowSprite(0xbff8ff, 1, 0); s.visible = false; scene.add(s); hflash.push({ s, t: 9 }); } let hfNext = 0;
 function hitFlash(p, big) { const h = hflash[hfNext]; hfNext = (hfNext + 1) % HF_N; h.t = 0; h.big = big ? 1.5 : 1; h.s.position.copy(p); h.s.visible = true; }
+// ---- GoF2-style blast (zero cost when idle): a dying ship burns and smokes for a moment, then a white-hot flash, a fireball that cools yellow -> orange -> red, and long streaks of flame shot outward (ONE extra instanced draw call, only while alive)
+const STK_N = 14, stkTex = canvasTex(128, 16, (x, w, h) => { const g = x.createLinearGradient(0, 0, w, 0); g.addColorStop(0, 'rgba(255,90,10,0)'); g.addColorStop(0.55, 'rgba(255,150,40,0.6)'); g.addColorStop(0.92, 'rgba(255,240,170,1)'); g.addColorStop(1, 'rgba(255,255,255,1)'); x.fillStyle = g; x.fillRect(0, 0, w, h); const v = x.createLinearGradient(0, 0, 0, h); v.addColorStop(0, 'rgba(0,0,0,1)'); v.addColorStop(0.5, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,1)'); x.globalCompositeOperation = 'destination-out'; x.fillStyle = v; x.fillRect(0, 0, w, h); });
+const stkMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).translate(-0.5, 0, 0), new THREE.MeshBasicMaterial({ map: stkTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false, side: THREE.DoubleSide }), STK_N);
+stkMesh.frustumCulled = false; stkMesh.visible = false; stkMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(stkMesh);
+const stk = []; for (let i = 0; i < STK_N; i++) { stk.push({ p: new THREE.Vector3(), d: new THREE.Vector3(), s: 0, t: 9, l: 1, L: 1, W: 1 }); stkMesh.setColorAt(i, new THREE.Color(0, 0, 0)); } let stkNext = 0, stkOn = false;
+const _sx = new THREE.Vector3(), _sy = new THREE.Vector3(), _sz = new THREE.Vector3(), _sM = new THREE.Matrix4(), _sC = new THREE.Color();
+function blastStreaks(p, size) { for (let i = 0; i < 10; i++) { const q = stk[stkNext]; stkNext = (stkNext + 1) % STK_N; q.p.copy(p); q.d.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize(); q.s = size * (5 + Math.random() * 7); q.t = 0; q.l = 0.9 + Math.random() * 0.7; q.L = size * (1.1 + Math.random() * 1.4); q.W = size * 0.09; } stkOn = true; stkMesh.visible = true; }
+function updateStreaks(dt) {
+  if (!stkOn) return; let any = false;
+  for (let i = 0; i < STK_N; i++) { const q = stk[i]; if (q.t >= q.l) { if (q.W) { q.W = 0; _sM.makeScale(0, 0, 0); stkMesh.setMatrixAt(i, _sM); } continue; } q.t += dt; any = true; q.p.addScaledVector(q.d, q.s * dt); q.s *= 1 - 1.4 * dt;
+    const f = q.t / q.l; _sz.copy(camera.position).sub(q.p).normalize(); _sy.crossVectors(q.d, _sz).normalize(); _sz.crossVectors(q.d, _sy);
+    _sM.makeBasis(_sx.copy(q.d).multiplyScalar(q.L * (0.5 + f * 1.2)), _sy.multiplyScalar(q.W * (1 - f * 0.5)), _sz); _sM.setPosition(q.p); stkMesh.setMatrixAt(i, _sM); const c = Math.pow(1 - f, 1.4); stkMesh.setColorAt(i, _sC.setRGB(c, c, c)); }
+  stkMesh.instanceMatrix.needsUpdate = true; stkMesh.instanceColor.needsUpdate = true; if (!any) { stkOn = false; stkMesh.visible = false; for (const q of stk) q.W = 1; }
+}
+const dyingList = [];
+function updateDying(dt) {
+  for (let i = dyingList.length - 1; i >= 0; i--) { const d = dyingList[i], e = d.e;
+    if (e.active || !e.g.visible) { e.dying = 0; dyingList.splice(i, 1); continue; }   // respawned or hidden by a reset: forget it
+    d.t += dt; fwdOf(e.q, fwd); e.pos.addScaledVector(fwd, e.speed * 0.5 * dt); e.g.position.copy(e.pos); e.g.rotateZ(d.rz * dt); e.g.rotateX(d.rx * dt);
+    d.pf -= dt; if (d.pf <= 0) { d.pf = 0.045; _a.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(5).add(e.pos); smokePuff(_a); if (Math.random() < 0.5) sparks(_a, 2, 12, 0.5); }
+    if (d.t >= d.dur) { e.g.visible = false; e.dying = 0; dyingList.splice(i, 1); explode(e.pos, 18); } }
+}
 let explNext = 0;
 function explode(p, size) {
   const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.w.position.copy(p); e.w.visible = size > 12;
-  sparks(p, size > 12 ? 64 : 18, size * 3.2, 1.3); sfx('boom', size);
+  sparks(p, size > 12 ? 90 : 18, size * 3.2, 1.3); sfx('boom', size);
+  if (size > 12) { e.size = size * 2.3; blastStreaks(p, size); const dd = p.distanceTo(S.pos), it = Math.min(1, 1.2 - dd / 380); if (it > 0.05) { const fe = $('flash'); fe.style.transition = 'none'; fe.style.background = 'radial-gradient(ellipse at center,rgba(255,255,230,1) 0,rgba(255,225,140,.9) 45%,rgba(255,140,50,.55) 100%)'; fe.style.opacity = it.toFixed(2); void fe.offsetWidth; fe.style.transition = 'opacity 1.2s ease-out'; fe.style.opacity = '0'; } }
 }
 function updateFx(dt) {
+  updateDying(dt); updateStreaks(dt);
   for (const e of expl) {
     if (e.t > 1) { if (e.f.visible) e.f.visible = e.r.visible = e.w.visible = false; continue; }
     e.t += dt * 1.5; const k = e.t, s = e.size * (0.5 + k * 2.4);
-    e.f.scale.set(s, s, 1); e.f.material.opacity = Math.max(0, 1 - k) * 0.95; e.r.scale.set(s * 0.45, s * 0.45, 1); e.r.material.opacity = Math.max(0, 1 - k * 2.2);
+    e.f.scale.set(s, s, 1); e.f.material.opacity = Math.max(0, 1 - k) * 0.95; e.f.material.color.setRGB(1, Math.max(0.12, 0.9 - k * 0.8), Math.max(0.03, 0.5 - k * 0.5)); e.r.scale.set(s * 0.45, s * 0.45, 1); e.r.material.opacity = Math.max(0, 1 - k * 2.2);
     if (e.w.visible) { const ws = e.size * (1 + k * 7); e.w.scale.set(ws, ws, 1); e.w.material.opacity = Math.max(0, 1 - k) * 0.8; }
   }
   for (const h of hflash) { if (h.t > 1) { if (h.s.visible) h.s.visible = false; continue; } h.t += dt * 7; const s = (3 + h.t * 5) * h.big; h.s.scale.set(s, s, 1); h.s.material.opacity = Math.max(0, 1 - h.t); }
@@ -1196,8 +1221,8 @@ for (let i = 0; i < ENEMY_N; i++) {
   enemies.push({ g, pos: g.position, q: g.quaternion, vel: V3(), speed: 90, shield: 0, shieldMax: 0, hull: 0, hullMax: 0, active: false, fireT: 0, evadeT: 0, evadeDir: V3(), burst: 0, name: 'PIRATE' });
 }
 function spawnEnemy(pos, level) {
-  const e = enemies.find(x => !x.active); if (!e) return null;
-  e.active = true; e.g.visible = true; e.pos.copy(pos); e.q.identity(); e.speed = 90; e.evadeT = 0; e.fireT = rnd(1, 2.5); e.burst = 0;
+  const e = enemies.find(x => !x.active && !x.dying); if (!e) return null;
+  e.active = true; e.dying = 0; e.g.visible = true; e.pos.copy(pos); e.q.identity(); e.speed = 90; e.evadeT = 0; e.fireT = rnd(1, 2.5); e.burst = 0;
   const lv = Math.min(level, 6); e.shieldMax = e.shield = 20 + lv * 6; e.hullMax = e.hull = 26 + lv * 6; e.name = ['PIRATE', 'RAIDER', 'MARAUDER'][Math.min(2, lv >> 1)];
   _a.copy(S.pos).sub(e.pos).normalize(); _m.lookAt(_zero, _a, Y); e.q.setFromRotationMatrix(_m);
   return e;
@@ -1405,7 +1430,7 @@ function damageEnemy(e, d, at) {
   if (e.shield > 0) { e.shield -= d; if (e.shield < 0) { e.hull += e.shield; e.shield = 0; } } else e.hull -= d;
   if (at) { sparks(at, 7, 18, 0.45); hitFlash(at, d > 40); }
   if (e.hull <= 0) {
-    e.active = false; e.g.visible = false; explode(e.pos, 16); S.shake = Math.max(S.shake, 0.5); dropLoot(e.pos, 22 + save.kills % 3 * 6, false, 3);
+    e.active = false; e.dying = 1; dyingList.push({ e, t: 0, dur: 1.1 + Math.random() * 0.5, pf: 0, rz: (Math.random() - 0.5) * 3, rx: (Math.random() - 0.5) * 2 }); S.shake = Math.max(S.shake, 0.5); dropLoot(e.pos, 22 + save.kills % 3 * 6, false, 3);
     save.kills++; persist(); $('kills').textContent = save.kills; if (S.target === e) S.target = null;
     S.shake = Math.max(S.shake, 0.25);
     if (S.mission && S.mission.type === 'bounty') { S.mission.done++; updateMissionHud(); if (S.mission.done >= S.mission.n) completeMission(); }
@@ -1538,7 +1563,7 @@ function completeMission() {
 // ---------- UI ----------
 let toastT = 0;
 function toast(t, secs) { const el = $('toast'); el.textContent = t; el.style.opacity = '1'; toastT = secs || 1; }
-function flash(kind) { const f = $('flash'); f.style.background = kind === 'shield' ? 'radial-gradient(ellipse at center,rgba(60,170,255,0) 45%,rgba(60,170,255,.5) 100%)' : 'radial-gradient(ellipse at center,rgba(255,50,40,0) 40%,rgba(255,50,40,.7) 100%)'; f.style.opacity = '1'; setTimeout(() => f.style.opacity = '0', 110); }
+function flash(kind) { const f = $('flash'); f.style.transition = ''; f.style.background = kind === 'shield' ? 'radial-gradient(ellipse at center,rgba(60,170,255,0) 45%,rgba(60,170,255,.5) 100%)' : 'radial-gradient(ellipse at center,rgba(255,50,40,0) 40%,rgba(255,50,40,.7) 100%)'; f.style.opacity = '1'; setTimeout(() => f.style.opacity = '0', 110); }
 const buzz = (ms) => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { } };
 const refreshHud = () => { $('credits').textContent = save.credits; };
 const updateMissHud = () => { $('miss-n').textContent = save.missiles; const e = document.getElementById('shop-ms'); if (e) e.textContent = 'MISSILES  ' + save.missiles; };
