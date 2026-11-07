@@ -303,6 +303,7 @@ const skyS = new THREE.Group(); skyS.scale.setScalar(6); sky.add(skyS);      // 
     const m = new THREE.Mesh(new THREE.SphereGeometry(465, 32, 16), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, depthWrite: false }));
     m.renderOrder = -100; m.frustumCulled = false;
     skyS.add(m);
+    m.userData.prep = () => { if (!tex1) { tex1 = makeNeb([0.92, 0.46, 0.08], [0.08, 0.78, 0.42], [0.86, 0.12, 0.38], [0.03, 0.02, 0.012]); try { renderer.initTexture(tex1); } catch (e) { } } };   // painted + uploaded to the GPU ahead of time (while you are docked), so the jump has no hitch
     m.userData.setSys = (k) => { if (k === 1 && !tex1) tex1 = makeNeb([0.92, 0.46, 0.08], [0.08, 0.78, 0.42], [0.86, 0.12, 0.38], [0.03, 0.02, 0.012]); m.material.map = k === 1 ? tex1 : tex; };
     return m;
   })();
@@ -1546,7 +1547,7 @@ function updateWarp(dt) {
     WP.done = true; homeSt = anchorSt = WP.to; for (const q of planets) { q.fd = null; q.vf = 0; q.sm = 1; }   /* the sky layout of the new home snaps into place while the screen is white (before, the other planets slid and resized for a second after arriving) */ tunnelEl.classList.remove('on'); const st = stations[WP.to];
     { const od = st.pl.off.clone().normalize(), pp = V3().crossVectors(od, Y); if (pp.lengthSq() < 0.01) pp.set(1, 0, 0); pp.normalize(); S.pos.copy(st.pos).addScaledVector(od, -1100 * 0.57).addScaledVector(pp, -1100 * 0.82); }   // arrive 55 degrees off to the side of the planet, so the station is seen against space beside it and not in front of its middle
     _m.lookAt(_zero, _a.copy(st.pos).sub(S.pos).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
-    S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); wpnChip(); fadeOut(); if (WP.far) { fadeEl.style.transition = 'opacity 1.1s ease-out'; setTimeout(() => { fadeEl.style.background = ''; }, 1300); }
+    fxUntil = performance.now() + 4000; S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); wpnChip(); fadeOut(); if (WP.far) { fadeEl.style.transition = 'opacity 1.1s ease-out'; setTimeout(() => { fadeEl.style.background = ''; }, 1300); }
   }
 }
 
@@ -2222,4 +2223,6 @@ function frame(now) {
 (function menuScene() { S.pos.set(170, -40, 520); _m.lookAt(_zero, V3(-170, 30, -520).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q); S.mode = 'menu'; ST = stats(); for (let i = 0; i < AST_N; i++) spawnAsteroid(asteroids[i], true); })();
 requestAnimationFrame(frame);
 document.addEventListener('visibilitychange', () => { last = performance.now(); if (actx) { document.hidden ? actx.suspend() : actx.resume(); } });
+// quiet pre-building: one small job every 1.3 s while you are docked or flying (never during a jump) - the far system's sky and every planet painting are ready BEFORE the jump, so arriving costs nothing
+setInterval(() => { if (S.mode === 'warp' || paused) return; if (!spaceNebula.userData.prepped || planets.some(p => p.build)) fxUntil = performance.now() + 2500; if (!spaceNebula.userData.prepped) { spaceNebula.userData.prepped = 1; spaceNebula.userData.prep(); return; } const q = planets.find(p => p.build); if (q) { q.build(); q.build = null; } }, 1300);
 window.__sc = { S, stations, save, enemies, startGame, spawnEnemy, dockAt, damageEnemy, THREE, renderer };
