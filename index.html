@@ -42,13 +42,13 @@
   #cross:after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:rgba(159,243,255,.8);border-radius:50%}
   #flash{inset:0;opacity:0;transition:opacity .25s}
   #tunnel{position:fixed;inset:0;z-index:46;pointer-events:none;opacity:0;overflow:hidden;transition:opacity .5s}#tunnel.on{opacity:1;transition:opacity .35s}
-  #tunnel i,#tunnel i:after{position:absolute;left:50%;top:50%;width:150vmax;height:150vmax;margin:-75vmax 0 0 -75vmax;will-change:transform}
+  #tunnel i,#tunnel i:after{position:absolute;left:50%;top:50%;width:110vmax;height:110vmax;margin:-55vmax 0 0 -55vmax;will-change:transform}
   #tunnel i{background:radial-gradient(circle,rgba(0,0,0,0) 0,rgba(0,0,0,0) 26%,rgba(150,200,255,.0) 28%,rgba(190,225,255,.55) 33%,rgba(120,150,255,.25) 38%,rgba(0,0,0,0) 46%)}
   #tunnel i:after{content:"";margin:0;left:0;top:0;width:100%;height:100%;background:radial-gradient(circle,rgba(0,0,0,0) 0,rgba(0,0,0,0) 26%,rgba(255,160,235,.0) 28%,rgba(255,180,240,.38) 33%,rgba(160,120,255,.18) 38%,rgba(0,0,0,0) 46%)}
   #tunnel.on i{animation:ring 1.5s cubic-bezier(.3,.1,.6,1) forwards}
-  #tunnel.on i:after{animation:ring 1.5s cubic-bezier(.3,.1,.6,1) .4s backwards forwards}
+  #tunnel i:after{display:none}
   #tunnel:after{content:"";position:absolute;inset:0;background:radial-gradient(circle at center,rgba(0,0,0,0) 22%,rgba(6,12,46,.55) 62%,rgba(2,4,20,.9) 100%);opacity:0}
-  #tunnel.on:after{animation:tv 1.9s ease-in forwards}
+  #tunnel:after{display:none}
   #tunnel b{position:absolute;inset:0;background:radial-gradient(circle at center,rgba(255,255,255,.9) 0,rgba(170,210,255,.5) 5%,rgba(80,100,255,.2) 22%,rgba(0,0,0,0) 58%);transform:scale(.25);opacity:.4}
   #tunnel.on b{animation:tg 1.9s cubic-bezier(.5,0,.9,.5) forwards}
   @keyframes ring{from{transform:scale(.07);opacity:.9}70%{opacity:.6}to{transform:scale(1);opacity:0}}
@@ -665,11 +665,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=341', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=342', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=341'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=342'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>

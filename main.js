@@ -1499,11 +1499,11 @@ const nearPlanet = () => (S.pos.distanceTo(stations[homeSt].pos) < 3500 ? homeSt
 const WP = { t: 0, to: 0, done: false, far: false }, tunnelEl = document.getElementById('tunnel');
 function startWarp(i) {
   if (S.mode !== 'fly' || (i === homeSt && S.pos.distanceTo(stations[i].pos) < STN_VIS)) return; WP.t = 0; WP.to = i; WP.done = false; WP.far = stations[i].sys !== curSys; S.mode = 'warp'; S.tPlanet = -1; S.target = null; S.boosting = false; S.sx = S.sy = 0;
-  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; sfx('boost'); if (WP.far) tunnelEl.classList.add('on');   // jump tunnel: pure CSS, runs on the GPU
+  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; sfx('boost'); if (WP.far) { tunnelEl.classList.add('on'); fadeEl.style.background = '#dfe9ff'; }   // jump tunnel: pure CSS, runs on the GPU
+  setTimeout(() => { if (S.mode === 'warp') { fadeEl.style.transition = 'opacity .65s linear'; fadeEl.style.opacity = '1'; } }, WP.far ? 1250 : 450);   /* the fade is ONE css transition now, not a style write on a full-screen layer every frame */
 }
 function updateWarp(dt) {
   WP.t += dt; fwdOf(S.q, fwd); S.speed = 160 + WP.t * 420; S.pos.addScaledVector(fwd, S.speed * dt); S.vel.copy(fwd).multiplyScalar(S.speed);
-  if (WP.far) fadeEl.style.background = '#dfe9ff'; fadeEl.style.opacity = Math.max(0, Math.min(1, (WP.t - (WP.far ? 1.25 : 0.45)) / 0.65)).toFixed(2);   // long jumps end in a white flash instead of a black cut
   if (!WP.done && WP.t >= (WP.far ? 1.9 : 1.25)) {
     WP.done = true; homeSt = anchorSt = WP.to; for (const q of planets) { q.fd = null; q.vf = 0; q.sm = 1; }   /* the sky layout of the new home snaps into place while the screen is white (before, the other planets slid and resized for a second after arriving) */ tunnelEl.classList.remove('on'); const st = stations[WP.to];
     { const od = st.pl.off.clone().normalize(), pp = V3().crossVectors(od, Y); if (pp.lengthSq() < 0.01) pp.set(1, 0, 0); pp.normalize(); S.pos.copy(st.pos).addScaledVector(od, -1100 * 0.57).addScaledVector(pp, -1100 * 0.82); }   // arrive 55 degrees off to the side of the planet, so the station is seen against space beside it and not in front of its middle
@@ -2113,7 +2113,7 @@ function frame(now) {
       if (!on) { /* off-screen: radar shows it */ }
     } else { tgtEl.style.display = 'none'; leadEl.style.display = 'none'; }
     const ns = nearStation();
-    if (entDismissed >= 0 && S.pos.distanceTo(stations[entDismissed].pos) > 300) entDismissed = -1;
+    if (entDismissed >= 0 && S.pos.distanceTo(stations[entDismissed].pos) / (stations[entDismissed].v.big || 1) > 300) entDismissed = -1;   /* same scale as nearStation(): the big citadel used to re-pop the dialog at once after 'No' */
     const wantEnt = ns >= 0 && ns !== entDismissed && stations[ns].g.visible && !trvOn && !mapOn;
     if (wantEnt && !entOn) { entOn = true; entFor = ns; $('ent-name').textContent = stations[ns].name; $('ent-dlg').style.display = 'flex'; sfx('lock'); }
     else if (!wantEnt && entOn) { entOn = false; $('ent-dlg').style.display = 'none'; }
