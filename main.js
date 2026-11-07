@@ -1064,10 +1064,10 @@ function buildStation(name, col, V) {
   }
   g.add(new THREE.Mesh(mergeGeometries(navG), stnNav));
   g.add(stnCap(10.9, 25 + DZ)); stnApproach(g, 15, 46 + DZ, 14);
-  { const hg = glowSprite(new THREE.Color(V.band[0]).getHex(), 46, 0.55); hg.position.set(0, 0, 38 + DZ); g.add(hg); }   // light spilling out of the hangar mouth
+  { const hg = glowSprite(new THREE.Color(V.band[0]).getHex(), 46, 0.55); hg.position.set(0, 0, 38 + DZ); g.add(hg); g.userData.hg = hg; }   // light spilling out of the hangar mouth (userData.hg: it fades out when you fly through it, so the screen does not turn solid green)
   g.add(new THREE.Mesh(mergeGeometries(parts), skin)); { const lm = stnLegMat(col, 0.3); if (V.citadel) { lm.color.set(0x252a34); lm.map = cpan(2, 2); lm.bumpMap = lm.map; lm.bumpScale = 2.4; lm.roughness = 0.2; lm.metalness = 1.0; lm.envMap = citEnv; lm.envMapIntensity = 0.8; citLight(lm); } g.add(new THREE.Mesh(mergeGeometries(legs), lm)); }
   const beacon = glowSprite(0x6fe8ff, 1, 0);   // kept only because the frame loop pulses it; not added to the scene
-  g.userData = { spin, beacon };
+  g.userData.spin = spin; g.userData.beacon = beacon;
   return g;
 }
 // ---------- second station style (YAPZO system): an industrial ring station - a big turning-wheel habitat on spokes round a long hub, solar wings and an open docking cage ----------
@@ -1878,7 +1878,7 @@ function nearStation() { let best = -1, bd = 200; for (let i = 0; i < stations.l
 
 function launchFrom(i) {
   ST = stats(); S.station = i; homeSt = anchorSt = i; const st = stations[i];
-  S.pos.copy(st.pos).addScaledVector(st.front, 48 * ST_K);
+  S.pos.copy(st.pos).addScaledVector(st.front, st.v.citadel ? 76 * ST_K * st.v.big : 48 * ST_K);   // the citadel is long: you leave from just past its engine ring, never from inside the hull
   _m.lookAt(_zero, st.front, lookUp(st.front)); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q); entDismissed = i; fadeEl.style.transition = 'none'; fadeEl.style.opacity = '1'; setTimeout(fadeOut, 60);
   S.speed = 60; S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100; S.inv = 2; S.nb = true; S.mode = 'fly'; S.target = null; S.patrolT = 45; S.sx = S.sy = 0;
   for (const a of asteroids) a.active = false; for (const l of loot) l.active = false; for (const q of shards) q.t = SH_LIFE;
@@ -2211,7 +2211,9 @@ function frame(now) {
     p.vf = (p.vf && pi !== vpI) ? p.vf + (vfT - p.vf) * Math.min(1, dt * 3) : vfT; const vf = p.vf;   // purely visual: planets of other stations are drawn PFAR times bigger (the aiming/lock logic keeps using the real size)
     { const lo = af * vf < 0.085; if (lo !== p.lo) { p.lo = lo; p.mesh.geometry = lo ? p.g1 : p.g0; if (p.hm) p.hm.geometry = p.mesh.geometry; if (p.cl) p.cl.visible = !lo; if (p.moon) p.moon.visible = !lo; } }   // LOD: far planets (small discs) drop clouds, moon and sphere detail
     if (aimOk && pi !== here0 && pi !== vpI && pi !== noPl && fwd.dot(_pd) > Math.cos(Math.max(0.07, af * 1.3))) { p.aim = (p.aim || 0) + dt; if (p.aim > 0.9) { p.aim = 0; S.tPlanet = pi; sfx('lock'); trvOn = true; $('trv-name').textContent = stations[pi].name; $('trv-dlg').style.display = 'flex'; } } else { p.aim = 0; if (pi === noPl && fwd.dot(_pd) < Math.cos(Math.max(0.07, af * 1.3) * 2.5)) noPl = -1; }   // hold the crosshair on a planet for ~1 s and the game asks if you want to go there
-    p.mesh.scale.setScalar(af * dA2 * vf); if (p.rg) { p.rg.position.copy(p.mesh.position); p.rg.scale.setScalar(af * dA2 * vf / p.r); }
+    { let tg = 1; const op = planets[vpI]; if (pi !== vpI && op && op.fd && p.fd) { const sep = Math.acos(clamp(op.fd.dot(p.fd), -1, 1)); if (sep < op.fr * (op.vf || 1) * (op.rg ? 1.7 : 1) + af * vf * (p.rg ? 1.7 : 1) + 0.06) tg = 0; }   // no small planet right beside the planet you are at: it fades out while it would sit next to (or over) it
+      p.hk = (p.hk === undefined ? 1 : p.hk) + (tg - (p.hk === undefined ? 1 : p.hk)) * Math.min(1, dt * 3); if (p.hk < 0.03) { p.mesh.visible = false; if (p.rg) p.rg.visible = false; } }
+    p.mesh.scale.setScalar(af * dA2 * vf * (p.hk === undefined ? 1 : p.hk)); if (p.rg) { p.rg.position.copy(p.mesh.position); p.rg.scale.setScalar(af * dA2 * vf * (p.hk === undefined ? 1 : p.hk) / p.r); }
   }
   { const bo = S.boosting && S.mode === 'fly'; if (bo !== spdOn) { spdOn = bo; spdEl.style.opacity = bo ? '1' : '0'; }
     let fi = 0; if (S.mode === 'fly' || S.mode === 'wreck') { _fl.copy(SUN_DIR).multiplyScalar(9000).add(camera.position).project(camera); if (_fl.z < 1) fi = clamp(1.2 - Math.max(Math.abs(_fl.x), Math.abs(_fl.y)), 0, 1); }
@@ -2220,6 +2222,7 @@ function frame(now) {
   }
   if (S.mode === 'fly' && homeSt !== anchorSt && stations[anchorSt].sys === curSys && S.pos.distanceTo(stations[anchorSt].pos) < STN_VIS) homeSt = anchorSt;   // coming back to your own station brings its sky back; other stations are never reached by flying (they stay endlessly far, like a real sky)
   stations.forEach((st, i) => { st.g.visible = i === homeSt && S.pos.distanceTo(st.pos) < STN_VIS; });   // only the station of the region you are in exists in space; the others are reached by travel, so none can pop out of a planet
+  for (const st of stations) { const hg = st.g.userData.hg; if (hg && st.g.visible) { hg.getWorldPosition(_a); const sz = hg.scale.x * st.g.scale.x, dd = camera.position.distanceTo(_a); hg.material.opacity = 0.55 * clamp((dd - sz * 0.1) / (sz * 0.45), 0, 1); } }   // the hangar glow thins out as you close in on it
   updateTraffic();
   dustMat.uniforms.uCam.value.copy(camera.position); dustMat.uniforms.uVel.value.copy(S.vel);
   dustMat.uniforms.uK.value = 0.012 + (S.boosting ? 0.05 : 0.008); dustMat.uniforms.uAlpha.value = S.mode === 'dock' ? 0 : 0.22 + clamp(S.speed / 170, 0, 1) * 0.35 + (S.boosting ? 0.2 : 0);
