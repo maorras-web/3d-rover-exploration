@@ -882,13 +882,18 @@ function updateDying(dt) {
     if (d.t >= d.dur) { e.g.visible = false; e.dying = 0; dyingList.splice(i, 1); explode(e.pos, 18); } }
 }
 let explNext = 0;
+const boomQ = [], _bq = new THREE.Vector3();   // chain blasts: a big explosion is followed by 3 small ones a moment later (reuses the same pooled sprites - no new objects in the scene)
 function explode(p, size) {
   const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.w.position.copy(p); e.w.visible = size > 12;
   sparks(p, size > 12 ? 90 : 18, size * 3.2, 1.3); sfx('boom', size);
+  if (size > 12) { for (let i = 0; i < 3; i++) boomQ.push({ t: 0.1 + i * 0.13 + Math.random() * 0.08, x: p.x + (Math.random() - 0.5) * size * 1.6, y: p.y + (Math.random() - 0.5) * size * 1.6, z: p.z + (Math.random() - 0.5) * size * 1.6, s: size * (0.32 + Math.random() * 0.2) });
+    for (let i = 0; i < 9; i++) { _bq.set((Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8).add(p); smokePuff(_bq); }   // a cloud of smoke that lingers where the ship was
+  }
   if (size > 12) { e.size = size * 2.3; blastStreaks(p, size); const dd = p.distanceTo(S.pos), it = Math.min(1, 1.2 - dd / 380); if (it > 0.05) { const fe = $('flash'); fe.style.transition = 'none'; fe.style.background = 'radial-gradient(ellipse at center,rgba(255,255,230,1) 0,rgba(255,225,140,.9) 45%,rgba(255,140,50,.55) 100%)'; fe.style.opacity = it.toFixed(2); void fe.offsetWidth; fe.style.transition = 'opacity 1.2s ease-out'; fe.style.opacity = '0'; } }
 }
 function updateFx(dt) {
   updateDying(dt); updateStreaks(dt);
+  for (let i = boomQ.length - 1; i >= 0; i--) { const q = boomQ[i]; q.t -= dt; if (q.t <= 0) { boomQ.splice(i, 1); explode(_bq.set(q.x, q.y, q.z), q.s); } }
   for (const e of expl) {
     if (e.t > 1) { if (e.f.visible) e.f.visible = e.r.visible = e.w.visible = false; continue; }
     e.t += dt * 1.5; const k = e.t, s = e.size * (0.5 + k * 2.4);
@@ -1372,12 +1377,17 @@ const MS_N = 4, missiles = [];
 // one shared rocket model: white body, red nose cone, four swept fins, dark nozzle - lit like the ship; the engine flame is a small additive cone
 const msGeo = (() => {
   const parts = [], paint = (g, c) => { g = g.toNonIndexed(); g.deleteAttribute('uv'); const n = g.attributes.position.count, col = new Float32Array(n * 3), cc = new THREE.Color(c); for (let i = 0; i < n; i++) { col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b; } g.setAttribute('color', new THREE.BufferAttribute(col, 3)); parts.push(g); };
-  const cyl = (r0, r1, len, z, c) => { const g = new THREE.CylinderGeometry(r0, r1, len, 10); g.rotateX(Math.PI / 2); g.translate(0, 0, z); paint(g, c); };
-  cyl(0.3, 0.3, 2.2, 0, 0xe6ebf2);          // body
-  cyl(0.02, 0.3, 1.0, -1.6, 0xff4a2a);      // nose cone
-  cyl(0.31, 0.31, 0.16, -0.7, 0xff9a2a);    // warning band
-  cyl(0.24, 0.3, 0.3, 1.2, 0x39414f);       // nozzle
-  for (let k = 0; k < 4; k++) { const f = new THREE.BoxGeometry(0.05, 0.62, 0.8); f.translate(0, 0.5, 0.75); f.rotateZ(k * Math.PI / 2); paint(f, 0x5a6578); }
+  const lathe = (pts, c) => { const g = new THREE.LatheGeometry(pts.map(p => new THREE.Vector2(p[0], p[1])), 14); g.rotateX(Math.PI / 2); paint(g, c); };   // smooth turned shapes, nose towards -z
+  lathe([[0.001, -1.95], [0.07, -1.86], [0.15, -1.68], [0.23, -1.42], [0.28, -1.16], [0.3, -1.0]], 0xff4a2a);        // pointed (ogive) red nose
+  lathe([[0.31, -1.0], [0.31, -0.84]], 0xff9a2a);                                                                   // warning band
+  lathe([[0.3, -0.84], [0.3, 0.9], [0.27, 1.12]], 0xe6ebf2);                                                        // white body, slightly tapered tail
+  lathe([[0.312, 0.08], [0.312, 0.2]], 0x39414f); lathe([[0.312, 0.5], [0.312, 0.58]], 0xd0432e);                   // dark ring and a red stripe
+  lathe([[0.2, 1.1], [0.25, 1.26], [0.32, 1.52]], 0x39414f);                                                         // engine bell
+  const fin = (pts, th, c, k) => { const s = new THREE.Shape(); pts.forEach((p, i) => i ? s.lineTo(p[0], p[1]) : s.moveTo(p[0], p[1])); const f = new THREE.ExtrudeGeometry(s, { depth: th, bevelEnabled: false }); f.rotateY(-Math.PI / 2); f.translate(th / 2, 0, 0); f.rotateZ(k * Math.PI / 2); paint(f, c); };
+  for (let k = 0; k < 4; k++) {
+    fin([[0.35, 0.28], [1.0, 0.92], [1.3, 0.92], [1.25, 0.28]], 0.05, 0x5a6578, k);   // swept main fins
+    fin([[-1.1, 0.27], [-0.78, 0.55], [-0.62, 0.55], [-0.7, 0.27]], 0.04, 0xff9a2a, k + 0.5);   // small nose fins (turned 45 degrees)
+  }
   return mergeGeometries(parts);
 })();
 const msFlameMat = mkFlame(0xff9a30, 0.95);
@@ -1385,8 +1395,8 @@ const msMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.
 const msFlameGeo = new THREE.ConeGeometry(0.3, 1, 10, 1, true); msFlameGeo.rotateX(-Math.PI / 2); msFlameGeo.translate(0, 0, 0.5);
 for (let i = 0; i < MS_N; i++) {
   const g = new THREE.Group(), body = new THREE.Mesh(msGeo, msMat); g.add(body);
-  const fc = new THREE.Mesh(msFlameGeo, msFlameMat); fc.position.z = 1.35; fc.scale.set(1, 1, 2.6); g.add(fc);
-  const fl = glowSprite(0xffa040, 2.6, 0.7); fl.position.z = 1.5; g.add(fl);
+  const fc = new THREE.Mesh(msFlameGeo, msFlameMat); fc.position.z = 1.5; fc.scale.set(1, 1, 2.6); g.add(fc);
+  const fl = glowSprite(0xffa040, 2.6, 0.7); fl.position.z = 1.65; g.add(fl);
   g.scale.setScalar(2.1); g.visible = false; scene.add(g); missiles.push({ g, body, fc, vel: V3(), life: 0, target: null, active: false });
 }
 function fireMissile() {
@@ -1410,7 +1420,7 @@ function updateMissiles(dt) {
     { let hitA = false; for (let j = 0; j < AST_N; j++) { const a = asteroids[j]; if (!a.active) continue; const dx = a.x - m.g.position.x, dy = a.y - m.g.position.y, dz = a.z - m.g.position.z, rr = a.r + 2; if (dx * dx + dy * dy + dz * dz < rr * rr) { hitAsteroid(a, 9999); hitA = true; break; } }
       if (hitA) { m.active = false; m.g.visible = false; explode(m.g.position, 9); continue; } }
     const sp = Math.min(330, m.vel.length() + 260 * dt); m.vel.copy(_a).multiplyScalar(sp); m.g.position.addScaledVector(m.vel, dt);
-    m.body.rotation.z += dt * 9; m.fc.scale.z = 2.2 + Math.random() * 0.9; smokePuff(_b.copy(m.g.position).addScaledVector(_a, -3.6));
+    m.body.rotation.z += dt * 9; m.fc.scale.z = 2.2 + Math.random() * 0.9; smokePuff(_b.copy(m.g.position).addScaledVector(_a, -3.9));
     if (m.life <= 0) { m.active = false; m.g.visible = false; explode(m.g.position, 5); }
   }
 }
@@ -1581,6 +1591,37 @@ function updateMusic(dt) {
   if (stVol > 0.01) { if (stMus.paused) { try { const p = stMus.play(); if (p && p.catch) p.catch(() => { }); } catch (e) { } } stMus.volume = clamp(stVol, 0, 1); }
   else if (!stMus.paused) { stMus.pause(); stMus.volume = 0; }
 }
+// ---- weapon / missile pictures: the real 3D models drawn ONCE into small images (nothing is rendered again afterwards, so no running cost) ----
+const PIC = {};
+function makePics() {
+  if (PIC.ms) return;
+  const W = 228, H = 126, rt = new THREE.WebGLRenderTarget(W, H); rt.texture.colorSpace = THREE.SRGBColorSpace;
+  const sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(26, W / H, 0.1, 100);
+  sc.add(new THREE.HemisphereLight(0xdbe8ff, 0x4a5c80, 2.4)); const dl = new THREE.DirectionalLight(0xffffff, 3.2); dl.position.set(-2, 4, 5); sc.add(dl);
+  const oc = renderer.getClearColor(new THREE.Color()), oa = renderer.getClearAlpha(), px = new Uint8Array(W * H * 4), cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx = cv.getContext('2d'), id = cx.createImageData(W, H);
+  const snap = (obj, key, k, el) => {
+    sc.add(obj); const bb = new THREE.Box3().setFromObject(obj), c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3()), R = Math.max(sz.x / (W / H), sz.y, sz.z * 0.6) * k;
+    cam.position.set(c.x + R * 0.25, c.y + R * el, c.z + R * 1.5); cam.lookAt(c);
+    renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(sc, cam); renderer.readRenderTargetPixels(rt, 0, 0, W, H, px);
+    for (let y = 0; y < H; y++) id.data.set(px.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
+    cx.putImageData(id, 0, 0); PIC[key] = cv.toDataURL('image/png'); sc.remove(obj);
+  };
+  const st = (c, mt, rg) => new THREE.MeshStandardMaterial({ color: c, metalness: mt, roughness: rg });
+  const HC = st(0x9aa5b8, 0.45, 0.35), HD = st(0x56627a, 0.5, 0.4), GN = st(0x2a313d, 0.6, 0.35), WH = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  WPN.forEach((w, i) => {   // the twin-barrel cannon of the ship's wing (same shapes as the ship), glow in the weapon's colour
+    const g = new THREE.Group(), GL = new THREE.MeshBasicMaterial({ color: w.c }), add = (geo, mat, p, r, s) => { const o = new THREE.Mesh(geo, mat); o.position.set(...p); if (r) o.rotation.set(...r); if (s) o.scale.set(...s); g.add(o); };
+    const CY = (r, h, n) => new THREE.CylinderGeometry(r, r, h, n || 14), RX = Math.PI / 2;
+    add(new THREE.SphereGeometry(0.5, 20, 14), HD, [0, -0.02, -0.55], 0, [0.36, 0.22, 1.6]); add(new THREE.SphereGeometry(0.5, 16, 10), HC, [0, 0.05, -0.45], 0, [0.24, 0.12, 1.1]);
+    add(CY(0.13, 0.35, 16), GN, [0, 0, -1.45], [RX, 0, 0]); add(CY(0.18, 0.04, 20), GL, [0, 0, -1.05], [RX, 0, 0]);
+    for (const d of [-0.085, 0.085]) { add(CY(0.05, 0.95), GN, [d, 0, -1.7], [RX, 0, 0]); add(CY(0.075, 0.09), HC, [d, 0, -2.14], [RX, 0, 0]); add(CY(0.07, 0.06), HC, [d, 0, -1.6], [RX, 0, 0]); add(CY(0.045, 0.05, 10), WH, [d, 0, -2.2], [RX, 0, 0]); add(new THREE.SphereGeometry(0.09 + w.t * 0.03, 10, 8), GL, [d, 0, -2.3]); }
+    add(new THREE.BoxGeometry(0.03, 0.04, 0.75), GL, [0.16, -0.02, -0.5]); add(new THREE.BoxGeometry(0.03, 0.04, 0.75), GL, [-0.16, -0.02, -0.5]);
+    g.rotation.y = -Math.PI / 2; snap(g, 'w' + i, 1.4, 1.5);
+  });
+  { const g = new THREE.Group(), b = new THREE.Mesh(msGeo, msMat); g.add(b);   // the homing missile: the very same model the ship fires
+    g.rotation.y = -Math.PI / 2 + 0.0; g.rotation.z = 0; snap(g, 'ms', 1.45, 0.8); }
+  { const g = ship.clone(true); g.position.set(0, 0, 0); g.quaternion.identity(); g.rotation.y = -Math.PI / 2 + 0.55; g.updateMatrixWorld(true); snap(g, 'sh', 1.05, 0.85); }   // the real ship, 3/4 view
+  renderer.setRenderTarget(null); renderer.setClearColor(oc, oa); rt.dispose();
+}
 let shopTab = 'm', lgSt = -1, shopSub = 'u', mapSys = -1;
 const HOLD = 20, GOODS = [{ nm: 'ORE', base: 40, desc: 'Raw asteroid ore' }, { nm: 'FOOD', base: 25, desc: 'Sealed rations' }, { nm: 'MEDS', base: 70, desc: 'Medical supplies' }, { nm: 'TECH', base: 120, desc: 'Electronic parts' }, { nm: 'GEMS', base: 200, desc: 'Cut crystals' }];
 const cMul = (st, gi) => { const x = Math.sin((st + 1) * 12.9898 + gi * 78.233) * 43758.5453; return 0.7 + 0.7 * (x - Math.floor(x)); };   // each station pays a different price for each good
@@ -1612,7 +1653,7 @@ function openShop(msg) {
   S.mode = 'dock';
   $('shop-title').textContent = 'DOCKED · ' + stations[S.station].name;
   $('shop-earn').textContent = msg || '';
-  ['h', 'u', 'p', 'm', 's', 'b'].forEach(k => $('tab-' + k).classList.toggle('on', shopTab === k)); $('sh-panel').style.display = shopTab === 'h' || shopTab === 'b' ? 'none' : 'flex'; $('shop').classList.toggle('npcon', shopTab === 's'); $('shop').classList.toggle('stson', shopTab === 's' || shopTab === 'u' || shopTab === 'p' || shopTab === 'm'); $('shop').classList.toggle('wide', shopTab === 'p' || shopTab === 'm'); $('shop').classList.toggle('mapon', shopTab === 'p');   // the trader (VORR) is gone: only the pilot shows, on Status $('shop').classList.toggle('lgon', shopTab === 'b'); if (shopTab === 'b') $('lounge').classList.toggle('sys1', stations[S.station].sys === 1); if (shopTab === 'b' && window.__fillLounge && lgSt !== S.station) { window.__fillLounge(); lgSt = S.station; }
+  ['h', 'u', 'p', 'm', 's', 'b'].forEach(k => $('tab-' + k).classList.toggle('on', shopTab === k)); $('sh-panel').style.display = shopTab === 'b' || shopTab === '0' ? 'none' : 'flex'; $('shop').classList.toggle('npcon', shopTab === 's'); $('shop').classList.toggle('stson', shopTab === 's' || shopTab === 'u' || shopTab === 'p' || shopTab === 'm' || shopTab === 'h'); $('shop').classList.toggle('hgon', false); $('shop').classList.toggle('wide', shopTab === 'p' || shopTab === 'm' || shopTab === 'h'); $('shop').classList.toggle('mapon', shopTab === 'p');   // the trader (VORR) is gone: only the pilot shows, on Status $('shop').classList.toggle('lgon', shopTab === 'b'); if (shopTab === 'b') $('lounge').classList.toggle('sys1', stations[S.station].sys === 1); if (shopTab === 'b' && window.__fillLounge && lgSt !== S.station) { window.__fillLounge(); lgSt = S.station; }
   { const hero = shopTab === 's'; $('npc').src = hero ? 'pilot.webp' : 'merchant.webp'; $('npc').classList.toggle('hero', hero); $('npc-nm').textContent = hero ? 'NABIYAX · PILOT' : 'VORR · TRADER'; $('npc-tx').textContent = hero ? 'Ship ready. Let\'s fly.' : 'Best prices this side of the nebula, pilot.'; }
   const list = $('shop-list'); list.innerHTML = '';
   const ICO = {   // one small glowing icon per upgrade (inline SVG, no image files)
@@ -1625,21 +1666,20 @@ function openShop(msg) {
     c2: ['#ff6a8a', '<rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" fill-opacity=".15"/><path d="M12 8v8M8 12h8"/>'],
     c3: ['#5fe4ff', '<rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" fill-opacity=".15"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>'],
     c4: ['#d49aff', '<path d="M7 4h10l4 5-9 12L3 9z" fill="currentColor" fill-opacity=".2"/><path d="M3 9h18M9 4l3 5 3-5M12 9v12"/>'],
-    w0: ['#6dfcff', '<circle cx="7" cy="20" r="3" fill="#bffcff" fill-opacity=".8" stroke="none"/><g stroke="none"><rect x="14" y="12" width="26" height="6.4" rx="3.2" fill="#6dfcff" fill-opacity=".25"/><rect x="14" y="13.6" width="26" height="3.2" rx="1.6" fill="#6dfcff"/><rect x="16" y="14.6" width="22" height="1.2" rx=".6" fill="#fff"/><rect x="26" y="22" width="26" height="6.4" rx="3.2" fill="#6dfcff" fill-opacity=".25"/><rect x="26" y="23.6" width="26" height="3.2" rx="1.6" fill="#6dfcff"/><rect x="28" y="24.6" width="22" height="1.2" rx=".6" fill="#fff"/></g>', 1],
-    w1: ['#4a90ff', '<defs><linearGradient id="gw1" x1="0" x2="1"><stop offset="0" stop-color="#4a90ff" stop-opacity="0"/><stop offset=".7" stop-color="#4a90ff"/><stop offset="1" stop-color="#fff"/></linearGradient></defs><circle cx="7" cy="20" r="2.5" fill="#bcd6ff" stroke="none"/><g stroke="none"><rect x="10" y="16" width="50" height="8" rx="4" fill="url(#gw1)" fill-opacity=".28"/><rect x="10" y="18.6" width="50" height="2.8" rx="1.4" fill="url(#gw1)"/><circle cx="59" cy="20" r="3.2" fill="#fff"/><circle cx="59" cy="20" r="6" fill="#4a90ff" fill-opacity=".3"/></g>', 1],
-    w2: ['#4dff6a', '<circle cx="7" cy="20" r="2.5" fill="#c8ffd0" stroke="none"/><path d="M11 20Q17 7 23 20T35 20T47 20T59 20" stroke="#4dff6a" stroke-opacity=".28" stroke-width="7"/><path d="M11 20Q17 7 23 20T35 20T47 20T59 20" stroke="#4dff6a" stroke-width="3"/><path d="M11 20Q17 7 23 20T35 20T47 20T59 20" stroke="#fff" stroke-width="1" stroke-opacity=".9"/>', 1],
-    w3: ['#3be8ff', '<circle cx="7" cy="20" r="2.5" fill="#c4f8ff" stroke="none"/><g stroke-linecap="round"><path d="M13 20L44 8M13 20L52 20M13 20L44 32" stroke="#3be8ff" stroke-opacity=".28" stroke-width="7"/><path d="M13 20L44 8M13 20L52 20M13 20L44 32" stroke="#3be8ff" stroke-width="3"/><path d="M15 19.2L43 8.6M15 20L51 20M15 20.8L43 31.4" stroke="#fff" stroke-width="1"/></g>', 1],
-    w4: ['#b06bff', '<circle cx="7" cy="20" r="2.5" fill="#e6d2ff" stroke="none"/><g stroke="none"><rect x="12" y="15.5" width="13" height="9" rx="4.5" fill="#b06bff" fill-opacity=".28"/><rect x="12" y="17.6" width="13" height="4.8" rx="2.4" fill="#b06bff"/><rect x="14" y="19.3" width="9" height="1.4" rx=".7" fill="#fff"/><rect x="28" y="15.5" width="13" height="9" rx="4.5" fill="#b06bff" fill-opacity=".28"/><rect x="28" y="17.6" width="13" height="4.8" rx="2.4" fill="#b06bff"/><rect x="30" y="19.3" width="9" height="1.4" rx=".7" fill="#fff"/><rect x="44" y="15.5" width="13" height="9" rx="4.5" fill="#b06bff" fill-opacity=".28"/><rect x="44" y="17.6" width="13" height="4.8" rx="2.4" fill="#b06bff"/><rect x="46" y="19.3" width="9" height="1.4" rx=".7" fill="#fff"/></g>', 1],
-    w5: ['#ffd23a', '<defs><linearGradient id="gw5" x1="0" x2="1"><stop offset="0" stop-color="#ff9a1a"/><stop offset="1" stop-color="#ffe680"/></linearGradient></defs><circle cx="7" cy="20" r="3.5" fill="#fff0b0" stroke="none"/><g stroke="none"><rect x="10" y="6" width="52" height="28" rx="14" fill="#ffd23a" fill-opacity=".22"/><rect x="11" y="12" width="48" height="16" rx="8" fill="url(#gw5)"/><rect x="14" y="16.5" width="44" height="7" rx="3.5" fill="#fff6c8"/><circle cx="57" cy="20" r="5" fill="#fff"/></g>', 1],
+    // weapon pictures: the real twin-barrel cannon that sits on the ship's wing (top view), the muzzle glow takes the weapon's colour
+    ...Object.fromEntries(WPN.map((w, i) => { const c = '#' + w.c.toString(16).padStart(6, '0'); return ['w' + i, [c, `<g stroke="none"><ellipse cx="17" cy="20" rx="14" ry="7" fill="#2c3646"/><ellipse cx="16" cy="19" rx="10" ry="4" fill="#5d6c82"/><rect x="31" y="13" width="2.4" height="14" rx="1.2" fill="${c}"/><rect x="32" y="16.6" width="20" height="3" rx="1.4" fill="#6b788c"/><rect x="32" y="22.4" width="20" height="3" rx="1.4" fill="#6b788c"/><rect x="32" y="17.2" width="20" height="1" fill="#aeb9ca"/><rect x="32" y="23" width="20" height="1" fill="#aeb9ca"/><rect x="47" y="15.6" width="3.4" height="5" rx="1" fill="#cfd8e6"/><rect x="47" y="21.4" width="3.4" height="5" rx="1" fill="#cfd8e6"/><circle cx="54" cy="18.1" r="${3 + w.t}" fill="${c}" fill-opacity=".35"/><circle cx="54" cy="23.9" r="${3 + w.t}" fill="${c}" fill-opacity=".35"/><circle cx="54" cy="18.1" r="1.8" fill="#fff"/><circle cx="54" cy="23.9" r="1.8" fill="#fff"/>${w.n > 1 ? `<circle cx="58" cy="21" r="1.6" fill="${c}"/>` : ''}</g>`, 1]]; })),
+    ms: ['#c79bff', '<circle cx="11" cy="20" r="5" fill="#ff8a3a" fill-opacity=".45" stroke="none"/><g stroke="none"><path d="M12 20L19 17V23Z" fill="#ffc24a"/><rect x="17" y="14.500" width="30" height="11" rx="5.500" fill="#c79bff" fill-opacity=".3"/><rect x="18" y="15.500" width="28" height="9" rx="4.500" fill="#c79bff"/><rect x="31" y="15.500" width="3.500" height="9" fill="#ffc24a"/><path d="M46 15.500L59 20L46 24.500Z" fill="#fff"/><path d="M21 15.500L15 8.500L28 15.500ZM21 24.500L15 31.500L28 24.500Z" fill="#8f6fd0"/></g>', 1],
+    sh: ['#5fe4ff', '<g stroke="none"><path d="M24 20L10 5H21L42 17ZM24 20L10 35H21L42 23Z" fill="#5fe4ff" fill-opacity=".55"/><ellipse cx="33" cy="20" rx="23" ry="5.500" fill="#5fe4ff"/><ellipse cx="38" cy="20" rx="9" ry="2" fill="#fff" fill-opacity=".8"/><circle cx="48" cy="20" r="2.500" fill="#0a2a44"/><rect x="6" y="17.500" width="6" height="5" rx="2" fill="#ffc24a"/></g>', 1],
     m: ['#c79bff', '<path d="M12 2c3 2.2 4 5.8 4 9v4.2l-2 2.3h-4l-2-2.3V11c0-3.200 1-6.800 4-9z" fill="currentColor" fill-opacity=".22"/><path d="M8 14l-3.200 3.800V20L8 18M16 14l3.200 3.800V20L16 18M12 21v1.500"/><circle cx="12" cy="9.500" r="1.600"/>']
   };
   const row = (nm, desc, extra, btnText, dis, fn, ic) => {
     const r = document.createElement('div'); r.className = 'row';
-    r.innerHTML = `${ic !== undefined && ICO[ic] ? `<div class="ico${ICO[ic][2] ? ' wd' : ''}" style="--c:${ICO[ic][0]}"><svg viewBox="${ICO[ic][2] ? '0 0 64 40' : '0 0 24 24'}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICO[ic][1]}</svg></div>` : ''}<div class="nm">${nm}<span>${desc}</span></div>${extra ? `<div class="lv">${extra}</div>` : ''}`;
+    r.innerHTML = `${ic !== undefined && PIC[ic] ? `<div class="ico wd pic"><img src="${PIC[ic]}" alt=""></div>` : ic !== undefined && ICO[ic] ? `<div class="ico${ICO[ic][2] ? ' wd' : ''}" style="--c:${ICO[ic][0]}"><svg viewBox="${ICO[ic][2] ? '0 0 64 40' : '0 0 24 24'}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICO[ic][1]}</svg></div>` : ''}<div class="nm">${nm}<span>${desc}</span></div>${extra ? `<div class="lv">${extra}</div>` : ''}`;
     if (btnText) { const b = document.createElement('button'); b.className = 'buy'; b.textContent = btnText; b.disabled = dis; b.addEventListener('click', fn); r.appendChild(b); }
     list.appendChild(r);
   };
   $('shop-cr').textContent = '◆ ' + save.credits;
+  if (shopTab === 'h' || shopTab === 'u') { try { makePics(); } catch (e) { PIC.ms = PIC.ms || ''; } }
   if (shopTab === 's') {
     const tot = save.up.reduce((x, y) => x + y, 0), mk = ['I', 'II', 'III', 'IV', 'V'][Math.min(4, tot / 6 | 0)];
     const hd = document.createElement('div'); hd.className = 'spec-hd'; hd.innerHTML = `<b>STAR COURIER  MK ${mk}</b><span>Light multirole fighter · twin ion engines · 2 laser hardpoints · missile rack</span>`; list.appendChild(hd);
@@ -1655,6 +1695,16 @@ function openShop(msg) {
     bar('CRUISE SPEED', Math.round(ST.cruise), ' m/s', 3, s => s.cruise);
     const ft = document.createElement('div'); ft.className = 'spec-ft'; ft.innerHTML = `<span>MISSILES <b>${save.missiles}</b></span><span>PIRATES DESTROYED <b>${save.kills}</b></span><span>UPGRADES <b>${tot}/${UPG.reduce((x, u) => x + u.max, 0)}</b></span>`; list.appendChild(ft);
     const lg = document.createElement('div'); lg.className = 'spec-lg'; lg.textContent = 'Bright bar = current  ·  faint extension = next upgrade'; list.appendChild(lg);
+  } else if (shopTab === 'h') {
+    /* Hangar: what is fitted to the ship, in a list: ship, primary weapons (2 hardpoints), secondary weapons (missiles) and equipment */
+    const sec = (t) => { const d = document.createElement('div'); d.className = 'hg-sec'; d.textContent = t; list.appendChild(d); };
+    const tot = save.up.reduce((x, y) => x + y, 0), mk = ['I', 'II', 'III', 'IV', 'V'][Math.min(4, tot / 6 | 0)], cw = curW();
+    sec('SHIP'); row('STAR COURIER  MK ' + mk, 'Light multirole fighter  ·  hull ' + ST.hullMax + '  ·  shield ' + ST.shieldMax, '', '', false, null, 'sh');
+    sec('PRIMARY WEAPONS');
+    const cyc = () => { const o = save.wpn.owned, n = o[(o.indexOf(save.wpn.cur) + 1) % o.length]; if (n === save.wpn.cur) { sfx('ui'); return; } save.wpn.cur = n; persist(); refreshHud(); wpnChip(); sfx('pick'); openShop(msg); };
+    for (let hp = 1; hp <= 2; hp++) row(cw.name, 'Hardpoint ' + hp + '  ·  ' + Math.round(ST.dmg * cw.dm * (cw.n || 1)) + ' dmg per ' + (cw.n > 1 ? 'volley' : 'shot') + '  ·  ' + (1 / cw.rate).toFixed(1) + ' shots/s', '', save.wpn.owned.length > 1 ? 'CHANGE' : '', false, cyc, 'w' + save.wpn.cur);
+    sec('SECONDARY WEAPONS'); row('HOMING MISSILES  ×' + save.missiles, 'Locks on to a target  ·  sold in packs of 3', '', 'BUY MORE', false, () => { shopTab = 'u'; shopSub = 'u'; sfx('ui'); openShop(msg); }, 'ms');
+    sec('EQUIPMENT'); UPG.forEach((u, i) => row(u.name, u.desc, '■'.repeat(save.up[i]) + '□'.repeat(u.max - save.up[i]), '', false, null, i));
   } else if (shopTab === 'p') {
     const mp = document.createElement('div'); mp.className = 'smap'; list.appendChild(mp);
     const ms = mapSys < 0 ? stations[S.station].sys : mapSys, ids = stations.map((s, k) => k).filter(k => stations[k].sys === ms);
@@ -1741,7 +1791,7 @@ function dockAt(i) {
   buzz(50);
   let msg = 'SHIP REPAIRED';
   if (S.mission && S.mission.type === 'delivery' && S.mission.to === i) { const r = S.mission.reward; completeMission(); msg = 'DELIVERY COMPLETE  +' + r; }
-  offered = genMissions(i); shopTab = 'h'; openShop(msg);
+  offered = genMissions(i); shopTab = '0'; openShop(msg);
 }
 // docking cinematic: swing onto the station axis, then fly down the hangar tunnel and stop; then the hangar menu opens
 let entOn = false, entFor = 0, entDismissed = -1;
@@ -2072,7 +2122,7 @@ function frame(now) {
     // hangar view: the ship sits on its platform, the camera swings slowly round it (like Galaxy on Fire 2)
     hangar.visible = true; ship.quaternion.setFromAxisAngle(Y, 0.5); shipBody.rotation.z = 0;
     if (SHIP_VAR === 4) { S.pos.y = HP.y + DOCK_H + Math.sin(tAcc * 1.3) * 0.14; hoverGlow.material.opacity = 0.2 + Math.sin(tAcc * 1.3) * 0.05; }
-    const a = Math.sin(tAcc * 0.17) * 1.05, hy = Math.sin(tAcc * 0.23) * 1.2, land = innerWidth > innerHeight * 1.2, off = land && shopTab !== 'h' ? 1 : 0;
+    const a = Math.sin(tAcc * 0.17) * 1.05, hy = Math.sin(tAcc * 0.23) * 1.2, land = innerWidth > innerHeight * 1.2, off = land && shopTab !== '0' ? 1 : 0;
     camera.position.set(HP.x + Math.sin(a) * 19, HP.y + 7.5 + (DOCK_H - 2.1) + hy, HP.z + Math.cos(a) * 19); camera.lookAt(HP.x, HP.y + 2.0 + (DOCK_H - 2.1) * 0.9, HP.z);
     if (!hangarVO || camera.fov !== 46 || off !== vo) { camera.fov = 46; hangarVO = true; vo = off; if (off) camera.setViewOffset(innerWidth, innerHeight, innerWidth * 0.2, 0, innerWidth, innerHeight); else { camera.clearViewOffset(); camera.updateProjectionMatrix(); } }
   } else if (hangarVO) { hangarVO = false; vo = 0; hangar.visible = false; camera.clearViewOffset(); camera.fov = 64; camera.updateProjectionMatrix(); }
