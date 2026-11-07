@@ -388,7 +388,8 @@
   #shop.stson{background:radial-gradient(ellipse at 28% 35%,#123a66 0,#0a2547 45%,#061630 100%)}   /* Status tab: a plain bluish backdrop like the UI instead of the hangar scene */
   #npc.hero{height:auto;width:min(calc(52vh - 6px),30vw);max-width:none;top:30px;filter:none;border-radius:6px;box-shadow:0 0 0 1px rgba(53,212,255,.45),0 0 22px rgba(40,90,255,.35);-webkit-mask-image:linear-gradient(180deg,#000 78%,transparent);mask-image:linear-gradient(180deg,#000 78%,transparent)}
   #shop.npcon .panel{left:calc(112px + 52vh + env(safe-area-inset-left))}
-  #shop.wide .panel{left:calc(112px + env(safe-area-inset-left))}   /* Map and Missions: the panel stretches left up to the buttons */
+  #shop.wide .panel{left:calc(112px + env(safe-area-inset-left))}
+  #shop.mapon .panel{height:calc(100% - 76px)}#shop.mapon #shop-list{padding:10px;overflow:hidden;-webkit-mask-image:none;mask-image:none}#shop.mapon .smap{height:100%;min-height:0;box-sizing:border-box}   /* Map: the inner map box fills the outer frame with an even gap on all four sides */   /* Map and Missions: the panel stretches left up to the buttons */
   @media (min-width:700px) and (min-aspect-ratio:6/5){#shop .panel{left:46vw}}
   #sh-top{position:absolute;left:calc(10px + env(safe-area-inset-left));right:calc(54px + env(safe-area-inset-right));top:0;height:34px;display:flex;align-items:center;gap:16px;background:linear-gradient(180deg,rgba(2,6,12,.85),rgba(2,6,12,0));font:700 11px system-ui,Arial,sans-serif;color:#bcd0e6;letter-spacing:.5px}
   #sh-top b{font-weight:800;color:#e6f0ff}#sh-top span{color:#ffe08a;opacity:.9}
@@ -486,6 +487,7 @@
   .smap .sn i::after{content:"";position:absolute;inset:-8px;border-radius:50%;border:1px solid rgba(255,255,255,.22)}
   .smap .sn.here i{width:18px;height:18px;transform:translate(-2px,-2px);border-color:#fff}
   .smap .sn{transform:translate(-12px,-12px)}.smap .sn i{width:24px;height:24px}.smap .sn i::after{inset:-11px}.smap .sn.here i{width:30px;height:30px;transform:translate(-3px,-3px)}   /* bigger star dots */
+  .smap .cl{position:absolute;white-space:nowrap;pointer-events:none;z-index:2;transform:translate(0,-50%);font:700 13px system-ui,Arial,sans-serif;letter-spacing:1.5px;color:#dbe8f7;text-shadow:0 0 3px #000,0 0 6px #000,0 0 8px #000}.smap .cl.r{transform:translate(-100%,-50%)}.smap .cl.dim{font-weight:400;font-size:12px;letter-spacing:1px;opacity:.75}.smap .cl.you{color:#ffc860;font-weight:500;font-size:12px;letter-spacing:1px}   /* hand-placed labels (phones) */
   .smap .sn span{left:32px;top:-2px;font-size:13px}.smap .sn.fl span{left:auto;right:32px}.smap .sn.here span{left:44px}.smap .sn.fl.here span{left:auto;right:44px}
   .smap .sn.here i::after{inset:-9px;border:1.5px solid rgba(255,200,96,.65)}
   .smap .sn.tgt i::after{border:1.5px dashed rgba(95,255,176,.8)}
@@ -671,11 +673,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=350', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=354', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=350'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=354'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>
