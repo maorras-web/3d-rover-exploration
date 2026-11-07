@@ -800,6 +800,42 @@ const asteroids = [], astMeshes = [];
   }
 }
 const dummy = new THREE.Object3D();
+// ---- rock shards: a destroyed asteroid falls apart into jagged chunks that tumble away, shrink during the last second and vanish after 4 s.
+// ONE instanced mesh (48 chunks, 20 triangles each), hidden and not updated while nothing is breaking; nothing is created at run time ----
+const SH_N = 48, SH_LIFE = 4, shards = [];
+const shMesh = (() => {
+  let g = new THREE.IcosahedronGeometry(1, 2); g.deleteAttribute('uv'); g.deleteAttribute('normal'); g = mergeVertices(g); const p = g.attributes.position, cc = new Float32Array(p.count * 3), v = V3();
+  const cuts = [V3(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize(), V3(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize(), V3(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize()], ph = [Math.random() * 6, Math.random() * 6, Math.random() * 6];
+  for (let i = 0; i < p.count; i++) {   // an irregular chunk: lumpy outline, then 3 flat fracture faces sliced off, which show fresh, lighter rock
+    v.fromBufferAttribute(p, i).normalize(); let k = 0.85 + 0.2 * Math.sin(v.x * 3.1 + ph[0]) * Math.sin(v.y * 2.7 + ph[1]) + 0.12 * Math.sin(v.z * 5.3 + v.x * 2.1 + ph[2]); v.multiplyScalar(k); v.x *= 1.2; v.y *= 0.8; let fresh = 0;
+    for (const c of cuts) { const d = v.dot(c); if (d > 0.5) { v.addScaledVector(c, 0.5 - d); fresh = 1; } }
+    p.setXYZ(i, v.x, v.y, v.z); const sh = fresh ? 1.45 : 0.9 + 0.2 * Math.sin(v.x * 7 + v.y * 5 + ph[0]); cc[i * 3] = sh; cc[i * 3 + 1] = sh * 0.97; cc[i * 3 + 2] = sh * 0.93;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(cc, 3)); g.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.92, metalness: 0.04, emissive: 0x0e0b08 }); rockShade(mat);   // the same cratered rock texture + bump as the asteroids themselves
+  const mm = new THREE.InstancedMesh(g, mat, SH_N);
+  mm.frustumCulled = false; mm.visible = false; mm.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(mm);
+  for (let i = 0; i < SH_N; i++) { shards.push({ p: V3(0, -99999, 0), v: V3(), rx: 0, ry: 0, rz: 0, sx: 0, sy: 0, sz: 0, s: 1, t: 9 }); mm.setColorAt(i, new THREE.Color(0.5, 0.45, 0.4)); }
+  return mm;
+})();
+let shNext = 0, shOn = false; const _shC = new THREE.Color();
+function breakRock(a) {
+  const n = Math.min(12, 5 + (a.r * 0.5 | 0)); a.mesh.getColorAt(a.idx, _shC);
+  for (let i = 0; i < n; i++) { const q = shards[shNext], k = shNext; shNext = (shNext + 1) % SH_N;
+    q.p.set(a.x + rnd(-1, 1) * a.r * 0.5, a.y + rnd(-1, 1) * a.r * 0.5, a.z + rnd(-1, 1) * a.r * 0.5); q.v.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize().multiplyScalar(rnd(4, 14) + a.r * 0.6);
+    q.rx = Math.random() * 6; q.ry = Math.random() * 6; q.rz = Math.random() * 6; q.sx = rnd(-3, 3); q.sy = rnd(-3, 3); q.sz = rnd(-3, 3); q.s = a.r * rnd(0.12, 0.3) + 0.3; q.t = 0;
+    shMesh.setColorAt(k, _col.copy(_shC).multiplyScalar(rnd(0.6, 1))); }
+  shMesh.instanceColor.needsUpdate = true; shMesh.visible = shOn = true;
+}
+function updateShards(dt) {
+  if (!shOn) return; let any = false;
+  for (let i = 0; i < SH_N; i++) { const q = shards[i];
+    if (q.t >= SH_LIFE) { if (q.p.y > -99000) { q.p.y = -99999; dummy.position.copy(q.p); dummy.scale.setScalar(0); dummy.rotation.set(0, 0, 0); dummy.updateMatrix(); shMesh.setMatrixAt(i, dummy.matrix); } continue; }
+    any = true; q.t += dt; q.p.addScaledVector(q.v, dt); q.v.multiplyScalar(1 - 0.35 * dt); q.rx += q.sx * dt; q.ry += q.sy * dt; q.rz += q.sz * dt;
+    const f = q.t > SH_LIFE - 1 ? SH_LIFE - q.t : 1;   // shrinks away in the last second
+    dummy.position.copy(q.p); dummy.rotation.set(q.rx, q.ry, q.rz); dummy.scale.setScalar(q.s * f); dummy.updateMatrix(); shMesh.setMatrixAt(i, dummy.matrix); }
+  shMesh.instanceMatrix.needsUpdate = true; if (!any) shMesh.visible = shOn = false;
+}
 
 // ---------- loot ----------
 const LOOT_N = 40, loot = [];
@@ -893,7 +929,7 @@ function explode(p, size) {
   if (size > 12) { e.size = size * 1.7; blastStreaks(p, size); const dd = p.distanceTo(S.pos), it = Math.min(1, 1.2 - dd / 380); if (it > 0.05) { const fe = $('flash'); fe.style.transition = 'none'; fe.style.background = 'radial-gradient(ellipse at center,rgba(255,245,215,.55) 0,rgba(255,200,110,.18) 28%,rgba(255,140,50,0) 55%)'; fe.style.opacity = (it * 0.7).toFixed(2); void fe.offsetWidth; fe.style.transition = 'opacity .8s ease-out'; fe.style.opacity = '0'; } }
 }
 function updateFx(dt) {
-  updateDying(dt); updateStreaks(dt);
+  updateDying(dt); updateStreaks(dt); updateShards(dt);
   for (let i = boomQ.length - 1; i >= 0; i--) { const q = boomQ[i]; q.t -= dt; if (q.t <= 0) { boomQ.splice(i, 1); explode(_bq.set(q.x, q.y, q.z), q.s); } }
   for (const e of expl) {
     if (e.t > 1) { if (e.f.visible) e.f.visible = e.r.visible = e.w.visible = false; continue; }
@@ -1437,7 +1473,7 @@ function damagePlayer(d) {
 }
 function hitAsteroid(a, d) {   // any asteroid, any size, can be destroyed
   a.hp -= d; if (a.hp > 0) return;
-  _b.set(a.x, a.y, a.z); a.active = false; a.y = -99999; explode(_b, Math.max(5, a.r * 0.9)); dropLoot(_b, 15, true, 1 + (a.r > 7 ? 1 : 0) + (a.r > 14 ? 2 : 0));
+  _b.set(a.x, a.y, a.z); breakRock(a); a.active = false; a.y = -99999; sparks(_b, 14, 14 + a.r, 0.7); for (let i = 0; i < 3; i++) smokePuff(_bq.set(_b.x + rnd(-1, 1) * a.r * 0.6, _b.y + rnd(-1, 1) * a.r * 0.6, _b.z + rnd(-1, 1) * a.r * 0.6)); sfx('boom', Math.max(4, a.r * 0.6)); S.shake = Math.max(S.shake, Math.min(0.25, 40 / (_b.distanceTo(S.pos) + 40) * 0.3)); dropLoot(_b, 15, true, 1 + (a.r > 7 ? 1 : 0) + (a.r > 14 ? 2 : 0));
 }
 function damageEnemy(e, d, at) {
   if (!e.active) return;
@@ -1844,7 +1880,7 @@ function launchFrom(i) {
   S.pos.copy(st.pos).addScaledVector(st.front, 48 * ST_K);
   _m.lookAt(_zero, st.front, lookUp(st.front)); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q); entDismissed = i; fadeEl.style.transition = 'none'; fadeEl.style.opacity = '1'; setTimeout(fadeOut, 60);
   S.speed = 60; S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100; S.inv = 2; S.nb = true; S.mode = 'fly'; S.target = null; S.patrolT = 45; S.sx = S.sy = 0;
-  for (const a of asteroids) a.active = false; for (const l of loot) l.active = false;
+  for (const a of asteroids) a.active = false; for (const l of loot) l.active = false; for (const q of shards) q.t = SH_LIFE;
   document.body.classList.remove('docked'); $('shop').classList.remove('show');
 }
 function startGame() { initAudio(); unlockMusic(); if (actx && actx.state === 'suspended') actx.resume(); $('start').classList.remove('show'); updateMissionHud(); offered = genMissions(0);
@@ -2224,5 +2260,5 @@ function frame(now) {
 requestAnimationFrame(frame);
 document.addEventListener('visibilitychange', () => { last = performance.now(); if (actx) { document.hidden ? actx.suspend() : actx.resume(); } });
 // quiet pre-building: one small job every 1.3 s while you are docked or flying (never during a jump) - the far system's sky and every planet painting are ready BEFORE the jump, so arriving costs nothing
-setInterval(() => { if (S.mode === 'warp' || paused) return; if (!spaceNebula.userData.prepped || planets.some(p => p.build)) fxUntil = performance.now() + 2500; if (!spaceNebula.userData.prepped) { spaceNebula.userData.prepped = 1; spaceNebula.userData.prep(); return; } const q = planets.find(p => p.build); if (q) { q.build(); q.build = null; } }, 1300);
+setInterval(() => { if (S.mode === 'warp' || paused) return; if (!spaceNebula.userData.prepped || planets.some(p => p.build)) fxUntil = performance.now() + 2500; if (!spaceNebula.userData.prepped) { spaceNebula.userData.prepped = 1; spaceNebula.userData.prep(); return; } const q = planets.find(p => p.build); if (q) { q.build(); q.build = null; return; } if (!window.__shc) { window.__shc = 1; fxUntil = performance.now() + 2500; const vs = [shMesh.visible, stkMesh.visible]; shMesh.visible = stkMesh.visible = true; try { renderer.compile(scene, camera); } catch (e) { } shMesh.visible = vs[0]; stkMesh.visible = vs[1]; } }, 1300);   // last job: compile the rock-chunk and blast-streak shaders now, so the first asteroid you break does not stall
 window.__sc = { S, stations, save, enemies, startGame, spawnEnemy, dockAt, damageEnemy, THREE, renderer };
