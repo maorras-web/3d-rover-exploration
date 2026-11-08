@@ -1027,8 +1027,8 @@ function buildStation(name, col, V) {
     const sp = new THREE.LatheGeometry([[0, -26], [9, -25], [12, -22], [12, -8], [11, -6], [11, 14], [12.5, 16], [12.5, 24], [11.5, 27], [11.5, 32 + DZ]].map(q => new THREE.Vector2(q[0], q[1])), 24); sp.rotateX(Math.PI / 2); parts.push(sp);
     cz(14.5, 14.5, 9, -13, 18); cz(14, 14, 7, 39, 18); cz(13.2, 13.2, 5, 51, 18);   // lit habitat belt round the tower, and two more on the longer lower tower
     for (let k = 0; k < 3; k++) { const an = k * 2.0944 + 0.52, d = new THREE.Vector3(Math.cos(an), Math.sin(an), 0), q = Qq.clone().setFromUnitVectors(Y, d);
-      put(new THREE.CylinderGeometry(6.4, 6.4, 40, 16), [d.x * 30, d.y * 30, -16], q);   // arm body
-      put(new THREE.SphereGeometry(1, 16, 10), [d.x * 50, d.y * 50, -16], null, [6.4, 6.4, 6.4]);   // rounded tip
+      put(new THREE.CylinderGeometry(6.4, 6.4, 40, 16, 1, true), [d.x * 30, d.y * 30, -16], q);   // arm body (open at the tip: it is a docking tunnel)
+      put(new THREE.TorusGeometry(6.5, 0.8, 8, 20), [d.x * 50, d.y * 50, -16], Qq.clone().setFromUnitVectors(Z, d));   // heavy rim round the mouth
       put(RB(6, 0.3), [d.x * 30, d.y * 30, -21.6], Qq.clone().setFromAxisAngle(Z, an), [26, 7, 3.2]); }   // armoured block on top of each arm
   }
   const citNz = [], legN = parts.length;   // everything pushed from here to the antennae = struts + tail blades -> polished leg metal instead of the window-lit hull
@@ -1071,6 +1071,20 @@ function buildStation(name, col, V) {
     g.add(new THREE.Mesh(mergeGeometries([r1, r2]), new THREE.MeshBasicMaterial({ color: new THREE.Color(V.band[0]).multiplyScalar(0.55), toneMapped: false, fog: false })));
   }
   g.add(new THREE.Mesh(mergeGeometries(navG), stnNav));
+  if (V.citadel) {   // XIAQA: each of the three arms under the saucer is a docking tunnel: open mouth with a folding door, a lit inner tube and a glowing end wall
+    const dT = canvasTex(256, 128, (x, w, h) => { x.fillStyle = '#6a7486'; x.fillRect(0, 0, w, h); x.strokeStyle = '#161a22'; x.lineWidth = 4; for (let i = 1; i < 10; i++) { x.beginPath(); x.moveTo(i * 25.6, 0); x.lineTo(i * 25.6, h / 2); x.stroke(); } x.fillStyle = '#d99a1c'; x.fillRect(0, h / 2 - 16, w, 16); x.fillStyle = '#15181d'; for (let i = -20; i < w; i += 26) { x.beginPath(); x.moveTo(i, h / 2); x.lineTo(i + 10, h / 2); x.lineTo(i + 24, h / 2 - 16); x.lineTo(i + 14, h / 2 - 16); x.fill(); } stnBevel(x, w, h, 64); }, [1, 1]);
+    const dm = stnLit(new THREE.MeshStandardMaterial({ color: 0xe0e6f0, map: dT, emissive: 0x4a5668, emissiveMap: dT, metalness: 0.7, roughness: 0.4, envMap: citEnv, envMapIntensity: 0.8, side: THREE.DoubleSide }), 1.0); citLight(dm);
+    const tT = canvasTex(128, 128, (x, w, h) => { x.fillStyle = '#1a2230'; x.fillRect(0, 0, w, h); x.fillStyle = '#2c3a50'; x.fillRect(0, 0, w, 10); x.fillStyle = '#7fffa8'; for (let i = 0; i < 4; i++) x.fillRect(i * 32 + 12, 52, 8, 24); x.fillStyle = '#0c1018'; x.fillRect(0, 90, w, 4); }, [10, 6]);
+    const tm = new THREE.MeshBasicMaterial({ map: tT, color: 0xb0c0d0, side: THREE.BackSide, toneMapped: false, fog: false }), cm = new THREE.MeshBasicMaterial({ map: stnCapTex, toneMapped: false, fog: false });
+    const hgm = new THREE.CircleGeometry(6.3, 20, 0, Math.PI); hgm.translate(0, -6.3, 0); const tubeG = new THREE.CylinderGeometry(6.0, 6.0, 36, 16, 1, true), capG = new THREE.CircleGeometry(6.0, 20);
+    g.userData.doors = []; g.userData.mouths = [];
+    for (let k = 0; k < 3; k++) { const an = k * 2.0944 + 0.52, d = new THREE.Vector3(Math.cos(an), Math.sin(an), 0), qz = Qq.clone().setFromUnitVectors(Z, d), qy = Qq.clone().setFromUnitVectors(Y, d);
+      const tube = new THREE.Mesh(tubeG, tm); tube.position.set(d.x * 30, d.y * 30, -16); tube.quaternion.copy(qy); g.add(tube);
+      const cap = new THREE.Mesh(capG, cm); cap.position.set(d.x * 12.6, d.y * 12.6, -16); cap.quaternion.copy(qz); g.add(cap);
+      const grp = new THREE.Group(); grp.position.set(d.x * 49.7, d.y * 49.7, -16); grp.quaternion.copy(qz);
+      const da = new THREE.Mesh(hgm, dm), db = new THREE.Mesh(hgm, dm); da.position.y = 6.3; db.position.y = -6.3; db.rotation.z = Math.PI; grp.add(da, db); g.add(grp);
+      g.userData.doors.push({ a: da, b: db, open: 0, tgt: 0 }); g.userData.mouths.push(new THREE.Vector3(d.x * 50, d.y * 50, -16)); }
+  }
   g.add(stnCap(10.9, 25 + DZ)); stnApproach(g, 15, 46 + DZ, 14);
   { const hg = glowSprite(new THREE.Color(V.band[0]).getHex(), 46, 0.55); hg.position.set(0, 0, 38 + DZ); g.add(hg); g.userData.hg = hg; }   // light spilling out of the hangar mouth (userData.hg: it fades out when you fly through it, so the screen does not turn solid green)
   g.add(new THREE.Mesh(mergeGeometries(parts), skin)); { const lm = stnLegMat(col, 0.3); if (V.citadel) { lm.color.set(0x252a34); lm.map = cpan(2, 2); lm.bumpMap = lm.map; lm.bumpScale = 2.4; lm.roughness = 0.2; lm.metalness = 1.0; lm.envMap = citEnv; lm.envMapIntensity = 0.8; citLight(lm); } g.add(new THREE.Mesh(mergeGeometries(legs), lm)); }
@@ -1831,7 +1845,7 @@ function openShop(msg) {
 }
 
 function dockAt(i) {
-  mapSys = -1;
+  mapSys = -1; setDoor(stations[i], 0, 0);
   tintHangar(stations[i].col); setPad(stations[i].sys); S.station = i; homeSt = anchorSt = i; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + DOCK_H, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
   for (const e of enemies) { e.active = false; e.g.visible = false; } for (const m of missiles) { m.active = false; m.g.visible = false; } smokeReset();
   buzz(50);
@@ -1843,7 +1857,7 @@ function dockAt(i) {
 let entOn = false, entFor = 0, entDismissed = -1;
 const fadeEl = document.getElementById('fade');
 function fadeOut() { fadeEl.style.transition = 'opacity .7s'; fadeEl.style.opacity = '0'; }   // black screen that fades away after docking / launching
-const DK = { i: 0, t: 0, tA: 1, p0: V3(), q0: new THREE.Quaternion(), q1: new THREE.Quaternion(), P1: V3(), dir: V3() };
+const DK = { k: 0, M: V3(), O: V3(), A: V3(), E: V3(), C: V3(), cit: false, i: 0, t: 0, tA: 1, p0: V3(), q0: new THREE.Quaternion(), q1: new THREE.Quaternion(), P1: V3(), dir: V3() };
 
 // ---- star map ----
 const mapOv = $('map-ov'), mapFld = $('map-fld'), mapMe = $('map-me'); let mapOn = false, mapB = null;
@@ -1871,24 +1885,37 @@ $('trv-yes').addEventListener('click', () => { trvOn = false; $('trv-dlg').style
 $('trv-no').addEventListener('click', () => { aimCool = 2; noPl = S.tPlanet; trvOn = false; S.tPlanet = -1; $('trv-dlg').style.display = 'none'; });
 $('ent-yes').addEventListener('click', () => { entOn = false; $('ent-dlg').style.display = 'none'; initAudio(); tryDock(); });
 $('ent-no').addEventListener('click', () => { entOn = false; entDismissed = entFor; $('ent-dlg').style.display = 'none'; });
+function setDoor(st, o, t, k) { const ds = st.g.userData.doors; if (!ds) return; ds.forEach((d, j) => { if (k !== undefined && k !== j) return; d.open = o; d.tgt = t; const f = Math.max(0.04, 1 - 0.96 * o); d.a.scale.y = f; d.b.scale.y = f; }); }
+const _mw = V3();
+function armMouth(st, k, out) { return st.g.localToWorld(out.copy(st.g.userData.mouths[k])); }   // world position of a docking tunnel mouth (XIAQA)
+function nearArm(st) { let bk = 0, bd = 1e9; for (let k = 0; k < 3; k++) { const d = S.pos.distanceTo(armMouth(st, k, _mw)); if (d < bd) { bd = d; bk = k; } } return [bk, bd]; }
 function tryDock() {
   if (S.mode !== 'fly') return; const i = nearStation(); if (i < 0) return;
   const st = stations[i]; DK.i = i; DK.t = 0; DK.p0.copy(S.pos); DK.q0.copy(S.q); DK.dir.copy(st.front).negate();
   _m.lookAt(_zero, DK.dir, lookUp(DK.dir)); DK.q1.setFromRotationMatrix(_m); DK.P1.copy(st.pos).addScaledVector(st.front, 125 * ST_K);
+  DK.cit = !!st.v.citadel; if (DK.cit) { const [k] = nearArm(st); DK.k = k; const M = armMouth(st, k, DK.M), ax = st.g.localToWorld(_mw.set(0, 0, -16)); DK.O.copy(M).sub(ax).normalize();
+    DK.A.copy(M).addScaledVector(DK.O, 180); DK.E.copy(M).addScaledVector(DK.O, -230); const rv = _a.copy(S.pos).sub(M); const za = rv.dot(DK.O); rv.addScaledVector(DK.O, -za); const rl = rv.length(); if (rl > 1) rv.divideScalar(rl); DK.C.copy(DK.A).addScaledVector(rv, rl * 0.9);
+    DK.dir.copy(DK.O).negate(); _m.lookAt(_zero, DK.dir, lookUp(DK.dir)); DK.q1.setFromRotationMatrix(_m); DK.q0.copy(S.q); S.speed = 0; }
   DK.tA = 1.0; fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; S.mode = 'dockin'; document.body.classList.add('docked'); S.target = null; S.boosting = false; S.sx = S.sy = 0;
 }
-function updateDockIn(dt) {   // no flying into the station: the ship is beamed in - the screen fades to black right where you are and the hangar opens
+function updateDockIn(dt) {
+  if (DK.cit) {   // XIAQA: the ship swings onto the axis, the door folds open, the ship flies in and the screen fades once it is inside
+    DK.t += dt; const t1 = 2.6, t2 = 2.4, st = stations[DK.i], sm = (u) => u * u * (3 - 2 * u);
+    if (DK.t < t1) { const u = sm(DK.t / t1), v = 1 - u; S.pos.set(0, 0, 0).addScaledVector(DK.p0, v * v).addScaledVector(DK.C, 2 * u * v).addScaledVector(DK.A, u * u); S.q.slerpQuaternions(DK.q0, DK.q1, sm(Math.min(1, DK.t / (t1 * 0.8)))); S.speed = 60 * (1 - u) + 20; if (DK.t > 1.0) st.g.userData.doors[DK.k].tgt = 1; }
+    else { const u = Math.min(1, (DK.t - t1) / t2), e = Math.pow(u, 1.4); S.pos.copy(DK.A).lerp(DK.E, e); S.q.copy(DK.q1); S.speed = 40; st.g.userData.doors[DK.k].tgt = 1; fadeEl.style.opacity = clamp((u - 0.7) / 0.28, 0, 1).toFixed(2); if (u >= 1) { S.speed = 0; dockAt(DK.i); fadeOut(); } }
+    S.camQ.slerp(S.q, 1 - Math.exp(-5 * dt)); S.roll = 0; return;
+  }   // no flying into the station: the ship is beamed in - the screen fades to black right where you are and the hangar opens
   DK.t += dt; S.speed *= Math.max(0, 1 - dt * 4); S.vel.multiplyScalar(Math.max(0, 1 - dt * 4)); S.pos.addScaledVector(S.vel, dt); S.roll = 0;
   fadeEl.style.opacity = Math.min(1, DK.t / 0.55).toFixed(2);
   if (DK.t >= 0.65) { dockAt(DK.i); fadeOut(); }
 }
-function nearStation() { let best = -1, bd = 200; for (let i = 0; i < stations.length; i++) { const d = S.pos.distanceTo(stations[i].pos) / (stations[i].v.big || 1); if (d < bd) { bd = d; best = i; } } return best; }
+function nearStation() { let best = -1, bd = 200; for (let i = 0; i < stations.length; i++) { let d = S.pos.distanceTo(stations[i].pos) / (stations[i].v.big || 1); if (stations[i].g.userData.mouths && stations[i].g.visible) d = Math.min(d, nearArm(stations[i])[1] / 1.1); if (d < bd) { bd = d; best = i; } } return best; }
 
 function launchFrom(i) {
   ST = stats(); S.station = i; homeSt = anchorSt = i; const st = stations[i];
-  S.pos.copy(st.pos).addScaledVector(st.front, st.v.citadel ? 76 * ST_K * st.v.big : 48 * ST_K);   // the citadel is long: you leave from just past its engine ring, never from inside the hull
-  _m.lookAt(_zero, st.front, lookUp(st.front)); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q); entDismissed = i; fadeEl.style.transition = 'none'; fadeEl.style.opacity = '1'; setTimeout(fadeOut, 60);
-  S.speed = 60; S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100; S.inv = 2; S.nb = true; S.mode = 'fly'; S.target = null; S.patrolT = 45; S.sx = S.sy = 0;
+  if (st.v.citadel) { const M = armMouth(st, 0, DK.M), ax = st.g.localToWorld(_mw.set(0, 0, -16)); DK.O.copy(M).sub(ax).normalize(); S.pos.copy(M).addScaledVector(DK.O, 120); } else S.pos.copy(st.pos).addScaledVector(st.front, 48 * ST_K);   // the citadel is long: you leave from just past its engine ring, never from inside the hull
+  { const fw = st.v.citadel ? DK.O : st.front; _m.lookAt(_zero, fw, lookUp(fw)); } S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q); entDismissed = i; fadeEl.style.transition = 'none'; fadeEl.style.opacity = '1'; setTimeout(fadeOut, 60);
+  if (st.v.citadel) setDoor(st, 1, 0, 0); S.speed = 60; S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100; S.inv = 2; S.nb = true; S.mode = 'fly'; S.target = null; S.patrolT = 45; S.sx = S.sy = 0;
   for (const a of asteroids) a.active = false; for (const l of loot) l.active = false; for (const q of shards) q.t = SH_LIFE;
   document.body.classList.remove('docked'); $('shop').classList.remove('show');
 }
@@ -2230,6 +2257,7 @@ function frame(now) {
   }
   if (S.mode === 'fly' && homeSt !== anchorSt && stations[anchorSt].sys === curSys && S.pos.distanceTo(stations[anchorSt].pos) < STN_VIS) homeSt = anchorSt;   // coming back to your own station brings its sky back; other stations are never reached by flying (they stay endlessly far, like a real sky)
   stations.forEach((st, i) => { st.g.visible = i === homeSt && S.pos.distanceTo(st.pos) < STN_VIS; });   // only the station of the region you are in exists in space; the others are reached by travel, so none can pop out of a planet
+  for (const st of stations) { const ds = st.g.userData.doors; if (ds && st.g.visible) ds.forEach((dr, k) => { if (dr.open !== dr.tgt) { const o = dr.open + clamp(dr.tgt - dr.open, -dt * 0.8, dt * 0.8); setDoor(st, o, dr.tgt, k); } }); }   // hangar doors slide open / shut
   for (const st of stations) { const hg = st.g.userData.hg; if (hg && st.g.visible) { hg.getWorldPosition(_a); const sz = hg.scale.x * st.g.scale.x, dd = camera.position.distanceTo(_a); hg.material.opacity = 0.55 * clamp((dd - sz * 0.1) / (sz * 0.45), 0, 1); } }   // the hangar glow thins out as you close in on it
   updateTraffic();
   dustMat.uniforms.uCam.value.copy(camera.position); dustMat.uniforms.uVel.value.copy(S.vel);
