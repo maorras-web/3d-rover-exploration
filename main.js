@@ -239,7 +239,7 @@ const skyS = new THREE.Group(); skyS.scale.setScalar(6); sky.add(skyS);      // 
       c[i * 3] = k * (t < 0.2 ? 1.0 : 0.85); c[i * 3 + 1] = k * (t < 0.2 ? 0.85 : 0.92); c[i * 3 + 2] = k * (t < 0.5 ? 1.0 : 0.8);
     }
     const sz = new Float32Array(n);
-    for (let i = 0; i < n; i++) sz[i] = i % 60 === 0 ? 6 + Math.random() * 5 : 1.1 + Math.pow(Math.random(), 3) * 2.4;      // mostly small, a few bright big ones, and ~50 big stars with glints
+    for (let i = 0; i < n; i++) sz[i] = 1.1 + Math.pow(Math.random(), 3) * 2.0;      // mostly small, a few bright big ones, and ~50 big stars with glints
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(p, 3));
     g.setAttribute('aCol', new THREE.BufferAttribute(c, 3));
@@ -248,7 +248,7 @@ const skyS = new THREE.Group(); skyS.scale.setScalar(6); sky.add(skyS);      // 
       transparent: true, depthWrite: false,
       uniforms: { uPR: { value: Math.min(window.devicePixelRatio, 2) }, uT: starT },
       vertexShader: 'attribute vec3 aCol; attribute float aSize; uniform float uPR; varying vec3 vC; varying float vS; void main(){ vC = aCol; vS = aSize; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_PointSize = aSize * uPR; }',
-      fragmentShader: 'uniform float uT; varying vec3 vC; varying float vS; void main(){ vec2 q = gl_PointCoord - 0.5; float d = length(q); if (d > 0.5) discard; float a = smoothstep(0.5, 0.12, d); if (vS > 5.0) { a = max(a, 0.9 * max(0.0, 1.0 - abs(q.x) * 16.0) * max(0.0, 1.0 - abs(q.y) * 2.2)); a = max(a, 0.9 * max(0.0, 1.0 - abs(q.y) * 16.0) * max(0.0, 1.0 - abs(q.x) * 2.2)); } a *= 0.72 + 0.28 * sin(uT * (0.9 + vS * 0.35) + vC.r * 61.0 + vC.b * 37.0 + vS * 23.0); gl_FragColor = vec4(vC * (vS > 5.0 ? 1.6 : 1.0), a); }'
+      fragmentShader: 'uniform float uT; varying vec3 vC; varying float vS; void main(){ vec2 q = gl_PointCoord - 0.5; float d = length(q); if (d > 0.5) discard; float a = smoothstep(0.5, 0.12, d); if (vS > 5.0) { a = max(a, 0.9 * max(0.0, 1.0 - abs(q.x) * 16.0) * max(0.0, 1.0 - abs(q.y) * 2.2)); a = max(a, 0.9 * max(0.0, 1.0 - abs(q.y) * 16.0) * max(0.0, 1.0 - abs(q.x) * 2.2)); } gl_FragColor = vec4(vC, a); }'
     }));
     pts.frustumCulled = false;
     skyS.add(pts);
