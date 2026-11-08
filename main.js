@@ -621,10 +621,10 @@ hoverGlow.rotation.x = -Math.PI / 2; hoverGlow.position.y = 0.66; hoverGlow.visi
   const std = (c, e, r, mt) => new THREE.MeshStandardMaterial({ color: c, emissive: e, roughness: r === undefined ? 0.8 : r, metalness: mt === undefined ? 0.35 : mt, flatShading: true, fog: false });
   const glow = (c, o) => new THREE.MeshBasicMaterial({ color: c, transparent: o !== undefined, opacity: o === undefined ? 1 : o, toneMapped: false, fog: false, side: THREE.DoubleSide });
   const add = (geo, mat, x, y, z) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); hangar.add(o); return o; };
-  const WR = 40, WH = 26;
+  const WR = 66, WH = 26;
   // walls, ceiling, floor
-  const wallTex = canvasTex(512, 128, (x, w, h) => { x.fillStyle = '#222'; x.fillRect(0, 0, w, h); x.strokeStyle = '#333'; x.lineWidth = 3; for (let i = 0; i <= 16; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.stroke(); } x.fillStyle = '#666'; for (let i = 0; i < 16; i++) x.fillRect(i * 32 + 6, 20, 20, 8); }, [3, 1]);
-  add(new THREE.CylinderGeometry(WR, WR, WH, 48, 1, true), new THREE.MeshStandardMaterial({ map: wallTex, emissive: 0x2f7a46, emissiveMap: wallTex, roughness: 0.9, metalness: 0.2, side: THREE.BackSide, fog: false }), 0, WH / 2, 0);
+  const wallTex = canvasTex(512, 128, (x, w, h) => { x.fillStyle = '#222'; x.fillRect(0, 0, w, h); x.strokeStyle = '#333'; x.lineWidth = 3; for (let i = 0; i <= 16; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.stroke(); } x.fillStyle = '#666'; for (let i = 0; i < 16; i++) x.fillRect(i * 32 + 6, 20, 20, 8); }, [5, 1]);
+  add(new THREE.CylinderGeometry(WR, WR, WH, 64, 1, true), new THREE.MeshStandardMaterial({ map: wallTex, emissive: 0x2f7a46, emissiveMap: wallTex, roughness: 0.9, metalness: 0.2, side: THREE.BackSide, fog: false }), 0, WH / 2, 0);
   add(new THREE.CircleGeometry(WR, 48), std(0x1b2a22, 0x14301f), 0, WH, 0).rotation.x = Math.PI / 2;
   // glossy deck: bevelled steel plates with seams and rivets, a fake environment to reflect (one tiny cube texture) and low roughness, so the pad rings and the ship's glow slide across the floor
   const floorTex = canvasTex(512, 512, (x, w, h) => { x.fillStyle = '#2a2d2c'; x.fillRect(0, 0, w, h); for (let i = 0; i < 40; i++) { x.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.12)'; x.fillRect(((Math.random() * 4) | 0) * 128, ((Math.random() * 4) | 0) * 128, 128, 128); } x.strokeStyle = '#0c0e0d'; x.lineWidth = 3; for (let i = 0; i <= 4; i++) { x.beginPath(); x.moveTo(i * 128, 0); x.lineTo(i * 128, h); x.moveTo(0, i * 128); x.lineTo(w, i * 128); x.stroke(); } stnBevel(x, w, h, 128); x.fillStyle = 'rgba(200,210,205,0.5)'; for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) for (const [dx, dy] of [[10, 10], [118, 10], [10, 118], [118, 118]]) x.fillRect(i * 128 + dx, j * 128 + dy, 3, 3); }, [7, 7]);
@@ -653,6 +653,14 @@ hoverGlow.rotation.x = -Math.PI / 2; hoverGlow.position.y = 0.66; hoverGlow.visi
   ring(11.7, 11.95, 0x7dffb0, 0.32); ring(8.2, 8.5, 0x44ff88, 0.56); ring(5.2, 5.4, 0x7dffb0, 0.56); ring(2.4, 2.6, 0x20e070, 0.56);
   add(new THREE.CylinderGeometry(2.3, 2.3, 0.1, 24), std(0x14502e, 0x0a3a20, 0.5, 0.4), 0, 0.56, 0);
   for (let k = 0; k < 9; k++) { const t = (k - 4) * 0.21, r = 9.0; const o = add(new THREE.BoxGeometry(0.9, 0.14, 1.0), glow(0xc8ffb0), Math.sin(t) * r, 0.58, Math.cos(t) * r); o.rotation.y = t; padTiles.push(o); }
+  // two more landing platforms (empty): smaller copies of the main pad, built from 5 shared geometries
+  const SIDEPADS = [[34, 0], [-34, 0]], PS = 1;
+  { const gA = new THREE.CylinderGeometry(12, 12.6, 0.9, 40), gB = new THREE.CylinderGeometry(9.6, 10, 0.5, 32), gC = new THREE.CylinderGeometry(2.3, 2.3, 0.1, 20), gR1 = new THREE.RingGeometry(11.7, 11.95, 40), gR2 = new THREE.RingGeometry(8.2, 8.5, 40), gR3 = new THREE.RingGeometry(5.2, 5.4, 32), gHz = new THREE.RingGeometry(13.2, 14.4, 48);
+    const mA = std(0x3f6a52, 0x1f4a32, 0.6, 0.5), mB = std(0x4f8064, 0x2a5a3e, 0.55, 0.55), mC = std(0x14502e, 0x0a3a20, 0.5, 0.4), gl1 = glow(0x7dffb0), gl2 = glow(0x44ff88);
+    for (const [px, pz] of SIDEPADS) { const put = (g, m, y, flat) => { const o = add(g, m, px, y, pz); o.scale.set(PS, flat ? PS : 1, PS); if (flat === 2) o.rotation.x = -Math.PI / 2; return o; };
+      put(gA, mA, -0.15); put(gB, mB, 0.3); put(gC, mC, 0.56);
+      const r1 = add(gR1, gl1, px, 0.32, pz), r2 = add(gR2, gl2, px, 0.56, pz), r3 = add(gR3, gl1, px, 0.56, pz); for (const r of [r1, r2, r3]) { r.rotation.x = -Math.PI / 2; r.scale.set(PS, PS, 1); }
+      const hz2 = add(gHz, decalMat(hazTex), px, -0.57, pz); hz2.rotation.x = -Math.PI / 2; hz2.scale.set(PS, PS, 1); } }
   // crates and pillars around the walls
   let sd = 7; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
   // cargo containers and tanks: ribbed panels, corner brackets, hazard bands and bevelled edges painted once into one shared texture (the old crates were plain flat-shaded boxes)
@@ -667,10 +675,10 @@ hoverGlow.rotation.x = -Math.PI / 2; hoverGlow.position.y = 0.66; hoverGlow.visi
   }, [1, 1]);
   const crateBump = canvasTex(256, 256, (x, w, h) => { x.fillStyle = '#999'; x.fillRect(0, 0, w, h); for (let i = 0; i < w; i += 16) { x.fillStyle = '#333'; x.fillRect(i, 14, 4, h - 28); } x.fillStyle = '#ddd'; x.fillRect(0, 0, w, 14); x.fillRect(0, h - 14, w, 14); }, [1, 1]); crateBump.colorSpace = THREE.NoColorSpace;
   const crateMats = [0x4f7a62, 0x5a7088, 0x7a6a50].map(c => new THREE.MeshStandardMaterial({ color: c, map: crateTex, bumpMap: crateBump, bumpScale: 1.2, emissive: 0x5a8a70, emissiveMap: crateTex, roughness: 0.55, metalness: 0.4, fog: false }));
-  const placed = []; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + 0.39; placed.push([Math.sin(a) * (WR - 1.4), Math.cos(a) * (WR - 1.4), 1.5]); }   // the wall pillars are obstacles too
-  for (let i = 0; i < 26; i++) {
+  const placed = []; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + 0.39; placed.push([Math.sin(a) * (WR - 1.4), Math.cos(a) * (WR - 1.4), 1.5]); }   SIDEPADS.forEach(p => placed.push([p[0], p[1], 15])); placed.push([0, 0, 15]);   // the wall pillars are obstacles too
+  for (let i = 0; i < 46; i++) {
     const w = 2.5 + rn() * 4, h = 2 + rn() * 5, d = 2.5 + rn() * 4, M = crateMats[(rn() * 3) | 0], tank = rn() < 0.25, rad = (tank ? w * 0.45 : Math.hypot(w, d) / 2) + 0.25;
-    let x = 0, z = 0, ok = false; for (let t = 0; t < 40 && !ok; t++) { const a = rn() * Math.PI * 2, r = 24 + rn() * Math.max(0.1, 37 - rad - 24); x = Math.sin(a) * r; z = Math.cos(a) * r; ok = placed.every(p => Math.hypot(p[0] - x, p[1] - z) >= p[2] + rad); }   // no two crates (or a crate and a pillar) may overlap
+    let x = 0, z = 0, ok = false; for (let t = 0; t < 40 && !ok; t++) { const a = rn() * Math.PI * 2, r = 18 + rn() * Math.max(0.1, WR - 3 - rad - 18); x = Math.sin(a) * r; z = Math.cos(a) * r; ok = placed.every(p => Math.hypot(p[0] - x, p[1] - z) >= p[2] + rad); }   // no two crates (or a crate and a pillar) may overlap
     if (!ok) { rn(); rn(); rn(); continue; } placed.push([x, z, rad]);
     const c = add(tank ? new THREE.CylinderGeometry(w * 0.45, w * 0.45, h, 16) : new THREE.BoxGeometry(w, h, d), M, x, h / 2 - 0.6, z); c.rotation.y = rn() * 3;
     if (!tank && rn() > 0.4) add(new THREE.BoxGeometry(w * 0.7, 0.14, 0.06), glow(0x5aff9a), x, h * 0.82 - 0.6, z).rotation.y = c.rotation.y;   // light strip near the top
