@@ -1052,7 +1052,7 @@ function buildStation(name, col, V) {
       put(new THREE.CylinderGeometry(1.7, 2.6, 5, 8), [Math.cos(an) * 19, Math.sin(an) * 19, 36 + DZ], Qq.clone().setFromUnitVectors(Y, new THREE.Vector3(0, 0, 1))); citNz.push([Math.cos(an) * 19, Math.sin(an) * 19, 39 + DZ, 1.0]); }   // engine nozzles with a glow at the tail
     for (const z of [20, 26]) { const bd = new THREE.CylinderGeometry(16.5, 16.5, 1.2, 24, 1, true); bd.rotateX(Math.PI / 2); put(bd, [0, 0, z + 5 + DZ]); }
     for (let k = 0; k < 3; k++) { const an = k * 2.0944 + 0.52, d = new THREE.Vector3(Math.cos(an), Math.sin(an), 0), q = Qq.clone().setFromUnitVectors(Y, d);
-      for (const r of [16, 27, 38]) put(new THREE.CylinderGeometry(7, 7, 1.5, 16), [d.x * r, d.y * r, -16], q);
+      for (const r of [20, 30, 40]) put(new THREE.TorusGeometry(6.7, 0.7, 6, 16), [d.x * r, d.y * r, -16], Qq.clone().setFromUnitVectors(Z, d));   // collar rings round the tunnel (they used to be solid discs that would block it)
       const fa = k * 2.0944 + 1.57, fq = Qq.clone().setFromAxisAngle(Z, fa);
       for (const [R, z, L, W] of [[16, 14, 28, 9], [19.5, 19, 18, 6], [16, 36, 22, 9], [19.5, 45, 16, 6]]) { put(RB(6, 0.34), [Math.cos(fa) * R, Math.sin(fa) * R, z], fq, [W * 0.42, W * 0.75, L]); } }   // angular armour plates down the lower tower
   }
@@ -1074,13 +1074,15 @@ function buildStation(name, col, V) {
   if (V.citadel) {   // XIAQA: each of the three arms under the saucer is a docking tunnel: open mouth with a folding door, a lit inner tube and a glowing end wall
     const dT = canvasTex(256, 128, (x, w, h) => { x.fillStyle = '#6a7486'; x.fillRect(0, 0, w, h); x.strokeStyle = '#161a22'; x.lineWidth = 4; for (let i = 1; i < 10; i++) { x.beginPath(); x.moveTo(i * 25.6, 0); x.lineTo(i * 25.6, h / 2); x.stroke(); } x.fillStyle = '#d99a1c'; x.fillRect(0, h / 2 - 16, w, 16); x.fillStyle = '#15181d'; for (let i = -20; i < w; i += 26) { x.beginPath(); x.moveTo(i, h / 2); x.lineTo(i + 10, h / 2); x.lineTo(i + 24, h / 2 - 16); x.lineTo(i + 14, h / 2 - 16); x.fill(); } stnBevel(x, w, h, 64); }, [1, 1]);
     const dm = stnLit(new THREE.MeshStandardMaterial({ color: 0xe0e6f0, map: dT, emissive: 0x4a5668, emissiveMap: dT, metalness: 0.7, roughness: 0.4, envMap: citEnv, envMapIntensity: 0.8, side: THREE.DoubleSide }), 1.0); citLight(dm);
-    const tT = canvasTex(128, 128, (x, w, h) => { x.fillStyle = '#1a2230'; x.fillRect(0, 0, w, h); x.fillStyle = '#2c3a50'; x.fillRect(0, 0, w, 10); x.fillStyle = '#7fffa8'; for (let i = 0; i < 4; i++) x.fillRect(i * 32 + 12, 52, 8, 24); x.fillStyle = '#0c1018'; x.fillRect(0, 90, w, 4); }, [10, 6]);
+    const tT = canvasTex(128, 128, (x, w, h) => { x.fillStyle = '#10161f'; x.fillRect(0, 0, w, h); const gr = x.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, 'rgba(60,255,150,0)'); gr.addColorStop(0.5, 'rgba(60,255,150,0.35)'); gr.addColorStop(1, 'rgba(60,255,150,0)'); x.fillStyle = gr; x.fillRect(0, 0, w, h); x.fillStyle = '#e8fff0'; x.fillRect(61, 0, 6, h); x.fillStyle = '#3dff96'; x.fillRect(57, 0, 4, h); x.fillRect(67, 0, 4, h);   // a bright guide rail down the tunnel (8 of them round the tube)
+      for (const y of [4, 68]) { x.fillStyle = '#7dffb0'; x.beginPath(); x.moveTo(14, y + 14); x.lineTo(64, y); x.lineTo(114, y + 14); x.lineTo(114, y + 22); x.lineTo(64, y + 8); x.lineTo(14, y + 22); x.fill(); } }, [8, 5]);   // glowing chevrons that point down the tunnel
+    g.userData.tun = tT;
     const tm = new THREE.MeshBasicMaterial({ map: tT, color: 0xb0c0d0, side: THREE.BackSide, toneMapped: false, fog: false }), cm = new THREE.MeshBasicMaterial({ map: stnCapTex, toneMapped: false, fog: false });
-    const hgm = new THREE.CircleGeometry(6.3, 20, 0, Math.PI); hgm.translate(0, -6.3, 0); const tubeG = new THREE.CylinderGeometry(6.0, 6.0, 36, 16, 1, true), capG = new THREE.CircleGeometry(6.0, 20);
+    const hgm = new THREE.CircleGeometry(6.3, 20, 0, Math.PI); hgm.translate(0, -6.3, 0); const tubeG = new THREE.CylinderGeometry(6.0, 6.0, 33, 16, 1, true), capG = new THREE.CircleGeometry(6.0, 20);
     g.userData.doors = []; g.userData.mouths = [];
     for (let k = 0; k < 3; k++) { const an = k * 2.0944 + 0.52, d = new THREE.Vector3(Math.cos(an), Math.sin(an), 0), qz = Qq.clone().setFromUnitVectors(Z, d), qy = Qq.clone().setFromUnitVectors(Y, d);
-      const tube = new THREE.Mesh(tubeG, tm); tube.position.set(d.x * 30, d.y * 30, -16); tube.quaternion.copy(qy); g.add(tube);
-      const cap = new THREE.Mesh(capG, cm); cap.position.set(d.x * 12.6, d.y * 12.6, -16); cap.quaternion.copy(qz); g.add(cap);
+      const tube = new THREE.Mesh(tubeG, tm); tube.position.set(d.x * 33, d.y * 33, -16); tube.quaternion.copy(qy); g.add(tube);
+      const cap = new THREE.Mesh(capG, cm); cap.position.set(d.x * 16.6, d.y * 16.6, -16); cap.quaternion.copy(qz); g.add(cap);
       const grp = new THREE.Group(); grp.position.set(d.x * 49.7, d.y * 49.7, -16); grp.quaternion.copy(qz);
       const da = new THREE.Mesh(hgm, dm), db = new THREE.Mesh(hgm, dm); da.position.y = 6.3; db.position.y = -6.3; db.rotation.z = Math.PI; grp.add(da, db); g.add(grp);
       g.userData.doors.push({ a: da, b: db, open: 0, tgt: 0 }); g.userData.mouths.push(new THREE.Vector3(d.x * 50, d.y * 50, -16)); }
@@ -2257,6 +2259,7 @@ function frame(now) {
   }
   if (S.mode === 'fly' && homeSt !== anchorSt && stations[anchorSt].sys === curSys && S.pos.distanceTo(stations[anchorSt].pos) < STN_VIS) homeSt = anchorSt;   // coming back to your own station brings its sky back; other stations are never reached by flying (they stay endlessly far, like a real sky)
   stations.forEach((st, i) => { st.g.visible = i === homeSt && S.pos.distanceTo(st.pos) < STN_VIS; });   // only the station of the region you are in exists in space; the others are reached by travel, so none can pop out of a planet
+  for (const st of stations) { const tn = st.g.userData.tun; if (tn && st.g.visible) tn.offset.y = (tAcc * 0.55) % 1; }   // the tunnel lights run towards the end wall
   for (const st of stations) { const ds = st.g.userData.doors; if (ds && st.g.visible) ds.forEach((dr, k) => { if (dr.open !== dr.tgt) { const o = dr.open + clamp(dr.tgt - dr.open, -dt * 0.8, dt * 0.8); setDoor(st, o, dr.tgt, k); } }); }   // hangar doors slide open / shut
   for (const st of stations) { const hg = st.g.userData.hg; if (hg && st.g.visible) { hg.getWorldPosition(_a); const sz = hg.scale.x * st.g.scale.x, dd = camera.position.distanceTo(_a); hg.material.opacity = 0.55 * clamp((dd - sz * 0.1) / (sz * 0.45), 0, 1); } }   // the hangar glow thins out as you close in on it
   updateTraffic();
