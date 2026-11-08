@@ -923,7 +923,7 @@ const boomQ = [], _bq = new THREE.Vector3();   // chain blasts: a big explosion 
 function explode(p, size) {
   const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.w.position.copy(p); e.w.visible = size > 12;
   sparks(p, size > 12 ? 55 : 18, size * 3.2, 1.3); sfx('boom', size);
-  if (size > 12) { fxUntil = performance.now() + 3000; for (let i = 0; i < 3; i++) boomQ.push({ t: 0.1 + i * 0.13 + Math.random() * 0.08, x: p.x + (Math.random() - 0.5) * size * 1.6, y: p.y + (Math.random() - 0.5) * size * 1.6, z: p.z + (Math.random() - 0.5) * size * 1.6, s: size * (0.32 + Math.random() * 0.2) });
+  if (size > 12) { fxUntil = Math.max(fxUntil, performance.now() + 5000); for (let i = 0; i < 3; i++) boomQ.push({ t: 0.1 + i * 0.13 + Math.random() * 0.08, x: p.x + (Math.random() - 0.5) * size * 1.6, y: p.y + (Math.random() - 0.5) * size * 1.6, z: p.z + (Math.random() - 0.5) * size * 1.6, s: size * (0.32 + Math.random() * 0.2) });
     for (let i = 0; i < 9; i++) { _bq.set((Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8).add(p); smokePuff(_bq); }   // a cloud of smoke that lingers where the ship was
   }
   if (size > 12) { e.size = size * 1.7; blastStreaks(p, size); const dd = p.distanceTo(S.pos), it = Math.min(1, 1.2 - dd / 380); if (it > 0.05) { const fe = $('flash'); fe.style.transition = 'none'; fe.style.background = 'radial-gradient(ellipse at center,rgba(255,245,215,.55) 0,rgba(255,200,110,.18) 28%,rgba(255,140,50,0) 55%)'; fe.style.opacity = (it * 0.7).toFixed(2); void fe.offsetWidth; fe.style.transition = 'opacity .8s ease-out'; fe.style.opacity = '0'; } }
@@ -1481,7 +1481,7 @@ function damageEnemy(e, d, at) {
   if (e.shield > 0) { e.shield -= d; if (e.shield < 0) { e.hull += e.shield; e.shield = 0; } } else e.hull -= d;
   if (at) { sparks(at, 7, 18, 0.45); hitFlash(at, d > 40); }
   if (e.hull <= 0) {
-    e.active = false; e.dying = 1; dyingList.push({ e, t: 0, dur: 1.1 + Math.random() * 0.5, pf: 0, rz: (Math.random() - 0.5) * 3, rx: (Math.random() - 0.5) * 2 }); S.shake = Math.max(S.shake, 0.5); dropLoot(e.pos, 22 + save.kills % 3 * 6, false, 3);
+    fxUntil = Math.max(fxUntil, performance.now() + 6500); e.active = false; e.dying = 1; dyingList.push({ e, t: 0, dur: 1.1 + Math.random() * 0.5, pf: 0, rz: (Math.random() - 0.5) * 3, rx: (Math.random() - 0.5) * 2 }); S.shake = Math.max(S.shake, 0.5); dropLoot(e.pos, 22 + save.kills % 3 * 6, false, 3);
     save.kills++; persist(); $('kills').textContent = save.kills; if (S.target === e) S.target = null;
     S.shake = Math.max(S.shake, 0.25);
     if (S.mission && S.mission.type === 'bounty') { S.mission.done++; updateMissionHud(); if (S.mission.done >= S.mission.n) completeMission(); }
@@ -1938,7 +1938,7 @@ const STN_VIS = 10000, STN_NEAR = 2600;   // a station is drawn up to 10 km away
 const mk = stations.map((s, i) => $('mk-s' + i) || (() => { const e = $('mk-s0').cloneNode(true); e.id = 'mk-s' + i; $('mk-s0').parentNode.appendChild(e); return e; })()), mkWp = $('mk-wp'), tgtEl = $('tgt'), leadEl = $('lead'), crossEl = $('cross');
 const mkp = stations.map((s, i) => { const e = $('mk-s0').cloneNode(true); e.id = 'mk-p' + i; e.classList.add('pl'); e.style.color = s.col; $('mk-s0').parentNode.appendChild(e); return e; });
 const radar = $('radar'), rctx = radar.getContext('2d');
-let last = performance.now(), tAcc = 0, slow = 0, fast = 0, frames = 0, ema = 16, flip = 0;
+let last = performance.now(), tAcc = 0, slow = 0, fast = 0, frames = 0, ema = 16, flip = 0, wasFx = 0;
 const proj = V3(), qInv = new THREE.Quaternion();
 function place(el, worldPos, label, edge, hideIfBehind) {
   proj.copy(worldPos).project(camera);
@@ -1987,7 +1987,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   let dt = (now - last) / 1000; last = now; if (paused || dt > 0.05) dt = paused ? 0 : 0.05; if (dt <= 0) return;
   tAcc += dt; ema += (dt * 1000 - ema) * 0.05; frames++;
-  if (frames > 60) { if (now < fxUntil) { slow = 0; fast = 0; } else if (ema > 24) { slow += dt; fast = 0; } else if (ema < 18.5) { fast += dt; slow = 0; } else { slow = fast = 0; } if (slow > 1.5 && pr > PR_MIN) { pr = Math.max(PR_MIN, pr * 0.85); applyPR(); slow = 0; lastDrop = now; } else if (slow > 3 && pr <= PR_MIN + 0.01 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; } if (fast > 3 && pr < PR_MAX && now - lastDrop > 12000) { pr = Math.min(PR_MAX, pr * 1.2); applyPR(); fast = 0; } }
+  if (frames > 60) { if (now < fxUntil) { slow = 0; fast = 0; wasFx = 1; } else if (wasFx) { wasFx = 0; ema = 16; slow = 0; fast = 0; } else if (ema > 24) { slow += dt; fast = 0; } else if (ema < 18.5) { fast += dt; slow = 0; } else { slow = fast = 0; } if (slow > 1.5 && pr > PR_MIN) { pr = Math.max(PR_MIN, pr * 0.85); applyPR(); slow = 0; lastDrop = now; } else if (slow > 3 && pr <= PR_MIN + 0.01 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; } if (fast > 3 && pr < PR_MAX && now - lastDrop > 6000) { pr = Math.min(PR_MAX, pr * 1.2); applyPR(); fast = 0; } }
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = '0'; }
   const flying = S.mode === 'fly';
   starT.value = tAcc; fxBlur += (((S.boosting && flying) ? 1 : 0) - fxBlur) * Math.min(1, dt * 4); { const gu = gradePass.uniforms; gu.uBl.value = fxBlur * 1.1; gu.uCA.value = 0.02 + 0.05 * fxBlur; }
@@ -2195,11 +2195,11 @@ function frame(now) {
   const vpI = S.mode === 'dock' ? S.station : homeSt; let pi = -1; aimCool = Math.max(0, aimCool - dt); const aimOk = S.mode === 'fly' && !trvOn && !entOn && !mapOn && !S.target && aimCool <= 0 && !enemies.some(e => e.active);
   for (const p of planets) { pi++;   // planets are unreachable scenery: drawn along the true direction but at an apparent distance that barely shrinks, with the size you would see from the real distance
     if (p.sys !== curSys) { p.mesh.visible = false; p.fd = null; if (p.rg) p.rg.visible = false; continue; } p.mesh.visible = true; if (p.rg) p.rg.visible = true;
-    const own = pi === vpI, tFar = own ? 0 : 1; if (own) _pv.copy(stations[pi].pos); else _pv.copy(PCENS[p.sys]).add(VOFF).lerp(S.pos, 0.02); _a.copy(p.pos).sub(_pv);   // the planet of the station you are at is seen from the station itself while you are near it (it never grows or shrinks, so you can never reach it); beyond ~2 km it moves to its TRUE place beside the station, so from 5-10 km you see the station AND its planet together
+    const own = pi === vpI, tFar = own ? 0 : 1; if (own) _pv.copy(stations[pi].pos); else _pv.copy(PCENS[p.sys]).add(VOFF); _a.copy(p.pos).sub(_pv);   // the planet of the station you are at is seen from the station itself while you are near it (it never grows or shrinks, so you can never reach it); beyond ~2 km it moves to its TRUE place beside the station, so from 5-10 km you see the station AND its planet together
       // far from its station a planet is a fixed backdrop; as you arrive at its station it settles into its true place beside it
      const d = _a.length() || 1, dA = 2600 + 0.06 * d, aN = Math.max(0.026, p.r / Math.max(d, p.r * 1.6) * (d > 4000 ? Math.pow(4000 / d, 1.5) : 1)), a = aN + (0.017 - aN) * tFar, k = a * dA / p.r;   // far from its station every planet is the same small fixed disc   // planets are a sky backdrop: seen from a virtual point that follows you at only 4%, so they hardly move or grow however you fly   // dS: the distance used for size is squeezed, so flying toward a planet barely changes it (it is a backdrop)   // like Galaxy on Fire 2: far planets are tiny discs (about 3 degrees), the one at your station is huge
     const w = clamp((d - 1500) / 2500, 0, 1) * 0.7; _pd.copy(_a).divideScalar(d).multiplyScalar(1 - w).addScaledVector(_pc.copy(p.pos).sub(PCENS[p.sys]).normalize(), w).normalize();   // far planets fan out around the system centre so they never bunch up on screen
-    if (own) { const dS = S.pos.distanceTo(stations[pi].pos), wv = clamp((dS - 1800) / 3000, 0, 1); if (wv > 0) { _pc.copy(p.pos).sub(S.pos).normalize(); _pd.lerp(_pc, wv).normalize(); } }   // beyond ~2 km the planet turns towards its TRUE place beside the station (so you see both together), but keeps the same size: it stays a big backdrop and only the station shrinks
+    /* own planet: fixed direction too (a backdrop never moves while you fly) */
     if (p.build && !pBuilt) { p.build(); p.build = null; pBuilt = true; }   // each planet paints its surface the first time it is in view (one per frame, so there is no long freeze)
     if (p.cl) p.cl.rotation.y += dt * 0.012;
     if (p.moon) { p.mt += dt * 0.04; p.moon.position.set(Math.cos(p.mt) * 1.9, Math.sin(p.mt * 0.7) * 0.3, Math.sin(p.mt) * 1.9); }
