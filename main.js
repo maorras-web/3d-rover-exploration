@@ -612,7 +612,8 @@ const glowPts = (color, op, zf) => { const g = new THREE.BufferGeometry(), p = n
 const flames = SHIP_VAR === 4 ? [glowPts(0x7fe9ff, 0.32, 1.15)] : ENGS.map(en => { const f = glowSprite(0x7fe9ff, 1.5, 0.32); f.position.set(en[0], en[1], en[2] + 1.15 * en[3]); f.userData.sc = en[3] < 1 ? 0.45 : 1; shipBody.add(f); return f; });
 const flameCore = SHIP_VAR === 4 ? [glowPts(0xffffff, 0.6, 0.9)] : ENGS.map(en => { const f = glowSprite(0xffffff, 0.9, 0.6); f.position.set(en[0] + (en[3] < 1 ? 0 : Math.sign(en[0]) * 0.1), en[1] - (en[3] < 1 ? 0 : 0.05), en[2] + 0.9 * en[3]); f.userData.sc = en[3] < 1 ? 0.45 : 1; shipBody.add(f); return f; });
 // muzzle flashes: one small glow per gun, lit for a moment on every shot (4 sprites, nothing else)
-const mFlash = MUZ.map(m => { const f = glowSprite(0xffffff, 2.3, 0); f.position.set(m[0], m[1], m[2] - 0.15); f.visible = false; ship.add(f); return f; });
+const Y_Z = new THREE.Vector3(0, 0, 1);
+const mFlash = MUZ.map(m => { const f = glowSprite(0xffffff, 2.3, 0); f.position.set(m[0], m[1], m[2] - 0.15); f.visible = false; shipBody.add(f); return f; });
 function flashMuzzle(i, c) { const f = mFlash[i]; f.material.color.setHex(c); f.material.opacity = 1; f.userData.t = 1; f.visible = true; }
 
 // ---------- hangar room (Galaxy-on-Fire-style): far away from the world, enclosed, only drawn while docked ----------
@@ -2089,10 +2090,10 @@ function frame(now) {
     if ((firing || keys.Space) && S.fireT <= 0) {
       S.side = -S.side;
       S.gi = ((S.gi | 0) + 1) % MUZ.length; const mz = MUZ[S.gi], bx = 0;   // the four guns fire in turn
-      _a.set((mz[0] + bx) * SHIP_K, mz[1] * SHIP_K, mz[2] * SHIP_K).applyQuaternion(S.q).add(S.pos);
+      _a.set((mz[0] + bx) * SHIP_K, mz[1] * SHIP_K, mz[2] * SHIP_K).applyAxisAngle(Y_Z, S.roll || 0).applyQuaternion(S.q).add(S.pos);   // the barrels roll with the ship body
       _b.copy(fwd); if (leadOk) _b.lerp(S._leadDir, 0.85).normalize();
       { const cd = S.target ? clamp(S.target.pos.distanceTo(S.pos), 120, 900) : 450; _c.copy(S.pos).addScaledVector(_b, cd).sub(_a).normalize(); _b.copy(_c); }   // the shots from the wide-set guns meet at the crosshair
-      const W = curW(); S.fireT = W.rate; flashMuzzle(S.gi, W.c);
+      const W = curW(); S.fireT = W.rate; flashMuzzle(S.gi, W.c); _a.addScaledVector(_b, 8.5 * 1.2 * W.l * 0.85 + (W.n > 1 && W !== WPN[3] ? 13 * (W.n - 1) : 0));   // the bolt's tail starts at the barrel tip and the beam grows out of it (it used to be centred on the muzzle, half inside the ship)
       if (W.n === 1) fireBolt(_a, _b, W.spd, ST.dmg * W.dm, false, W);
       else if (W === WPN[3]) { _d.crossVectors(_b, Y).normalize(); for (let q = -1; q <= 1; q++) { _c.copy(_b).addScaledVector(_d, q * 0.07).normalize(); fireBolt(_a, _c, W.spd, ST.dmg * W.dm, false, W); } }   // salvo: a fan of three
       else for (let q = 0; q < W.n; q++) { _c.copy(_a).addScaledVector(_b, -13 * q); fireBolt(_c, _b, W.spd, ST.dmg * W.dm, false, W); }   // void pulse: three dashes in a row
