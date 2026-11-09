@@ -851,16 +851,21 @@ function updateShards(dt) {
 
 // ---------- loot ----------
 const LOOT_N = 40, loot = [];
-const lootMesh = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, fog: false }), LOOT_N);
+const lootMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, fog: false }), LOOT_N);
 lootMesh.frustumCulled = false; lootMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(lootMesh);
-const lootGlow = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: glowTex, color: 0x39b8ff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false }), LOOT_N);
+const lootGlow = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: glowTex, color: 0xffffff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false }), LOOT_N);
 lootGlow.frustumCulled = false; lootGlow.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(lootGlow);
-{ const c = new THREE.Color(); for (let i = 0; i < LOOT_N; i++) { loot.push({ pos: V3(0, -99999, 0), vel: V3(), val: 0, ore: false, life: 0, active: false }); lootMesh.setColorAt(i, c.set(0xffd166)); } }
+{ const c = new THREE.Color(); for (let i = 0; i < LOOT_N; i++) { loot.push({ pos: V3(0, -99999, 0), vel: V3(), val: 0, ore: false, life: 0, active: false, nm: '', s: 1 }); lootMesh.setColorAt(i, c.set(0xffd166)); lootGlow.setColorAt(i, c.set(0xffd166)); } }
+// the elements an asteroid can hold (like GoF2): common ones often, rare ones seldom. [name, colour, value, weight]
+const ORES = [['FERRUM', 0xc9d2de, 10, 30], ['VIOLITE', 0xa35bff, 18, 18], ['AZURITE', 0x3fa9ff, 22, 14], ['VERDANE', 0x3dff8a, 30, 10], ['CRIMSONITE', 0xff4a3d, 36, 10], ['SOLARITE', 0xffee3a, 44, 8], ['AURUM', 0xffa31a, 60, 6]];
+const ORE_W = ORES.reduce((x, o) => x + o[3], 0);
+function pickOre() { let r = Math.random() * ORE_W; for (const o of ORES) { r -= o[3]; if (r <= 0) return o; } return ORES[0]; }
 function dropLoot(p, val, ore, n) {
   for (let k = 0; k < n; k++) {
     const l = loot.find(o => !o.active); if (!l) return;
-    l.active = true; l.pos.copy(p); l.vel.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).multiplyScalar(rnd(8, 22)); l.val = val; l.ore = ore; l.life = 60;
-    lootMesh.setColorAt(loot.indexOf(l), _col.set(ore ? 0x7be8ff : 0xffd166)); lootMesh.instanceColor.needsUpdate = true;
+    l.active = true; l.pos.copy(p); l.vel.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).multiplyScalar(rnd(8, 22)); l.val = val; l.ore = ore; l.life = 60; l.nm = ''; l.s = ore ? rnd(0.8, 1.3) : 1;
+    let hex = 0xffd166; if (ore) { const o = pickOre(); hex = o[1]; l.nm = o[0]; l.val = o[2]; }
+    const ix = loot.indexOf(l); lootMesh.setColorAt(ix, _col.set(hex)); lootGlow.setColorAt(ix, _col.set(hex)); lootMesh.instanceColor.needsUpdate = lootGlow.instanceColor.needsUpdate = true;
   }
 }
 const _col = new THREE.Color();
@@ -1932,6 +1937,23 @@ function startGame() { initAudio(); unlockMusic(); if (actx && actx.state === 's
   setTimeout(() => { fadeEl.style.transition = 'opacity .5s'; fadeEl.style.opacity = '1'; }, 2300); setTimeout(() => { if (S.mode === 'dock' && !$('shop').classList.contains('show')) launchFrom(0); }, 2850); }   // the game opens inside the station hangar, then the ship launches out
 $('go-start').addEventListener('click', startGame);
 $('go-start').textContent = 'LAUNCH';
+// ---- start-up loader: paints every planet map, builds the nebula and compiles the effect shaders BEFORE the LAUNCH button opens, one small job at a time (so the page stays alive), with a slim progress bar. Nothing is left to be built in mid-flight. ----
+{ const go = $('go-start'), box = document.createElement('div');
+  box.style.cssText = 'width:200px;max-width:70%;height:4px;margin:10px auto 0;border-radius:3px;background:rgba(159,243,255,.15);overflow:hidden';
+  const bar = document.createElement('div'); bar.style.cssText = 'width:0%;height:100%;border-radius:3px;background:linear-gradient(90deg,#5fe4ff,#9ff3ff);box-shadow:0 0 8px #5fe4ff;transition:width .25s'; box.appendChild(bar); go.parentNode.insertBefore(box, go.nextSibling);
+  let ready = false, jobs = [], done = 0;
+  const setUi = () => { const pc = jobs.length ? Math.round(done / jobs.length * 100) : 0; bar.style.width = (ready ? 100 : pc) + '%'; go.style.opacity = ready ? '' : '0.45'; go.style.pointerEvents = ready ? '' : 'none'; go.textContent = ready ? 'LAUNCH' : 'PREPARING  ' + pc + '%'; if (ready) setTimeout(() => { box.style.transition = 'opacity .6s'; box.style.opacity = '0'; }, 500); };
+  const finish = () => { if (ready) return; ready = true; window.__shc = 1; setUi(); };
+  setTimeout(() => {
+    jobs.push(() => { if (!spaceNebula.userData.prepped) { spaceNebula.userData.prepped = 1; spaceNebula.userData.prep(); } });
+    for (const p of planets) jobs.push(() => { if (p.build) { p.build(); p.build = null; } });
+    jobs.push(() => { const vs = [shMesh.visible, stkMesh.visible]; shMesh.visible = stkMesh.visible = true; try { renderer.compile(scene, camera); } catch (e) { } shMesh.visible = vs[0]; stkMesh.visible = vs[1]; });
+    setUi();
+    const step = () => { if (ready) return; const j = jobs[done]; if (!j) { finish(); return; } try { j(); } catch (e) { } done++; setUi(); setTimeout(step, 40); };
+    setTimeout(step, 250);
+  }, 400);
+  setTimeout(finish, 30000);   // safety: never lock the button for good
+}
 { const b = document.createElement('div'); b.style.cssText = 'margin-top:10px;font-size:10px;opacity:.5;letter-spacing:2px'; b.textContent = 'BUILD ' + BUILD; $('go-start').parentNode.appendChild(b); }
 $('go-launch').addEventListener('click', () => { unlockMusic(); $('sh-dlg').style.display = 'flex'; });
 document.addEventListener('click', (e) => {   // one place gives every menu button its sound
@@ -2168,7 +2190,7 @@ function frame(now) {
       const l = loot[i]; if (!l.active) continue; l.life -= dt; l.pos.addScaledVector(l.vel, dt); l.vel.multiplyScalar(Math.max(0, 1 - 1.2 * dt));
       _a.copy(S.pos).sub(l.pos); const d = _a.length();
       if (d < mag * 3) l.vel.addScaledVector(_a.divideScalar(d || 1), (1 - d / (mag * 3)) * 220 * dt);
-      if (d < 7) { l.active = false; save.credits += l.val; refreshHud(); sfx('pick'); S.shield = Math.min(ST.shieldMax, S.shield + 3); if (l.ore && S.mission && S.mission.type === 'mining') { S.mission.done++; updateMissionHud(); if (S.mission.done >= S.mission.n) completeMission(); } persist(); }
+      if (d < 7) { l.active = false; save.credits += l.val; refreshHud(); sfx('pick'); if (l.nm) toast('+ ' + l.nm + '  ◆' + l.val, 1); S.shield = Math.min(ST.shieldMax, S.shield + 3); if (l.ore && S.mission && S.mission.type === 'mining') { S.mission.done++; updateMissionHud(); if (S.mission.done >= S.mission.n) completeMission(); } persist(); }
       else if (l.life <= 0) l.active = false;
     }
     // shield recharge
@@ -2219,7 +2241,7 @@ function frame(now) {
   for (let i = 0; i < LOOT_N; i++) {
     const l = loot[i];
     if (!l.active) { dummy.position.set(0, -99999, 0); dummy.scale.setScalar(0.0001); dummy.quaternion.identity(); dummy.updateMatrix(); lootMesh.setMatrixAt(i, dummy.matrix); lootGlow.setMatrixAt(i, dummy.matrix); continue; }
-    dummy.position.copy(l.pos); dummy.rotation.set(0.4, tAcc * 1.8 + i, 0); dummy.scale.set(1.0, 1.7, 1.0); dummy.updateMatrix(); lootMesh.setMatrixAt(i, dummy.matrix);
+    dummy.position.copy(l.pos); dummy.rotation.set(tAcc * 1.1 + i, tAcc * 1.8 + i, 0); dummy.scale.set(l.ore ? 1.5 * l.s : 1.0, l.ore ? 1.2 * l.s : 1.7, l.ore ? 1.0 * l.s : 1.0); dummy.updateMatrix(); lootMesh.setMatrixAt(i, dummy.matrix);
     dummy.quaternion.copy(camera.quaternion); dummy.scale.setScalar(8); dummy.updateMatrix(); lootGlow.setMatrixAt(i, dummy.matrix);
   }
   lootMesh.instanceMatrix.needsUpdate = true; lootGlow.instanceMatrix.needsUpdate = true;
