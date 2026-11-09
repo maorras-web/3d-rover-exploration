@@ -624,15 +624,15 @@ hoverGlow.rotation.x = -Math.PI / 2; hoverGlow.position.y = 0.66; hoverGlow.visi
   const WR = 66, WH = 26;
   // walls, ceiling, floor
   const wallTex = canvasTex(512, 128, (x, w, h) => { x.fillStyle = '#222'; x.fillRect(0, 0, w, h); x.strokeStyle = '#333'; x.lineWidth = 3; for (let i = 0; i <= 16; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.stroke(); } x.fillStyle = '#666'; for (let i = 0; i < 16; i++) x.fillRect(i * 32 + 6, 20, 20, 8); }, [5, 1]);
-  add(new THREE.CylinderGeometry(WR, WR, WH, 64, 1, true), new THREE.MeshStandardMaterial({ map: wallTex, emissive: 0x2f7a46, emissiveMap: wallTex, roughness: 0.9, metalness: 0.2, side: THREE.BackSide, fog: false }), 0, WH / 2, 0);
-  add(new THREE.CircleGeometry(WR, 48), std(0x1b2a22, 0x14301f), 0, WH, 0).rotation.x = Math.PI / 2;
+  add(new THREE.CylinderGeometry(WR, WR, WH + 3, 64, 1, true), new THREE.MeshStandardMaterial({ map: wallTex, emissive: 0x2f7a46, emissiveMap: wallTex, roughness: 0.9, metalness: 0.2, side: THREE.BackSide, fog: false }), 0, WH / 2 - 1.5, 0);   // reaches 3 units below the floor so no sliver of the outside shows at the foot of the wall
+  add(new THREE.CircleGeometry(WR + 2, 48), std(0x1b2a22, 0x14301f), 0, WH, 0).rotation.x = Math.PI / 2;
   // glossy deck: bevelled steel plates with seams and rivets, a fake environment to reflect (one tiny cube texture) and low roughness, so the pad rings and the ship's glow slide across the floor
   const floorTex = canvasTex(512, 512, (x, w, h) => { x.fillStyle = '#2a2d2c'; x.fillRect(0, 0, w, h); for (let i = 0; i < 40; i++) { x.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.12)'; x.fillRect(((Math.random() * 4) | 0) * 128, ((Math.random() * 4) | 0) * 128, 128, 128); } x.strokeStyle = '#0c0e0d'; x.lineWidth = 3; for (let i = 0; i <= 4; i++) { x.beginPath(); x.moveTo(i * 128, 0); x.lineTo(i * 128, h); x.moveTo(0, i * 128); x.lineTo(w, i * 128); x.stroke(); } stnBevel(x, w, h, 128); x.fillStyle = 'rgba(200,210,205,0.5)'; for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) for (const [dx, dy] of [[10, 10], [118, 10], [10, 118], [118, 118]]) x.fillRect(i * 128 + dx, j * 128 + dy, 3, 3); }, [7, 7]);
   const floorBump = canvasTex(256, 256, (x, w, h) => { x.fillStyle = '#aaa'; x.fillRect(0, 0, w, h); x.strokeStyle = '#222'; x.lineWidth = 3; for (let i = 0; i <= 4; i++) { x.beginPath(); x.moveTo(i * 64, 0); x.lineTo(i * 64, h); x.moveTo(0, i * 64); x.lineTo(w, i * 64); x.stroke(); } }, [7, 7]); floorBump.colorSpace = THREE.NoColorSpace;
   const hEnv = (() => { const f = (draw) => { const c = document.createElement('canvas'); c.width = c.height = 32; draw(c.getContext('2d')); return c; };
     const wall = f(x => { x.fillStyle = '#0c0e12'; x.fillRect(0, 0, 32, 32); x.fillStyle = '#c8d0e8'; x.fillRect(0, 11, 32, 3); x.fillRect(0, 22, 32, 2); }), top = f(x => { x.fillStyle = '#1a1e28'; x.fillRect(0, 0, 32, 32); x.fillStyle = '#e8eeff'; x.fillRect(10, 10, 12, 12); }), bot = f(x => { x.fillStyle = '#050706'; x.fillRect(0, 0, 32, 32); });
     const t = new THREE.CubeTexture([wall, wall, top, bot, wall, wall]); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; return t; })();
-  const fl = add(new THREE.CircleGeometry(WR, 48), new THREE.MeshStandardMaterial({ map: floorTex, bumpMap: floorBump, bumpScale: 1.0, emissive: 0x2c6a40, emissiveMap: floorTex, roughness: 0.28, metalness: 0.75, envMap: hEnv, envMapIntensity: 1.1, fog: false }), 0, -0.6, 0); fl.rotation.x = -Math.PI / 2;
+  const fl = add(new THREE.CircleGeometry(WR + 2, 48), new THREE.MeshStandardMaterial({ map: floorTex, bumpMap: floorBump, bumpScale: 1.0, emissive: 0x2c6a40, emissiveMap: floorTex, roughness: 0.28, metalness: 0.75, envMap: hEnv, envMapIntensity: 1.1, fog: false }), 0, -0.6, 0); fl.rotation.x = -Math.PI / 2;
   // floor decals: a hazard-striped ring round the pad and a landing number in front of it
   const hazTex = canvasTex(256, 256, (x, w, h) => { x.fillStyle = '#1a1c1b'; x.fillRect(0, 0, w, h); x.fillStyle = '#e8b030'; for (let i = -h; i < w + h; i += 40) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i + 20, 0); x.lineTo(i + 20 + h, h); x.lineTo(i + h, h); x.fill(); } }, [1, 1]);
   const decalMat = (map) => new THREE.MeshBasicMaterial({ map, transparent: true, opacity: 0.7, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, toneMapped: false, fog: false });
@@ -1028,8 +1028,8 @@ function buildStation(name, col, V) {
     cz(14.5, 14.5, 9, -13, 18); cz(14, 14, 7, 39, 18); cz(13.2, 13.2, 5, 51, 18);   // lit habitat belt round the tower, and two more on the longer lower tower
     for (let k = 0; k < 3; k++) { const an = k * 2.0944 + 0.52, d = new THREE.Vector3(Math.cos(an), Math.sin(an), 0), q = Qq.clone().setFromUnitVectors(Y, d);
       put(new THREE.CylinderGeometry(6.4, 6.4, 40, 16, 1, true), [d.x * 30, d.y * 30, -16], q);   // arm body (open at the tip: it is a docking tunnel)
-      put(new THREE.TorusGeometry(6.5, 0.8, 8, 20), [d.x * 50, d.y * 50, -16], Qq.clone().setFromUnitVectors(Z, d));   // heavy rim round the mouth
-      put(RB(6, 0.3), [d.x * 30, d.y * 30, -21.6], Qq.clone().setFromAxisAngle(Z, an), [26, 7, 3.2]); }   // armoured block on top of each arm
+      put(new THREE.TorusGeometry(7.1, 0.8, 8, 20), [d.x * 50, d.y * 50, -16], Qq.clone().setFromUnitVectors(Z, d));   // heavy rim round the mouth
+      put(RB(6, 0.3), [d.x * 30, d.y * 30, -24.6], Qq.clone().setFromAxisAngle(Z, an), [26, 7, 3.2]); }   // armoured block on top of each arm
   }
   const citNz = [], legN = parts.length;   // everything pushed from here to the antennae = struts + tail blades -> polished leg metal instead of the window-lit hull
   // struts from the hull to the halo ring
@@ -1052,7 +1052,7 @@ function buildStation(name, col, V) {
       put(new THREE.CylinderGeometry(1.7, 2.6, 5, 8), [Math.cos(an) * 19, Math.sin(an) * 19, 36 + DZ], Qq.clone().setFromUnitVectors(Y, new THREE.Vector3(0, 0, 1))); citNz.push([Math.cos(an) * 19, Math.sin(an) * 19, 39 + DZ, 1.0]); }   // engine nozzles with a glow at the tail
     for (const z of [20, 26]) { const bd = new THREE.CylinderGeometry(16.5, 16.5, 1.2, 24, 1, true); bd.rotateX(Math.PI / 2); put(bd, [0, 0, z + 5 + DZ]); }
     for (let k = 0; k < 3; k++) { const an = k * 2.0944 + 0.52, d = new THREE.Vector3(Math.cos(an), Math.sin(an), 0), q = Qq.clone().setFromUnitVectors(Y, d);
-      for (const r of [20, 30, 40]) put(new THREE.TorusGeometry(6.7, 0.7, 6, 16), [d.x * r, d.y * r, -16], Qq.clone().setFromUnitVectors(Z, d));   // collar rings round the tunnel (they used to be solid discs that would block it)
+      for (const r of [20, 30, 40]) put(new THREE.TorusGeometry(7.2, 0.7, 6, 16), [d.x * r, d.y * r, -16], Qq.clone().setFromUnitVectors(Z, d));   // collar rings round the tunnel (they used to be solid discs that would block it)
       const fa = k * 2.0944 + 1.57, fq = Qq.clone().setFromAxisAngle(Z, fa);
       for (const [R, z, L, W] of [[16, 14, 28, 9], [19.5, 19, 18, 6], [16, 36, 22, 9], [19.5, 45, 16, 6]]) { put(RB(6, 0.34), [Math.cos(fa) * R, Math.sin(fa) * R, z], fq, [W * 0.42, W * 0.75, L]); } }   // angular armour plates down the lower tower
   }
