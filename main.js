@@ -2595,6 +2595,15 @@ function frame(now) {
 // menu backdrop: the ship idling next to XIAQA
 (function menuScene() { S.pos.set(170, -40, 520); _m.lookAt(_zero, V3(-170, 30, -520).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q); S.mode = 'menu'; ST = stats(); for (let i = 0; i < AST_N; i++) spawnAsteroid(asteroids[i], true); })();
 applyShip();
+// shader warm-up: WebGL builds a shader the first time a material is drawn. Most of space (stations, planets, traffic, rocks, effects) is hidden while you sit in the
+// menu and the hangar, so ~50 shaders used to be built in the very first flying frame = a freeze right after the intro. Here every hidden object is shown for
+// one compile call (nothing is drawn), so all shaders are built now, during loading; textures are sent to the graphics card at the same time
+{ const shown = []; scene.traverse((o) => { if (!o.visible) { shown.push(o); o.visible = true; } });
+  const tx = new Set(); scene.traverse((o) => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; for (const m of ms) for (const k of ['map', 'emissiveMap', 'bumpMap', 'roughnessMap', 'metalnessMap', 'alphaMap', 'normalMap']) if (m[k] && m[k].isTexture && !m[k].isCubeTexture) tx.add(m[k]); });
+  const wt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.UnsignedByteType }); try { renderer.setRenderTarget(wt); renderer.compile(scene, camera); } catch (e) { } renderer.setRenderTarget(null); wt.dispose();   // the variant used while the glow / colour effects are on (the scene is drawn into an off-screen image first)
+  try { renderer.compile(scene, camera); } catch (e) { }   // and the variant used when the game switches those effects off on a slow phone (the scene is drawn straight to the screen)   // compiled for the post-processing target the game really draws into (linear colour, no tone mapping), so the shaders match exactly
+  for (const t of tx) { try { renderer.initTexture(t); } catch (e) { } }
+  for (const o of shown) o.visible = false; }
 requestAnimationFrame(frame);
 document.addEventListener('visibilitychange', () => { last = performance.now(); if (actx) { document.hidden ? actx.suspend() : actx.resume(); } });
 // quiet pre-building: one small job every 1.3 s while you are docked or flying (never during a jump) - the far system's sky and every planet painting are ready BEFORE the jump, so arriving costs nothing
