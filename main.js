@@ -1937,23 +1937,6 @@ function startGame() { initAudio(); unlockMusic(); if (actx && actx.state === 's
   setTimeout(() => { fadeEl.style.transition = 'opacity .5s'; fadeEl.style.opacity = '1'; }, 2300); setTimeout(() => { if (S.mode === 'dock' && !$('shop').classList.contains('show')) launchFrom(0); }, 2850); }   // the game opens inside the station hangar, then the ship launches out
 $('go-start').addEventListener('click', startGame);
 $('go-start').textContent = 'LAUNCH';
-// ---- start-up loader: paints every planet map, builds the nebula and compiles the effect shaders BEFORE the LAUNCH button opens, one small job at a time (so the page stays alive), with a slim progress bar. Nothing is left to be built in mid-flight. ----
-{ const go = $('go-start'), box = document.createElement('div');
-  box.style.cssText = 'width:200px;max-width:70%;height:4px;margin:10px auto 0;border-radius:3px;background:rgba(159,243,255,.15);overflow:hidden';
-  const bar = document.createElement('div'); bar.style.cssText = 'width:0%;height:100%;border-radius:3px;background:linear-gradient(90deg,#5fe4ff,#9ff3ff);box-shadow:0 0 8px #5fe4ff;transition:width .25s'; box.appendChild(bar); go.parentNode.insertBefore(box, go.nextSibling);
-  let ready = false, jobs = [], done = 0;
-  const setUi = () => { const pc = jobs.length ? Math.round(done / jobs.length * 100) : 0; bar.style.width = (ready ? 100 : pc) + '%'; go.style.opacity = ready ? '' : '0.45'; go.style.pointerEvents = ready ? '' : 'none'; go.textContent = ready ? 'LAUNCH' : 'PREPARING  ' + pc + '%'; if (ready) setTimeout(() => { box.style.transition = 'opacity .6s'; box.style.opacity = '0'; }, 500); };
-  const finish = () => { if (ready) return; ready = true; window.__shc = 1; setUi(); };
-  setTimeout(() => {
-    jobs.push(() => { if (!spaceNebula.userData.prepped) { spaceNebula.userData.prepped = 1; spaceNebula.userData.prep(); } });
-    for (const p of planets) jobs.push(() => { if (p.build) { p.build(); p.build = null; } });
-    jobs.push(() => { const vs = [shMesh.visible, stkMesh.visible]; shMesh.visible = stkMesh.visible = true; try { renderer.compile(scene, camera); } catch (e) { } shMesh.visible = vs[0]; stkMesh.visible = vs[1]; });
-    setUi();
-    const step = () => { if (ready) return; const j = jobs[done]; if (!j) { finish(); return; } try { j(); } catch (e) { } done++; setUi(); setTimeout(step, 40); };
-    setTimeout(step, 250);
-  }, 400);
-  setTimeout(finish, 30000);   // safety: never lock the button for good
-}
 { const b = document.createElement('div'); b.style.cssText = 'margin-top:10px;font-size:10px;opacity:.5;letter-spacing:2px'; b.textContent = 'BUILD ' + BUILD; $('go-start').parentNode.appendChild(b); }
 $('go-launch').addEventListener('click', () => { unlockMusic(); $('sh-dlg').style.display = 'flex'; });
 document.addEventListener('click', (e) => {   // one place gives every menu button its sound
