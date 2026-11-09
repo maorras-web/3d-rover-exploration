@@ -1757,17 +1757,6 @@ const trBuild = (spec) => { const parts = []; const Mq = new THREE.Matrix4(), Eu
   for (const [geo, c, px, py, pz, rx, ry, rz, sx, sy, sz] of spec) { let g = geo.index ? geo.toNonIndexed() : geo; g.deleteAttribute('uv'); Mq.compose(new THREE.Vector3(px, py, pz), new THREE.Quaternion().setFromEuler(Eu.set(rx || 0, ry || 0, rz || 0)), new THREE.Vector3(sx || 1, sy || 1, sz || 1)); g.applyMatrix4(Mq);
     const n = g.attributes.position.count, col = new Float32Array(n * 3), cc = new THREE.Color(c); for (let q = 0; q < n; q++) { col[q * 3] = cc.r; col[q * 3 + 1] = cc.g; col[q * 3 + 2] = cc.b; } g.setAttribute('color', new THREE.BufferAttribute(col, 3)); parts.push(g); }
   return mergeGeometries(parts); };
-const trGeoA = trBuild([
-  [new THREE.CylinderGeometry(0.22, 0.62, 5.4, 8), 0xdde3ec, 0, 0, 0, -Math.PI / 2],                    // tapered fuselage, nose to -z
-  [new THREE.SphereGeometry(0.5, 8, 6), 0x2c6fb0, 0, 0.32, -0.9, 0, 0, 0, 0.8, 0.55, 1.7],               // cockpit canopy
-  [new THREE.BoxGeometry(3.0, 0.09, 1.7), 0x7d889c, -1.8, -0.12, 0.9, 0, 0.45, 0.06],                   // swept wings
-  [new THREE.BoxGeometry(3.0, 0.09, 1.7), 0x7d889c, 1.8, -0.12, 0.9, 0, -0.45, -0.06],
-  [new THREE.BoxGeometry(0.5, 0.11, 0.5), 0xff8a3a, -3.2, -0.12, 1.55],                                  // coloured wing tips
-  [new THREE.BoxGeometry(0.5, 0.11, 0.5), 0xff8a3a, 3.2, -0.12, 1.55],
-  [new THREE.BoxGeometry(0.1, 1.2, 1.5), 0x8a95a8, 0, 0.75, 2.0, 0.35],                                  // tail fin
-  [new THREE.CylinderGeometry(0.26, 0.32, 1.5, 8), 0x4f596d, -0.62, -0.05, 2.35, Math.PI / 2],            // twin engine pods
-  [new THREE.CylinderGeometry(0.26, 0.32, 1.5, 8), 0x4f596d, 0.62, -0.05, 2.35, Math.PI / 2],
-]);
 const trMat = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.15, emissive: 0x39414f });
 // ---- OVUM: big egg-shaped transport for station traffic (one continuous skin whose tail splits into two welded engine lobes; one merged geometry, drawn instanced) ----
 const OVUM = (() => {
@@ -1830,26 +1819,53 @@ function ovumTex() {
   return { geo: trafficG(), tex: ovumTex() };
 })();
 
-const trMesh = new THREE.InstancedMesh(trGeoA, trMat(), TR_N); trMesh.frustumCulled = false; trMesh.count = 0; scene.add(trMesh);
+// golden sphere ship: engraved metal lines (panel seams + circuit-like traces) painted once into one canvas, and antennas merged into the same geometry (still ONE instanced draw)
+const GOLD = (() => {
+  const W = 1024, H = 512, c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d'); let sd = 21; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#f2cc74'); g.addColorStop(0.5, '#e6b456'); g.addColorStop(1, '#d9a548'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  for (let k = 0; k < 40; k++) { x.fillStyle = 'rgba(' + (rn() < 0.5 ? '255,230,160' : '170,120,40') + ',' + (0.05 + rn() * 0.07) + ')'; x.fillRect(rn() * W, 40 + rn() * (H - 80), 40 + rn() * 140, 20 + rn() * 50); }   // slightly different plates
+  const groove = (path) => { x.lineCap = 'round'; x.lineJoin = 'round'; x.strokeStyle = 'rgba(70,44,12,0.95)'; x.lineWidth = 3; x.stroke(path); x.strokeStyle = 'rgba(255,240,190,0.7)'; x.lineWidth = 1; x.save(); x.translate(1, 1.5); x.stroke(path); x.restore(); };
+  for (let k = 1; k < 6; k++) { const p = new Path2D(); p.moveTo(0, k * H / 6); p.lineTo(W, k * H / 6); groove(p); }                     // rings of latitude
+  for (let k = 0; k < 12; k++) { const p = new Path2D(); p.moveTo(k * W / 12, H / 6); p.lineTo(k * W / 12, H * 5 / 6); groove(p); }       // seams of longitude
+  for (let k = 0; k < 46; k++) { const p = new Path2D(); let px = rn() * W, py = H * (0.2 + rn() * 0.6); p.moveTo(px, py);                  // circuit-like traces with right-angle turns
+    for (let s = 0; s < 4; s++) { if (s & 1) py += (rn() - 0.5) * 60; else px += (rn() - 0.5) * 120; p.lineTo(px, py); } groove(p);
+    x.fillStyle = 'rgba(70,44,12,0.95)'; x.beginPath(); x.arc(px, py, 4, 0, 7); x.fill(); x.fillStyle = 'rgba(255,236,170,0.9)'; x.beginPath(); x.arc(px - 1, py - 1, 1.6, 0, 7); x.fill(); }
+  for (let k = 0; k < 10; k++) { const cx = rn() * W, cy = H * (0.25 + rn() * 0.5), p = new Path2D(); p.rect(cx - 18, cy - 10, 36, 20); groove(p); }   // small inset hatches
+  x.fillStyle = '#e8bb5e'; x.fillRect(0, 0, W, 10);   // a plain strip at the pole (the antennas take their colour from here)
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const parts = [], col = (gm, hex) => { gm = gm.index ? gm.toNonIndexed() : gm; const n = gm.attributes.position.count, cl = new Float32Array(n * 3), cc = new THREE.Color(hex); for (let q = 0; q < n; q++) { cl[q * 3] = cc.r; cl[q * 3 + 1] = cc.g; cl[q * 3 + 2] = cc.b; } gm.setAttribute('color', new THREE.BufferAttribute(cl, 3)); return gm; };
+  parts.push(col(new THREE.SphereGeometry(1, 40, 28), 0xffffff));
+  const ant = (len, r, dirX, dirY, dirZ, tip) => { const d = new THREE.Vector3(dirX, dirY, dirZ).normalize(), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
+    const rod = new THREE.CylinderGeometry(r * 0.6, r, len, 6); rod.translate(0, 0.97 + len / 2, 0); rod.applyQuaternion(q);
+    const base = new THREE.CylinderGeometry(r * 3, r * 3.6, 0.06, 10); base.translate(0, 0.99, 0); base.applyQuaternion(q);
+    const ball = new THREE.SphereGeometry(tip, 8, 6); ball.translate(0, 0.97 + len, 0); ball.applyQuaternion(q);
+    for (const gm of [rod, base, ball]) { const n = gm.attributes.position.count, uv = gm.attributes.uv; for (let i = 0; i < n; i++) uv.setXY(i, 0.5, 0.995); parts.push(col(gm, gm === ball ? 0xffe9b0 : 0x9a9488)); } };
+  ant(0.9, 0.022, 0, 1, 0, 0.05); ant(0.5, 0.018, 0.5, 0.85, 0.2, 0.035); ant(0.45, 0.018, -0.45, 0.8, -0.3, 0.035); ant(0.35, 0.016, 0.2, -0.3, 0.95, 0.03); ant(0.6, 0.02, -0.9, 0.3, 0.1, 0.04);   // a tall mast and four shorter whips
+  return { geo: mergeGeometries(parts), tex };
+})();
+const trMesh = new THREE.InstancedMesh(GOLD.geo, new THREE.MeshStandardMaterial({ vertexColors: true, map: GOLD.tex, bumpMap: GOLD.tex, bumpScale: 1.4, metalness: 1.0, roughness: 0.2, envMap: SHIP_ENV, envMapIntensity: 2.4, emissive: 0x1a1004 }), TR_N);   // the two small ships at every station are big golden spheres with engraved lines and antennas (one instanced draw)   
+ trMesh.frustumCulled = false; trMesh.count = 0; scene.add(trMesh);
 const trMeshB = new THREE.InstancedMesh(OVUM.geo, new THREE.MeshStandardMaterial({ vertexColors: true, map: OVUM.tex, bumpMap: OVUM.tex, bumpScale: 1.5, metalness: 0.95, roughness: 0.24, envMap: SHIP_ENV, envMapIntensity: 2.2, emissive: 0x0b0d12 }), TR_N); trMeshB.frustumCulled = false; trMeshB.count = 0; scene.add(trMeshB);   // the third ship at every station is now the big OVUM transport (was the boxy freighter)
 // four glow points per ship: two engines (blue-white) and red / green wing-tip lights (colours are fixed, only positions move)
 const trLpos = new Float32Array(TR_N * 12), trLcol = new Float32Array(TR_N * 12), trLGeo = new THREE.BufferGeometry(); trLGeo.setAttribute('position', new THREE.BufferAttribute(trLpos, 3));
 { const pat = [[0.62, 0.9, 1], [0.62, 0.9, 1], [1, 0.2, 0.2], [0.2, 1, 0.35]]; for (let q = 0; q < TR_N * 4; q++) { const c = pat[q & 3]; trLcol[q * 3] = c[0]; trLcol[q * 3 + 1] = c[1]; trLcol[q * 3 + 2] = c[2]; } trLGeo.setAttribute('color', new THREE.BufferAttribute(trLcol, 3)); }
 const trLights = new THREE.Points(trLGeo, new THREE.PointsMaterial({ vertexColors: true, map: glowTex, size: 2.6, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false })); trLights.frustumCulled = false; trLights.visible = false; scene.add(trLights);
 const _tc = new THREE.Color(), TR_U = [], TR_V = [];
+// how far each station reaches from its centre (measured once from its real geometry), so the traffic circles OUTSIDE it and never flies through the hull
+const TR_R = stations.map((st) => { let mx = 0; const v = V3(); st.g.updateMatrixWorld(true); st.g.traverse((o) => { if (!o.isMesh || o.isInstancedMesh || !o.geometry || !o.geometry.attributes.position) return; const pa = o.geometry.attributes.position; for (let i = 0; i < pa.count; i += 2) { v.fromBufferAttribute(pa, i).applyMatrix4(o.matrixWorld); const d = v.distanceToSquared(st.pos); if (d > mx) mx = d; } }); return Math.sqrt(mx); });
 stations.forEach((st, k) => { const n = V3(Math.sin(k * 1.7), 1.2, Math.cos(k * 2.3)).normalize(), u = V3(1, 0, 0).cross(n).normalize(), v = n.clone().cross(u); TR_U.push(u); TR_V.push(v); });
-const _tq = new THREE.Quaternion(), _tp = V3(), _tt = V3(), _ts = V3(2.6, 2.6, 2.6), _tsB = V3(9.3, 9.3, 9.3);
+const _tq = new THREE.Quaternion(), _tp = V3(), _tt = V3(), _ts = V3(25, 25, 25), _tsB = V3(9.3, 9.3, 9.3);
 function updateTraffic() {
   let nA = 0, nB = 0, nl = 0;
   for (let k = 0; k < stations.length; k++) { const st = stations[k]; if (!st.g.visible) continue;
-    for (let j = 0; j < TR_K; j++) { const dir = (j & 1) ? -1 : 1, th = tAcc * dir * (0.13 - j * 0.02) + j * 2.09 + k, R = 175 + j * 48, c = Math.cos(th), sn = Math.sin(th), u = TR_U[k], v = TR_V[k], fr = j === 2;
+    for (let j = 0; j < TR_K; j++) { const dir = (j & 1) ? -1 : 1, th = tAcc * dir * (0.13 - j * 0.02) + j * 2.09 + k, R = TR_R[k] + 90 + j * 70, c = Math.cos(th), sn = Math.sin(th), u = TR_U[k], v = TR_V[k], fr = j === 2;
       _tp.set(st.pos.x + (u.x * c + v.x * sn) * R, st.pos.y + (u.y * c + v.y * sn) * R, st.pos.z + (u.z * c + v.z * sn) * R);
       _tt.set((-u.x * sn + v.x * c) * dir, (-u.y * sn + v.y * c) * dir, (-u.z * sn + v.z * c) * dir);
-      _m.lookAt(_zero, _tt, Y); _tq.setFromRotationMatrix(_m); const M = _m.elements, ks = fr ? 9.3 : 2.6;
+      _m.lookAt(_zero, _tt, Y); _tq.setFromRotationMatrix(_m); const M = _m.elements, ks = fr ? 9.3 : 25;
       if (fr) { trMeshB.setMatrixAt(nB, dummy.matrix.compose(_tp, _tq, _tsB)); trMeshB.setColorAt(nB, _tc.setRGB(1, 1, 1)); nB++; }
-      else { trMesh.setMatrixAt(nA, dummy.matrix.compose(_tp, _tq, _ts)); trMesh.setColorAt(nA, _tc.setHSL((k * 0.13 + j * 0.31) % 1, 0.25, 0.92)); nA++; }
+      else { trMesh.setMatrixAt(nA, dummy.matrix.compose(_tp, _tq, _ts)); trMesh.setColorAt(nA, _tc.setRGB(1, 1, 1)); nA++; }
       // glow points: engines behind the hull, wing-tip lights out on the wings (right vector = first column of the look-at matrix)
-      const ex = fr ? 1.25 : 0.62, ez = fr ? 5.1 : 3.1, wx = fr ? 0 : 3.2, wz = fr ? 0 : 1.6, o = nl * 12;
+      const ex = fr ? 1.25 : 0.3, ez = fr ? 5.1 : 1.08, wx = fr ? 0 : 1.04, wz = fr ? 0 : 0, o = nl * 12;
       trLpos[o] = _tp.x - _tt.x * ez * ks - M[0] * ex * ks; trLpos[o + 1] = _tp.y - _tt.y * ez * ks - M[1] * ex * ks; trLpos[o + 2] = _tp.z - _tt.z * ez * ks - M[2] * ex * ks;
       trLpos[o + 3] = _tp.x - _tt.x * ez * ks + M[0] * ex * ks; trLpos[o + 4] = _tp.y - _tt.y * ez * ks + M[1] * ex * ks; trLpos[o + 5] = _tp.z - _tt.z * ez * ks + M[2] * ex * ks;
       trLpos[o + 6] = _tp.x - M[0] * wx * ks + _tt.x * 0.0 - _tt.x * wz * ks * 0.4; trLpos[o + 7] = _tp.y - M[1] * wx * ks - _tt.y * wz * ks * 0.4; trLpos[o + 8] = _tp.z - M[2] * wx * ks - _tt.z * wz * ks * 0.4;
