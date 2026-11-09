@@ -622,11 +622,11 @@ const origParts = shipBody.children.slice();   // everything built so far = the 
 // ---- second hull: MANTA (built the first time it is flown, so it costs nothing at start) ----
 function buildManta() {
   const g = new THREE.Group();
-  const SPAN = 7.6, NS = 44, NT = 26;
+  const SPAN = 7.6, NS = 34, NT = 18;
   const sm = (a, b, x) => { x = Math.min(1, Math.max(0, (x - a) / (b - a))); return x * x * (3 - 2 * x); };
   const zle = (a) => -7.6 + 8.6 * Math.pow(a, 1.15);          // leading edge: nose -> swept wing tip
   const zte = (a) => 5.6 - 3.7 * Math.pow(sm(0.15, 1, a), 0.85);   // smooth swept trailing edge
-  const thick = (a, t) => (1.55 * Math.exp(-Math.pow(a / 0.2, 2)) + 0.62 * Math.pow(1 - a, 1.0) + 0.16) * Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, t * 0.92 + 0.04))), 0.38);
+  const thick = (a, t) => (1.55 * Math.exp(-Math.pow(a / 0.2, 2)) + 0.62 * Math.pow(1 - a, 1.0) + 0.16) * Math.max(Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, t * 0.92 + 0.04))), 0.38), 0.8 * Math.exp(-Math.pow(a / 0.3, 2)) * Math.pow(t, 6));
   const droop = (a) => -0.7 * a * a * a - 0.08 * a * a;
   // panel texture: painted, bevelled panels (mirrored left/right), rivets, vents - all in one 512px canvas
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 512; const c = cv.getContext('2d');
@@ -666,29 +666,43 @@ function buildManta() {
       if (top) idx.push(a, b, c2, b, d, c2); else idx.push(a, c2, b, b, c2, d);
     }
   }
-  const geo = new THREE.BufferGeometry();
+  const geo = new THREE.BufferGeometry(); const half0 = idx.length / 2; geo.addGroup(0, half0, 0); geo.addGroup(half0, idx.length - half0, 1);
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
   const hull = new THREE.MeshStandardMaterial({ map: tex, metalness: 0.25, roughness: 0.45, side: THREE.DoubleSide });
-  g.add(new THREE.Mesh(geo, hull));
+  const hullBot = new THREE.MeshStandardMaterial({ map: tex, color: 0x7d869a, metalness: 0.3, roughness: 0.5, side: THREE.DoubleSide });   // darker underside
+  const hullMesh = new THREE.Mesh(geo, [hull, hullBot]); g.add(hullMesh);
   // canopy
   const glass = new THREE.MeshStandardMaterial({ color: 0x0a1020, metalness: 0.9, roughness: 0.08, emissive: 0x1a1240, emissiveIntensity: 0.6 });
-  const can = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 16), glass); can.scale.set(1.25, 0.95, 3.4); can.position.set(0, 1.05, -3.3); can.rotation.x = -0.1; g.add(can);
+  const can = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 11), glass); can.scale.set(1.25, 0.95, 3.4); can.position.set(0, 1.05, -3.3); can.rotation.x = -0.1; g.add(can);
+  const frameM = new THREE.MeshStandardMaterial({ color: 0x2a3358, metalness: 0.7, roughness: 0.35 });
+  for (const zz of [-5.3, -3.9, -2.5]) { const fr = new THREE.Mesh(new THREE.TorusGeometry(1, 0.045, 4, 14, Math.PI), frameM); const k = Math.sqrt(Math.max(0.05, 1 - Math.pow((zz + 3.3) / 3.4, 2))); fr.scale.set(1.25 * k, 0.95 * k, 1); fr.position.set(0, 1.05, zz); g.add(fr); }
+  const hl = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 5), new THREE.MeshBasicMaterial({ color: 0x6f8cff, transparent: true, opacity: 0.18 })); hl.scale.set(0.5, 0.2, 1.7); hl.position.set(0.15, 1.7, -4.0); g.add(hl);
   // spine ridge
-  const ridge = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), new THREE.MeshStandardMaterial({ color: 0x20284a, metalness: 0.7, roughness: 0.35 })); ridge.scale.set(1.0, 0.6, 3.6); ridge.position.set(0, 1.25, 1.6); g.add(ridge);
+  const ridge = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 8), new THREE.MeshStandardMaterial({ color: 0x20284a, metalness: 0.7, roughness: 0.35 })); ridge.scale.set(1.0, 0.6, 3.6); ridge.position.set(0, 1.25, 1.6); g.add(ridge);
   // twin tail fins
   const finShape = new THREE.Shape(); finShape.moveTo(0, 0); finShape.lineTo(2.8, 0); finShape.lineTo(0.3, 2.1); finShape.closePath();
   const finGeo = new THREE.ExtrudeGeometry(finShape, { depth: 0.07, bevelEnabled: false });
   const finMat = new THREE.MeshStandardMaterial({ color: 0x9aa4b5, metalness: 0.6, roughness: 0.4, side: THREE.DoubleSide });
-  for (const sx of [-1, 1]) { const f = new THREE.Mesh(finGeo, finMat); f.rotation.y = Math.PI / 2; f.position.set(sx * 2.2, 0.9, 4.9); g.add(f); }
-  // engines
-  const engM = new THREE.MeshStandardMaterial({ color: 0x1c2238, metalness: 0.8, roughness: 0.35 });
-  const glow = new THREE.MeshBasicMaterial({ color: 0x9d7bff });
+  for (const sx of [-1, 1]) { const pv = new THREE.Group(); pv.position.set(sx * 2.3, 0.7, 4.9); pv.rotation.z = -sx * 0.28; const f = new THREE.Mesh(finGeo, finMat); f.rotation.y = Math.PI / 2; pv.add(f); const st = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 1.5), new THREE.MeshBasicMaterial({ color: 0xa98bff })); st.position.set(0.02, 0.5, -1.1); st.rotation.x = 0.7; pv.add(st); g.add(pv); }
+  // engines: each nacelle is sized from the real hull profile at its position, so it grows OUT of the rear of the hull (no bulge above/below)
+  const engM = new THREE.MeshStandardMaterial({ color: 0x232a45, metalness: 0.8, roughness: 0.3 });
+  const bellM = new THREE.MeshStandardMaterial({ color: 0x0b0e1c, metalness: 0.6, roughness: 0.5, side: THREE.BackSide });
+  const throat = new THREE.MeshBasicMaterial({ color: 0xcfd8ff }), rimM = new THREE.MeshBasicMaterial({ color: 0x8f6cf0 });
+  const colM = new THREE.MeshStandardMaterial({ color: 0x8e99b3, metalness: 0.7, roughness: 0.3 });
+  const EX = 1.1, ea = EX / SPAN, ezT = zte(ea);   // engine x, and where the hull ends there
+  const eTop = droop(ea) + thick(ea, 1) * 0.62, eBot = droop(ea) - thick(ea, 1) * 0.38, ey = (eTop + eBot) / 2, er = Math.min(0.62, (eTop - eBot) / 2);
+  const PRO = 0.95;   // how far the nozzle sticks out behind the hull
+  g.userData.eng = [];
   for (const sx of [-1, 1]) {
-    const e = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.8, 2.4, 20), engM); e.rotation.x = Math.PI / 2; e.position.set(sx * 1.25, 0.1, 5.5); g.add(e);
-    const gl = new THREE.Mesh(new THREE.CircleGeometry(0.58, 20), glow); gl.position.set(sx * 1.25, 0.1, 6.72); g.add(gl);
+    const e = new THREE.Mesh(new THREE.CylinderGeometry(er, er, 1.6 + PRO, 18), engM); e.rotation.x = Math.PI / 2; e.position.set(sx * EX, ey, ezT - 0.8 + PRO / 2); g.add(e);   // starts inside the hull, ends PRO behind it
+    const col = new THREE.Mesh(new THREE.TorusGeometry(er * 1.04, 0.05, 4, 22), colM); col.position.set(sx * EX, ey, ezT + 0.02); g.add(col);   // collar exactly where hull meets nacelle
+    const bell = new THREE.Mesh(new THREE.CylinderGeometry(er * 0.86, er * 0.62, 0.3, 14, 1, true), bellM); bell.rotation.x = Math.PI / 2; bell.position.set(sx * EX, ey, ezT + PRO - 0.15); g.add(bell);
+    const th = new THREE.Mesh(new THREE.CircleGeometry(er * 0.55, 12), throat); th.position.set(sx * EX, ey, ezT + PRO - 0.28); th.rotation.y = Math.PI; g.add(th);
+    const rm = new THREE.Mesh(new THREE.TorusGeometry(er * 0.88, 0.035, 4, 22), rimM); rm.position.set(sx * EX, ey, ezT + PRO + 0.005); g.add(rm);
+    g.userData.eng.push([sx * EX, ey, ezT + PRO]);
   }
-  // wing guns (two per wing: outer and inner)
-  for (const sx of [-1, 1]) for (const gx of [4.9, 3.9]) { const gun = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 3.0, 10), engM); gun.rotation.x = Math.PI / 2; gun.position.set(sx * gx, droop(gx / SPAN) - 0.1, -1.4); g.add(gun); }
+  // wing guns
+  for (const sx of [-1, 1]) { const gun = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 3.0, 8), engM); gun.rotation.x = Math.PI / 2; gun.position.set(sx * 4.9, droop(0.65) - 0.1, -1.4); g.add(gun); }
   // ---- surface detail (cheap boxes, no textures) ----
   const topY = (x, z) => { const a = Math.abs(x) / SPAN; const t = (z - zle(a)) / (zte(a) - zle(a)); return droop(a) + thick(a, t) * 0.62; };
   const darkM = new THREE.MeshStandardMaterial({ color: 0x171d36, metalness: 0.7, roughness: 0.35 });
@@ -701,22 +715,33 @@ function buildManta() {
     const it = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.3, 1.4), darkM); it.position.set(sx * 1.75, topY(sx * 1.75, -1.0) + 0.06, -1.0); it.rotation.y = sx * 0.12; g.add(it);
     // wing-tip caps
     const cap = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 1.8), darkM); cap.position.set(sx * (SPAN - 0.35), topY(sx * (SPAN - 0.35), 1.9) + 0.02, 1.9); cap.rotation.y = sx * 0.62; g.add(cap);
-    // engine rings
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.07, 8, 24), new THREE.MeshBasicMaterial({ color: 0x7b5bd6 })); ring.position.set(sx * 1.25, 0.1, 6.2); g.add(ring);
   }
   // nose sensor + belly keel
   const keel = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 5), darkM); keel.position.set(0, -0.75, 0.5); g.add(keel);
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.22, 1.6, 10), darkM); nose.rotation.x = -Math.PI / 2; nose.position.set(0, 0.12, -8.0); g.add(nose);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.22, 1.6, 7), darkM); nose.rotation.x = -Math.PI / 2; nose.position.set(0, 0.12, -8.0); g.add(nose);
+  for (const sx of [-1, 1]) for (const gx of [4.9, 3.9]) { const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.12, 0.28, 8), darkM); tip.rotation.x = Math.PI / 2; tip.position.set(sx * gx, droop(gx / SPAN) - 0.1, -2.9); g.add(tip); }
+  // ---- bake: every part except the hull is merged per material, so the whole ship is ~7 draw calls instead of 35 ----
+  g.updateMatrixWorld(true);
+  const bk = new Map(), old = [];
+  g.traverse((o) => {
+    if (!o.isMesh || o === hullMesh) return; const m = o.material;
+    const key = [m.type, m.color.getHex(), m.side, m.transparent, m.opacity, m.metalness, m.roughness, m.emissive ? m.emissive.getHex() : 0].join('|');
+    let geo = o.geometry.clone(); for (const nm of Object.keys(geo.attributes)) if (nm !== 'position' && nm !== 'normal' && nm !== 'uv') geo.deleteAttribute(nm);
+    if (geo.index) geo = geo.toNonIndexed(); geo.applyMatrix4(o.matrixWorld);
+    if (!bk.has(key)) bk.set(key, { m, list: [] }); bk.get(key).list.push(geo); old.push(o);
+  });
+  old.forEach((o) => { o.parent.remove(o); o.geometry.dispose(); });
+  g.children.filter((c) => c.isGroup).forEach((c) => g.remove(c));
+  for (const b of bk.values()) g.add(new THREE.Mesh(mergeGeometries(b.list), b.m));
   return g;
 }
-
 const MUZ0 = MUZ.map(m => m.slice()), MUZ1 = [[2.7, -0.18, -1.9], [-2.7, -0.18, -1.9], [2.15, -0.12, -1.9], [-2.15, -0.12, -1.9]];   // gun muzzles of each hull
 let altShip = null; const altFl = [];
 function applyShip() {
   const alt = save.ship === 1;
   if (alt && !altShip) {
     altShip = buildManta(); altShip.scale.setScalar(0.55); altShip.position.set(0, 0.4, -0.3); shipBody.add(altShip);
-    for (const sx of [-1, 1]) { const a = glowSprite(0x7fe9ff, 1.5, 0.32); a.position.set(sx * 0.69, 0.45, 3.75); a.userData.sc = 0.6; shipBody.add(a); const b = glowSprite(0xffffff, 0.9, 0.6); b.position.set(sx * 0.69, 0.45, 3.55); b.userData.sc = 0.6; b.userData.core = 1; shipBody.add(b); altFl.push(a, b); }
+    for (const e of altShip.userData.eng) { const ex = e[0] * 0.55, ey = e[1] * 0.55 + 0.4, ez = e[2] * 0.55 - 0.3; const a = glowSprite(0x7fe9ff, 1.5, 0.32); a.position.set(ex, ey, ez + 0.3); a.userData.sc = 0.6; shipBody.add(a); const b = glowSprite(0xffffff, 0.9, 0.6); b.position.set(ex, ey, ez + 0.1); b.userData.sc = 0.6; b.userData.core = 1; shipBody.add(b); altFl.push(a, b); }   // flames start exactly at the nozzles
   }
   origParts.forEach(o => { o.visible = !alt; });
   if (altShip) altShip.visible = alt;
