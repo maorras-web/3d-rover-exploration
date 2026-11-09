@@ -349,6 +349,7 @@ const SHV = [
 // engine mounts: [x, y, z, size]. The custom ship carries six small engines spaced evenly round its rear ring, mounted ON the ring, a little way inside it (ring ellipse 0.73 x 1.11 pulled in by 0.126)
 const ENGS = SHIP_VAR === 4 ? [0, 1, 2, 3, 4, 5].map(i => { const a = (i + 0.5) / 6 * Math.PI * 2; return [Math.cos(a) * 0.625, -0.072 + Math.sin(a) * 1.005, 3.42, 0.3]; })
   : [-1, 1].map(sd => [sd * 1.75, -0.2, 2.2, 1]);
+let SHIP_ENV = null;   // the Star Courier's own reflection cube, shared with the Manta (no new texture)
 const roverBody = (() => {
   const grp = new THREE.Group(), Yc = -0.1;
   const HULL = 0xdde3ec, HULL2 = 0xb4bfcf, DARK = 0x39414d, DARK2 = 0x262c36, RED = 0xd0432e, CY = 0x35d4ff;
@@ -462,7 +463,7 @@ const roverBody = (() => {
     if (kind === 1) { const g2 = x.createRadialGradient(22, 18, 0, 22, 18, 20); g2.addColorStop(0, 'rgba(255,255,255,1)'); g2.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g2; x.fillRect(0, 0, 64, 64); } return c; };
   const topF = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 4, 32, 32, 46); g.addColorStop(0, SHIP_VAR === 4 ? '#c5d0e2' : '#ffffff'); g.addColorStop(1, SHIP_VAR === 4 ? '#4a566a' : '#b8c6dc'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return c; })();
   const botF = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; c.getContext('2d').fillStyle = SHIP_VAR === 4 ? '#141922' : '#0a0c11'; c.getContext('2d').fillRect(0, 0, 64, 64); return c; })();
-  const senv = new THREE.CubeTexture([eface(1), eface(0), topF, botF, eface(0), eface(0)]); senv.colorSpace = THREE.SRGBColorSpace; senv.needsUpdate = true;
+  const senv = new THREE.CubeTexture([eface(1), eface(0), topF, botF, eface(0), eface(0)]); senv.colorSpace = THREE.SRGBColorSpace; senv.needsUpdate = true; SHIP_ENV = senv;
   if (SHIP_VAR === 4) {
     // custom ship from the ship builder: a list of simple parts (mirrored when mir=1); the built-in shape above is discarded
     body.length = 0; glow.length = 0; glass.length = 0;
@@ -677,8 +678,6 @@ function buildManta() {
   const frameM = new THREE.MeshStandardMaterial({ color: 0x2a3358, metalness: 0.7, roughness: 0.35 });
   for (const zz of [-5.3, -3.9, -2.5]) { const fr = new THREE.Mesh(new THREE.TorusGeometry(1, 0.045, 4, 14, Math.PI), frameM); const k = Math.sqrt(Math.max(0.05, 1 - Math.pow((zz + 3.3) / 3.4, 2))); fr.scale.set(1.25 * k, 0.95 * k, 1); fr.position.set(0, 1.05, zz); g.add(fr); }
   const hl = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 5), new THREE.MeshBasicMaterial({ color: 0x6f8cff, transparent: true, opacity: 0.18 })); hl.scale.set(0.5, 0.2, 1.7); hl.position.set(0.15, 1.7, -4.0); g.add(hl);
-  // spine ridge
-  const ridge = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 8), new THREE.MeshStandardMaterial({ color: 0x20284a, metalness: 0.7, roughness: 0.35 })); ridge.scale.set(1.0, 0.6, 3.6); ridge.position.set(0, 1.25, 1.6); g.add(ridge);
   // twin tail fins
   const finShape = new THREE.Shape(); finShape.moveTo(0, 0); finShape.lineTo(2.8, 0); finShape.lineTo(0.3, 2.1); finShape.closePath();
   const finGeo = new THREE.ExtrudeGeometry(finShape, { depth: 0.07, bevelEnabled: false });
@@ -712,7 +711,7 @@ function buildManta() {
   for (const sx of [-1, 1]) {
     box(strip, 0.1, 0.05, 2.6, sx * 1.35, 2.7, 0, 0.12);               // violet light strips along the body
     // intakes beside the canopy
-    const it = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.3, 1.4), darkM); it.position.set(sx * 1.75, topY(sx * 1.75, -1.0) + 0.06, -1.0); it.rotation.y = sx * 0.12; g.add(it);
+    const it = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.3, 1.4), plateM); it.position.set(sx * 1.75, topY(sx * 1.75, -1.0) + 0.06, -1.0); it.rotation.y = sx * 0.12; g.add(it);
     // wing-tip caps
     const cap = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 1.8), darkM); cap.position.set(sx * (SPAN - 0.35), topY(sx * (SPAN - 0.35), 1.9) + 0.02, 1.9); cap.rotation.y = sx * 0.62; g.add(cap);
   }
@@ -737,10 +736,22 @@ function buildManta() {
 }
 const MUZ0 = MUZ.map(m => m.slice()), MUZ1 = [[2.7, -0.18, -1.9], [-2.7, -0.18, -1.9], [2.15, -0.12, -1.9], [-2.15, -0.12, -1.9]];   // gun muzzles of each hull
 let altShip = null; const altFl = [];
+// real metal look at no cost: reuse the Star Courier's reflection cube, raise metalness, add panel relief from the texture that is already there
+function metalizeManta(g) {
+  const seen = new Set();
+  g.traverse((o) => { if (!o.isMesh) return; (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => {
+    if (seen.has(m) || !m.isMeshStandardMaterial) return; seen.add(m);
+    const dark = m.color.getHex() < 0x202030, glass = m.color.getHex() === 0x0a1020;
+    m.envMap = SHIP_ENV; m.envMapIntensity = glass ? 2.6 : dark ? 1.9 : 1.7;
+    m.metalness = glass ? 1 : 0.95; m.roughness = glass ? 0.04 : m.map ? 0.24 : 0.2;
+    if (glass) m.emissive.setHex(0x0a0822);
+    if (m.map) { m.bumpMap = m.map; m.bumpScale = 2.2; }
+    m.needsUpdate = true; }); });
+}
 function applyShip() {
   const alt = save.ship === 1;
   if (alt && !altShip) {
-    altShip = buildManta(); altShip.scale.setScalar(0.55); altShip.position.set(0, 0.4, -0.3); shipBody.add(altShip);
+    altShip = buildManta(); metalizeManta(altShip); altShip.scale.setScalar(0.55); altShip.position.set(0, 0.4, -0.3); shipBody.add(altShip);
     for (const e of altShip.userData.eng) { const ex = e[0] * 0.55, ey = e[1] * 0.55 + 0.4, ez = e[2] * 0.55 - 0.3; const a = glowSprite(0x7fe9ff, 1.5, 0.32); a.position.set(ex, ey, ez + 0.3); a.userData.sc = 0.6; shipBody.add(a); const b = glowSprite(0xffffff, 0.9, 0.6); b.position.set(ex, ey, ez + 0.1); b.userData.sc = 0.6; b.userData.core = 1; shipBody.add(b); altFl.push(a, b); }   // flames start exactly at the nozzles
   }
   origParts.forEach(o => { o.visible = !alt; });
