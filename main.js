@@ -93,8 +93,8 @@ if (!Array.isArray(save.cargo) || save.cargo.length !== 5) save.cargo = [0, 0, 0
 if (!save.wpn || !Array.isArray(save.wpn.owned)) save.wpn = { owned: [0], cur: 0 };   // weapons bought and the one in use
 const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { } };
 let wpnChipEl = null;
-function wpnChip() { if (!wpnChipEl) { wpnChipEl = document.createElement('button'); wpnChipEl.id = 'b-wpn'; wpnChipEl.style.cssText = 'height:38px;padding:0 13px;border-radius:9px;border:1.5px solid rgba(150,200,245,.55);background:linear-gradient(160deg,#27456f,#122342);box-shadow:inset 0 1px 0 rgba(255,255,255,.18);font:800 11px system-ui,Arial,sans-serif;letter-spacing:1.5px;text-shadow:0 0 8px currentColor,0 1px 2px #000;pointer-events:auto;white-space:nowrap';
-    wpnChipEl.addEventListener('click', cycleWpn); const tr = document.getElementById('top-right'); if (tr) tr.insertBefore(wpnChipEl, tr.firstChild); }
+function wpnChip() { if (!wpnChipEl) { wpnChipEl = document.createElement('button'); wpnChipEl.id = 'b-wpn'; wpnChipEl.style.cssText = 'height:38px;padding:0 13px;border-radius:9px;border:1.5px solid rgba(150,200,245,.55);background:linear-gradient(160deg,#27456f,#122342);box-shadow:inset 0 1px 0 rgba(255,255,255,.18);font:800 11px system-ui,Arial,sans-serif;letter-spacing:1.5px;text-shadow:0 0 8px currentColor,0 1px 2px #000;pointer-events:none;white-space:nowrap';
+    wpnChipEl.style.pointerEvents = 'none'; wpnChipEl.style.opacity = '0.85'; const tr = document.getElementById('top-right'); if (tr) tr.insertBefore(wpnChipEl, tr.firstChild); }
   const w = curW(); wpnChipEl.textContent = w.name; wpnChipEl.style.color = '#' + w.c.toString(16).padStart(6, '0'); wpnChipEl.style.display = save.wpn.owned.length > 1 ? '' : 'none'; }
 function cycleWpn() { const o = save.wpn.owned, k = (o.indexOf(save.wpn.cur) + 1) % o.length; save.wpn.cur = o[k]; persist(); wpnChip(); S.fireT = Math.max(S.fireT, 0.15); toast(curW().name, 0.8); }
 
@@ -877,14 +877,15 @@ const boltHalo = new THREE.InstancedMesh(new THREE.CylinderGeometry(3.3, 3.3, 19
 boltHalo.frustumCulled = false; boltHalo.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(boltHalo);
 boltMesh.frustumCulled = false; boltMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(boltMesh);
 // laser look, free of cost (same two meshes): white-hot core, coloured edge, a bright head that fades toward a thin tail
-const boltShade = (mat, half, core) => { mat.onBeforeCompile = (sh) => {
+const boltT = { value: 0 };
+const boltShade = (mat, half, core) => { mat.onBeforeCompile = (sh) => { sh.uniforms.uT = boltT;
   // round, soft bolts instead of square bars: 8-sided tube, rounded nose, pointed tail, glow that fades toward the rim (still the same two meshes)
   sh.vertexShader = 'varying float vBz; varying vec3 vN; varying vec3 vP;\n' + sh.vertexShader
     .replace('#include <begin_vertex>', '#include <begin_vertex>\n vBz = clamp((' + half + ' - position.z) / ' + (half * 2) + '.0, 0.0, 1.0); float hd = clamp((vBz - 0.8) / 0.2, 0.0, 1.0); float tl = smoothstep(0.0, 0.14, vBz); transformed.xy *= (0.22 + 0.5 * vBz)' + (core ? ' * sqrt(max(1.0 - hd * hd, 0.0)) * tl;' : ';'))
     .replace('#include <project_vertex>', '#include <project_vertex>\n vec3 nn = normal;\n #ifdef USE_INSTANCING\n nn = mat3(instanceMatrix) * nn;\n #endif\n vN = normalMatrix * nn; vP = mvPosition.xyz;');
-  sh.fragmentShader = 'varying float vBz; varying vec3 vN; varying vec3 vP;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n float vF = abs(dot(normalize(vN), normalize(-vP)));\n ' + (core
-    ? 'diffuseColor.rgb = mix(diffuseColor.rgb * 1.25, vec3(1.0), 0.9 * vF * vF) * (0.5 + 0.7 * vBz);'
-    : 'diffuseColor.rgb *= 0.9 + 0.9 * vBz; diffuseColor.a *= (0.22 + 1.2 * vBz * vBz) * pow(vF, 0.75) * (1.0 - smoothstep(0.84, 1.0, vBz)) * smoothstep(0.0, 0.3, vBz);')); }; };
+  sh.fragmentShader = 'varying float vBz; varying vec3 vN; varying vec3 vP; uniform float uT;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n float vF = abs(dot(normalize(vN), normalize(-vP)));\n ' + (core
+    ? 'vec3 bc = diffuseColor.rgb; diffuseColor.rgb = mix(bc * 1.5, vec3(1.0), 0.95 * vF * vF * vF) * (0.5 + 0.7 * vBz) * (0.82 + 0.18 * sin(vBz * 38.0 - uT * 46.0)); diffuseColor.rgb += mix(bc, vec3(1.0), 0.55) * smoothstep(0.72, 0.97, vBz) * 0.8; diffuseColor.rgb *= mix(vec3(0.55, 0.7, 1.0) * 0.0 + bc * 1.2 + 0.2, vec3(1.0), smoothstep(0.1, 0.55, vBz));'
+    : 'diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * diffuseColor.rgb * 2.6, 0.55 * (1.0 - vBz * 0.5)) * (0.9 + 1.0 * vBz); diffuseColor.a *= (0.88 + 0.12 * sin(vBz * 22.0 + uT * 19.0)) * (0.22 + 1.2 * vBz * vBz) * pow(vF, 0.75) * (1.0 - smoothstep(0.84, 1.0, vBz)) * smoothstep(0.0, 0.3, vBz);')); }; };
 boltShade(boltMesh.material, 8.5, true); boltShade(boltHalo.material, 9.5, false);
 for (let i = 0; i < BOLT_N; i++) { bolts.push({ pos: V3(), vel: V3(), life: 0, enemy: false, dmg: 0, sx: 1, sz: 1, hr: 1, wob: 0, age: 0, p1: V3(), p2: V3() }); boltMesh.setColorAt(i, _col.set(0xffffff)); boltHalo.setColorAt(i, _col.set(0x6dfcff)); }
 let boltNext = 0;
@@ -1397,7 +1398,7 @@ function updateAudio() {
 // ---------- throttle: touch any free spot on the right half and drag up = faster, down = slower / full stop (like Galaxy on Fire 2) ----------
 // ---------- input ----------
 const keys = {}; let touchX = 0, touchY = 0, firing = false, boostHeld = false;
-addEventListener('keydown', (e) => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); if (e.code === 'KeyT') cycleTarget(); if (e.code === 'KeyQ') cycleWpn(); if (e.code === 'KeyM') fireMissile(); if (e.code === 'KeyE') tryDock(); });
+addEventListener('keydown', (e) => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); if (e.code === 'KeyT') cycleTarget(); if (e.code === 'KeyM') fireMissile(); if (e.code === 'KeyE') tryDock(); });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 let stickId = null, stickOx = 0, stickOy = 0; let STICK_R = 62;
 const stickEl = $('stick'), knob = $('knob');
@@ -2231,6 +2232,7 @@ function frame(now) {
   }
   lootMesh.instanceMatrix.needsUpdate = true; lootGlow.instanceMatrix.needsUpdate = true;
   // bolts
+  boltT.value = tAcc % 100;
   for (let i = 0; i < BOLT_N; i++) {
     const b = bolts[i];
     if (b.life <= 0) { dummy.position.set(0, -99999, 0); dummy.scale.setScalar(0.0001); dummy.quaternion.identity(); }
