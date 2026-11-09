@@ -74,6 +74,7 @@
   #radar{left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));width:104px;height:104px;border-radius:50%;background:rgba(9,5,27,.55);border:1px solid rgba(179,144,218,.35)}
   .screen{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(8,4,24,.6),rgba(3,2,10,.93));text-align:center;padding:10px;box-sizing:border-box}
   .screen.show{display:flex}
+  #tab-b{display:none!important}   /* Lounge button removed (kept in the page so the script keeps working) */
   /* shop / hangar / map pieces the game script creates (were missing): weapon pictures, section titles, hand-placed map names */
   .row .ico.pic{overflow:hidden;padding:0}.row .ico.pic img{display:block;width:100%;height:100%;object-fit:contain}
   .hg-sec{padding:12px 2px 4px;font:800 11px system-ui,Arial,sans-serif;letter-spacing:3px;color:#a880d5;text-align:left}
@@ -524,7 +525,7 @@
   @media (max-height:380px){#radar{width:140px;height:60px}}
 
   /* ---- violet theme (matched to the reference: deep indigo-black ground, violet frames, lavender titles) ---- */
-  #shop,#shop.stson{background:
+  #shop.stson{background:
     radial-gradient(1.4px 1.4px at 25px 35px,rgba(255,255,255,.9),transparent 60%),radial-gradient(1px 1px at 95px 80px,rgba(255,255,255,.7),transparent 60%),radial-gradient(1.2px 1.2px at 150px 20px,rgba(200,180,255,.8),transparent 60%),radial-gradient(1px 1px at 60px 130px,rgba(255,235,220,.6),transparent 60%),radial-gradient(1.2px 1.2px at 175px 155px,rgba(255,255,255,.8),transparent 60%),
     linear-gradient(#060314,#09061b);
     background-size:200px 175px,200px 175px,200px 175px,200px 175px,200px 175px,auto}
@@ -689,11 +690,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=401', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=402', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=401'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=402'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>

@@ -1719,6 +1719,8 @@ function pvStart(cv, k) {
 }
 /* map layout arranged by hand in the map editor: used on phones (touch screens) only; names / positions in % of the map box; n = name label [x, y, anchor], d = distance label (absent = hidden), _you = offset of 'YOU ARE HERE' from the dot of the station you are docked at */
 const MAPLAY = {"XIAQA": {"x": 35.7, "y": 59.4, "n": [38.7, 52.4, "r"]}, "TIANOG": {"x": 49.1, "y": 46.2, "n": [53.1, 38.1, "r"]}, "MIRAK": {"x": 15.1, "y": 39.8, "n": [11.9, 31.6, "l"]}, "TEPZONIAX": {"x": 61, "y": 67.4, "n": [66.5, 60.6, "r"]}, "PEXTRA": {"x": 9, "y": 70, "n": [5.5, 62.3, "l"]}, "VAJJA": {"x": 38.7, "y": 26, "n": [41.9, 19.3, "r"]}, "KAIFMA": {"x": 40.3, "y": 54.4, "n": [44.3, 47.3, "r"]}, "VELNOR": {"x": 65.7, "y": 77.7, "n": [69.7, 69.9, "r"]}, "YAZMIR": {"x": 9, "y": 67, "n": [5.3, 59.9, "l"]}, "ERSO": {"x": 58.7, "y": 33.5, "n": [61.4, 26.1, "r"]}, "PIOPA": {"x": 24.7, "y": 32, "n": [21.6, 24.2, "l"]}, "_you": [6.4, 7.7, "r"]};
+// star-map dot colours = the dominant colour of each planet's painted map
+const MAPC = {'TIANOG': '#f49f34', 'MIRAK': '#d94fc4', 'TEPZONIAX': '#5f72c9', 'VAJJA': '#f45d34', 'YAZMIR': '#46c2e2', 'XIAQA': '#c49664', 'PIOPA': '#508ad8', 'ERSO': '#5475d4', 'KAIFMA': '#cc5c76', 'PEXTRA': '#54a3d4', 'VELNOR': '#42e69f'};
 const phoneMap = () => { try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } };
 const PKIND = { gas: 'GAS GIANT', ocean: 'OCEAN WORLD', purple: 'VIOLET GIANT', jungle: 'JUNGLE WORLD', lava: 'LAVA WORLD', ice: 'ICE WORLD', desert: 'DESERT WORLD', storm: 'STORM GIANT', bloom: 'BLOOM WORLD', toxic: 'TOXIC WORLD', onyx: 'ONYX WORLD' };
 function openShop(msg) {
@@ -1788,16 +1790,16 @@ function openShop(msg) {
     let svg = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">';
     lanes.forEach(l => { const [i, j] = l.split('-').map(Number); svg += `<line x1="${pc[i][0]}" y1="${pc[i][1]}" x2="${pc[j][0]}" y2="${pc[j][1]}" stroke="rgba(110,170,240,.35)" stroke-width="1" vector-effect="non-scaling-stroke"/>`; });
     ids.forEach(k => { if (k !== here && stations[here].sys === ms) svg += `<line x1="${pc[here][0]}" y1="${pc[here][1]}" x2="${pc[k][0]}" y2="${pc[k][1]}" stroke="rgba(255,200,96,.55)" stroke-width="1.2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`; });
-    mp.insertAdjacentHTML('afterbegin', svg + '</svg><div style="position:absolute;left:10px;top:7px;font:700 10px system-ui,Arial,sans-serif;letter-spacing:3px;color:#7fb4e8">' + SYSTEMS[ms] + ' SYSTEM</div><div class="sysw">' + SYSTEMS.map((n, q) => `<button data-q="${q}" class="${q === ms ? 'on' : ''}">${n}</button>`).join('') + '</div>');
+    mp.insertAdjacentHTML('afterbegin', svg + '</svg><div style="position:absolute;left:10px;top:7px;font:700 10px system-ui,Arial,sans-serif;letter-spacing:3px;color:#a58ad8">' + SYSTEMS[ms] + ' SYSTEM</div><div class="sysw">' + SYSTEMS.map((n, q) => `<button data-q="${q}" class="${q === ms ? 'on' : ''}">${n}</button>`).join('') + '</div>');
     ids.forEach(k => { const s = stations[k], d = document.createElement('div'); d.className = 'sn' + (k === S.station ? ' here' : '') + (S.mission && S.mission.type === 'delivery' && S.mission.to === k ? ' tgt' : '') + (pc[k][0] > 30 ? ' fl' : ''); d.style.left = pc[k][0] + '%'; d.style.top = pc[k][1] + '%';
-      const cu = CM && CM[s.name]; if (cu) { d.className = d.className.replace(' fl', ''); d.innerHTML = `<i style="${k === S.station ? '' : `background:${s.col};box-shadow:0 0 12px ${s.col}`}"></i>`; mp.appendChild(d); d.addEventListener('click', () => pvShow(k));
+      const cu = CM && CM[s.name]; if (cu) { d.className = d.className.replace(' fl', ''); d.innerHTML = `<i style="${k === S.station ? '' : `background:${MAPC[s.name] || s.col};box-shadow:0 0 12px ${MAPC[s.name] || s.col}`}"></i>`; mp.appendChild(d); d.addEventListener('click', () => pvShow(k));
         const cl = (txt, x, y, an, cls) => { const e = document.createElement('div'); e.className = 'cl ' + (an === 'r' ? 'r ' : '') + (cls || ''); e.style.left = x + '%'; e.style.top = y + '%'; e.textContent = txt; mp.appendChild(e);
           /* keep the word clear of the dot's glow ring: measure it and nudge it up/down until it no longer touches the halo */
           const w = e.offsetWidth, h = e.offsetHeight, px = pc[k][0] * MW / 100, py = pc[k][1] * MH / 100, R = (k === S.station ? 31 : 27) + 3, ax = x * MW / 100; let ay = y * MH / 100;
           for (let n = 0; n < 14; n++) { const cx = an === 'r' ? ax - w / 2 : ax + w / 2, dx = Math.max(Math.abs(cx - px) - w / 2, 0), dy = Math.max(Math.abs(ay - py) - h / 2, 0); if (Math.hypot(dx, dy) >= R) break; ay += (ay >= py ? 2 : -2); }
           e.style.top = (ay / MH * 100).toFixed(2) + '%'; };
         if (cu.n) cl(s.name, cu.n[0], cu.n[1], cu.n[2]); if (cu.d) cl((stations[S.station].pos.distanceTo(s.pos) / 1000 * (s.sys === stations[S.station].sys ? 1 : 3)).toFixed(1) + ' LY', cu.d[0], cu.d[1], cu.d[2], 'dim'); if (k === S.station && CM._you) cl('YOU ARE HERE', cu.x + CM._you[0], cu.y + CM._you[1], CM._you[2], 'you'); return; }
-      d.innerHTML = `<i style="${k === S.station ? '' : `background:${s.col};box-shadow:0 0 12px ${s.col}`}"></i><span>${s.name}<br><small>${k === S.station ? 'YOU ARE HERE' : (stations[S.station].pos.distanceTo(s.pos) / 1000 * (s.sys === stations[S.station].sys ? 1 : 3)).toFixed(1) + ' LY'}</small></span>`; mp.appendChild(d); d.addEventListener('click', () => pvShow(k)); });
+      d.innerHTML = `<i style="${k === S.station ? '' : `background:${MAPC[s.name] || s.col};box-shadow:0 0 12px ${MAPC[s.name] || s.col}`}"></i><span>${s.name}<br><small>${k === S.station ? 'YOU ARE HERE' : (stations[S.station].pos.distanceTo(s.pos) / 1000 * (s.sys === stations[S.station].sys ? 1 : 3)).toFixed(1) + ' LY'}</small></span>`; mp.appendChild(d); d.addEventListener('click', () => pvShow(k)); });
     mp.querySelectorAll('.sysw button').forEach(b => b.addEventListener('click', () => { mapSys = +b.dataset.q; sfx('ui'); openShop($('shop-earn').textContent); }));
     const pvw = document.createElement('div'); pvw.className = 'pvw'; pvw.innerHTML = '<canvas width="120" height="120"></canvas><b></b><small></small><em>drag to spin · tap a station</em>'; mp.appendChild(pvw);
     const pvShow = (k) => { const p = stations[k].pl; pvw.querySelector('b').textContent = (p.lbl || PKIND[p.kind] || 'PLANET'); pvw.querySelector('small').textContent = stations[k].name + ' · ' + ((k * 600000 + p.r * 3000) / 1e6).toFixed(1) + 'M KM'; pvStart(pvw.querySelector('canvas'), k); };
@@ -2004,9 +2006,9 @@ function drawRadar() {
   const c = rctx, W = 320, H = 136, cx = 160, cy = 68, RX = 152, RZ = 60, range = 1500, kx = RX / range, kz = RZ / range;
   c.clearRect(0, 0, W, H);
   c.fillStyle = 'rgba(8,26,40,.34)'; c.fillRect(cx - RX, cy - RZ, RX * 2, RZ * 2);
-  const fov = c.createLinearGradient(0, cy - RZ, 0, cy); fov.addColorStop(0, 'rgba(126,240,255,.16)'); fov.addColorStop(1, 'rgba(126,240,255,0)');
+  const fov = c.createLinearGradient(0, cy - RZ, 0, cy); fov.addColorStop(0, 'rgba(170,140,255,.16)'); fov.addColorStop(1, 'rgba(170,140,255,0)');
   c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx - RX * 0.5, cy - RZ); c.lineTo(cx + RX * 0.5, cy - RZ); c.closePath(); c.fillStyle = fov; c.fill();
-  c.strokeStyle = 'rgba(126,240,255,.2)'; c.lineWidth = 1.5; c.beginPath();
+  c.strokeStyle = 'rgba(170,140,255,.2)'; c.lineWidth = 1.5; c.beginPath();
   c.moveTo(cx, cy - RZ); c.lineTo(cx, cy + RZ); c.moveTo(cx - RX, cy); c.lineTo(cx + RX, cy);
   c.rect(cx - RX / 2, cy - RZ / 2, RX, RZ); c.stroke();
   c.strokeStyle = 'rgba(160,248,255,.9)'; c.lineWidth = 3; c.beginPath(); const L = 22;
