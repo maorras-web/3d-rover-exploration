@@ -653,11 +653,25 @@ function buildManta() {
   c.fillStyle = '#243058'; c.fillRect(0, 0, 512, 16); c.fillStyle = 'rgba(150,110,255,.9)'; c.fillRect(0, 16, 512, 3);
   c.fillStyle = '#3a4570'; c.fillRect(0, 484, 512, 28);
   c.strokeStyle = '#e8ecf5'; c.lineWidth = 3; c.beginPath(); c.arc(256, 330, 22, 0, 6.3); c.stroke(); c.beginPath(); c.moveTo(256, 312); c.lineTo(268, 345); c.lineTo(244, 345); c.closePath(); c.stroke();   // emblem on the spine
+  // weathering (all painted into the same texture - free at runtime): fine speckle, streaks flowing back, soot ahead of the engines, bright edge scratches
+  c.globalAlpha = 1;
+  for (let k = 0; k < 900; k++) { c.fillStyle = 'rgba(20,26,48,' + (0.05 + rnd() * 0.12) + ')'; c.fillRect(rnd() * 512, rnd() * 512, 1 + rnd() * 2, 1 + rnd() * 2); }
+  for (let k = 0; k < 60; k++) { const x = rnd() * 512, y = 20 + rnd() * 380; c.fillStyle = 'rgba(25,30,52,' + (0.04 + rnd() * 0.07) + ')'; c.fillRect(x, y, 1 + rnd() * 1.5, 30 + rnd() * 90); }
+  for (let k = 0; k < 40; k++) { const x = rnd() * 512, y = rnd() * 500; c.strokeStyle = 'rgba(255,255,255,' + (0.12 + rnd() * 0.2) + ')'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(x, y); c.lineTo(x + 6 + rnd() * 14, y + 1 + rnd() * 5); c.stroke(); }
+  const soot = c.createLinearGradient(0, 400, 0, 490); soot.addColorStop(0, 'rgba(10,12,24,0)'); soot.addColorStop(1, 'rgba(10,12,24,.55)'); c.fillStyle = soot; c.fillRect(150, 400, 212, 90);
+  // glow map: only the light strips glow
+  const ev = document.createElement('canvas'); ev.width = 512; ev.height = 512; const e = ev.getContext('2d'); e.fillStyle = '#000'; e.fillRect(0, 0, 512, 512);
+  const glowHalf = () => { e.strokeStyle = '#8f6cf0'; e.lineWidth = 3; e.beginPath(); e.moveTo(88, 22); e.lineTo(148, 300); e.lineTo(114, 470); e.stroke(); e.fillStyle = '#9d7bff'; e.fillRect(170, 158, 70, 7); e.fillRect(190, 170, 50, 3); e.fillStyle = '#ffd24a'; for (let h = 0; h < 5; h++) { e.beginPath(); e.moveTo(168 + h * 14, 392); e.lineTo(176 + h * 14, 392); e.lineTo(168 + h * 14, 404); e.lineTo(160 + h * 14, 404); e.fill(); } e.fillStyle = '#6fe3ff'; for (let v = 0; v < 6; v += 2) e.fillRect(190, 240 + v * 9, 50, 2); };
+  e.save(); e.translate(256, 0); glowHalf(); e.restore(); e.save(); e.translate(256, 0); e.scale(-1, 1); glowHalf(); e.restore();
+  e.fillStyle = '#9d7bff'; e.fillRect(0, 16, 512, 3);
+  const emTex = new THREE.CanvasTexture(ev); emTex.colorSpace = THREE.SRGBColorSpace;
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-  const pos = [], uv = [], idx = [];
+  const pos = [], uv = [], idx = [], col = [];
   const vtx = (s, t, top) => {
     const a = Math.abs(s), z = zle(a) + (zte(a) - zle(a)) * t, h = thick(a, t), y = droop(a) + (top ? h * 0.62 : -h * 0.38);
     pos.push(s * SPAN, y, z); uv.push(s * 0.5 + 0.5, t);
+    // baked ambient occlusion in the vertex colour: darker under the belly and close to the engines, a little darker out at the wing tips
+    const ao = top ? 1 - 0.32 * sm(0.75, 1, t) * Math.exp(-Math.pow(a / 0.35, 2)) - 0.12 * sm(0.8, 1, a) : 0.62 + 0.38 * Math.min(1, a / 0.55); col.push(ao, ao, ao);
   };
   for (const top of [true, false]) {
     const base = pos.length / 3;
@@ -667,10 +681,14 @@ function buildManta() {
       if (top) idx.push(a, b, c2, b, d, c2); else idx.push(a, c2, b, b, c2, d);
     }
   }
+  // close the rim: skin walls between the top and bottom surfaces along the leading edge, trailing edge and both wing tips (no hollow gaps from any angle)
+  { const nB = (NS + 1) * (NT + 1), vi = (i, j) => i * (NT + 1) + j, wall = (a, b) => { idx.push(a, b, a + nB, b, b + nB, a + nB); };
+    for (let i = 0; i < NS; i++) { wall(vi(i, 0), vi(i + 1, 0)); wall(vi(i, NT), vi(i + 1, NT)); }
+    for (let j = 0; j < NT; j++) { wall(vi(0, j), vi(0, j + 1)); wall(vi(NS, j), vi(NS, j + 1)); } }
   const geo = new THREE.BufferGeometry(); const half0 = idx.length / 2; geo.addGroup(0, half0, 0); geo.addGroup(half0, idx.length - half0, 1);
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
-  const hull = new THREE.MeshStandardMaterial({ map: tex, metalness: 0.25, roughness: 0.45, side: THREE.DoubleSide });
-  const hullBot = new THREE.MeshStandardMaterial({ map: tex, color: 0x7d869a, metalness: 0.3, roughness: 0.5, side: THREE.DoubleSide });   // darker underside
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.setIndex(idx); geo.computeVertexNormals();
+  const hull = new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, emissive: 0xffffff, emissiveMap: emTex, emissiveIntensity: 1.15, metalness: 0.25, roughness: 0.45, side: THREE.DoubleSide });
+  const hullBot = new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, emissive: 0xffffff, emissiveMap: emTex, emissiveIntensity: 0.6, color: 0x7d869a, metalness: 0.3, roughness: 0.5, side: THREE.DoubleSide });   // darker underside
   const hullMesh = new THREE.Mesh(geo, [hull, hullBot]); g.add(hullMesh);
   // canopy
   const glass = new THREE.MeshStandardMaterial({ color: 0x0a1020, metalness: 0.9, roughness: 0.08, emissive: 0x1a1240, emissiveIntensity: 0.6 });
