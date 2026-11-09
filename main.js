@@ -1768,35 +1768,88 @@ const trGeoA = trBuild([
   [new THREE.CylinderGeometry(0.26, 0.32, 1.5, 8), 0x4f596d, -0.62, -0.05, 2.35, Math.PI / 2],            // twin engine pods
   [new THREE.CylinderGeometry(0.26, 0.32, 1.5, 8), 0x4f596d, 0.62, -0.05, 2.35, Math.PI / 2],
 ]);
-const trGeoB = trBuild([
-  [new THREE.BoxGeometry(1.7, 1.3, 7.5), 0x8b95a6, 0, 0, 0.6],                                           // main hull
-  [new THREE.BoxGeometry(1.5, 1.05, 2.0), 0xd0d8e4, 0, 0.1, -3.7],                                       // bridge block
-  [new THREE.BoxGeometry(1.1, 0.3, 0.7), 0x2c6fb0, 0, 0.45, -4.5],                                       // windscreen
-  [new THREE.BoxGeometry(1.5, 0.8, 1.7), 0xe08a3a, 0, 1.05, -0.4], [new THREE.BoxGeometry(1.5, 0.8, 1.7), 0x3aa6b8, 0, 1.05, 1.5], [new THREE.BoxGeometry(1.5, 0.8, 1.7), 0xd05a4a, 0, 1.05, 3.4],   // cargo containers on top
-  [new THREE.BoxGeometry(1.5, 0.8, 1.7), 0xdde3ec, 0, -1.05, 0.4], [new THREE.BoxGeometry(1.5, 0.8, 1.7), 0xe0c050, 0, -1.05, 2.3],                                                                          // and underneath
-  [new THREE.CylinderGeometry(0.4, 0.5, 1.4, 8), 0x4f596d, -0.5, 0, 4.7, Math.PI / 2], [new THREE.CylinderGeometry(0.4, 0.5, 1.4, 8), 0x4f596d, 0.5, 0, 4.7, Math.PI / 2],          // engine cluster
-]);
 const trMat = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.15, emissive: 0x39414f });
+// ---- OVUM: big egg-shaped transport for station traffic (one continuous skin whose tail splits into two welded engine lobes; one merged geometry, drawn instanced) ----
+const OVUM = (() => {
+const Eu = new THREE.Euler(), Mq = new THREE.Matrix4();
+// lathe along z (nose toward -z): profile = [[z, radius], ...]
+const lathe = (prof, seg = 16) => { const g = new THREE.LatheGeometry(prof.map(([z, r]) => new THREE.Vector2(Math.max(r, 0.0001), z)), seg); g.rotateX(Math.PI / 2); return g; };
+// flat rounded plate extruded in y (a wing / fin seen from above), outline = [[x, z], ...]
+const plate = (pts, t, bev = 0.05) => { const s = new THREE.Shape(); pts.forEach(([x, z], i) => i ? s.lineTo(x, z) : s.moveTo(x, z)); const g = new THREE.ExtrudeGeometry(s, { depth: t, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 2, curveSegments: 6 }); g.rotateX(Math.PI / 2); g.translate(0, t / 2, 0); return g; };
+
+function trafficG() {
+  const P = [], HULL = 0xffffff, DARK = 0x2a2f38, ENG = 0x1a1d24, RING = 0x9a8a72;
+  const keep = (geo, c, p = [0, 0, 0], r = [0, 0, 0], s = [1, 1, 1]) => { let g = geo.index ? geo.toNonIndexed() : geo.clone(); g.clearGroups(); if (g.attributes.uv1) g.deleteAttribute('uv1');
+    Mq.compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(Eu.set(...r)), new THREE.Vector3(...s)); g.applyMatrix4(Mq);
+    const n = g.attributes.position.count, col = new Float32Array(n * 3), cc = new THREE.Color(c); for (let q = 0; q < n; q++) { col[q * 3] = cc.r; col[q * 3 + 1] = cc.g; col[q * 3 + 2] = cc.b; } g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(n * 2).fill(0.02), 2)); P.push(g); };
+  // ONE continuous skin: the egg's cross-section morphs into two engine lobes at the tail (a smooth "soft union" of the egg ellipse and two circles),
+  // so the engines grow out of the hull like a perfect weld - no parts sinking into each other
+  const sm = (a, b, x) => { x = Math.min(1, Math.max(0, (x - a) / (b - a))); return x * x * (3 - 2 * x); };
+  const egg = (z) => { const pr = [[-5.1, 0], [-5.0, 0.22], [-4.75, 0.55], [-4.3, 0.98], [-3.6, 1.42], [-2.6, 1.84], [-1.3, 2.14], [0.2, 2.28], [1.6, 2.24], [2.7, 2.0], [3.5, 1.62], [4.05, 1.14], [4.3, 0.62], [4.38, 0]];
+    if (z <= pr[0][0]) return 0; for (let i = 1; i < pr.length; i++) if (z <= pr[i][0]) { const t = (z - pr[i - 1][0]) / (pr[i][0] - pr[i - 1][0]); return pr[i - 1][1] + (pr[i][1] - pr[i - 1][1]) * t; } return 0; };
+  const ZE = 5.0, NX = 1.25, NY = 0.12;
+  const lobe = (z) => z < 1.0 ? 0 : z < 2.8 ? 1.0 * sm(1.0, 2.8, z) : z < 4.7 ? 1.0 : 1.0 - 0.1 * sm(4.7, 4.95, z);   // engine lobe radius along the hull
+  const F = (x, y, z) => { const eR = Math.max(egg(Math.min(z, 4.0)) * (z > 4.0 ? Math.max(0.42, 1 - (z - 4.0) * 0.55) : 1), 0.001);   // egg ellipse, kept as a waist between the lobes at the tail
+      const de = (Math.hypot(x / 1.08, y / 0.86) - eR) * 0.95; const rl = lobe(z);
+      const d1 = rl > 0 ? Math.hypot(x - NX, y - NY) - rl : 9, d2 = rl > 0 ? Math.hypot(x + NX, y - NY) - rl : 9, dl = Math.min(d1, d2);
+      const k = 0.55, h = Math.max(k - Math.abs(de - dl), 0) / k; return Math.min(de, dl) - h * h * k * 0.25; };   // smooth union = the weld fillet
+  const NZ = 46, NA = 40, pos = [], uvA = [], idx = [];
+  for (let i = 0; i <= NZ; i++) { const t = i / NZ, z = -5.1 + (ZE + 5.1) * (1 - Math.cos(t * Math.PI)) / 2;   // more rings near the nose and the tail
+    for (let j = 0; j <= NA; j++) { const ph = j / NA * Math.PI * 2, dx = Math.sin(ph), dy = -Math.cos(ph); let r = 0;
+      if (i > 0 && i < NZ) { let lo = 0, hi = 3.6; for (let it = 0; it < 26; it++) { const m = (lo + hi) / 2; if (F(dx * m, dy * m, z) < 0) lo = m; else hi = m; } r = lo; }   // radius of the skin along this direction
+      pos.push(dx * r, dy * r, z); uvA.push(j / NA, t); } }
+  for (let i = 0; i < NZ; i++) for (let j = 0; j < NA; j++) { const a0 = i * (NA + 1) + j, b0 = a0 + NA + 1; idx.push(a0, b0, a0 + 1, a0 + 1, b0, b0 + 1); }
+  const sk = new THREE.BufferGeometry(); sk.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); sk.setAttribute('uv', new THREE.Float32BufferAttribute(uvA, 2)); sk.setIndex(idx); sk.computeVertexNormals();
+  keep(sk, HULL);
+  for (const s of [-1, 1]) {   // nozzles set INTO the rear face of each lobe: a dark recessed bell and a thin bronze lip, nothing sticking out
+    keep(lathe([[4.93, 0.84], [4.96, 0.6], [5.04, 0.55], [5.05, 0]], 20), ENG, [s * NX, NY, 0]);
+    keep(new THREE.TorusGeometry(0.85, 0.05, 5, 28), RING, [s * NX, NY, 4.95]);
+  }
+  keep(lathe([[-3.0, 0], [-2.8, 0.3], [-1.6, 0.42], [0.6, 0.42], [1.0, 0]], 12), DARK, [0, 1.78, 0], [0, 0, 0], [1, 0.5, 1]);                     // raised bridge ridge on the spine
+  for (const s of [-1, 1]) {
+    keep(plate([[0, 0], [s * 1.0, 0.5], [s * 1.1, 0.95], [0, 0.8]], 0.08, 0.03), DARK, [s * 2.1, -0.1, -3.2]);                               // small nose fin
+  }
+  keep(plate([[0, 2.0], [0, 3.6], [1.1, 3.9], [1.0, 3.1]], 0.08, 0.03), DARK, [0.04, 1.6, 0], [0, 0, Math.PI / 2]);                            // dorsal fin
+  return mergeGeometries(P);
+}
+// panel texture for the egg: light plates with dark seams, a dark keel stripe along the top, portholes near the nose (painted once, 512x256)
+function ovumTex() {
+  const W = 512, H = 256, c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+  let sd = 3; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  x.fillStyle = '#5a616d'; x.fillRect(0, 0, W, H);
+  const cuts = [];
+  for (let row = 0; row < 8; row++) { const y0 = row * 32; let x0 = -rn() * 40; while (x0 < W) { const w = 28 + rn() * 50, v = Math.round(78 + rn() * 26); x.fillStyle = 'rgb(' + (v - 4) + ',' + v + ',' + (v + 9) + ')'; x.fillRect(x0 + 1, y0 + 1, w - 2, 30); cuts.push([x0, y0]); x0 += w; } }   // dark gunmetal plates, each a slightly different shade
+  x.fillStyle = '#16191f'; for (let row = 0; row <= 8; row++) x.fillRect(0, row * 32 - 1, W, 2); for (const [cx, cy] of cuts) x.fillRect(cx - 1, cy, 2, 32);   // dark seams
+  x.fillStyle = 'rgba(190,200,215,0.55)'; for (let row = 0; row < 8; row++) x.fillRect(0, row * 32 + 1, W, 1); for (const [cx, cy] of cuts) x.fillRect(cx + 1, cy + 1, 1, 30);   // bright bevel edge beside each seam
+  x.fillStyle = '#25292f'; x.fillRect(W * 0.5 - 24, 30, 48, H - 44); x.fillStyle = '#1a1d22'; x.fillRect(W * 0.5 - 10, 30, 20, H - 44); x.fillStyle = '#25292f'; x.fillRect(W * 0.5 - 40, 70, 80, 60);   // keel stripe on top
+  x.fillStyle = '#ffd890'; for (let k = 0; k < 7; k++) { x.beginPath(); x.arc(W * 0.3 + k * 9, H - 40, 2.6, 0, 7); x.fill(); x.beginPath(); x.arc(W * 0.7 - k * 9, H - 40, 2.6, 0, 7); x.fill(); }   // portholes
+  x.fillStyle = '#2a2f37'; for (let k = 0; k < 4; k++) x.fillRect(W * (0.02 + k * 0.25), 36, 30, 10);   // vents near the tail
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+  return { geo: trafficG(), tex: ovumTex() };
+})();
+
 const trMesh = new THREE.InstancedMesh(trGeoA, trMat(), TR_N); trMesh.frustumCulled = false; trMesh.count = 0; scene.add(trMesh);
-const trMeshB = new THREE.InstancedMesh(trGeoB, trMat(), TR_N); trMeshB.frustumCulled = false; trMeshB.count = 0; scene.add(trMeshB);
+const trMeshB = new THREE.InstancedMesh(OVUM.geo, new THREE.MeshStandardMaterial({ vertexColors: true, map: OVUM.tex, bumpMap: OVUM.tex, bumpScale: 1.5, metalness: 0.95, roughness: 0.24, envMap: SHIP_ENV, envMapIntensity: 2.2, emissive: 0x0b0d12 }), TR_N); trMeshB.frustumCulled = false; trMeshB.count = 0; scene.add(trMeshB);   // the third ship at every station is now the big OVUM transport (was the boxy freighter)
 // four glow points per ship: two engines (blue-white) and red / green wing-tip lights (colours are fixed, only positions move)
 const trLpos = new Float32Array(TR_N * 12), trLcol = new Float32Array(TR_N * 12), trLGeo = new THREE.BufferGeometry(); trLGeo.setAttribute('position', new THREE.BufferAttribute(trLpos, 3));
 { const pat = [[0.62, 0.9, 1], [0.62, 0.9, 1], [1, 0.2, 0.2], [0.2, 1, 0.35]]; for (let q = 0; q < TR_N * 4; q++) { const c = pat[q & 3]; trLcol[q * 3] = c[0]; trLcol[q * 3 + 1] = c[1]; trLcol[q * 3 + 2] = c[2]; } trLGeo.setAttribute('color', new THREE.BufferAttribute(trLcol, 3)); }
 const trLights = new THREE.Points(trLGeo, new THREE.PointsMaterial({ vertexColors: true, map: glowTex, size: 2.6, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false })); trLights.frustumCulled = false; trLights.visible = false; scene.add(trLights);
 const _tc = new THREE.Color(), TR_U = [], TR_V = [];
 stations.forEach((st, k) => { const n = V3(Math.sin(k * 1.7), 1.2, Math.cos(k * 2.3)).normalize(), u = V3(1, 0, 0).cross(n).normalize(), v = n.clone().cross(u); TR_U.push(u); TR_V.push(v); });
-const _tq = new THREE.Quaternion(), _tp = V3(), _tt = V3(), _ts = V3(2.6, 2.6, 2.6), _tsB = V3(3.1, 3.1, 3.1);
+const _tq = new THREE.Quaternion(), _tp = V3(), _tt = V3(), _ts = V3(2.6, 2.6, 2.6), _tsB = V3(9.3, 9.3, 9.3);
 function updateTraffic() {
   let nA = 0, nB = 0, nl = 0;
   for (let k = 0; k < stations.length; k++) { const st = stations[k]; if (!st.g.visible) continue;
     for (let j = 0; j < TR_K; j++) { const dir = (j & 1) ? -1 : 1, th = tAcc * dir * (0.13 - j * 0.02) + j * 2.09 + k, R = 175 + j * 48, c = Math.cos(th), sn = Math.sin(th), u = TR_U[k], v = TR_V[k], fr = j === 2;
       _tp.set(st.pos.x + (u.x * c + v.x * sn) * R, st.pos.y + (u.y * c + v.y * sn) * R, st.pos.z + (u.z * c + v.z * sn) * R);
       _tt.set((-u.x * sn + v.x * c) * dir, (-u.y * sn + v.y * c) * dir, (-u.z * sn + v.z * c) * dir);
-      _m.lookAt(_zero, _tt, Y); _tq.setFromRotationMatrix(_m); const M = _m.elements, ks = fr ? 3.1 : 2.6;
-      if (fr) { trMeshB.setMatrixAt(nB, dummy.matrix.compose(_tp, _tq, _tsB)); trMeshB.setColorAt(nB, _tc.setHSL((k * 0.13 + j * 0.31) % 1, 0.18, 0.95)); nB++; }
+      _m.lookAt(_zero, _tt, Y); _tq.setFromRotationMatrix(_m); const M = _m.elements, ks = fr ? 9.3 : 2.6;
+      if (fr) { trMeshB.setMatrixAt(nB, dummy.matrix.compose(_tp, _tq, _tsB)); trMeshB.setColorAt(nB, _tc.setRGB(1, 1, 1)); nB++; }
       else { trMesh.setMatrixAt(nA, dummy.matrix.compose(_tp, _tq, _ts)); trMesh.setColorAt(nA, _tc.setHSL((k * 0.13 + j * 0.31) % 1, 0.25, 0.92)); nA++; }
       // glow points: engines behind the hull, wing-tip lights out on the wings (right vector = first column of the look-at matrix)
-      const ex = fr ? 0.5 : 0.62, ez = fr ? 5.4 : 3.1, wx = fr ? 0 : 3.2, wz = fr ? 0 : 1.6, o = nl * 12;
+      const ex = fr ? 1.25 : 0.62, ez = fr ? 5.1 : 3.1, wx = fr ? 0 : 3.2, wz = fr ? 0 : 1.6, o = nl * 12;
       trLpos[o] = _tp.x - _tt.x * ez * ks - M[0] * ex * ks; trLpos[o + 1] = _tp.y - _tt.y * ez * ks - M[1] * ex * ks; trLpos[o + 2] = _tp.z - _tt.z * ez * ks - M[2] * ex * ks;
       trLpos[o + 3] = _tp.x - _tt.x * ez * ks + M[0] * ex * ks; trLpos[o + 4] = _tp.y - _tt.y * ez * ks + M[1] * ex * ks; trLpos[o + 5] = _tp.z - _tt.z * ez * ks + M[2] * ex * ks;
       trLpos[o + 6] = _tp.x - M[0] * wx * ks + _tt.x * 0.0 - _tt.x * wz * ks * 0.4; trLpos[o + 7] = _tp.y - M[1] * wx * ks - _tt.y * wz * ks * 0.4; trLpos[o + 8] = _tp.z - M[2] * wx * ks - _tt.z * wz * ks * 0.4;
