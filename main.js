@@ -1442,7 +1442,7 @@ const planets = [];
     const cop = PNEW[s.name] !== undefined ? PNEW[s.name] : CLOUDS[p.kind]; if (cop) { const cm = new THREE.Mesh(geo, cloudMat(cloudTex[planets.length & 1], cop)); cm.scale.setScalar(1.03); pm.add(cm); p.cl = cm; }
     if (MOONS[p.kind]) { const mo = new THREE.Mesh(geo, planetMat(moonTex, [0.55, 0.6, 0.7], 0)); mo.scale.setScalar(MOONS[p.kind]); pm.add(mo); p.moon = mo; p.mt = Math.random() * 6; }
     p.g0 = geo; p.g1 = geoLo; { const hm = new THREE.Mesh(geo, haloMat(p.atm)); p.hm = hm; hm.scale.setScalar(1.12); pm.add(hm); }
-    if (p.ring) {
+    if (false && p.ring) {   // planet rings removed on request (set back to `if (p.ring)` to restore)
       const cv = document.createElement('canvas'); cv.width = cv.height = 256; const x = cv.getContext('2d');
       for (let r = 128; r > 0; r -= 1.5) { const t = r / 128, inRing = t > 0.62 && t < 0.99, a = inRing ? 0.25 + 0.55 * Math.abs(Math.sin(r * 0.55) * Math.cos(r * 0.17)) : 0; x.strokeStyle = 'rgba(' + (225 - (r % 7) * 6) + ',' + (190 - (r % 5) * 6) + ',' + (150 - (r % 9) * 4) + ',' + (t > 0.78 && t < 0.82 ? 0.05 : a) + ')'; x.lineWidth = 1.7; x.beginPath(); x.arc(128, 128, r, 0, Math.PI * 2); x.stroke(); }
       const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace;
@@ -1803,7 +1803,7 @@ function updateWarp(dt) {
   WP.t += dt; fwdOf(S.q, fwd); S.speed = 160 + WP.t * 420; S.pos.addScaledVector(fwd, S.speed * dt); S.vel.copy(fwd).multiplyScalar(S.speed);
   if (!WP.done && WP.t >= (WP.far ? 1.9 : 1.25)) {
     WP.done = true; homeSt = anchorSt = WP.to; for (const q of planets) { q.fd = null; q.vf = 0; q.sm = 1; }   /* the sky layout of the new home snaps into place while the screen is white (before, the other planets slid and resized for a second after arriving) */ tunnelEl.classList.remove('on'); const st = stations[WP.to];
-    { const od = st.pl.off.clone().normalize(), pp = V3().crossVectors(od, Y); if (pp.lengthSq() < 0.01) pp.set(1, 0, 0); pp.normalize(); S.pos.copy(st.pos).addScaledVector(od, -1100 * 0.57).addScaledVector(pp, -1100 * 0.82); }   // arrive 55 degrees off to the side of the planet, so the station is seen against space beside it and not in front of its middle
+    { const od = st.pl.off.clone().normalize(); S.pos.copy(st.pos).addScaledVector(od, -1100); }   // arrive on the line planet -> station -> you: the station stands directly in front of its own planet (the planet is drawn behind the station from this side)
     _m.lookAt(_zero, _a.copy(st.pos).sub(S.pos).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
     fxUntil = performance.now() + 4000; S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); wpnChip(); fadeOut(); if (WP.far) { fadeEl.style.transition = 'opacity 1.1s ease-out'; setTimeout(() => { fadeEl.style.background = ''; }, 1300); }
   }
