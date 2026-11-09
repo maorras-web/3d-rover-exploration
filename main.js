@@ -1028,7 +1028,7 @@ function buildStation(name, col, V) {
     cz(14.5, 14.5, 9, -13, 18); cz(14, 14, 7, 39, 18); cz(13.2, 13.2, 5, 51, 18);   // lit habitat belt round the tower, and two more on the longer lower tower
     for (let k = 0; k < 3; k++) { const an = k * 2.0944 + 0.52, d = new THREE.Vector3(Math.cos(an), Math.sin(an), 0), q = Qq.clone().setFromUnitVectors(Y, d);
       put(new THREE.CylinderGeometry(6.4, 6.4, 40, 16, 1, true), [d.x * 30, d.y * 30, -16], q);   // arm body (open at the tip: it is a docking tunnel)
-      put(new THREE.TorusGeometry(7.1, 0.8, 8, 20), [d.x * 50, d.y * 50, -16], Qq.clone().setFromUnitVectors(Z, d));   // heavy rim round the mouth
+      put(new THREE.TorusGeometry(7.0, 0.8, 8, 20), [d.x * 50, d.y * 50, -16], Qq.clone().setFromUnitVectors(Z, d));   // heavy rim round the mouth
       put(RB(6, 0.3), [d.x * 30, d.y * 30, -24.6], Qq.clone().setFromAxisAngle(Z, an), [26, 7, 3.2]); }   // armoured block on top of each arm
   }
   const citNz = [], legN = parts.length;   // everything pushed from here to the antennae = struts + tail blades -> polished leg metal instead of the window-lit hull
@@ -1078,7 +1078,7 @@ function buildStation(name, col, V) {
       for (const y of [4, 68]) { x.fillStyle = '#7dffb0'; x.beginPath(); x.moveTo(14, y + 14); x.lineTo(64, y); x.lineTo(114, y + 14); x.lineTo(114, y + 22); x.lineTo(64, y + 8); x.lineTo(14, y + 22); x.fill(); } }, [8, 5]);   // glowing chevrons that point down the tunnel
     g.userData.tun = tT;
     const tm = new THREE.MeshBasicMaterial({ map: tT, color: 0xb0c0d0, side: THREE.BackSide, toneMapped: false, fog: false }), cm = new THREE.MeshBasicMaterial({ map: canvasTex(64, 64, (x) => { const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, '#eafff2'); g.addColorStop(0.3, '#5dffa6'); g.addColorStop(0.7, '#0f3a2a'); g.addColorStop(1, '#06120e'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); }), toneMapped: false, fog: false });   /* end of the lane: cool green-white like the guide lights (was the orange hangar cap = the 'red light') */
-    const hgm = new THREE.CircleGeometry(6.3, 20, 0, Math.PI); hgm.translate(0, -6.3, 0); const tubeG = new THREE.CylinderGeometry(6.0, 6.0, 33, 16, 1, true), capG = new THREE.CircleGeometry(6.0, 20);
+    const hgm = new THREE.CircleGeometry(6.3, 20, 0, Math.PI); hgm.translate(0, -6.3, 0); const tubeG = new THREE.CylinderGeometry(6.35, 6.35, 33.6, 16, 1, true), capG = new THREE.CircleGeometry(6.35, 20);
     g.userData.doors = []; g.userData.mouths = [];
     for (let k = 0; k < 3; k++) { const an = k * 2.0944 + 0.52, d = new THREE.Vector3(Math.cos(an), Math.sin(an), 0), qz = Qq.clone().setFromUnitVectors(Z, d), qy = Qq.clone().setFromUnitVectors(Y, d);
       const tube = new THREE.Mesh(tubeG, tm); tube.position.set(d.x * 33, d.y * 33, -16); tube.quaternion.copy(qy); g.add(tube);
