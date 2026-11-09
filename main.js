@@ -627,51 +627,57 @@ function buildManta() {
   const sm = (a, b, x) => { x = Math.min(1, Math.max(0, (x - a) / (b - a))); return x * x * (3 - 2 * x); };
   const zle = (a) => -7.6 + 8.6 * Math.pow(a, 1.15);          // leading edge: nose -> swept wing tip
   const zte = (a) => 5.6 - 3.7 * Math.pow(sm(0.15, 1, a), 0.85);   // smooth swept trailing edge
-  const thick = (a, t) => (1.55 * Math.exp(-Math.pow(a / 0.2, 2)) + 0.62 * Math.pow(1 - a, 1.0) + 0.16) * Math.max(Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, t * 0.92 + 0.04))), 0.38), 0.8 * Math.exp(-Math.pow(a / 0.3, 2)) * Math.pow(t, 6));
+  const thick = (a, t) => 1.4 * (1.55 * Math.exp(-Math.pow(a / 0.26, 2)) + 0.62 * Math.pow(1 - a, 1.0) + 0.16) * Math.max(Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, t * 0.92 + 0.04))), 0.38), 0.8 * Math.exp(-Math.pow(a / 0.3, 2)) * Math.pow(t, 6));
   const droop = (a) => -0.7 * a * a * a - 0.08 * a * a;
-  // panel texture: painted, bevelled panels (mirrored left/right), rivets, vents - all in one 512px canvas
-  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 512; const c = cv.getContext('2d');
-  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const grd = c.createLinearGradient(0, 0, 512, 0); grd.addColorStop(0, '#8d97aa'); grd.addColorStop(.5, '#cfd5df'); grd.addColorStop(1, '#8d97aa'); c.fillStyle = grd; c.fillRect(0, 0, 512, 512);
-  c.save(); c.translate(256, 0);
-  const half = () => {   // drawn for x in 0..256 (right half); mirrored for the left
-    const cols = [0, 40, 92, 150, 210, 256];
-    for (let r = 0; r < 9; r++) for (let k = 0; k < 5; k++) {
-      const x0 = cols[k] + 2, x1 = cols[k + 1] - 2, y0 = 20 + r * 52 + k * 5 + 2, y1 = y0 + 48;
-      const sh = 0.86 + rnd() * 0.24; c.fillStyle = 'rgb(' + (198 * sh | 0) + ',' + (205 * sh | 0) + ',' + (217 * sh | 0) + ')'; c.fillRect(x0, y0, x1 - x0, y1 - y0);
-      c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(x0, y1); c.lineTo(x0, y0); c.lineTo(x1, y0); c.stroke();
-      c.strokeStyle = 'rgba(25,32,58,.7)'; c.beginPath(); c.moveTo(x1, y0); c.lineTo(x1, y1); c.lineTo(x0, y1); c.stroke();
-      c.fillStyle = 'rgba(40,48,78,.8)'; for (const [rx, ry] of [[x0 + 3, y0 + 3], [x1 - 4, y0 + 3], [x0 + 3, y1 - 4], [x1 - 4, y1 - 4]]) c.fillRect(rx, ry, 1.6, 1.6);
+  // ---- armour texture: faceted plates (a Voronoi pattern cut by dark seams), brushed metal, glowing light slots, vents, scratches. Painted ONCE into one canvas + one glow canvas (free at runtime) ----
+  const R = 512, cv = document.createElement('canvas'); cv.width = R; cv.height = R; const c = cv.getContext('2d');
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const seeds = []; for (let gy = 0; gy < 12; gy++) for (let gx = 0; gx < 5; gx++) seeds.push([256 + (gx + 0.12 + rnd() * 0.76) * 51.2, (gy + 0.12 + rnd() * 0.76) * 42.7]);
+  const cellSh = seeds.map(() => 0.66 + rnd() * 0.34);
+  { const img = c.createImageData(R, R), px = img.data;
+    for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) {
+      const mx = x < 256 ? 511 - x : x; let d1 = 1e9, d2 = 1e9, k = 0;
+      for (let i = 0; i < seeds.length; i++) { const dx = mx - seeds[i][0], dy = y - seeds[i][1], dd = dx * dx + dy * dy; if (dd < d1) { d2 = d1; d1 = dd; k = i; } else if (dd < d2) d2 = dd; }
+      const edge = Math.sqrt(d2) - Math.sqrt(d1), cx = mx - 256;
+      let sh = cellSh[k] * (0.97 + 0.03 * Math.sin(y * 1.7 + cx * 0.05)) + (seeds[k][1] - y) * 0.0012 + (seeds[k][0] - mx) * 0.0008;   // each plate is lit slightly from one corner
+      let r = 176, g = 182, b = 194;
+      if (cx < 112 && y > 28 && y < 478) { r = 98; g = 108; b = 148; }   // the central body is darker, bluish steel
+      if (edge < 2.4) { r = 20; g = 24; b = 40; sh = 1; } else if (edge < 3.8) sh *= 1.22;   // seam, then a bright bevel next to it
+      const o = (y * R + x) * 4; px[o] = Math.min(255, r * sh); px[o + 1] = Math.min(255, g * sh); px[o + 2] = Math.min(255, b * sh); px[o + 3] = 255;
     }
-    c.fillStyle = '#1f2850'; c.beginPath(); c.moveTo(0, 20); c.lineTo(86, 20); c.lineTo(146, 300); c.lineTo(112, 470); c.lineTo(0, 470); c.closePath(); c.fill();   // dark spine
-    c.strokeStyle = 'rgba(150,120,255,.8)'; c.lineWidth = 2; c.beginPath(); c.moveTo(88, 22); c.lineTo(148, 300); c.lineTo(114, 470); c.stroke();
-    c.fillStyle = '#0d1226'; for (let v = 0; v < 6; v++) c.fillRect(190, 240 + v * 9, 50, 4);   // vent slats
-    c.fillStyle = 'rgba(150,110,255,.95)'; c.fillRect(170, 158, 70, 7); c.fillRect(190, 170, 50, 3);
-    c.fillStyle = 'rgba(250,200,60,.9)'; for (let h = 0; h < 5; h++) { c.beginPath(); c.moveTo(168 + h * 14, 392); c.lineTo(176 + h * 14, 392); c.lineTo(168 + h * 14, 404); c.lineTo(160 + h * 14, 404); c.fill(); }
+    c.putImageData(img, 0, 0); }
+  const ev = document.createElement('canvas'); ev.width = R; ev.height = R; const e = ev.getContext('2d'); e.fillStyle = '#000'; e.fillRect(0, 0, R, R);
+  const rr = (x, ctx, x0, y0, w, h, r) => { ctx.beginPath(); ctx.moveTo(x0 + r, y0); ctx.arcTo(x0 + w, y0, x0 + w, y0 + h, r); ctx.arcTo(x0 + w, y0 + h, x0, y0 + h, r); ctx.arcTo(x0, y0 + h, x0, y0, r); ctx.arcTo(x0, y0, x0 + w, y0, r); ctx.closePath(); };
+  // glowing light slot: a dark inset in the armour + the same shape painted bright on the glow map
+  const slot = (x0, y0, w, h, r) => { rr(0, c, x0 - 3, y0 - 3, w + 6, h + 6, r + 2); c.fillStyle = '#0c1024'; c.fill(); rr(0, c, x0, y0, w, h, r); c.fillStyle = '#7d5ee0'; c.fill(); rr(0, e, x0 - 1, y0 - 1, w + 2, h + 2, r); e.fillStyle = '#7a5be0'; e.fill(); rr(0, e, x0 + w * 0.25, y0 + h * 0.12, w * 0.5, h * 0.76, r * 0.6); e.fillStyle = '#e7ddff'; e.fill(); };
+  const vent = (x0, y0, w, h) => { c.fillStyle = '#080b18'; c.fillRect(x0 - 2, y0 - 2, w + 4, h + 4); c.fillStyle = '#4a5472'; for (let v = 0; v < h; v += 5) c.fillRect(x0, y0 + v, w, 2); };
+  const half = () => {
+    slot(30, 70, 11, 78, 5); slot(30, 238, 11, 66, 5);                 // long slots down the spine
+    slot(62, 130, 9, 34, 4); slot(62, 330, 9, 40, 4);                 // short pairs
+    slot(112, 190, 74, 11, 5); slot(124, 214, 62, 8, 4);              // wing light bars
+    slot(150, 330, 60, 9, 4);                                         // outer wing bar
+    vent(104, 262, 40, 26); vent(160, 120, 30, 22);                    // slatted vents
+    c.fillStyle = 'rgba(250,200,60,.95)'; e.fillStyle = '#ffd24a'; for (let h = 0; h < 4; h++) for (const cx of [c, e]) { cx.beginPath(); cx.moveTo(176 + h * 13, 428); cx.lineTo(183 + h * 13, 428); cx.lineTo(176 + h * 13, 440); cx.lineTo(169 + h * 13, 440); cx.fill(); }
   };
-  half(); c.restore(); c.save(); c.translate(256, 0); c.scale(-1, 1); half(); c.restore();
-  c.fillStyle = '#243058'; c.fillRect(0, 0, 512, 16); c.fillStyle = 'rgba(150,110,255,.9)'; c.fillRect(0, 16, 512, 3);
-  c.fillStyle = '#3a4570'; c.fillRect(0, 484, 512, 28);
-  c.strokeStyle = '#e8ecf5'; c.lineWidth = 3; c.beginPath(); c.arc(256, 330, 22, 0, 6.3); c.stroke(); c.beginPath(); c.moveTo(256, 312); c.lineTo(268, 345); c.lineTo(244, 345); c.closePath(); c.stroke();   // emblem on the spine
-  // weathering (all painted into the same texture - free at runtime): fine speckle, streaks flowing back, soot ahead of the engines, bright edge scratches
-  c.globalAlpha = 1;
-  for (let k = 0; k < 900; k++) { c.fillStyle = 'rgba(20,26,48,' + (0.05 + rnd() * 0.12) + ')'; c.fillRect(rnd() * 512, rnd() * 512, 1 + rnd() * 2, 1 + rnd() * 2); }
-  for (let k = 0; k < 60; k++) { const x = rnd() * 512, y = 20 + rnd() * 380; c.fillStyle = 'rgba(25,30,52,' + (0.04 + rnd() * 0.07) + ')'; c.fillRect(x, y, 1 + rnd() * 1.5, 30 + rnd() * 90); }
-  for (let k = 0; k < 40; k++) { const x = rnd() * 512, y = rnd() * 500; c.strokeStyle = 'rgba(255,255,255,' + (0.12 + rnd() * 0.2) + ')'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(x, y); c.lineTo(x + 6 + rnd() * 14, y + 1 + rnd() * 5); c.stroke(); }
-  const soot = c.createLinearGradient(0, 400, 0, 490); soot.addColorStop(0, 'rgba(10,12,24,0)'); soot.addColorStop(1, 'rgba(10,12,24,.55)'); c.fillStyle = soot; c.fillRect(150, 400, 212, 90);
-  // glow map: only the light strips glow
-  const ev = document.createElement('canvas'); ev.width = 512; ev.height = 512; const e = ev.getContext('2d'); e.fillStyle = '#000'; e.fillRect(0, 0, 512, 512);
-  const glowHalf = () => { e.strokeStyle = '#8f6cf0'; e.lineWidth = 3; e.beginPath(); e.moveTo(88, 22); e.lineTo(148, 300); e.lineTo(114, 470); e.stroke(); e.fillStyle = '#9d7bff'; e.fillRect(170, 158, 70, 7); e.fillRect(190, 170, 50, 3); e.fillStyle = '#ffd24a'; for (let h = 0; h < 5; h++) { e.beginPath(); e.moveTo(168 + h * 14, 392); e.lineTo(176 + h * 14, 392); e.lineTo(168 + h * 14, 404); e.lineTo(160 + h * 14, 404); e.fill(); } e.fillStyle = '#6fe3ff'; for (let v = 0; v < 6; v += 2) e.fillRect(190, 240 + v * 9, 50, 2); };
-  e.save(); e.translate(256, 0); glowHalf(); e.restore(); e.save(); e.translate(256, 0); e.scale(-1, 1); glowHalf(); e.restore();
-  e.fillStyle = '#9d7bff'; e.fillRect(0, 16, 512, 3);
+  c.save(); c.translate(256, 0); e.save(); e.translate(256, 0); half(); c.restore(); e.restore();
+  c.save(); c.translate(256, 0); c.scale(-1, 1); e.save(); e.translate(256, 0); e.scale(-1, 1); half(); c.restore(); e.restore();
+  c.fillStyle = '#7a85a8'; c.fillRect(0, 0, R, 16); c.fillStyle = '#1b2140'; for (let x = 0; x < R; x += 42) c.fillRect(x, 0, 2, 16); c.fillRect(0, 13, R, 3); c.fillStyle = '#a98bff'; c.fillRect(0, 16, R, 3); e.fillStyle = '#a98bff'; e.fillRect(0, 16, R, 3);   // glowing leading edge
+  c.fillStyle = '#7a85a8'; c.fillRect(0, 486, R, 26); c.fillStyle = '#1b2140'; for (let x = 0; x < R; x += 42) c.fillRect(x, 486, 2, 26); c.fillRect(0, 486, R, 2);   // rear wall: plain steel with panel seams
+  c.strokeStyle = '#e8ecf5'; c.lineWidth = 3; c.beginPath(); c.arc(256, 400, 20, 0, 6.3); c.stroke(); c.beginPath(); c.moveTo(256, 383); c.lineTo(267, 413); c.lineTo(245, 413); c.closePath(); c.stroke();   // emblem
+  // wear: fine speckle, streaks flowing back, soot ahead of the engines, bright scratches
+  for (let k = 0; k < 900; k++) { c.fillStyle = 'rgba(20,26,48,' + (0.05 + rnd() * 0.12) + ')'; c.fillRect(rnd() * R, rnd() * R, 1 + rnd() * 2, 1 + rnd() * 2); }
+  for (let k = 0; k < 70; k++) { const x = rnd() * R, y = 20 + rnd() * 380; c.fillStyle = 'rgba(25,30,52,' + (0.04 + rnd() * 0.07) + ')'; c.fillRect(x, y, 1 + rnd() * 1.5, 30 + rnd() * 90); }
+  for (let k = 0; k < 70; k++) { const x = rnd() * R, y = rnd() * 500; c.strokeStyle = 'rgba(255,255,255,' + (0.15 + rnd() * 0.25) + ')'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(x, y); c.lineTo(x + 6 + rnd() * 16, y + 1 + rnd() * 6); c.stroke(); }
+  const soot = c.createLinearGradient(0, 410, 0, 490); soot.addColorStop(0, 'rgba(10,12,24,0)'); soot.addColorStop(1, 'rgba(10,12,24,.55)'); c.fillStyle = soot; c.fillRect(150, 410, 212, 80);
   const emTex = new THREE.CanvasTexture(ev); emTex.colorSpace = THREE.SRGBColorSpace;
+
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
   const pos = [], uv = [], idx = [], col = [];
   const vtx = (s, t, top) => {
     const a = Math.abs(s), z = zle(a) + (zte(a) - zle(a)) * t, h = thick(a, t), y = droop(a) + (top ? h * 0.62 : -h * 0.38);
     pos.push(s * SPAN, y, z); uv.push(s * 0.5 + 0.5, t);
     // baked ambient occlusion in the vertex colour: darker under the belly and close to the engines, a little darker out at the wing tips
-    const ao = top ? 1 - 0.32 * sm(0.75, 1, t) * Math.exp(-Math.pow(a / 0.35, 2)) - 0.12 * sm(0.8, 1, a) : 0.62 + 0.38 * Math.min(1, a / 0.55); col.push(ao, ao, ao);
+    const ao = top ? 1 - 0.14 * sm(0.75, 1, t) * Math.exp(-Math.pow(a / 0.35, 2)) - 0.1 * sm(0.8, 1, a) : 0.82 + 0.18 * Math.min(1, a / 0.55); col.push(ao, ao, ao);
   };
   for (const top of [true, false]) {
     const base = pos.length / 3;
@@ -687,15 +693,25 @@ function buildManta() {
     for (let j = 0; j < NT; j++) { wall(vi(0, j), vi(0, j + 1)); wall(vi(NS, j), vi(NS, j + 1)); } }
   const geo = new THREE.BufferGeometry(); const half0 = idx.length / 2; geo.addGroup(0, half0, 0); geo.addGroup(half0, idx.length - half0, 1);
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.setIndex(idx); geo.computeVertexNormals();
-  const hull = new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, emissive: 0xffffff, emissiveMap: emTex, emissiveIntensity: 1.15, metalness: 0.25, roughness: 0.45, side: THREE.DoubleSide });
+  const hull = new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, emissive: 0xffffff, emissiveMap: emTex, emissiveIntensity: 1.5, metalness: 0.25, roughness: 0.45, side: THREE.DoubleSide });
   const hullBot = new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, emissive: 0xffffff, emissiveMap: emTex, emissiveIntensity: 0.6, color: 0x7d869a, metalness: 0.3, roughness: 0.5, side: THREE.DoubleSide });   // darker underside
   const hullMesh = new THREE.Mesh(geo, [hull, hullBot]); g.add(hullMesh);
   // canopy
   const glass = new THREE.MeshStandardMaterial({ color: 0x0a1020, metalness: 0.9, roughness: 0.08, emissive: 0x1a1240, emissiveIntensity: 0.6 });
-  const can = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 11), glass); can.scale.set(1.25, 0.95, 3.4); can.position.set(0, 1.05, -3.3); can.rotation.x = -0.1; g.add(can);
+  // canopy: a low glass dome SUNK INTO the armour. Its shape follows the hull surface (height above the hull is only ~0.17), it sits inside a raised metal bezel with a glowing rim - no more black bubble
+  const hullTop = (x, z) => { const a = Math.min(1, Math.abs(x) / SPAN), t = (z - zle(a)) / (zte(a) - zle(a)); return droop(a) + thick(a, t) * 0.62; };
+  const CW = 1.19, CL = 3.2, CZ = -3.3;
+  const cg = new THREE.SphereGeometry(1, 22, 12), cp = cg.attributes.position;
+  for (let i = 0; i < cp.count; i++) { const vx = cp.getX(i), vy = cp.getY(i), vz = cp.getZ(i), x = vx * CW, z = CZ + vz * CL, h = hullTop(x, z); cp.setXYZ(i, x, h - 0.02 + (vy >= 0 ? 0.2 * vy : 0.3 * vy), z); }
+  cg.computeVertexNormals(); g.add(new THREE.Mesh(cg, glass));
+  const loop = (k, dy) => { const pts = []; for (let i = 0; i < 40; i++) { const an = i / 40 * Math.PI * 2, x = Math.sin(an) * CW * k, z = CZ + Math.cos(an) * CL * k; pts.push(new THREE.Vector3(x, hullTop(x, z) + dy, z)); } return new THREE.CatmullRomCurve3(pts, true); };
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(loop(1.07, 0.03), 56, 0.1, 5, true), new THREE.MeshStandardMaterial({ color: 0x9aa4b8, metalness: 0.7, roughness: 0.35 })));   // raised metal bezel
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(loop(1.0, 0.05), 56, 0.04, 4, true), new THREE.MeshBasicMaterial({ color: 0xa98bff })));                                                                      // glowing rim
   const frameM = new THREE.MeshStandardMaterial({ color: 0x2a3358, metalness: 0.7, roughness: 0.35 });
-  for (const zz of [-5.3, -3.9, -2.5]) { const fr = new THREE.Mesh(new THREE.TorusGeometry(1, 0.045, 4, 14, Math.PI), frameM); const k = Math.sqrt(Math.max(0.05, 1 - Math.pow((zz + 3.3) / 3.4, 2))); fr.scale.set(1.25 * k, 0.95 * k, 1); fr.position.set(0, 1.05, zz); g.add(fr); }
-  const hl = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 5), new THREE.MeshBasicMaterial({ color: 0x6f8cff, transparent: true, opacity: 0.18 })); hl.scale.set(0.5, 0.2, 1.7); hl.position.set(0.15, 1.7, -4.0); g.add(hl);
+  for (const zz of [-5.2, -3.9, -2.6]) { const pts = [], nz = (zz - CZ) / CL, w = Math.sqrt(Math.max(0.02, 1 - nz * nz)) * CW; for (let i = 0; i <= 12; i++) { const u = -1 + i / 6, x = u * w, h = hullTop(x, zz) - 0.02 + 0.2 * Math.sqrt(Math.max(0, 1 - u * u - nz * nz)); pts.push(new THREE.Vector3(x, h + 0.01, zz)); } g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.035, 4, false), frameM)); }
+  // glowing ring where the canopy meets the hull, and two swept horns on the wing tips (cheap, merged into existing materials)
+  { const hornM = new THREE.MeshStandardMaterial({ color: 0x9aa4b8, metalness: 0.7, roughness: 0.35 });
+    for (const sx of [-1, 1]) { const h = new THREE.Mesh(new THREE.ConeGeometry(0.34, 2.3, 6), hornM); h.position.set(sx * (SPAN - 0.55), -0.15, 2.3); h.rotation.set(0.95, 0, -sx * 0.3); g.add(h); } }
   // twin tail fins
   const finShape = new THREE.Shape(); finShape.moveTo(0, 0); finShape.lineTo(2.8, 0); finShape.lineTo(0.3, 2.1); finShape.closePath();
   const finGeo = new THREE.ExtrudeGeometry(finShape, { depth: 0.07, bevelEnabled: false });
@@ -708,14 +724,19 @@ function buildManta() {
   const colM = new THREE.MeshStandardMaterial({ color: 0x8e99b3, metalness: 0.7, roughness: 0.3 });
   const EX = 1.1, ea = EX / SPAN, ezT = zte(ea);   // engine x, and where the hull ends there
   const eTop = droop(ea) + thick(ea, 1) * 0.62, eBot = droop(ea) - thick(ea, 1) * 0.38, ey = (eTop + eBot) / 2, er = Math.min(0.62, (eTop - eBot) / 2);
-  const PRO = 0.95;   // how far the nozzle sticks out behind the hull
+  const PRO = 0.05;   // plain metal nozzles sunk INTO the rear face (plain metal pods set INTO the hull; the flame is drawn by the game): the collar is almost flush, the bell goes inward
+  const er2 = Math.min(0.42, (eTop - eBot) / 2 * 0.82);
+  const shellM = new THREE.MeshStandardMaterial({ color: 0x7c86a6, metalness: 0.75, roughness: 0.38 }), seamM = new THREE.MeshStandardMaterial({ color: 0x171d36, metalness: 0.7, roughness: 0.35 });
+  const wellM = new THREE.MeshStandardMaterial({ color: 0x20263f, metalness: 0.8, roughness: 0.45, side: THREE.DoubleSide });
   g.userData.eng = [];
   for (const sx of [-1, 1]) {
-    const e = new THREE.Mesh(new THREE.CylinderGeometry(er, er, 1.6 + PRO, 18), engM); e.rotation.x = Math.PI / 2; e.position.set(sx * EX, ey, ezT - 0.8 + PRO / 2); g.add(e);   // starts inside the hull, ends PRO behind it
-    const col = new THREE.Mesh(new THREE.TorusGeometry(er * 1.04, 0.05, 4, 22), colM); col.position.set(sx * EX, ey, ezT + 0.02); g.add(col);   // collar exactly where hull meets nacelle
-    const bell = new THREE.Mesh(new THREE.CylinderGeometry(er * 0.86, er * 0.62, 0.3, 14, 1, true), bellM); bell.rotation.x = Math.PI / 2; bell.position.set(sx * EX, ey, ezT + PRO - 0.15); g.add(bell);
-    const th = new THREE.Mesh(new THREE.CircleGeometry(er * 0.55, 12), throat); th.position.set(sx * EX, ey, ezT + PRO - 0.28); th.rotation.y = Math.PI; g.add(th);
-    const rm = new THREE.Mesh(new THREE.TorusGeometry(er * 0.88, 0.035, 4, 22), rimM); rm.position.set(sx * EX, ey, ezT + PRO + 0.005); g.add(rm);
+    // tapered bell going forward into the hull (open tube, inside visible)
+    const bell = new THREE.Mesh(new THREE.CylinderGeometry(er2, er2 * 0.62, 0.9, 20, 1, true), wellM); bell.rotation.x = -Math.PI / 2; bell.position.set(sx * EX, ey, ezT - 0.45 + PRO); g.add(bell);
+    // flat collar plate around the mouth (same armour colour), barely proud of the hull edge
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(er2 * 1.02, 22), wellM); floor.position.set(sx * EX, ey, ezT + PRO + 0.001); g.add(floor);   // dark metal floor of the recess (hides the wall seams)
+    const collar = new THREE.Mesh(new THREE.RingGeometry(er2, er2 * 1.34, 24), shellM); collar.position.set(sx * EX, ey, ezT + PRO + 0.002); g.add(collar);
+    const lip = new THREE.Mesh(new THREE.CylinderGeometry(er2 * 1.34, er2 * 1.34, PRO + 0.1, 24, 1, true), shellM); lip.rotation.x = Math.PI / 2; lip.position.set(sx * EX, ey, ezT + PRO / 2 - 0.05); g.add(lip);
+    const seam = new THREE.Mesh(new THREE.TorusGeometry(er2 * 1.34, 0.02, 3, 26), seamM); seam.position.set(sx * EX, ey, ezT + PRO + 0.003); g.add(seam);
     g.userData.eng.push([sx * EX, ey, ezT + PRO]);
   }
   // wing guns
@@ -728,8 +749,6 @@ function buildManta() {
   const box = (m, w, h, d, x, z, ry, dy) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, topY(x, z) + (dy || 0), z); b.rotation.y = ry || 0; g.add(b); return b; };
   for (const sx of [-1, 1]) {
     box(strip, 0.1, 0.05, 2.6, sx * 1.35, 2.7, 0, 0.12);               // violet light strips along the body
-    // intakes beside the canopy
-    const it = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.3, 1.4), plateM); it.position.set(sx * 1.75, topY(sx * 1.75, -1.0) + 0.06, -1.0); it.rotation.y = sx * 0.12; g.add(it);
     // wing-tip caps
     const cap = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 1.8), darkM); cap.position.set(sx * (SPAN - 0.35), topY(sx * (SPAN - 0.35), 1.9) + 0.02, 1.9); cap.rotation.y = sx * 0.62; g.add(cap);
   }
