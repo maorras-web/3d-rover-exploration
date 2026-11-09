@@ -91,6 +91,8 @@ let save = { credits: 100, up: [0, 0, 0, 0], missiles: 4, kills: 0, inv: false, 
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && Array.isArray(s.up)) save = Object.assign(save, s); } catch (e) { }
 if (!Array.isArray(save.cargo) || save.cargo.length !== 5) save.cargo = [0, 0, 0, 0, 0];
 if (!save.wpn || !Array.isArray(save.wpn.owned)) save.wpn = { owned: [0], cur: 0 };   // weapons bought and the one in use
+if (!Array.isArray(save.ships)) save.ships = [0];   // ships owned (index into SHIPS) and the one flown
+if (typeof save.ship !== 'number' || !save.ships.includes(save.ship)) save.ship = 0;
 const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { } };
 let wpnChipEl = null;
 function wpnChip() { if (!wpnChipEl) { wpnChipEl = document.createElement('button'); wpnChipEl.id = 'b-wpn'; wpnChipEl.style.cssText = 'height:38px;padding:0 13px;border-radius:9px;border:1.5px solid rgba(150,200,245,.55);background:linear-gradient(160deg,#27456f,#122342);box-shadow:inset 0 1px 0 rgba(255,255,255,.18);font:800 11px system-ui,Arial,sans-serif;letter-spacing:1.5px;text-shadow:0 0 8px currentColor,0 1px 2px #000;pointer-events:none;white-space:nowrap';
@@ -104,12 +106,17 @@ const UPG = [
   { name: 'ARMOUR', desc: 'Stronger hull', max: 6 },
   { name: 'ENGINE', desc: 'Higher cruise and boost speed', max: 6 },
 ];
+// hulls you can own: price, and multipliers on hull / shield / speed (the first one is the starting ship)
+const SHIPS = [
+  { name: 'STAR COURIER', sub: 'Light multirole fighter', price: 0, hm: 1, sm: 1, cm: 1 },
+  { name: 'MANTA', sub: 'Wide delta wing  ·  heavy armour  ·  prototype', price: 3500, hm: 1.3, sm: 1, cm: 1.05 },
+];
 const upCost = (i) => Math.round(80 * Math.pow(1.7, save.up[i]));
 const stats = () => ({
   dmg: 11 * (1 + 0.28 * save.up[0]),
-  shieldMax: 70 + 30 * save.up[1], shieldRegen: 7 + 2 * save.up[1],
-  hullMax: 90 + 30 * save.up[2],
-  cruise: 92 * (1 + 0.07 * save.up[3]),
+  shieldMax: Math.round((70 + 30 * save.up[1]) * SHIPS[save.ship].sm), shieldRegen: 7 + 2 * save.up[1],
+  hullMax: Math.round((90 + 30 * save.up[2]) * SHIPS[save.ship].hm),
+  cruise: 92 * (1 + 0.07 * save.up[3]) * SHIPS[save.ship].cm,
 });
 let ST = stats();
 // weapons: gameplay numbers (rate = seconds between shots, spd = bolt speed, dm = damage multiplier per bolt) and bolt look (colour, thickness, length, hit size, corkscrew)
@@ -611,6 +618,111 @@ const glowPts = (color, op, zf) => { const g = new THREE.BufferGeometry(), p = n
   const o = new THREE.Points(g, new THREE.PointsMaterial({ map: glowTex, color, size: 1, sizeAttenuation: true, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false })); o.frustumCulled = false; o.userData.sc = 0.45; o.userData.pts = 1; shipBody.add(o); return o; };   // one draw call for all six glows
 const flames = SHIP_VAR === 4 ? [glowPts(0x7fe9ff, 0.32, 1.15)] : ENGS.map(en => { const f = glowSprite(0x7fe9ff, 1.5, 0.32); f.position.set(en[0], en[1], en[2] + 1.15 * en[3]); f.userData.sc = en[3] < 1 ? 0.45 : 1; shipBody.add(f); return f; });
 const flameCore = SHIP_VAR === 4 ? [glowPts(0xffffff, 0.6, 0.9)] : ENGS.map(en => { const f = glowSprite(0xffffff, 0.9, 0.6); f.position.set(en[0] + (en[3] < 1 ? 0 : Math.sign(en[0]) * 0.1), en[1] - (en[3] < 1 ? 0 : 0.05), en[2] + 0.9 * en[3]); f.userData.sc = en[3] < 1 ? 0.45 : 1; shipBody.add(f); return f; });
+const origParts = shipBody.children.slice();   // everything built so far = the Star Courier's own parts (hidden when another hull is flown)
+// ---- second hull: MANTA (built the first time it is flown, so it costs nothing at start) ----
+function buildManta() {
+  const g = new THREE.Group();
+  const SPAN = 7.6, NS = 44, NT = 26;
+  const sm = (a, b, x) => { x = Math.min(1, Math.max(0, (x - a) / (b - a))); return x * x * (3 - 2 * x); };
+  const zle = (a) => -7.6 + 8.6 * Math.pow(a, 1.15);          // leading edge: nose -> swept wing tip
+  const zte = (a) => 5.6 - 3.7 * Math.pow(sm(0.15, 1, a), 0.85);   // smooth swept trailing edge
+  const thick = (a, t) => (1.55 * Math.exp(-Math.pow(a / 0.2, 2)) + 0.62 * Math.pow(1 - a, 1.0) + 0.16) * Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, t * 0.92 + 0.04))), 0.38);
+  const droop = (a) => -0.7 * a * a * a - 0.08 * a * a;
+  // panel texture: painted, bevelled panels (mirrored left/right), rivets, vents - all in one 512px canvas
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 512; const c = cv.getContext('2d');
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const grd = c.createLinearGradient(0, 0, 512, 0); grd.addColorStop(0, '#8d97aa'); grd.addColorStop(.5, '#cfd5df'); grd.addColorStop(1, '#8d97aa'); c.fillStyle = grd; c.fillRect(0, 0, 512, 512);
+  c.save(); c.translate(256, 0);
+  const half = () => {   // drawn for x in 0..256 (right half); mirrored for the left
+    const cols = [0, 40, 92, 150, 210, 256];
+    for (let r = 0; r < 9; r++) for (let k = 0; k < 5; k++) {
+      const x0 = cols[k] + 2, x1 = cols[k + 1] - 2, y0 = 20 + r * 52 + k * 5 + 2, y1 = y0 + 48;
+      const sh = 0.86 + rnd() * 0.24; c.fillStyle = 'rgb(' + (198 * sh | 0) + ',' + (205 * sh | 0) + ',' + (217 * sh | 0) + ')'; c.fillRect(x0, y0, x1 - x0, y1 - y0);
+      c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(x0, y1); c.lineTo(x0, y0); c.lineTo(x1, y0); c.stroke();
+      c.strokeStyle = 'rgba(25,32,58,.7)'; c.beginPath(); c.moveTo(x1, y0); c.lineTo(x1, y1); c.lineTo(x0, y1); c.stroke();
+      c.fillStyle = 'rgba(40,48,78,.8)'; for (const [rx, ry] of [[x0 + 3, y0 + 3], [x1 - 4, y0 + 3], [x0 + 3, y1 - 4], [x1 - 4, y1 - 4]]) c.fillRect(rx, ry, 1.6, 1.6);
+    }
+    c.fillStyle = '#1f2850'; c.beginPath(); c.moveTo(0, 20); c.lineTo(86, 20); c.lineTo(146, 300); c.lineTo(112, 470); c.lineTo(0, 470); c.closePath(); c.fill();   // dark spine
+    c.strokeStyle = 'rgba(150,120,255,.8)'; c.lineWidth = 2; c.beginPath(); c.moveTo(88, 22); c.lineTo(148, 300); c.lineTo(114, 470); c.stroke();
+    c.fillStyle = '#0d1226'; for (let v = 0; v < 6; v++) c.fillRect(190, 240 + v * 9, 50, 4);   // vent slats
+    c.fillStyle = 'rgba(150,110,255,.95)'; c.fillRect(170, 158, 70, 7); c.fillRect(190, 170, 50, 3);
+    c.fillStyle = 'rgba(250,200,60,.9)'; for (let h = 0; h < 5; h++) { c.beginPath(); c.moveTo(168 + h * 14, 392); c.lineTo(176 + h * 14, 392); c.lineTo(168 + h * 14, 404); c.lineTo(160 + h * 14, 404); c.fill(); }
+  };
+  half(); c.restore(); c.save(); c.translate(256, 0); c.scale(-1, 1); half(); c.restore();
+  c.fillStyle = '#243058'; c.fillRect(0, 0, 512, 16); c.fillStyle = 'rgba(150,110,255,.9)'; c.fillRect(0, 16, 512, 3);
+  c.fillStyle = '#3a4570'; c.fillRect(0, 484, 512, 28);
+  c.strokeStyle = '#e8ecf5'; c.lineWidth = 3; c.beginPath(); c.arc(256, 330, 22, 0, 6.3); c.stroke(); c.beginPath(); c.moveTo(256, 312); c.lineTo(268, 345); c.lineTo(244, 345); c.closePath(); c.stroke();   // emblem on the spine
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const pos = [], uv = [], idx = [];
+  const vtx = (s, t, top) => {
+    const a = Math.abs(s), z = zle(a) + (zte(a) - zle(a)) * t, h = thick(a, t), y = droop(a) + (top ? h * 0.62 : -h * 0.38);
+    pos.push(s * SPAN, y, z); uv.push(s * 0.5 + 0.5, t);
+  };
+  for (const top of [true, false]) {
+    const base = pos.length / 3;
+    for (let i = 0; i <= NS; i++) for (let j = 0; j <= NT; j++) vtx(-1 + 2 * i / NS, j / NT, top);
+    for (let i = 0; i < NS; i++) for (let j = 0; j < NT; j++) {
+      const a = base + i * (NT + 1) + j, b = a + 1, c2 = a + NT + 1, d = c2 + 1;
+      if (top) idx.push(a, b, c2, b, d, c2); else idx.push(a, c2, b, b, c2, d);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
+  const hull = new THREE.MeshStandardMaterial({ map: tex, metalness: 0.25, roughness: 0.45, side: THREE.DoubleSide });
+  g.add(new THREE.Mesh(geo, hull));
+  // canopy
+  const glass = new THREE.MeshStandardMaterial({ color: 0x0a1020, metalness: 0.9, roughness: 0.08, emissive: 0x1a1240, emissiveIntensity: 0.6 });
+  const can = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 16), glass); can.scale.set(1.25, 0.95, 3.4); can.position.set(0, 1.05, -3.3); can.rotation.x = -0.1; g.add(can);
+  // spine ridge
+  const ridge = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), new THREE.MeshStandardMaterial({ color: 0x20284a, metalness: 0.7, roughness: 0.35 })); ridge.scale.set(1.0, 0.6, 3.6); ridge.position.set(0, 1.25, 1.6); g.add(ridge);
+  // twin tail fins
+  const finShape = new THREE.Shape(); finShape.moveTo(0, 0); finShape.lineTo(2.8, 0); finShape.lineTo(0.3, 2.1); finShape.closePath();
+  const finGeo = new THREE.ExtrudeGeometry(finShape, { depth: 0.07, bevelEnabled: false });
+  const finMat = new THREE.MeshStandardMaterial({ color: 0x9aa4b5, metalness: 0.6, roughness: 0.4, side: THREE.DoubleSide });
+  for (const sx of [-1, 1]) { const f = new THREE.Mesh(finGeo, finMat); f.rotation.y = Math.PI / 2; f.position.set(sx * 2.2, 0.9, 4.9); g.add(f); }
+  // engines
+  const engM = new THREE.MeshStandardMaterial({ color: 0x1c2238, metalness: 0.8, roughness: 0.35 });
+  const glow = new THREE.MeshBasicMaterial({ color: 0x9d7bff });
+  for (const sx of [-1, 1]) {
+    const e = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.8, 2.4, 20), engM); e.rotation.x = Math.PI / 2; e.position.set(sx * 1.25, 0.1, 5.5); g.add(e);
+    const gl = new THREE.Mesh(new THREE.CircleGeometry(0.58, 20), glow); gl.position.set(sx * 1.25, 0.1, 6.72); g.add(gl);
+  }
+  // wing guns (two per wing: outer and inner)
+  for (const sx of [-1, 1]) for (const gx of [4.9, 3.9]) { const gun = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 3.0, 10), engM); gun.rotation.x = Math.PI / 2; gun.position.set(sx * gx, droop(gx / SPAN) - 0.1, -1.4); g.add(gun); }
+  // ---- surface detail (cheap boxes, no textures) ----
+  const topY = (x, z) => { const a = Math.abs(x) / SPAN; const t = (z - zle(a)) / (zte(a) - zle(a)); return droop(a) + thick(a, t) * 0.62; };
+  const darkM = new THREE.MeshStandardMaterial({ color: 0x171d36, metalness: 0.7, roughness: 0.35 });
+  const plateM = new THREE.MeshStandardMaterial({ color: 0xb4bccb, metalness: 0.5, roughness: 0.38 });
+  const strip = new THREE.MeshBasicMaterial({ color: 0xa98bff });
+  const box = (m, w, h, d, x, z, ry, dy) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, topY(x, z) + (dy || 0), z); b.rotation.y = ry || 0; g.add(b); return b; };
+  for (const sx of [-1, 1]) {
+    box(strip, 0.1, 0.05, 2.6, sx * 1.35, 2.7, 0, 0.12);               // violet light strips along the body
+    // intakes beside the canopy
+    const it = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.3, 1.4), darkM); it.position.set(sx * 1.75, topY(sx * 1.75, -1.0) + 0.06, -1.0); it.rotation.y = sx * 0.12; g.add(it);
+    // wing-tip caps
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 1.8), darkM); cap.position.set(sx * (SPAN - 0.35), topY(sx * (SPAN - 0.35), 1.9) + 0.02, 1.9); cap.rotation.y = sx * 0.62; g.add(cap);
+    // engine rings
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.07, 8, 24), new THREE.MeshBasicMaterial({ color: 0x7b5bd6 })); ring.position.set(sx * 1.25, 0.1, 6.2); g.add(ring);
+  }
+  // nose sensor + belly keel
+  const keel = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 5), darkM); keel.position.set(0, -0.75, 0.5); g.add(keel);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.22, 1.6, 10), darkM); nose.rotation.x = -Math.PI / 2; nose.position.set(0, 0.12, -8.0); g.add(nose);
+  return g;
+}
+
+const MUZ0 = MUZ.map(m => m.slice()), MUZ1 = [[2.7, -0.18, -1.9], [-2.7, -0.18, -1.9], [2.15, -0.12, -1.9], [-2.15, -0.12, -1.9]];   // gun muzzles of each hull
+let altShip = null; const altFl = [];
+function applyShip() {
+  const alt = save.ship === 1;
+  if (alt && !altShip) {
+    altShip = buildManta(); altShip.scale.setScalar(0.55); altShip.position.set(0, 0.4, -0.3); shipBody.add(altShip);
+    for (const sx of [-1, 1]) { const a = glowSprite(0x7fe9ff, 1.5, 0.32); a.position.set(sx * 0.69, 0.45, 3.75); a.userData.sc = 0.6; shipBody.add(a); const b = glowSprite(0xffffff, 0.9, 0.6); b.position.set(sx * 0.69, 0.45, 3.55); b.userData.sc = 0.6; b.userData.core = 1; shipBody.add(b); altFl.push(a, b); }
+  }
+  origParts.forEach(o => { o.visible = !alt; });
+  if (altShip) altShip.visible = alt;
+  const M = alt ? MUZ1 : MUZ0; for (let i = 0; i < MUZ.length; i++) { MUZ[i][0] = M[i][0]; MUZ[i][1] = M[i][1]; MUZ[i][2] = M[i][2]; mFlash[i].position.set(M[i][0], M[i][1], M[i][2] - 0.15); }
+  ST = stats();
+}
 // muzzle flashes: one small glow per gun, lit for a moment on every shot (4 sprites, nothing else)
 const Y_Z = new THREE.Vector3(0, 0, 1);
 const mFlash = MUZ.map(m => { const f = glowSprite(0xffffff, 2.3, 0); f.position.set(m[0], m[1], m[2] - 0.15); f.visible = false; shipBody.add(f); return f; });
@@ -1775,7 +1887,9 @@ function openShop(msg) {
     /* Hangar: what is fitted to the ship, in a list: ship, primary weapons (2 hardpoints), secondary weapons (missiles) and equipment */
     const sec = (t) => { const d = document.createElement('div'); d.className = 'hg-sec'; d.textContent = t; list.appendChild(d); };
     const tot = save.up.reduce((x, y) => x + y, 0), mk = ['I', 'II', 'III', 'IV', 'V'][Math.min(4, tot / 6 | 0)], cw = curW();
-    sec('SHIP'); row('STAR COURIER  MK ' + mk, 'Light multirole fighter  ·  hull ' + ST.hullMax + '  ·  shield ' + ST.shieldMax, '', '', false, null, 'sh');
+    sec('SHIP'); row(SHIPS[save.ship].name + '  MK ' + mk, SHIPS[save.ship].sub + '  ·  hull ' + ST.hullMax + '  ·  shield ' + ST.shieldMax, '', '', false, null, 'sh');
+    SHIPS.forEach((sp, i) => { if (i === save.ship) return; const own = save.ships.includes(i);
+      row(sp.name, sp.sub + '  ·  hull ×' + sp.hm + (own ? '' : '  ·  not owned'), '', own ? 'FLY' : '◆ ' + sp.price, !own && save.credits < sp.price, () => { if (!own) { save.credits -= sp.price; save.ships.push(i); } save.ship = i; applyShip(); PIC.ms = ''; S.hull = ST.hullMax; S.shield = ST.shieldMax; persist(); refreshHud(); sfx('pick'); openShop(msg); }); });
     sec('PRIMARY WEAPONS');
     const cyc = () => { const o = save.wpn.owned, n = o[(o.indexOf(save.wpn.cur) + 1) % o.length]; if (n === save.wpn.cur) { sfx('ui'); return; } save.wpn.cur = n; persist(); refreshHud(); wpnChip(); sfx('pick'); openShop(msg); };
     for (let hp = 1; hp <= 2; hp++) row(cw.name, 'Hardpoint ' + hp + '  ·  ' + Math.round(ST.dmg * cw.dm * (cw.n || 1)) + ' dmg per ' + (cw.n > 1 ? 'volley' : 'shot') + '  ·  ' + (1 / cw.rate).toFixed(1) + ' shots/s', '', save.wpn.owned.length > 1 ? 'CHANGE' : '', false, cyc, 'w' + save.wpn.cur);
@@ -2193,10 +2307,11 @@ function frame(now) {
   ship.position.copy(S.pos); ship.quaternion.copy(S.q); shipBody.rotation.z = S.roll;
   if (S.shGlow > 0) { S.shGlow = Math.max(0, S.shGlow - dt * 2.4); shGl.visible = S.shGlow > 0; shGl.material.uniforms.op.value = S.shGlow; shGl.material.uniforms.t.value = tAcc; }
   const vis = S.mode !== 'wreck', blink = S.inv > 0 && !S.nb && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
-  { const on = S.mode !== 'dock'; flames.forEach(f => f.visible = on); flameCore.forEach(f => f.visible = on); flameCones.forEach(f => f.visible = on); FINST.forEach(f => f.im.visible = on); hoverPads.forEach(p => p.visible = on); }
+  { const on = S.mode !== 'dock', o0 = on && save.ship === 0; flames.forEach(f => f.visible = o0); flameCore.forEach(f => f.visible = o0); flameCones.forEach(f => f.visible = o0); FINST.forEach(f => f.im.visible = o0); hoverPads.forEach(p => p.visible = on); const o1 = on && save.ship === 1; altFl.forEach(f => { f.visible = o1; }); }
   for (const f of mFlash) if (f.visible) { f.userData.t -= dt * 9; if (f.userData.t <= 0) f.visible = false; else { f.material.opacity = f.userData.t; f.scale.setScalar(2.3 * (0.5 + 0.7 * f.userData.t)); } }
   const fl = 0.7 + S.speed / 220 + (S.boosting ? 0.9 : 0), flick = 0.9 + Math.sin(tAcc * 50) * 0.1;
   flames.forEach(f => { if (f.userData.pts) f.material.size = 2.9 * fl * flick * f.userData.sc; else f.scale.setScalar(1.9 * fl * flick * f.userData.sc); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => { if (f.userData.pts) f.material.size = 1.05 * fl * flick * f.userData.sc; else f.scale.setScalar(0.7 * fl * flick * f.userData.sc); }); flameMats.forEach((fm, k) => fm.color.setHex(flameCols[k][S.boosting ? 1 : 0])); FINST.forEach(F => { const L = F.L, es = ENGS[0][3]; ENGS.forEach((en, i) => { const ph = i * 1.7 + F.k, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + ph) + 0.05 * Math.sin(tAcc * 91 + ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); _fd.position.set(en[0], en[1], en[2] + es * (0.9 + len / 2)); _fd.rotation.set(Math.PI / 2, 0, 0); _fd.scale.set(r * es, len * es, r * es); _fd.updateMatrix(); F.im.setMatrixAt(i, _fd.matrix); }); F.im.instanceMatrix.needsUpdate = true; });
+  if (save.ship === 1) altFl.forEach(f => { f.scale.setScalar((f.userData.core ? 0.7 : 1.9) * fl * flick * f.userData.sc); if (!f.userData.core) f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); });
   flameCones.forEach(c => { const u = c.userData, L = u.L, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + u.ph) + 0.05 * Math.sin(tAcc * 91 + u.ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); c.scale.set(r, len, r); c.position.z = 0.9 + len / 2; });
   for (const e of enemies) if (e.active) { e.g.children[1].scale.setScalar(5 + Math.sin(tAcc * 40 + e.pos.x) * 0.6); }
   S.camQ.slerp(S.q, 1 - Math.exp(-7 * dt));
@@ -2318,6 +2433,7 @@ function frame(now) {
 
 // menu backdrop: the ship idling next to XIAQA
 (function menuScene() { S.pos.set(170, -40, 520); _m.lookAt(_zero, V3(-170, 30, -520).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q); S.mode = 'menu'; ST = stats(); for (let i = 0; i < AST_N; i++) spawnAsteroid(asteroids[i], true); })();
+applyShip();
 requestAnimationFrame(frame);
 document.addEventListener('visibilitychange', () => { last = performance.now(); if (actx) { document.hidden ? actx.suspend() : actx.resume(); } });
 // quiet pre-building: one small job every 1.3 s while you are docked or flying (never during a jump) - the far system's sky and every planet painting are ready BEFORE the jump, so arriving costs nothing
