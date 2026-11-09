@@ -463,7 +463,18 @@ const roverBody = (() => {
     if (kind === 1) { const g2 = x.createRadialGradient(22, 18, 0, 22, 18, 20); g2.addColorStop(0, 'rgba(255,255,255,1)'); g2.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g2; x.fillRect(0, 0, 64, 64); } return c; };
   const topF = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 4, 32, 32, 46); g.addColorStop(0, SHIP_VAR === 4 ? '#c5d0e2' : '#ffffff'); g.addColorStop(1, SHIP_VAR === 4 ? '#4a566a' : '#b8c6dc'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return c; })();
   const botF = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; c.getContext('2d').fillStyle = SHIP_VAR === 4 ? '#141922' : '#0a0c11'; c.getContext('2d').fillRect(0, 0, 64, 64); return c; })();
-  const senv = new THREE.CubeTexture([eface(1), eface(0), topF, botF, eface(0), eface(0)]); senv.colorSpace = THREE.SRGBColorSpace; senv.needsUpdate = true; SHIP_ENV = senv;
+  // polished-metal studio: mostly dark surroundings with a few crisp light strips and soft boxes, so every curve of the hull catches sharp bright streaks next to deep dark ones (that contrast is what reads as "metal"). Painted once into six 128px canvases: no runtime cost
+  const mface = (kind) => { const R = 128, c = document.createElement('canvas'); c.width = c.height = R; const x = c.getContext('2d');
+    if (kind === 2) { const g = x.createRadialGradient(64, 64, 6, 64, 64, 90); g.addColorStop(0, '#5d6a82'); g.addColorStop(1, '#141a26'); x.fillStyle = g; x.fillRect(0, 0, R, R);   // top: dim ceiling with a big soft box and two light bars
+      x.fillStyle = 'rgba(235,242,255,0.95)'; x.fillRect(34, 40, 60, 48); x.fillStyle = 'rgba(255,255,255,1)'; x.fillRect(10, 18, 108, 5); x.fillRect(10, 105, 108, 5); return c; }
+    if (kind === 3) { x.fillStyle = '#05070b'; x.fillRect(0, 0, R, R); x.fillStyle = 'rgba(70,110,170,0.5)'; x.fillRect(0, 60, R, 8); return c; }   // bottom: near black, one faint blue bounce strip
+    const g = x.createLinearGradient(0, 0, 0, R); g.addColorStop(0, '#202838'); g.addColorStop(0.42, '#3c4860'); g.addColorStop(0.5, '#0b0f18'); g.addColorStop(1, '#04060a'); x.fillStyle = g; x.fillRect(0, 0, R, R);   // walls: dark, a soft horizon
+    x.fillStyle = 'rgba(255,255,255,1)'; x.fillRect(0, 22, R, 4); x.fillStyle = 'rgba(225,235,255,0.85)'; x.fillRect(0, 44, R, 3);   // crisp horizontal light strips
+    x.fillStyle = 'rgba(255,255,255,0.9)'; x.fillRect(kind === 1 ? 14 : 84, 8, 8, 70);   // a tall light panel on each wall
+    x.fillStyle = 'rgba(60,200,255,0.55)'; x.fillRect(0, 100, R, 4);   // a thin cyan floor strip (the game's accent colour)
+    if (kind === 1) { const g2 = x.createRadialGradient(46, 34, 0, 46, 34, 26); g2.addColorStop(0, 'rgba(255,250,235,1)'); g2.addColorStop(1, 'rgba(255,250,235,0)'); x.fillStyle = g2; x.fillRect(0, 0, R, R); }   // the sun
+    return c; };
+  const senv = new THREE.CubeTexture(SHIP_VAR === 4 ? [mface(1), mface(0), mface(2), mface(3), mface(0), mface(0)] : [eface(1), eface(0), topF, botF, eface(0), eface(0)]); senv.colorSpace = THREE.SRGBColorSpace; senv.needsUpdate = true; SHIP_ENV = senv;
   if (SHIP_VAR === 4) {
     // custom ship from the ship builder: a list of simple parts (mirrored when mir=1); the built-in shape above is discarded
     body.length = 0; glow.length = 0; glass.length = 0;
@@ -543,7 +554,7 @@ const roverBody = (() => {
       f *= 1.7; cl.setXYZ(i, Math.min(1, cl.getX(i) * f), Math.min(1, cl.getY(i) * f), Math.min(1, cl.getZ(i) * f));
     }
   }
-  const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, map: plateMap, bumpMap: plateBump, bumpScale: SHIP_VAR === 4 ? 3.8 : 0.9, roughness: SHIP_VAR === 4 ? 0.22 : SV.rough, metalness: SHIP_VAR === 4 ? 1.0 : SV.met, flatShading: false, envMap: senv, envMapIntensity: SHIP_VAR === 0 ? 1.7 : SHIP_VAR === 4 ? 1.95 : 1.3, emissive: SHIP_VAR === 4 ? 0x07090e : 0x2a303c });
+  const bmat = new THREE.MeshStandardMaterial({ vertexColors: true, map: plateMap, bumpMap: plateBump, bumpScale: SHIP_VAR === 4 ? 3.8 : 0.9, roughness: SHIP_VAR === 4 ? 0.17 : SV.rough, metalness: SHIP_VAR === 4 ? 1.0 : SV.met, flatShading: false, envMap: senv, envMapIntensity: SHIP_VAR === 0 ? 1.7 : SHIP_VAR === 4 ? 2.3 : 1.3, emissive: SHIP_VAR === 4 ? 0x07090e : 0x2a303c });
   if (SHIP_VAR === 4) bmat.color.setRGB(0.46, 0.48, 0.54);   // dark polished metal: dark base, bright mirror-like reflections
   bmat.onBeforeCompile = (sh) => { sh.uniforms.uRimC = shipRim;
     if (SHIP_VAR === 4) {   // accent stripes + sheen, all in the existing fragment shader (no extra draw calls)
@@ -586,7 +597,14 @@ const coreMat = new THREE.MeshBasicMaterial({ color: 0x2a8fc0, toneMapped: false
 if (SHIP_VAR === 4) {   // the ring becomes a thick metal band that carries the six nozzles
   const sh = new THREE.Shape(); sh.absellipse(0, 0, 0.82, 1.2, 0, Math.PI * 2, false); const hole = new THREE.Path(); hole.absellipse(0, 0, 0.43, 0.81, 0, Math.PI * 2, true); sh.holes.push(hole);
   const bg = new THREE.ExtrudeGeometry(sh, { depth: 0.26, curveSegments: 36, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 2 });
-  const band = new THREE.Mesh(bg, new THREE.MeshStandardMaterial({ color: 0x9aa5b8, roughness: 0.34, metalness: 0.6, emissive: 0x1e2430 })); band.position.set(0, -0.072, 3.416); shipBody.add(band);
+  // brushed-steel face for the band: fine concentric machining lines, six panel seams and rivets, painted once into one 256px canvas (also used as its bump map)
+  const bt = (() => { const R = 256, c = document.createElement('canvas'); c.width = c.height = R; const x = c.getContext('2d'); x.fillStyle = '#8c95a6'; x.fillRect(0, 0, R, R);
+    let sd = 7; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    for (let r = 2; r < 182; r += 1.3) { const v = 120 + rn() * 110 | 0; x.strokeStyle = 'rgba(' + v + ',' + (v + 6) + ',' + (v + 16) + ',0.55)'; x.lineWidth = 0.9; x.beginPath(); x.arc(128, 128, r, 0, Math.PI * 2); x.stroke(); }
+    x.strokeStyle = '#2a303c'; x.lineWidth = 2.5; for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; x.beginPath(); x.moveTo(128 + Math.cos(a) * 40, 128 + Math.sin(a) * 40); x.lineTo(128 + Math.cos(a) * 180, 128 + Math.sin(a) * 180); x.stroke(); }
+    x.fillStyle = '#d8dee8'; for (let k = 0; k < 24; k++) { const a = (k + 0.5) / 24 * Math.PI * 2; x.beginPath(); x.arc(128 + Math.cos(a) * 112, 128 + Math.sin(a) * 112, 2.2, 0, 7); x.fill(); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.repeat.set(0.4, 0.4); t.offset.set(0.5, 0.5); t.anisotropy = 4; return t; })();
+  const band = new THREE.Mesh(bg, new THREE.MeshStandardMaterial({ color: 0xffffff, map: bt, bumpMap: bt, bumpScale: 1.2, roughness: 0.3, metalness: 0.5, envMap: SHIP_ENV, envMapIntensity: 2.4, emissive: 0x7c8698, emissiveMap: bt })); band.position.set(0, -0.072, 3.416); shipBody.add(band);
 }
 const mBell = [], mCore = [], mRim = [], FINST = [], _fd = new THREE.Object3D();
 for (const [ei, en] of ENGS.entries()) {
@@ -612,7 +630,7 @@ for (const [ei, en] of ENGS.entries()) {
   if (SHIP_VAR !== 4) shipBody.add(e);
 }
 if (SHIP_VAR === 4) {
-  shipBody.add(new THREE.Mesh(mergeGeometries(mBell), new THREE.MeshStandardMaterial({ color: 0xa7b2c4, roughness: 0.28, metalness: 0.75, emissive: 0x10141b, side: THREE.DoubleSide })), new THREE.Mesh(mergeGeometries(mCore), coreMat), new THREE.Mesh(mergeGeometries(mRim), ringMat));
+  shipBody.add(new THREE.Mesh(mergeGeometries(mBell), new THREE.MeshStandardMaterial({ color: 0xa7b2c4, roughness: 0.2, metalness: 1.0, envMap: SHIP_ENV, envMapIntensity: 2.0, emissive: 0x0a0d14, side: THREE.DoubleSide })), new THREE.Mesh(mergeGeometries(mCore), coreMat), new THREE.Mesh(mergeGeometries(mRim), ringMat));
   FL.forEach((L, k) => { const im = new THREE.InstancedMesh(new THREE.ConeGeometry(1, 1, 16, 1, true), flameMats[k], ENGS.length); im.frustumCulled = false; im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); shipBody.add(im); FINST.push({ im, k, L }); });   // flames: 3 instanced meshes for all six engines
 }
 const glowPts = (color, op, zf) => { const g = new THREE.BufferGeometry(), p = new Float32Array(ENGS.length * 3); ENGS.forEach((en, i) => { p[i * 3] = en[0]; p[i * 3 + 1] = en[1]; p[i * 3 + 2] = en[2] + zf * en[3]; }); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
@@ -779,8 +797,8 @@ function metalizeManta(g) {
   g.traverse((o) => { if (!o.isMesh) return; (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => {
     if (seen.has(m) || !m.isMeshStandardMaterial) return; seen.add(m);
     const dark = m.color.getHex() < 0x202030, glass = m.color.getHex() === 0x0a1020;
-    m.envMap = SHIP_ENV; m.envMapIntensity = glass ? 2.6 : dark ? 1.9 : 1.7;
-    m.metalness = glass ? 1 : 0.95; m.roughness = glass ? 0.04 : m.map ? 0.24 : 0.2;
+    m.envMap = SHIP_ENV; m.envMapIntensity = glass ? 2.6 : dark ? 2.8 : 3.8;
+    m.metalness = glass ? 1 : 0.88; m.roughness = glass ? 0.04 : m.map ? 0.21 : 0.17;
     if (glass) m.emissive.setHex(0x0a0822);
     if (m.map) { m.bumpMap = m.map; m.bumpScale = 2.2; }
     m.needsUpdate = true; }); });
