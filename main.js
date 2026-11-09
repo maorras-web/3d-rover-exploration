@@ -2456,7 +2456,7 @@ function frame(now) {
       p.hk = (p.hk === undefined ? 1 : p.hk) + (tg - (p.hk === undefined ? 1 : p.hk)) * Math.min(1, dt * 3); if (p.hk < 0.03) { p.mesh.visible = false; if (p.rg) p.rg.visible = false; } }
     p.mesh.scale.setScalar(af * dA2 * vf * (p.hk === undefined ? 1 : p.hk)); if (p.rg) { p.rg.position.copy(p.mesh.position); p.rg.scale.setScalar(af * dA2 * vf * (p.hk === undefined ? 1 : p.hk) / p.r); }
     // wide-angle fix: near the screen edge a perspective sphere is pulled into a long oval (worst while boosting, when the view widens to ~90 deg). A planet is only a painted backdrop, so squash it a little along the edge-ward direction and it stays round
-    sqPlanet(p.mesh); if (p.rg) sqPlanet(p.rg);
+    // (no screen-edge squash any more: it pulled the planet in toward the middle of the screen and switched off abruptly near the edge, so the planet slid against the sky and popped in and out. The planet is now a rigid part of the sky, exactly like the nebula and stars)
   }
   { const bo = S.boosting && S.mode === 'fly'; if (bo !== spdOn) { spdOn = bo; spdEl.style.opacity = bo ? '1' : '0'; }
     let fi = 0; if (S.mode === 'fly' || S.mode === 'wreck') { _fl.copy(SUN_DIR).multiplyScalar(9000).add(camera.position).project(camera); if (_fl.z < 1) fi = clamp(1.2 - Math.max(Math.abs(_fl.x), Math.abs(_fl.y)), 0, 1); }
