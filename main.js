@@ -1759,6 +1759,8 @@ const trBuild = (spec) => { const parts = []; const Mq = new THREE.Matrix4(), Eu
   return mergeGeometries(parts); };
 const trMat = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.15, emissive: 0x39414f });
 // ---- OVUM: big egg-shaped transport for station traffic (one continuous skin whose tail splits into two welded engine lobes; one merged geometry, drawn instanced) ----
+// rim light + a soft 'head-lamp' from the upper left of the view: a cool glow on the edges and a gentle light/shadow across the body, so a ship keeps its round 3D shape even when the sun is behind it (a few shader operations, no extra draw)
+const rimLit = (m, r, g, b) => { m.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n#ifdef USE_COLOR\ntotalEmissiveRadiance *= vColor.rgb;\n#endif\n{ float fr = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0); totalEmissiveRadiance += vec3(' + r + ',' + g + ',' + b + ') * fr * fr * fr; totalEmissiveRadiance += vec3(' + r + ',' + g + ',' + b + ') * 0.25 * pow(max(dot(normal, normalize(vec3(-0.45, 0.65, 0.6))), 0.0), 1.4); }'); }; m.customProgramCacheKey = () => 'rim' + r + g + b; return m; };
 const OVUM = (() => {
 const Eu = new THREE.Euler(), Mq = new THREE.Matrix4();
 // lathe along z (nose toward -z): profile = [[z, radius], ...]
@@ -1788,9 +1790,13 @@ function trafficG() {
     for (let j = 0; j <= NA; j++) { const ph = j / NA * Math.PI * 2, dx = Math.sin(ph), dy = -Math.cos(ph); let r = 0;
       if (i > 0 && i < NZ) { let lo = 0, hi = 3.6; for (let it = 0; it < 26; it++) { const m = (lo + hi) / 2; if (F(dx * m, dy * m, z) < 0) lo = m; else hi = m; } r = lo; }   // radius of the skin along this direction
       pos.push(dx * r, dy * r, z); uvA.push(j / NA, t); } }
-  for (let i = 0; i < NZ; i++) for (let j = 0; j < NA; j++) { const a0 = i * (NA + 1) + j, b0 = a0 + NA + 1; idx.push(a0, b0, a0 + 1, a0 + 1, b0, b0 + 1); }
+  for (let i = 0; i < NZ; i++) for (let j = 0; j < NA; j++) { const a0 = i * (NA + 1) + j, b0 = a0 + NA + 1; idx.push(a0, a0 + 1, b0, a0 + 1, b0 + 1, b0); }   // wound so the faces point OUTWARD (was inside-out, which made the egg look flat)
   const sk = new THREE.BufferGeometry(); sk.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); sk.setAttribute('uv', new THREE.Float32BufferAttribute(uvA, 2)); sk.setIndex(idx); sk.computeVertexNormals();
   keep(sk, HULL);
+  { const g = P[P.length - 1], nm = g.attributes.normal, cl = g.attributes.color, ps = g.attributes.position;   // baked light: upper side brighter, belly and the welds between the engine lobes darker, so the egg reads as round from any angle (painted once)
+    for (let q = 0; q < nm.count; q++) { const ny = nm.getY(q), x = ps.getX(q), z = ps.getZ(q), y = ps.getY(q);
+      const weld = z > 1.5 ? Math.max(0, 1 - Math.abs(x) / 0.9) * Math.min(1, (z - 1.5) / 1.5) * (y < 0.9 ? 1 : 0.4) : 0;
+      const v = (0.38 + 0.62 * Math.pow(0.5 + 0.5 * ny, 1.3)) * (1 - 0.4 * weld); cl.setXYZ(q, v, v, v * 1.02); } }
   for (const s of [-1, 1]) {   // nozzles set INTO the rear face of each lobe: a dark recessed bell and a thin bronze lip, nothing sticking out
     keep(lathe([[4.93, 0.84], [4.96, 0.6], [5.04, 0.55], [5.05, 0]], 20), ENG, [s * NX, NY, 0]);
     keep(new THREE.TorusGeometry(0.85, 0.05, 5, 28), RING, [s * NX, NY, 4.95]);
@@ -1806,9 +1812,9 @@ function trafficG() {
 function ovumTex() {
   const W = 512, H = 256, c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
   let sd = 3; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-  x.fillStyle = '#5a616d'; x.fillRect(0, 0, W, H);
+  x.fillStyle = '#5f6672'; x.fillRect(0, 0, W, H);
   const cuts = [];
-  for (let row = 0; row < 8; row++) { const y0 = row * 32; let x0 = -rn() * 40; while (x0 < W) { const w = 28 + rn() * 50, v = Math.round(78 + rn() * 26); x.fillStyle = 'rgb(' + (v - 4) + ',' + v + ',' + (v + 9) + ')'; x.fillRect(x0 + 1, y0 + 1, w - 2, 30); cuts.push([x0, y0]); x0 += w; } }   // dark gunmetal plates, each a slightly different shade
+  for (let row = 0; row < 8; row++) { const y0 = row * 32; let x0 = -rn() * 40; while (x0 < W) { const w = 28 + rn() * 50, v = Math.round(84 + rn() * 26); x.fillStyle = 'rgb(' + (v - 4) + ',' + v + ',' + (v + 9) + ')'; x.fillRect(x0 + 1, y0 + 1, w - 2, 30); cuts.push([x0, y0]); x0 += w; } }   // dark gunmetal plates, each a slightly different shade
   x.fillStyle = '#16191f'; for (let row = 0; row <= 8; row++) x.fillRect(0, row * 32 - 1, W, 2); for (const [cx, cy] of cuts) x.fillRect(cx - 1, cy, 2, 32);   // dark seams
   x.fillStyle = 'rgba(190,200,215,0.55)'; for (let row = 0; row < 8; row++) x.fillRect(0, row * 32 + 1, W, 1); for (const [cx, cy] of cuts) x.fillRect(cx + 1, cy + 1, 1, 30);   // bright bevel edge beside each seam
   x.fillStyle = '#25292f'; x.fillRect(W * 0.5 - 24, 30, 48, H - 44); x.fillStyle = '#1a1d22'; x.fillRect(W * 0.5 - 10, 30, 20, H - 44); x.fillStyle = '#25292f'; x.fillRect(W * 0.5 - 40, 70, 80, 60);   // keel stripe on top
@@ -1845,7 +1851,7 @@ const GOLD = (() => {
 })();
 const trMesh = new THREE.InstancedMesh(GOLD.geo, new THREE.MeshStandardMaterial({ vertexColors: true, map: GOLD.tex, bumpMap: GOLD.tex, bumpScale: 1.4, metalness: 1.0, roughness: 0.2, envMap: SHIP_ENV, envMapIntensity: 2.4, emissive: 0x1a1004 }), TR_N);   // the two small ships at every station are big golden spheres with engraved lines and antennas (one instanced draw)   
  trMesh.frustumCulled = false; trMesh.count = 0; scene.add(trMesh);
-const trMeshB = new THREE.InstancedMesh(OVUM.geo, new THREE.MeshStandardMaterial({ vertexColors: true, map: OVUM.tex, bumpMap: OVUM.tex, bumpScale: 1.5, metalness: 0.95, roughness: 0.24, envMap: SHIP_ENV, envMapIntensity: 2.2, emissive: 0x0b0d12 }), TR_N); trMeshB.frustumCulled = false; trMeshB.count = 0; scene.add(trMeshB);   // the third ship at every station is now the big OVUM transport (was the boxy freighter)
+const trMeshB = new THREE.InstancedMesh(OVUM.geo, rimLit(new THREE.MeshStandardMaterial({ vertexColors: true, map: OVUM.tex, bumpMap: OVUM.tex, bumpScale: 1.5, metalness: 0.85, roughness: 0.26, envMap: SHIP_ENV, envMapIntensity: 2.0, emissive: 0x1c2028 }), 0.3, 0.36, 0.48), TR_N); trMeshB.frustumCulled = false; trMeshB.count = 0; scene.add(trMeshB);   // the third ship at every station is now the big OVUM transport (was the boxy freighter)
 // four glow points per ship: two engines (blue-white) and red / green wing-tip lights (colours are fixed, only positions move)
 const trLpos = new Float32Array(TR_N * 12), trLcol = new Float32Array(TR_N * 12), trLGeo = new THREE.BufferGeometry(); trLGeo.setAttribute('position', new THREE.BufferAttribute(trLpos, 3));
 { const pat = [[0.62, 0.9, 1], [0.62, 0.9, 1], [1, 0.2, 0.2], [0.2, 1, 0.35]]; for (let q = 0; q < TR_N * 4; q++) { const c = pat[q & 3]; trLcol[q * 3] = c[0]; trLcol[q * 3 + 1] = c[1]; trLcol[q * 3 + 2] = c[2]; } trLGeo.setAttribute('color', new THREE.BufferAttribute(trLcol, 3)); }
