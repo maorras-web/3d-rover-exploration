@@ -1927,9 +1927,10 @@ function completeMission() {
 
 // ---------- UI ----------
 let toastT = 0;
-function toast(t, secs) { const el = $('toast'); el.textContent = t; el.style.opacity = '1'; toastT = secs || 1; }
+function toast(t, secs) { const el = $('toast'); el.innerHTML = t; el.style.opacity = '1'; toastT = secs || 1; }
 function flash(kind) { const f = $('flash'); f.style.transition = ''; f.style.background = kind === 'shield' ? 'radial-gradient(ellipse at center,rgba(60,170,255,0) 45%,rgba(60,170,255,.5) 100%)' : 'radial-gradient(ellipse at center,rgba(255,50,40,0) 40%,rgba(255,50,40,.7) 100%)'; f.style.opacity = '1'; setTimeout(() => f.style.opacity = '0', 110); }
 const buzz = (ms) => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { } };
+const CR = '<i class="cr"></i>';   // the game's coin: a brown-chrome pentagon (pure CSS, no image)
 const refreshHud = () => { $('credits').textContent = save.credits; };
 const updateMissHud = () => { $('miss-n').textContent = save.missiles; const e = document.getElementById('shop-ms'); if (e) e.textContent = 'MISSILES  ' + save.missiles; };
 refreshHud(); updateMissHud(); $('kills').textContent = save.kills;
@@ -1975,6 +1976,7 @@ function makePics() {
   renderer.setRenderTarget(null); renderer.setClearColor(oc, oa); rt.dispose();
 }
 let shopTab = 'm', lgSt = -1, shopSub = 'u', mapSys = -1;
+const VEL_EMB = '<svg style="width:22px;height:22px;filter:drop-shadow(0 0 3px #6fc0ff)" viewBox="0 0 64 64"><defs><linearGradient id="vlg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4fbff"/><stop offset=".35" stop-color="#8cc4ee"/><stop offset=".6" stop-color="#2c5d8f"/><stop offset="1" stop-color="#d6ecff"/></linearGradient></defs><path d="M27 4 A11.5 11.5 0 0 0 49 4 A14 14 0 0 1 27 4Z" fill="url(#vlg2)"/><path d="M14 17 L23 17 L32 38 L44 17 L59 17 L32 61Z" fill="url(#vlg2)" stroke="#e8f6ff" stroke-width=".8"/><path d="M3 17 L11 17 L7 24Z" fill="url(#vlg2)"/><path d="M28.5 21.5 L37.5 21.5 L33 29Z" fill="none" stroke="#e8f6ff" stroke-width="1.4"/></svg>';   // the ruling race's emblem (same drawing as on the star map; own gradient id)
 const HOLD = 20, GOODS = [{ nm: 'ORE', base: 40, desc: 'Raw asteroid ore' }, { nm: 'FOOD', base: 25, desc: 'Sealed rations' }, { nm: 'MEDS', base: 70, desc: 'Medical supplies' }, { nm: 'TECH', base: 120, desc: 'Electronic parts' }, { nm: 'GEMS', base: 200, desc: 'Cut crystals' }];
 const cMul = (st, gi) => { const x = Math.sin((st + 1) * 12.9898 + gi * 78.233) * 43758.5453; return 0.7 + 0.7 * (x - Math.floor(x)); };   // each station pays a different price for each good
 // ---- 3D planet viewer for the Map tab: a tiny software sphere on a 120px canvas. Pixel lookups are precomputed once, so a frame is ~14k array reads, and it only runs while the tab is open ----
@@ -2029,10 +2031,10 @@ function openShop(msg) {
   const row = (nm, desc, extra, btnText, dis, fn, ic) => {
     const r = document.createElement('div'); r.className = 'row';
     r.innerHTML = `${ic !== undefined && PIC[ic] ? `<div class="ico wd pic"><img src="${PIC[ic]}" alt=""></div>` : ic !== undefined && ICO[ic] ? `<div class="ico${ICO[ic][2] ? ' wd' : ''}" style="--c:${ICO[ic][0]}"><svg viewBox="${ICO[ic][2] ? '0 0 64 40' : '0 0 24 24'}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICO[ic][1]}</svg></div>` : ''}<div class="nm">${nm}<span>${desc}</span></div>${extra ? `<div class="lv">${extra}</div>` : ''}`;
-    if (btnText) { const b = document.createElement('button'); b.className = 'buy'; b.textContent = btnText; b.disabled = dis; b.addEventListener('click', fn); r.appendChild(b); }
+    if (btnText) { const b = document.createElement('button'); b.className = 'buy'; b.innerHTML = btnText; b.disabled = dis; b.addEventListener('click', fn); r.appendChild(b); }
     list.appendChild(r);
   };
-  $('shop-cr').textContent = '◆ ' + save.credits;
+  $('shop-cr').innerHTML = CR + ' ' + save.credits;
   if (shopTab === 'h' || shopTab === 'u') { try { makePics(); } catch (e) { PIC.ms = PIC.ms || ''; } }
   if (shopTab === 's') {
     const tot = save.up.reduce((x, y) => x + y, 0), mk = ['I', 'II', 'III', 'IV', 'V'][Math.min(4, tot / 6 | 0)];
@@ -2055,7 +2057,7 @@ function openShop(msg) {
     const tot = save.up.reduce((x, y) => x + y, 0), mk = ['I', 'II', 'III', 'IV', 'V'][Math.min(4, tot / 6 | 0)], cw = curW();
     sec('SHIP'); row(SHIPS[save.ship].name + '  MK ' + mk, SHIPS[save.ship].sub + '  ·  hull ' + ST.hullMax + '  ·  shield ' + ST.shieldMax, '', '', false, null, 'sh');
     SHIPS.forEach((sp, i) => { if (i === save.ship) return; const own = save.ships.includes(i);
-      row(sp.name, sp.sub + '  ·  hull ×' + sp.hm + (own ? '' : '  ·  not owned'), '', own ? 'FLY' : '◆ ' + sp.price, !own && save.credits < sp.price, () => { if (!own) { save.credits -= sp.price; save.ships.push(i); } save.ship = i; applyShip(); PIC.ms = ''; S.hull = ST.hullMax; S.shield = ST.shieldMax; persist(); refreshHud(); sfx('pick'); openShop(msg); }); });
+      row(sp.name, sp.sub + '  ·  hull ×' + sp.hm + (own ? '' : '  ·  not owned'), '', own ? 'FLY' : CR + ' ' + sp.price, !own && save.credits < sp.price, () => { if (!own) { save.credits -= sp.price; save.ships.push(i); } save.ship = i; applyShip(); PIC.ms = ''; S.hull = ST.hullMax; S.shield = ST.shieldMax; persist(); refreshHud(); sfx('pick'); openShop(msg); }); });
     sec('PRIMARY WEAPONS');
     const cyc = () => { const o = save.wpn.owned, n = o[(o.indexOf(save.wpn.cur) + 1) % o.length]; if (n === save.wpn.cur) { sfx('ui'); return; } save.wpn.cur = n; persist(); refreshHud(); wpnChip(); sfx('pick'); openShop(msg); };
     for (let hp = 1; hp <= 2; hp++) row(cw.name, 'Hardpoint ' + hp + '  ·  ' + Math.round(ST.dmg * cw.dm * (cw.n || 1)) + ' dmg per ' + (cw.n > 1 ? 'volley' : 'shot') + '  ·  ' + (1 / cw.rate).toFixed(1) + ' shots/s', '', save.wpn.owned.length > 1 ? 'CHANGE' : '', false, cyc, 'w' + save.wpn.cur);
@@ -2072,7 +2074,7 @@ function openShop(msg) {
     let svg = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">';
     lanes.forEach(l => { const [i, j] = l.split('-').map(Number); svg += `<line x1="${pc[i][0]}" y1="${pc[i][1]}" x2="${pc[j][0]}" y2="${pc[j][1]}" stroke="rgba(110,170,240,.35)" stroke-width="1" vector-effect="non-scaling-stroke"/>`; });
     ids.forEach(k => { if (k !== here && stations[here].sys === ms) svg += `<line x1="${pc[here][0]}" y1="${pc[here][1]}" x2="${pc[k][0]}" y2="${pc[k][1]}" stroke="rgba(255,200,96,.55)" stroke-width="1.2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`; });
-    mp.insertAdjacentHTML('afterbegin', svg + '</svg><div style="position:absolute;left:10px;top:7px;font:700 10px system-ui,Arial,sans-serif;letter-spacing:3px;color:#a58ad8">' + SYSTEMS[ms] + ' SYSTEM</div><div class="sysw">' + SYSTEMS.map((n, q) => `<button data-q="${q}" class="${q === ms ? 'on' : ''}">${n}</button>`).join('') + '</div>');
+    mp.insertAdjacentHTML('afterbegin', svg + '</svg><div style="position:absolute;left:10px;top:7px;font:700 10px system-ui,Arial,sans-serif;letter-spacing:3px;color:#a58ad8">' + SYSTEMS[ms] + ' SYSTEM</div><div style="position:absolute;left:8px;top:21px;display:flex;align-items:center;gap:5px;font:600 9px system-ui,Arial,sans-serif;letter-spacing:2px;color:#8d76b8;pointer-events:none">' + VEL_EMB + '<span>RULED BY <b style="color:#efe6ff;font-weight:700">' + SYS_RULER[ms] + '</b></span></div><div class="sysw">' + SYSTEMS.map((n, q) => `<button data-q="${q}" class="${q === ms ? 'on' : ''}">${n}</button>`).join('') + '</div>');
     ids.forEach(k => { const s = stations[k], d = document.createElement('div'); d.className = 'sn' + (k === S.station ? ' here' : '') + (S.mission && S.mission.type === 'delivery' && S.mission.to === k ? ' tgt' : '') + (pc[k][0] > 30 ? ' fl' : ''); d.style.left = pc[k][0] + '%'; d.style.top = pc[k][1] + '%';
       const cu = CM && CM[s.name]; if (cu) { d.className = d.className.replace(' fl', ''); d.innerHTML = `<i style="${k === S.station ? '' : `background:${MAPC[s.name] || s.col};box-shadow:0 0 12px ${MAPC[s.name] || s.col}`}"></i>`; mp.appendChild(d); d.addEventListener('click', () => pvShow(k));
         const cl = (txt, x, y, an, cls) => { const e = document.createElement('div'); e.className = 'cl ' + (an === 'r' ? 'r ' : '') + (cls || ''); e.style.left = x + '%'; e.style.top = y + '%'; e.textContent = txt; mp.appendChild(e);
@@ -2087,8 +2089,8 @@ function openShop(msg) {
     const pvShow = (k) => { const p = stations[k].pl; pvw.querySelector('b').textContent = (p.lbl || PKIND[p.kind] || 'PLANET'); pvw.querySelector('small').textContent = stations[k].name + ' · ' + ((k * 600000 + p.r * 3000) / 1e6).toFixed(1) + 'M KM'; pvStart(pvw.querySelector('canvas'), k); };
     pvShow(stations[S.station].sys === ms ? S.station : ids[0]);
   } else if (shopTab === 'm') {
-    if (S.mission) row('ACTIVE: ' + S.mission.title, S.mission.text + '  ·  ◆ ' + S.mission.reward, '', 'ABANDON', false, () => { S.mission = null; updateMissionHud(); openShop(msg); });
-    offered.forEach((m) => row(m.title + '  ◆ ' + m.reward, m.text, '', S.mission ? 'BUSY' : 'ACCEPT', !!S.mission, () => { S.mission = Object.assign({}, m); if (m.zone) S.mission.zone = m.zone; updateMissionHud(); sfx('pick'); openShop('MISSION ACCEPTED'); }));
+    if (S.mission) row('ACTIVE: ' + S.mission.title, S.mission.text + '  ·  ' + CR + ' ' + S.mission.reward, '', 'ABANDON', false, () => { S.mission = null; updateMissionHud(); openShop(msg); });
+    offered.forEach((m) => row(m.title + '  ' + CR + ' ' + m.reward, m.text, '', S.mission ? 'BUSY' : 'ACCEPT', !!S.mission, () => { S.mission = Object.assign({}, m); if (m.zone) S.mission.zone = m.zone; updateMissionHud(); sfx('pick'); openShop('MISSION ACCEPTED'); }));
   } else {
     const prev = (i) => { const c = stats(); save.up[i]++; const n = stats(); save.up[i]--; return [
       `${c.dmg.toFixed(0)} → ${n.dmg.toFixed(0)} damage`, `${c.shieldMax} → ${n.shieldMax} shield`, `${c.hullMax} → ${n.hullMax} hull`, `${Math.round(c.cruise)} → ${Math.round(n.cruise)} m/s`][i]; };
@@ -2096,17 +2098,17 @@ function openShop(msg) {
     tg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { shopSub = b.dataset.s; sfx('ui'); openShop(msg); })); list.appendChild(tg);
     if (shopSub === 'w') {
       WPN.forEach((w, i) => { const own = save.wpn.owned.includes(i), cur = save.wpn.cur === i, per = ST.dmg * w.dm * (w.n || 1), st = `${Math.round(per)} dmg per ${w.n > 1 ? 'volley' : 'shot'} · ${(1 / w.rate).toFixed(1)} shots/s`;
-        row(w.name, w.desc + '  ·  ' + st, '', cur ? 'EQUIPPED' : own ? 'EQUIP' : '◆ ' + w.price, cur || (!own && save.credits < w.price), () => { if (!own) { save.credits -= w.price; save.wpn.owned.push(i); } save.wpn.cur = i; persist(); refreshHud(); wpnChip(); sfx('pick'); openShop(msg); }, 'w' + i); });
+        row(w.name, w.desc + '  ·  ' + st, '', cur ? 'EQUIPPED' : own ? 'EQUIP' : CR + ' ' + w.price, cur || (!own && save.credits < w.price), () => { if (!own) { save.credits -= w.price; save.wpn.owned.push(i); } save.wpn.cur = i; persist(); refreshHud(); wpnChip(); sfx('pick'); openShop(msg); }, 'w' + i); });
       const ft = document.createElement('div'); ft.className = 'spec-lg'; ft.textContent = 'Buy a weapon once, then switch any time here or with the weapon button in flight.'; list.appendChild(ft);
     } else if (shopSub === 'c') {
       const used = save.cargo.reduce((x, y) => x + y, 0), hd = document.createElement('div'); hd.className = 'spec-ft'; hd.innerHTML = `<span>HOLD <b>${used}/${HOLD}</b></span><span>PRICES AT <b>${stations[S.station].name}</b></span>`; list.appendChild(hd);
       GOODS.forEach((g, gi) => { const m = cMul(S.station, gi), bp = Math.round(g.base * m), sp = Math.round(g.base * m * 0.9), tag = m < 0.9 ? '  ·  CHEAP HERE' : m > 1.18 ? '  ·  SELLS HIGH' : '';
-        row(g.nm + '  ×' + save.cargo[gi], g.desc + tag, '', '◆ ' + bp, save.credits < bp || used >= HOLD, () => { save.credits -= bp; save.cargo[gi]++; persist(); refreshHud(); sfx('pick'); openShop(msg); }, 'c' + gi);
-        const sb = document.createElement('button'); sb.className = 'buy sell'; sb.textContent = 'SELL ◆ ' + sp; sb.disabled = save.cargo[gi] < 1; sb.addEventListener('click', () => { save.credits += sp; save.cargo[gi]--; persist(); refreshHud(); sfx('pick'); openShop(msg); }); list.lastChild.appendChild(sb); });
+        row(g.nm + '  ×' + save.cargo[gi], g.desc + tag, '', CR + ' ' + bp, save.credits < bp || used >= HOLD, () => { save.credits -= bp; save.cargo[gi]++; persist(); refreshHud(); sfx('pick'); openShop(msg); }, 'c' + gi);
+        const sb = document.createElement('button'); sb.className = 'buy sell'; sb.innerHTML = 'SELL ' + CR + ' ' + sp; sb.disabled = save.cargo[gi] < 1; sb.addEventListener('click', () => { save.credits += sp; save.cargo[gi]--; persist(); refreshHud(); sfx('pick'); openShop(msg); }); list.lastChild.appendChild(sb); });
       const ft = document.createElement('div'); ft.className = 'spec-lg'; ft.textContent = 'Buy where it is cheap, sell where it is dear. Every station pays differently.'; list.appendChild(ft);
     } else {
-    UPG.forEach((u, i) => { const lv = save.up[i], maxed = lv >= u.max, cost = upCost(i); row(u.name, u.desc + (maxed ? '' : '  ·  ' + prev(i)), '■'.repeat(lv) + '□'.repeat(u.max - lv), maxed ? 'MAX' : '◆ ' + cost, maxed || save.credits < cost, () => { save.credits -= cost; save.up[i]++; persist(); refreshHud(); ST = stats(); sfx('pick'); openShop(msg); }, i); });
-    row('MISSILES  ×' + save.missiles, 'Homing missiles, 3 per pack', '', '◆ 90', save.credits < 90 || save.missiles > 30, () => { save.credits -= 90; save.missiles += 3; persist(); refreshHud(); updateMissHud(); sfx('pick'); openShop(msg); }, 'm');
+    UPG.forEach((u, i) => { const lv = save.up[i], maxed = lv >= u.max, cost = upCost(i); row(u.name, u.desc + (maxed ? '' : '  ·  ' + prev(i)), '■'.repeat(lv) + '□'.repeat(u.max - lv), maxed ? 'MAX' : CR + ' ' + cost, maxed || save.credits < cost, () => { save.credits -= cost; save.up[i]++; persist(); refreshHud(); ST = stats(); sfx('pick'); openShop(msg); }, i); });
+    row('MISSILES  ×' + save.missiles, 'Homing missiles, 3 per pack', '', CR + ' 90', save.credits < 90 || save.missiles > 30, () => { save.credits -= 90; save.missiles += 3; persist(); refreshHud(); updateMissHud(); sfx('pick'); openShop(msg); }, 'm');
     }
   }
   updateMissHud(); document.body.classList.add('docked'); $('shop').classList.add('show');
@@ -2137,7 +2139,7 @@ function openShop(msg) {
     g.querySelectorAll('.pt').forEach(el => el.addEventListener('click', () => { const i = +el.dataset.i, p = PT[i]; initAudio(); sfx('ui'); say(p.nm, p.t[idx[i]++ % p.t.length]); })); };
   window.__fillLounge = fillLounge;
   const idx = new Array(12).fill(0), say = (nm, tx) => { $('lg-nm').textContent = nm; $('lg-tx').textContent = tx; };
-  $('lg-drink').addEventListener('click', () => { if (save.credits < 15) { toast('NOT ENOUGH CREDITS', 1); return; } save.credits -= 15; persist(); refreshHud(); $('shop-cr').textContent = '◆ ' + save.credits; initAudio(); sfx('pick'); { const nb = $('lg-nab'); nb.classList.add('on'); clearTimeout(nb._t); nb._t = setTimeout(() => nb.classList.remove('on'), 5000); } const on = $('lg-pts').querySelectorAll('.pt'), p = PT[+on[Math.random() * on.length | 0].dataset.i]; say(p.nm + ' · CHEERS', TIP[Math.random() * TIP.length | 0]); });
+  $('lg-drink').addEventListener('click', () => { if (save.credits < 15) { toast('NOT ENOUGH CREDITS', 1); return; } save.credits -= 15; persist(); refreshHud(); $('shop-cr').innerHTML = CR + ' ' + save.credits; initAudio(); sfx('pick'); { const nb = $('lg-nab'); nb.classList.add('on'); clearTimeout(nb._t); nb._t = setTimeout(() => nb.classList.remove('on'), 5000); } const on = $('lg-pts').querySelectorAll('.pt'), p = PT[+on[Math.random() * on.length | 0].dataset.i]; say(p.nm + ' · CHEERS', TIP[Math.random() * TIP.length | 0]); });
 }
 
 function dockAt(i) {
@@ -2457,7 +2459,7 @@ function frame(now) {
       const l = loot[i]; if (!l.active) continue; l.life -= dt; l.pos.addScaledVector(l.vel, dt); l.vel.multiplyScalar(Math.max(0, 1 - 1.2 * dt));
       _a.copy(S.pos).sub(l.pos); const d = _a.length();
       if (d < mag * 3) l.vel.addScaledVector(_a.divideScalar(d || 1), (1 - d / (mag * 3)) * 220 * dt);
-      if (d < 7) { l.active = false; save.credits += l.val; refreshHud(); sfx('pick'); if (l.nm) toast('+ ' + l.nm + '  ◆' + l.val, 1); S.shield = Math.min(ST.shieldMax, S.shield + 3); if (l.ore && S.mission && S.mission.type === 'mining') { S.mission.done++; updateMissionHud(); if (S.mission.done >= S.mission.n) completeMission(); } persist(); }
+      if (d < 7) { l.active = false; save.credits += l.val; refreshHud(); sfx('pick'); if (l.nm) toast('+ ' + l.nm + '  ' + CR + l.val, 1); S.shield = Math.min(ST.shieldMax, S.shield + 3); if (l.ore && S.mission && S.mission.type === 'mining') { S.mission.done++; updateMissionHud(); if (S.mission.done >= S.mission.n) completeMission(); } persist(); }
       else if (l.life <= 0) l.active = false;
     }
     // shield recharge
