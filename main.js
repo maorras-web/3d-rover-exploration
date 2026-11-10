@@ -1364,7 +1364,7 @@ const stations = [
   { name: 'ERSO', col: '#c8ff3a', v: { big: 2.3, ring: 1, R: 26, tube: 4.4, spokes: 5, panels: 4, tanks: 4, tint: 0.3, band: ['#c8ff3a', '#ffffff'] }, pos: V3(9800, 400, -9200), front: V3(0, -1, 0), pl: { kind: 'toxic', lbl: 'NEON GIANT', r: 400, off: V3(650, 150, -450), atm: [0.4, 0.85, 0.95] } },
   { name: 'PIOPA', col: '#35e0c8', v: { big: 1.5, ring: 1, R: 38, tube: 3.0, rings: 2, spokes: 8, panels: 0, tanks: 0, tint: 0.2, band: ['#35e0c8', '#d0fff6'] }, pos: V3(8000, -400, -8600), front: V3(0, -1, 0), pl: { kind: 'onyx', lbl: 'OCEAN WORLD', r: 500, off: V3(-700, 250, -350), atm: [0.3, 0.6, 1.0] } },
 ];
-const SYSTEMS = ['PIKRO', 'YAPZO']; stations.forEach((s, i) => { s.sys = i < 6 ? 0 : 1; });
+const SYSTEMS = ['PIKRO', 'YAPZO'], SYS_RULER = ['VELNORIAN', 'VELNORIAN'];  /* the race that rules each system (shown on the star map) */ stations.forEach((s, i) => { s.sys = i < 6 ? 0 : 1; });
 // (no cloning for now: only XIAQA has the new citadel design, the other stations keep their own)
 const ST_K = 3;   // station scale: everything is built at 1x and the whole station group is scaled
 const SYS_K = 2.2;   // spread the system out: distance between stations x2.2 (planets move with their stations)
@@ -2168,7 +2168,7 @@ const mapBs = SYSTEMS.map((nm, k) => { let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -
   $('map-sys').addEventListener('click', () => { if (S.mode !== 'fly') return; const to = firstOfSys((curSys + 1) % SYSTEMS.length); closeMap(); initAudio(); S.tPlanet = to; sfx('lock'); trvOn = true; $('trv-name').textContent = SYSTEMS[stations[to].sys] + ' SYSTEM'; $('trv-dlg').style.display = 'flex'; });
 })();
 function updateMap() {
-  updCurSys(); mapB = mapBs[curSys]; $('map-sys').textContent = '\u27A4 JUMP TO ' + SYSTEMS[(curSys + 1) % SYSTEMS.length] + ' SYSTEM'; $('map-title').textContent = 'STAR MAP \u00B7 ' + SYSTEMS[curSys] + ' SYSTEM'; planets.forEach((p, i) => { $('mn' + i).style.display = p.sys === curSys ? '' : 'none'; });
+  updCurSys(); mapB = mapBs[curSys]; $('map-sys').textContent = '\u27A4 JUMP TO ' + SYSTEMS[(curSys + 1) % SYSTEMS.length] + ' SYSTEM'; $('map-title').textContent = 'STAR MAP \u00B7 ' + SYSTEMS[curSys] + ' SYSTEM'; $('map-ruler').textContent = SYS_RULER[curSys]; planets.forEach((p, i) => { $('mn' + i).style.display = p.sys === curSys ? '' : 'none'; });
   const sc = mapB.sx * 84; mapMe.style.left = (50 + (S.pos.x - mapB.cx) * sc) + '%'; mapMe.style.top = (50 + (S.pos.z - mapB.cz) * sc) + '%';
   const f = new THREE.Vector3(0, 0, -1).applyQuaternion(S.q); mapMe.style.transform = 'translate(-50%,-60%) rotate(' + Math.atan2(f.x, -f.z) + 'rad)';
   const n = nearPlanet(); planets.forEach((p, i) => { const e = $('mn' + i); e.classList.toggle('cur', n === i); e.lastChild.textContent = n === i ? 'YOU ARE HERE' : ''; });
