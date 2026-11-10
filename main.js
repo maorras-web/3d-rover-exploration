@@ -1760,7 +1760,7 @@ const trBuild = (spec) => { const parts = []; const Mq = new THREE.Matrix4(), Eu
 const trMat = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.15, emissive: 0x39414f });
 // ---- OVUM: big egg-shaped transport for station traffic (one continuous skin whose tail splits into two welded engine lobes; one merged geometry, drawn instanced) ----
 // rim light + a soft 'head-lamp' from the upper left of the view: a cool glow on the edges and a gentle light/shadow across the body, so a ship keeps its round 3D shape even when the sun is behind it (a few shader operations, no extra draw)
-const rimLit = (m, r, g, b) => { m.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n#ifdef USE_COLOR\ntotalEmissiveRadiance *= vColor.rgb;\n#endif\n{ float fr = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0); totalEmissiveRadiance += vec3(' + r + ',' + g + ',' + b + ') * fr * fr * fr; totalEmissiveRadiance += vec3(' + r + ',' + g + ',' + b + ') * 0.25 * pow(max(dot(normal, normalize(vec3(-0.45, 0.65, 0.6))), 0.0), 1.4); }'); }; m.customProgramCacheKey = () => 'rim' + r + g + b; return m; };
+const rimLit = (m, r, g, b, f) => { f = f || 0; m.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n#ifdef USE_COLOR\ntotalEmissiveRadiance *= vColor.rgb;\n#endif\n{ float fr = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0); totalEmissiveRadiance += vec3(' + r + ',' + g + ',' + b + ') * fr * fr * fr; float kl = max(dot(normal, normalize(vec3(-0.45, 0.65, 0.6))), 0.0); totalEmissiveRadiance += vec3(' + r + ',' + g + ',' + b + ') * 0.25 * pow(kl, 1.4); totalEmissiveRadiance += diffuseColor.rgb * ' + f.toFixed(2) + ' * (0.3 + 0.7 * kl); }'); }; m.customProgramCacheKey = () => 'rim' + r + g + b + f; return m; };   // rim light + a built-in 'camera-side' fill light (f) that shows the hull's own colours and shape even when the sun is behind it: a few shader ops, no extra lights or passes
 const OVUM = (() => {
 const Eu = new THREE.Euler(), Mq = new THREE.Matrix4();
 // lathe along z (nose toward -z): profile = [[z, radius], ...]
@@ -1849,25 +1849,25 @@ const GOLD = (() => {
   ant(0.9, 0.022, 0, 1, 0, 0.05); ant(0.5, 0.018, 0.5, 0.85, 0.2, 0.035); ant(0.45, 0.018, -0.45, 0.8, -0.3, 0.035); ant(0.35, 0.016, 0.2, -0.3, 0.95, 0.03); ant(0.6, 0.02, -0.9, 0.3, 0.1, 0.04);   // a tall mast and four shorter whips
   return { geo: mergeGeometries(parts), tex };
 })();
-const trMesh = new THREE.InstancedMesh(GOLD.geo, new THREE.MeshStandardMaterial({ vertexColors: true, map: GOLD.tex, bumpMap: GOLD.tex, bumpScale: 1.4, metalness: 1.0, roughness: 0.2, envMap: SHIP_ENV, envMapIntensity: 2.4, emissive: 0x1a1004 }), TR_N);   // the two small ships at every station are big golden spheres with engraved lines and antennas (one instanced draw)   
+const trMesh = new THREE.InstancedMesh(GOLD.geo, rimLit(new THREE.MeshStandardMaterial({ vertexColors: true, map: GOLD.tex, bumpMap: GOLD.tex, bumpScale: 1.4, metalness: 1.0, roughness: 0.2, envMap: SHIP_ENV, envMapIntensity: 2.4, emissive: 0x1a1004, fog: false }), 0.45, 0.32, 0.1, 0.55), TR_N);   // the two small ships at every station are big golden spheres with engraved lines and antennas (one instanced draw)   
  trMesh.frustumCulled = false; trMesh.count = 0; scene.add(trMesh);
-const trMeshB = new THREE.InstancedMesh(OVUM.geo, rimLit(new THREE.MeshStandardMaterial({ vertexColors: true, map: OVUM.tex, bumpMap: OVUM.tex, bumpScale: 1.5, metalness: 0.85, roughness: 0.26, envMap: SHIP_ENV, envMapIntensity: 2.0, emissive: 0x1c2028 }), 0.3, 0.36, 0.48), TR_N); trMeshB.frustumCulled = false; trMeshB.count = 0; scene.add(trMeshB);   // the third ship at every station is now the big OVUM transport (was the boxy freighter)
+const trMeshB = new THREE.InstancedMesh(OVUM.geo, rimLit(new THREE.MeshStandardMaterial({ vertexColors: true, map: OVUM.tex, bumpMap: OVUM.tex, bumpScale: 1.5, metalness: 0.85, roughness: 0.26, envMap: SHIP_ENV, envMapIntensity: 2.0, emissive: 0x1c2028, fog: false }), 0.3, 0.36, 0.48, 1.3), TR_N); trMeshB.frustumCulled = false; trMeshB.count = 0; scene.add(trMeshB);   // the third ship at every station is now the big OVUM transport (was the boxy freighter)
 // four glow points per ship: two engines (blue-white) and red / green wing-tip lights (colours are fixed, only positions move)
 const trLpos = new Float32Array(TR_N * 12), trLcol = new Float32Array(TR_N * 12), trLGeo = new THREE.BufferGeometry(); trLGeo.setAttribute('position', new THREE.BufferAttribute(trLpos, 3));
 { const pat = [[0.62, 0.9, 1], [0.62, 0.9, 1], [1, 0.2, 0.2], [0.2, 1, 0.35]]; for (let q = 0; q < TR_N * 4; q++) { const c = pat[q & 3]; trLcol[q * 3] = c[0]; trLcol[q * 3 + 1] = c[1]; trLcol[q * 3 + 2] = c[2]; } trLGeo.setAttribute('color', new THREE.BufferAttribute(trLcol, 3)); }
-const trLights = new THREE.Points(trLGeo, new THREE.PointsMaterial({ vertexColors: true, map: glowTex, size: 2.6, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false })); trLights.frustumCulled = false; trLights.visible = false; scene.add(trLights);
+const trLights = new THREE.Points(trLGeo, new THREE.PointsMaterial({ vertexColors: true, map: glowTex, size: 4, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false })); trLights.frustumCulled = false; trLights.visible = false; scene.add(trLights);
 const _tc = new THREE.Color(), TR_U = [], TR_V = [];
 // how far each station reaches from its centre (measured once from its real geometry), so the traffic circles OUTSIDE it and never flies through the hull
 const TR_R = stations.map((st) => { let mx = 0; const v = V3(); st.g.updateMatrixWorld(true); st.g.traverse((o) => { if (!o.isMesh || o.isInstancedMesh || !o.geometry || !o.geometry.attributes.position) return; const pa = o.geometry.attributes.position; for (let i = 0; i < pa.count; i += 2) { v.fromBufferAttribute(pa, i).applyMatrix4(o.matrixWorld); const d = v.distanceToSquared(st.pos); if (d > mx) mx = d; } }); return Math.sqrt(mx); });
 stations.forEach((st, k) => { const n = V3(Math.sin(k * 1.7), 1.2, Math.cos(k * 2.3)).normalize(), u = V3(1, 0, 0).cross(n).normalize(), v = n.clone().cross(u); TR_U.push(u); TR_V.push(v); });
-const _tq = new THREE.Quaternion(), _tp = V3(), _tt = V3(), _ts = V3(25, 25, 25), _tsB = V3(9.3, 9.3, 9.3);
+const _tq = new THREE.Quaternion(), _tp = V3(), _tt = V3(), _ts = V3(40, 40, 40), _tsB = V3(15, 15, 15);   // traffic ships enlarged x1.6
 function updateTraffic() {
   let nA = 0, nB = 0, nl = 0;
-  for (let k = 0; k < stations.length; k++) { const st = stations[k]; if (!st.g.visible) continue;
-    for (let j = 0; j < TR_K; j++) { const dir = (j & 1) ? -1 : 1, th = tAcc * dir * (0.13 - j * 0.02) + j * 2.09 + k, R = TR_R[k] + 90 + j * 70, c = Math.cos(th), sn = Math.sin(th), u = TR_U[k], v = TR_V[k], fr = j === 2;
+  for (let k = 0; k < stations.length; k++) { const st = stations[k]; if (!st.g.visible || st.sys !== 0) continue;   // these three ships fly only in the PIKRO system (YAPZO gets its own traffic later)
+    for (let j = 0; j < TR_K; j++) { const dir = (j & 1) ? -1 : 1, th = tAcc * dir * (0.13 - j * 0.02) + j * 2.09 + k, R = TR_R[k] + 150 + j * 110, c = Math.cos(th), sn = Math.sin(th), u = TR_U[k], v = TR_V[k], fr = j === 2;
       _tp.set(st.pos.x + (u.x * c + v.x * sn) * R, st.pos.y + (u.y * c + v.y * sn) * R, st.pos.z + (u.z * c + v.z * sn) * R);
       _tt.set((-u.x * sn + v.x * c) * dir, (-u.y * sn + v.y * c) * dir, (-u.z * sn + v.z * c) * dir);
-      _m.lookAt(_zero, _tt, Y); _tq.setFromRotationMatrix(_m); const M = _m.elements, ks = fr ? 9.3 : 25;
+      _m.lookAt(_zero, _tt, Y); _tq.setFromRotationMatrix(_m); const M = _m.elements, ks = fr ? 15 : 40;
       if (fr) { trMeshB.setMatrixAt(nB, dummy.matrix.compose(_tp, _tq, _tsB)); trMeshB.setColorAt(nB, _tc.setRGB(1, 1, 1)); nB++; }
       else { trMesh.setMatrixAt(nA, dummy.matrix.compose(_tp, _tq, _ts)); trMesh.setColorAt(nA, _tc.setRGB(1, 1, 1)); nA++; }
       // glow points: engines behind the hull, wing-tip lights out on the wings (right vector = first column of the look-at matrix)
