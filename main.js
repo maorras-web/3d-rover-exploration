@@ -2248,8 +2248,8 @@ function wrecked() {
 
 // ---------- spawning (asteroids) ----------
 function spawnAsteroid(a, first) {
-  fwdOf(S.q, fwd);
-  for (let tries = 0; tries < 6; tries++) {
+  fwdOf(S.q, fwd); a.active = false;
+  for (let tries = 0; tries < 10; tries++) {
     if (first) { _b.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)); if (_b.lengthSq() > 1) continue; _b.multiplyScalar(ASTR); }
     else { _b.set(rnd(-1, 1), rnd(-0.8, 0.8), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.8, 1.0) * ASTR); if (_b.dot(fwd) < 0) _b.addScaledVector(fwd, -2 * _b.dot(fwd)); }
     _b.add(S.pos);
@@ -2257,8 +2257,11 @@ function spawnAsteroid(a, first) {
     for (const st of stations) if (_b.distanceTo(st.pos) < 700) ok = false;
     for (const p of planets) if (_b.distanceTo(p.pos) < p.r + 120) ok = false;
     if (!ok) continue;
+    const big = Math.random() < 0.15, r = big ? rnd(14, 26) : rnd(3, 11);
+    for (let j = 0; j < AST_N && ok; j++) { const o = asteroids[j]; if (!o.active || o === a) continue; const dx = o.x - _b.x, dy = o.y - _b.y, dz = o.z - _b.z, md = (o.r + r) * 1.6 + 12; if (dx * dx + dy * dy + dz * dz < md * md) ok = false; }   // keep clear of every other rock: no rocks spawning inside or stacked against each other
+    if (!ok) continue;
     a.x = _b.x; a.y = _b.y; a.z = _b.z;
-    const big = Math.random() < 0.15; a.r = big ? rnd(14, 26) : rnd(3, 11); a.hp = a.r * a.r * 0.35; a.active = true; return;
+    a.r = r; a.hp = a.r * a.r * 0.35; a.active = true; return;
   }
   a.active = false; a.y = -99999;
 }
