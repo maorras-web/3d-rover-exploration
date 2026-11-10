@@ -489,6 +489,9 @@ const roverBody = (() => {
         const NS = 6, NC = 6, pos = [], pt = (t, c, up) => { const zl = -0.5 + k * Math.pow(t, 1.5), zt = 0.5 + (k - 0.92) * Math.pow(t, 0.9), th = (Math.pow(Math.sin(Math.PI * c), 0.3) * 0.94 + 0.06) * (1 - 0.15 * t); return [t, up * 0.5 * th, zl + (zt - zl) * c]; };
         for (let i = 0; i < NS; i++) for (let j = 0; j < NC; j++) { const t0 = i / NS, t1 = (i + 1) / NS, c0 = j / NC, c1 = (j + 1) / NC;
           for (const up of [1, -1]) { const A = pt(t0, c0, up), B = pt(t0, c1, up), C = pt(t1, c0, up), D = pt(t1, c1, up), tri = up > 0 ? [A, B, C, B, D, C] : [A, C, B, B, C, D]; tri.forEach(q => pos.push(q[0], q[1], q[2])); } }
+        { const zm = (pt(1, 0, 1)[2] + pt(1, 1, 1)[2]) / 2, R2 = (c, up) => { const q = pt(1, c, up); return [1.06, q[1] * 0.18, zm + (q[2] - zm) * 0.6]; };   // rounded wing tip: a short tapered end piece that closes the wing (the tips used to end in an open, square cut)
+          for (let j = 0; j < NC; j++) { const c0 = j / NC, c1 = (j + 1) / NC; for (const up of [1, -1]) { const A = pt(1, c0, up), B = pt(1, c1, up), C = R2(c0, up), D = R2(c1, up), tri = up > 0 ? [A, B, C, B, D, C] : [A, C, B, B, C, D]; tri.forEach(q => pos.push(q[0], q[1], q[2])); }
+            const T0 = R2(c0, 1), T1 = R2(c1, 1), B0 = R2(c0, -1), B1 = R2(c1, -1), U0 = pt(0, c0, 1), U1 = pt(0, c1, 1), L0 = pt(0, c0, -1), L1 = pt(0, c1, -1); [T0, T1, B0, T1, B1, B0, U0, L0, U1, U1, L0, L1].forEach(q => pos.push(q[0], q[1], q[2])); } }
         const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); return g; } } };
     for (const p of PJ) for (const mir of (p.mir ? [0, 1] : [0])) {
       let g = pgeo(p); g = g.index ? g.toNonIndexed() : g;
@@ -755,7 +758,7 @@ function buildManta() {
     const collar = new THREE.Mesh(new THREE.RingGeometry(er2, er2 * 1.34, 24), shellM); collar.position.set(sx * EX, ey, ezT + PRO + 0.002); g.add(collar);
     const lip = new THREE.Mesh(new THREE.CylinderGeometry(er2 * 1.34, er2 * 1.34, PRO + 0.1, 24, 1, true), shellM); lip.rotation.x = Math.PI / 2; lip.position.set(sx * EX, ey, ezT + PRO / 2 - 0.05); g.add(lip);
     const seam = new THREE.Mesh(new THREE.TorusGeometry(er2 * 1.34, 0.02, 3, 26), seamM); seam.position.set(sx * EX, ey, ezT + PRO + 0.003); g.add(seam);
-    g.userData.eng.push([sx * EX, ey, ezT + PRO]);
+    g.userData.eng.push([sx * EX, ey, ezT + PRO, er2]);
   }
   // wing guns
   for (const sx of [-1, 1]) { const gun = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 3.0, 8), engM); gun.rotation.x = Math.PI / 2; gun.position.set(sx * 4.9, droop(0.65) - 0.1, -1.4); g.add(gun); }
@@ -790,7 +793,11 @@ function buildManta() {
   return g;
 }
 const MUZ0 = MUZ.map(m => m.slice()), MUZ1 = [[2.7, -0.18, -1.9], [-2.7, -0.18, -1.9], [2.15, -0.12, -1.9], [-2.15, -0.12, -1.9]];   // gun muzzles of each hull
-let altShip = null; const altFl = [];
+let altShip = null; const altFl = [], altCones = [];
+// MANTA engine flames: purple when cruising, a deep dark blue on boost. 3 nested additive cones per engine (soft outer plume, bright middle, hot core) + a lit nozzle disc; 8 tiny meshes, no textures beyond the shared flame strip
+const MF_COL = [[0x7426ff, 0x0a18d0], [0xb06cff, 0x1a3cff], [0xf2e6ff, 0x7f9cff]], MF_GLOW = [0x9a4dff, 0x1430ff], MF_CORE = [0xe9dcff, 0xa9bcff];
+const mantaFlameMats = [mkFlame(MF_COL[0][0], 0.55), mkFlame(MF_COL[1][0], 0.6), mkFlame(MF_COL[2][0], 0.85)], mantaNozMat = new THREE.MeshBasicMaterial({ color: 0x8a3cff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false });
+const MFL = [{ r: 0.95, len: 4.2, k: 0 }, { r: 0.62, len: 3.0, k: 1 }, { r: 0.32, len: 1.8, k: 2 }];   // relative to the nozzle radius: long soft plume, then tighter and brighter towards the core
 // real metal look at no cost: reuse the Star Courier's reflection cube, raise metalness, add panel relief from the texture that is already there
 function metalizeManta(g) {
   const seen = new Set();
@@ -807,7 +814,9 @@ function applyShip() {
   const alt = save.ship === 1;
   if (alt && !altShip) {
     altShip = buildManta(); metalizeManta(altShip); altShip.scale.setScalar(0.55); altShip.position.set(0, 0.4, -0.3); shipBody.add(altShip);
-    for (const e of altShip.userData.eng) { const ex = e[0] * 0.55, ey = e[1] * 0.55 + 0.4, ez = e[2] * 0.55 - 0.3; const a = glowSprite(0x7fe9ff, 1.5, 0.32); a.position.set(ex, ey, ez + 0.3); a.userData.sc = 0.6; shipBody.add(a); const b = glowSprite(0xffffff, 0.9, 0.6); b.position.set(ex, ey, ez + 0.1); b.userData.sc = 0.6; b.userData.core = 1; shipBody.add(b); altFl.push(a, b); }   // flames start exactly at the nozzles
+    for (const e of altShip.userData.eng) { const ex = e[0] * 0.55, ey = e[1] * 0.55 + 0.4, ez = e[2] * 0.55 - 0.3; const a = glowSprite(0x7fe9ff, 1.5, 0.32); a.position.set(ex, ey, ez + 0.3); a.userData.sc = 0.6; shipBody.add(a); const b = glowSprite(0xffffff, 0.9, 0.6); b.position.set(ex, ey, ez + 0.1); b.userData.sc = 0.6; b.userData.core = 1; shipBody.add(b); altFl.push(a, b);
+      const nr = (e[3] || 0.4) * 0.55, disc = new THREE.Mesh(new THREE.CircleGeometry(nr * 0.95, 20), mantaNozMat); disc.position.set(ex, ey, ez + 0.006); shipBody.add(disc); altCones.push(disc);   // the nozzle mouth glows from inside
+      MFL.forEach((L, k) => { const fc = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 16, 1, true), mantaFlameMats[k]); fc.rotation.x = Math.PI / 2; fc.userData = { L, nr, z0: ez, ph: ex * 2.3 + k }; fc.position.set(ex, ey, ez); shipBody.add(fc); altCones.push(fc); }); }   // flames start exactly at the nozzles
   }
   origParts.forEach(o => { o.visible = !alt; });
   if (altShip) altShip.visible = alt;
@@ -2475,11 +2484,13 @@ function frame(now) {
   ship.position.copy(S.pos); ship.quaternion.copy(S.q); shipBody.rotation.z = S.roll;
   if (S.shGlow > 0) { S.shGlow = Math.max(0, S.shGlow - dt * 2.4); shGl.visible = S.shGlow > 0; shGl.material.uniforms.op.value = S.shGlow; shGl.material.uniforms.t.value = tAcc; }
   const vis = S.mode !== 'wreck', blink = S.inv > 0 && !S.nb && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
-  { const on = S.mode !== 'dock', o0 = on && save.ship === 0; flames.forEach(f => f.visible = o0); flameCore.forEach(f => f.visible = o0); flameCones.forEach(f => f.visible = o0); FINST.forEach(f => f.im.visible = o0); hoverPads.forEach(p => p.visible = on); const o1 = on && save.ship === 1; altFl.forEach(f => { f.visible = o1; }); }
+  { const on = S.mode !== 'dock', o0 = on && save.ship === 0; flames.forEach(f => f.visible = o0); flameCore.forEach(f => f.visible = o0); flameCones.forEach(f => f.visible = o0); FINST.forEach(f => f.im.visible = o0); hoverPads.forEach(p => p.visible = on); const o1 = on && save.ship === 1; altFl.forEach(f => { f.visible = o1; }); altCones.forEach(f => { f.visible = o1; }); }
   for (const f of mFlash) if (f.visible) { f.userData.t -= dt * 9; if (f.userData.t <= 0) f.visible = false; else { f.material.opacity = f.userData.t; f.scale.setScalar(2.3 * (0.5 + 0.7 * f.userData.t)); } }
   const fl = 0.7 + S.speed / 220 + (S.boosting ? 0.9 : 0), flick = 0.9 + Math.sin(tAcc * 50) * 0.1;
   flames.forEach(f => { if (f.userData.pts) f.material.size = 2.9 * fl * flick * f.userData.sc; else f.scale.setScalar(1.9 * fl * flick * f.userData.sc); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => { if (f.userData.pts) f.material.size = 1.05 * fl * flick * f.userData.sc; else f.scale.setScalar(0.7 * fl * flick * f.userData.sc); }); flameMats.forEach((fm, k) => fm.color.setHex(flameCols[k][S.boosting ? 1 : 0])); FINST.forEach(F => { const L = F.L, es = ENGS[0][3]; ENGS.forEach((en, i) => { const ph = i * 1.7 + F.k, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + ph) + 0.05 * Math.sin(tAcc * 91 + ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); _fd.position.set(en[0], en[1], en[2] + es * (0.9 + len / 2)); _fd.rotation.set(Math.PI / 2, 0, 0); _fd.scale.set(r * es, len * es, r * es); _fd.updateMatrix(); F.im.setMatrixAt(i, _fd.matrix); }); F.im.instanceMatrix.needsUpdate = true; });
-  if (save.ship === 1) altFl.forEach(f => { f.scale.setScalar((f.userData.core ? 0.7 : 1.9) * fl * flick * f.userData.sc); if (!f.userData.core) f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); });
+  if (save.ship === 1) { const bi = S.boosting ? 1 : 0; altFl.forEach(f => { f.scale.setScalar((f.userData.core ? 0.7 : 1.9) * fl * flick * f.userData.sc); f.material.color.setHex(f.userData.core ? MF_CORE[bi] : MF_GLOW[bi]); });
+    mantaFlameMats.forEach((m, k) => m.color.setHex(MF_COL[k][bi])); mantaNozMat.color.setHex(bi ? 0x1a3cff : 0x8a3cff);
+    for (const c of altCones) { const u = c.userData; if (!u.L) continue; const L = u.L, fk = 0.86 + 0.1 * Math.sin(tAcc * (36 + L.k * 19) + u.ph) + 0.05 * Math.sin(tAcc * 97 + u.ph * 3), len = u.nr * (L.len * (0.4 + 0.6 * fl) * fk + 0.3), r = u.nr * L.r * (0.9 + 0.1 * fl); c.scale.set(r, len, r); c.position.z = u.z0 + len / 2; } }   // MANTA flames flicker and stretch with speed / boost
   flameCones.forEach(c => { const u = c.userData, L = u.L, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + u.ph) + 0.05 * Math.sin(tAcc * 91 + u.ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); c.scale.set(r, len, r); c.position.z = 0.9 + len / 2; });
   for (const e of enemies) if (e.active) { e.g.children[1].scale.setScalar(5 + Math.sin(tAcc * 40 + e.pos.x) * 0.6); }
   S.camQ.slerp(S.q, 1 - Math.exp(-7 * dt));
