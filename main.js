@@ -1757,6 +1757,7 @@ function hitAsteroid(a, d) {   // any asteroid, any size, can be destroyed
 }
 function damageEnemy(e, d, at) {
   if (!e.active) return;
+  crossHitT = 0.16;   // hit marker on the aim sight
   if (e.shield > 0) { e.shield -= d; if (e.shield < 0) { e.hull += e.shield; e.shield = 0; } } else e.hull -= d;
   if (at) { sparks(at, 7, 18, 0.45); hitFlash(at, d > 40); }
   if (e.hull <= 0) {
@@ -2015,6 +2016,7 @@ function makePics() {
   { const g = ship.clone(true); g.position.set(0, 0, 0); g.quaternion.identity(); g.rotation.y = -Math.PI / 2 + 0.55; g.updateMatrixWorld(true); snap(g, 'sh', 1.05, 0.85); }   // the real ship, 3/4 view
   renderer.setRenderTarget(null); renderer.setClearColor(oc, oa); rt.dispose();
 }
+let crossHitT = 0, crossCls = ''; const _xf = V3(), _xd = V3();
 let shopTab = 'm', lgSt = -1, shopSub = 'u', mapSys = -1;
 const VEL_EMB = '<svg style="width:22px;height:22px;filter:drop-shadow(0 0 3px #6fc0ff)" viewBox="0 0 64 64"><defs><linearGradient id="vlg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4fbff"/><stop offset=".35" stop-color="#8cc4ee"/><stop offset=".6" stop-color="#2c5d8f"/><stop offset="1" stop-color="#d6ecff"/></linearGradient></defs><path d="M27 4 A11.5 11.5 0 0 0 49 4 A14 14 0 0 1 27 4Z" fill="url(#vlg2)"/><path d="M14 17 L23 17 L32 38 L44 17 L59 17 L32 61Z" fill="url(#vlg2)" stroke="#e8f6ff" stroke-width=".8"/><path d="M3 17 L11 17 L7 24Z" fill="url(#vlg2)"/><path d="M28.5 21.5 L37.5 21.5 L33 29Z" fill="none" stroke="#e8f6ff" stroke-width="1.4"/></svg>';   // the ruling race's emblem (same drawing as on the star map; own gradient id)
 const HOLD = 20, GOODS = [{ nm: 'ORE', base: 40, desc: 'Raw asteroid ore' }, { nm: 'FOOD', base: 25, desc: 'Sealed rations' }, { nm: 'MEDS', base: 70, desc: 'Medical supplies' }, { nm: 'TECH', base: 120, desc: 'Electronic parts' }, { nm: 'GEMS', base: 200, desc: 'Cut crystals' }];
@@ -2621,6 +2623,10 @@ function frame(now) {
   $('kmh').textContent = Math.round(S.speed);
   const showHud = flying;
   crossEl.style.display = showHud ? 'block' : 'none';
+  if (crossHitT > 0) crossHitT -= dt;
+  if (showHud) { let hot = false; fwdOf(S.q, _xf);   // is a pirate right under the sight? (a few dot products over 6 enemies)
+    for (const e of enemies) { if (!e.active) continue; _xd.copy(e.pos).sub(S.pos); const along = _xd.dot(_xf); if (along < 20 || along > 1100) continue; if (_xd.lengthSq() - along * along < 14 * 14) { hot = true; break; } }
+    const cs = (hot ? 'hot' : '') + (crossHitT > 0 ? ' hit' : ''); if (cs !== crossCls) { crossCls = cs; crossEl.classList.toggle('hot', hot); crossEl.classList.toggle('hit', crossHitT > 0); } }   // the DOM is touched only when the state changes
   if (flying) {
     for (let i = 0; i < stations.length; i++) {
       const d = S.pos.distanceTo(stations[i].pos); if (d < STN_VIS && stations[i].g.visible) place(mk[i], stations[i].pos, stations[i].name + ' STATION · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), false); else mk[i].style.display = 'none';
@@ -2632,7 +2638,7 @@ function frame(now) {
       const e = S.target; const d = S.pos.distanceTo(e.pos);
       const on = place(tgtEl, e.pos, undefined, false); $('t-txt').textContent = e.name + ' · ' + Math.round(d) + ' m';
       $('t-sh').style.transform = `scaleX(${clamp(e.shield / e.shieldMax, 0, 1)})`; $('t-hu').style.transform = `scaleX(${clamp(e.hull / e.hullMax, 0, 1)})`;
-      if (on) { place(leadEl, S.lead, undefined, false); } else leadEl.style.display = 'none';
+      if (on && !crossCls.includes('hot')) { place(leadEl, S.lead, undefined, false); } else leadEl.style.display = 'none';   // the lead mark hides once the target is already under the sight (one sight at a time)
       if (!on) { /* off-screen: radar shows it */ }
     } else { tgtEl.style.display = 'none'; leadEl.style.display = 'none'; }
     const ns = nearStation();

@@ -36,9 +36,15 @@
   #tgt .hb{width:54px;height:4px;margin:3px auto 2px;background:rgba(255,255,255,.2);border-radius:2px;overflow:hidden}
   #tgt .hb i{display:block;height:100%;width:100%;background:#ff6a5a;transform-origin:left}
   #tgt .hb i.s{background:#a37ad3;height:100%}
-  #lead{left:0;top:0;width:18px;height:18px;margin:-9px;border:2px solid #ffe27a;border-radius:50%;display:none;box-shadow:0 0 8px #ffe27a}
-  #lead:after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:#ffe27a;border-radius:50%}
-  #cross{left:50%;top:50%;width:22px;height:22px;margin:-11px;border:2px solid rgba(195,167,226,.5);border-radius:50%;display:none;box-sizing:border-box}
+  #lead{left:0;top:0;width:18px;height:18px;margin:-9px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Cpath d='M13 1.6 23 18.9H3Z' fill='none' stroke='%23ffe27a' stroke-width='2.6' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;display:none;filter:drop-shadow(0 0 4px #ffe27a)}   /* lead mark: a small yellow triangle, the same shape as the sight (put the sight on it) */
+  #lead:after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px;background:#ffe27a;border-radius:50%}
+  #cross{left:50%;top:50%;width:26px;height:26px;margin:-13px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Cpath d='M13 1.6 23 18.9H3Z' fill='none' stroke='rgba(195,167,226,.55)' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;display:none}   /* aim sight: a thin triangle (centred on the aim point) - one tiny inline SVG, no image file */
+  #cross{transition:transform .09s ease-out}
+  #cross.hot{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Cpath d='M13 1.6 23 18.9H3Z' fill='none' stroke='%23ff6a3c' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E");transform:scale(.82);filter:drop-shadow(0 0 4px rgba(255,110,60,.9))}   /* a pirate is under the sight: hot orange-red and tighter */
+  #cross.hot:after{background:#ff7a4a}
+  #cross:before{content:"";position:absolute;left:-7px;top:-7px;width:40px;height:40px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cg stroke='%23fff' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M5 5l6 6M35 5l-6 6M5 35l6-6M35 35l-6-6'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;opacity:0;transform:scale(.7);transition:opacity .12s,transform .12s}
+  #cross.hit{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Cpath d='M13 1.6 23 18.9H3Z' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E");filter:drop-shadow(0 0 5px #fff)}   /* a shot landed: the triangle flashes white and four ticks snap out round it */
+  #cross.hit:before{opacity:1;transform:scale(1);transition:none}
   #cross:after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:rgba(195,167,226,.8);border-radius:50%}
   #flash{inset:0;opacity:0;transition:opacity .25s}
   #tunnel{position:fixed;inset:0;z-index:46;pointer-events:none;opacity:0;overflow:hidden;transition:opacity .5s}#tunnel.on{opacity:1;transition:opacity .35s}
@@ -694,11 +700,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=448', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=451', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=448'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=451'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>
