@@ -2016,7 +2016,7 @@ function makePics() {
   { const g = ship.clone(true); g.position.set(0, 0, 0); g.quaternion.identity(); g.rotation.y = -Math.PI / 2 + 0.55; g.updateMatrixWorld(true); snap(g, 'sh', 1.05, 0.85); }   // the real ship, 3/4 view
   renderer.setRenderTarget(null); renderer.setClearColor(oc, oa); rt.dispose();
 }
-let crossHitT = 0, crossCls = '', crossX = -1, crossY = -1; const aimCam = new THREE.PerspectiveCamera(), _xq = new THREE.Quaternion(); const _xf = V3(), _xd = V3();
+let crossHitT = 0, crossCls = '', crossW = -1, crossH = -1; const aimCam = new THREE.PerspectiveCamera(), _xq = new THREE.Quaternion(); const _xf = V3(), _xd = V3();
 let shopTab = 'm', lgSt = -1, shopSub = 'u', mapSys = -1;
 const VEL_EMB = '<svg style="width:22px;height:22px;filter:drop-shadow(0 0 3px #6fc0ff)" viewBox="0 0 64 64"><defs><linearGradient id="vlg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4fbff"/><stop offset=".35" stop-color="#8cc4ee"/><stop offset=".6" stop-color="#2c5d8f"/><stop offset="1" stop-color="#d6ecff"/></linearGradient></defs><path d="M27 4 A11.5 11.5 0 0 0 49 4 A14 14 0 0 1 27 4Z" fill="url(#vlg2)"/><path d="M14 17 L23 17 L32 38 L44 17 L59 17 L32 61Z" fill="url(#vlg2)" stroke="#e8f6ff" stroke-width=".8"/><path d="M3 17 L11 17 L7 24Z" fill="url(#vlg2)"/><path d="M28.5 21.5 L37.5 21.5 L33 29Z" fill="none" stroke="#e8f6ff" stroke-width="1.4"/></svg>';   // the ruling race's emblem (same drawing as on the star map; own gradient id)
 const HOLD = 20, GOODS = [{ nm: 'ORE', base: 40, desc: 'Raw asteroid ore' }, { nm: 'FOOD', base: 25, desc: 'Sealed rations' }, { nm: 'MEDS', base: 70, desc: 'Medical supplies' }, { nm: 'TECH', base: 120, desc: 'Electronic parts' }, { nm: 'GEMS', base: 200, desc: 'Cut crystals' }];
@@ -2529,7 +2529,7 @@ function frame(now) {
     for (const c of altCones) { const u = c.userData; if (!u.L) continue; const L = u.L, fk = 0.86 + 0.1 * Math.sin(tAcc * (36 + L.k * 19) + u.ph) + 0.05 * Math.sin(tAcc * 97 + u.ph * 3), len = u.nr * (L.len * (0.4 + 0.6 * fl) * fk + 0.3), r = u.nr * L.r * (0.9 + 0.1 * fl); c.scale.set(r, len, r); c.position.z = u.z0 + len / 2; } }   // MANTA flames flicker and stretch with speed / boost
   flameCones.forEach(c => { const u = c.userData, L = u.L, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + u.ph) + 0.05 * Math.sin(tAcc * 91 + u.ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); c.scale.set(r, len, r); c.position.z = 0.9 + len / 2; });
   for (const e of enemies) if (e.active) { e.g.children[1].scale.setScalar(5 + Math.sin(tAcc * 40 + e.pos.x) * 0.6); }
-  S.camQ.slerp(S.q, 1 - Math.exp(-7 * dt));
+  S.camQ.slerp(S.q, 1 - Math.exp(-26 * dt));   // the camera follows the ship tightly, so the ship stays right under the fixed sight in turns
   const cd = 17 + S.speed * 0.014;
   _a.set(0, 4.6, cd).applyQuaternion(S.camQ); camera.position.copy(S.pos).add(_a);
   _qa.setFromAxisAngle(X, -0.07); camera.quaternion.copy(S.camQ).multiply(_qa);
@@ -2624,11 +2624,9 @@ function frame(now) {
   const showHud = flying;
   crossEl.style.display = showHud ? 'block' : 'none';
   if (crossHitT > 0) crossHitT -= dt;
-  if (showHud) {   // the sight stays locked straight above the ship's nose on screen, also in turns: its height above the ship is what it is in level flight (camera lined up behind the ship), and it rides along with the ship sideways
-    aimCam.copy(camera, false); _xd.set(0, 4.6, 17 + S.speed * 0.014).applyQuaternion(S.q); aimCam.position.copy(S.pos).add(_xd); aimCam.quaternion.copy(S.q).multiply(_xq.setFromAxisAngle(X, -0.07)); aimCam.updateMatrixWorld(); aimCam.matrixWorldInverse.copy(aimCam.matrixWorld).invert();
-    fwdOf(S.q, _xf); _xd.copy(S.pos).project(aimCam); const sy0 = _xd.y; _xd.copy(S.pos).addScaledVector(_xf, 450).project(aimCam); const lift = (_xd.y - sy0) * 0.5 * innerHeight;
-    _xd.copy(S.pos).project(camera); const cx = Math.round((_xd.x * 0.5 + 0.5) * innerWidth), cy = Math.round((0.5 - _xd.y * 0.5) * innerHeight - lift);
-    if (cx !== crossX || cy !== crossY) { crossX = cx; crossY = cy; crossEl.style.left = cx + 'px'; crossEl.style.top = cy + 'px'; } }
+  if (showHud) {   // the sight is FIXED on screen: centred, at the height of the gun line in level flight (worked out for this screen size only, so it never moves or shakes)
+    if (crossW !== innerWidth || crossH !== innerHeight) { crossW = innerWidth; crossH = innerHeight; aimCam.fov = 64; aimCam.aspect = innerWidth / innerHeight; aimCam.near = 0.1; aimCam.far = 5000; aimCam.updateProjectionMatrix(); aimCam.position.set(0, 4.6, 17); aimCam.quaternion.setFromAxisAngle(X, -0.07); aimCam.updateMatrixWorld(); aimCam.matrixWorldInverse.copy(aimCam.matrixWorld).invert();
+      _xd.set(0, 0, -450).project(aimCam); const cy = Math.round((0.5 - _xd.y * 0.5) * innerHeight); crossEl.style.left = '50%'; crossEl.style.top = cy + 'px'; } }
   if (showHud) { let hot = false; fwdOf(S.q, _xf);   // is a pirate right under the sight? (a few dot products over 6 enemies)
     for (const e of enemies) { if (!e.active) continue; _xd.copy(e.pos).sub(S.pos); const along = _xd.dot(_xf); if (along < 20 || along > 1100) continue; if (_xd.lengthSq() - along * along < 14 * 14) { hot = true; break; } }
     const cs = (hot ? 'hot' : '') + (crossHitT > 0 ? ' hit' : ''); if (cs !== crossCls) { crossCls = cs; crossEl.classList.toggle('hot', hot); crossEl.classList.toggle('hit', crossHitT > 0); } }   // the DOM is touched only when the state changes
