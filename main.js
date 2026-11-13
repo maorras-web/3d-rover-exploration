@@ -2624,8 +2624,8 @@ function frame(now) {
   const showHud = flying;
   crossEl.style.display = showHud ? 'block' : 'none';
   if (crossHitT > 0) crossHitT -= dt;
-  if (showHud) { fwdOf(S.q, _xf); _xd.copy(S.pos).addScaledVector(_xf, 450).project(camera);   // the sight sits where the guns actually converge (450 m along the nose), so it stays ahead of ANY hull and follows the nose through turns
-    const cx = Math.round((_xd.x * 0.5 + 0.5) * innerWidth), cy = Math.round((0.5 - _xd.y * 0.5) * innerHeight); if (cx !== crossX || cy !== crossY) { crossX = cx; crossY = cy; crossEl.style.left = cx + 'px'; crossEl.style.top = cy + 'px'; } }
+  if (showHud) { fwdOf(S.q, _xf); camera.updateMatrixWorld(); _xd.copy(S.pos).addScaledVector(_xf, 450).project(camera);   /* use THIS frame's camera: the stored matrix was last frame's, so the sight lagged one frame behind and shook in turns */   // the sight sits where the guns actually converge (450 m along the nose), so it stays ahead of ANY hull and follows the nose through turns
+    const cx = Math.round((_xd.x * 0.5 + 0.5) * innerWidth * 4) / 4, cy = Math.round((0.5 - _xd.y * 0.5) * innerHeight * 4) / 4; if (cx !== crossX || cy !== crossY) {   /* quarter-pixel steps: a smooth glide instead of 1-px hops */ crossX = cx; crossY = cy; crossEl.style.left = cx + 'px'; crossEl.style.top = cy + 'px'; } }
   if (showHud) { let hot = false; fwdOf(S.q, _xf);   // is a pirate right under the sight? (a few dot products over 6 enemies)
     for (const e of enemies) { if (!e.active) continue; _xd.copy(e.pos).sub(S.pos); const along = _xd.dot(_xf); if (along < 20 || along > 1100) continue; if (_xd.lengthSq() - along * along < 14 * 14) { hot = true; break; } }
     const cs = (hot ? 'hot' : '') + (crossHitT > 0 ? ' hit' : ''); if (cs !== crossCls) { crossCls = cs; crossEl.classList.toggle('hot', hot); crossEl.classList.toggle('hit', crossHitT > 0); } }   // the DOM is touched only when the state changes
