@@ -2631,7 +2631,7 @@ function frame(now) {
     const cs = (hot ? 'hot' : '') + (crossHitT > 0 ? ' hit' : ''); if (cs !== crossCls) { crossCls = cs; crossEl.classList.toggle('hot', hot); crossEl.classList.toggle('hit', crossHitT > 0); } }   // the DOM is touched only when the state changes
   if (flying) {
     for (let i = 0; i < stations.length; i++) {
-      const d = S.pos.distanceTo(stations[i].pos); if (d < STN_VIS && stations[i].g.visible) place(mk[i], stations[i].pos, stations[i].name + ' STATION · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), false); else mk[i].style.display = 'none';
+      const d = S.pos.distanceTo(stations[i].pos), home = i === anchorSt && stations[i].sys === curSys; if ((d < STN_VIS && stations[i].g.visible) || home) place(mk[i], stations[i].pos, stations[i].name + ' STATION · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), home); else mk[i].style.display = 'none';   /* your own station (the one you launched from or jumped to) is always marked with its distance, at any range - off screen it sits on the edge as an arrow; it changes only when you dock at or jump to another station */
       const lk = S.tPlanet === i; mkp[i].classList.toggle('lock', lk); if (!lk) mkp[i].style.display = 'none'; else place(mkp[i], planets[i].mesh.position, '', lk);
     }
     const m = S.mission;
