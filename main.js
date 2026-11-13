@@ -1360,18 +1360,18 @@ function buildStation(name, col, V) {
   // crown of swept antennae (they lean back from the nose)
   const navG = []; const navAt = (x, y, z, r) => { const q = navSph(r || 1.2); q.translate(x, y, z); navG.push(q); };
   for (let hk = 0; hk < V.horns; hk++) { const an = hk * Math.PI * 2 / V.horns + 0.3, d = new THREE.Vector3(Math.cos(an) * 0.7, Math.sin(an) * 0.7, -0.7).normalize(), hh = 14 + 14 * V.hl; put(new THREE.ConeGeometry(1.5, hh, 8), [Math.cos(an) * 14, Math.sin(an) * 14, -43 - 3 * V.hl], Qq.clone().setFromUnitVectors(Y, d)); navAt(Math.cos(an) * 14 + d.x * hh * 0.5, Math.sin(an) * 14 + d.y * hh * 0.5, -43 - 3 * V.hl + d.z * hh * 0.5, 1.1); }
-  if (V.spire) { put(new THREE.ConeGeometry(2, 34, 8), [0, 0, -69], Qq.clone().setFromUnitVectors(Y, new THREE.Vector3(0, 0, -1))); navAt(0, 0, -86, 1.5); }
+  if (V.spire) { put(new THREE.ConeGeometry(2, 34, 8), [0, 0, -69], Qq.clone().setFromUnitVectors(Y, new THREE.Vector3(0, 0, -1))); if (!V.wheel) navAt(0, 0, -86, 1.5); }
   if (V.citadel) { for (const q of citNz) navAt(q[0], q[1], q[2], q[3]); navAt(2, 0, -64, 1.5); navAt(-3, 2.5, -56, 1.2); }   /* (the red marker balls that sat dead-centre in each arm mouth are gone: they blocked the entrance) */
-  else if (V.wheel) for (let k = 0; k < 6; k++) navAt(Math.cos(k * 1.0472 + 0.52) * 18.6, Math.sin(k * 1.0472 + 0.52) * 18.6, -15, 1.3);   // lights where the spokes meet the hub
+  else if (V.wheel) { }   /* XIAQA has no red marker lights at all */
   else for (let k = 0; k < 4; k++) navAt(Math.cos(k * 1.5708 + 0.4) * hr, Math.sin(k * 1.5708 + 0.4) * hr, hz, 1.6);   // four marker lights on the halo
-  if (V.wheel) for (let k = 0; k < 4; k++) navAt(33.2, Math.cos(k * 1.5708 + 0.785) * 17, -5 + Math.sin(k * 1.5708 + 0.785) * 17, 1.0); else for (let k = 0; k < 3; k++) navAt(Math.cos(k * 2.0944) * 10.5, Math.sin(k * 2.0944) * 10.5, 31 + DZ, 0.9);   // and lights round the hangar mouth
+  if (!V.wheel) for (let k = 0; k < 3; k++) navAt(Math.cos(k * 2.0944) * 10.5, Math.sin(k * 2.0944) * 10.5, 31 + DZ, 0.9);   // and lights round the hangar mouth
   if (!V.citadel && !V.wheel) { // halo: a dark ring carrying a row of lit light-panels, with a thin glowing rail above and below it (instead of one thick solid band)
     const hbTex = canvasTex(256, 16, (x, w, h) => { x.fillStyle = '#10151d'; x.fillRect(0, 0, w, h); for (let i = 0; i < 32; i++) { x.fillStyle = i % 4 === 0 ? V.band[1] : V.band[0]; x.fillRect(i * 8 + 1, 3, 6, 10); } }, [3, 1]);
     const halo = new THREE.Mesh(new THREE.CylinderGeometry(hr, hr, 3.4, 72, 1, true), new THREE.MeshBasicMaterial({ map: hbTex, color: 0x9a9a9a, toneMapped: false, fog: false, side: THREE.DoubleSide })); halo.rotation.x = Math.PI / 2; halo.position.z = hz; g.add(halo);
     const r1 = new THREE.TorusGeometry(hr, 0.55, 5, 72), r2 = r1.clone(); r1.translate(0, 0, hz - 1.9); r2.translate(0, 0, hz + 1.9);
     g.add(new THREE.Mesh(mergeGeometries([r1, r2]), new THREE.MeshBasicMaterial({ color: new THREE.Color(V.band[0]).multiplyScalar(0.55), toneMapped: false, fog: false })));
   }
-  g.add(new THREE.Mesh(mergeGeometries(navG), stnNav));
+  if (navG.length) g.add(new THREE.Mesh(mergeGeometries(navG), stnNav));
   if (V.citadel) {   // XIAQA: each of the three arms under the saucer is a docking tunnel: open mouth with a folding door, a lit inner tube and a glowing end wall
     const dT = canvasTex(256, 128, (x, w, h) => { x.fillStyle = '#6a7486'; x.fillRect(0, 0, w, h); x.strokeStyle = '#161a22'; x.lineWidth = 4; for (let i = 1; i < 10; i++) { x.beginPath(); x.moveTo(i * 25.6, 0); x.lineTo(i * 25.6, h / 2); x.stroke(); } x.fillStyle = '#d99a1c'; x.fillRect(0, h / 2 - 16, w, 16); x.fillStyle = '#15181d'; for (let i = -20; i < w; i += 26) { x.beginPath(); x.moveTo(i, h / 2); x.lineTo(i + 10, h / 2); x.lineTo(i + 24, h / 2 - 16); x.lineTo(i + 14, h / 2 - 16); x.fill(); } stnBevel(x, w, h, 64); }, [1, 1]);
     const dm = stnLit(new THREE.MeshStandardMaterial({ color: 0xe0e6f0, map: dT, emissive: 0x4a5668, emissiveMap: dT, metalness: 0.7, roughness: 0.4, envMap: citEnv, envMapIntensity: 0.8, side: THREE.DoubleSide }), 1.0); citLight(dm);
@@ -2384,7 +2384,7 @@ function spawnAsteroid(a, first) {
     else { _b.set(rnd(-1, 1), rnd(-0.8, 0.8), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.8, 1.0) * ASTR); if (_b.dot(fwd) < 0) _b.addScaledVector(fwd, -2 * _b.dot(fwd)); }
     _b.add(S.pos);
     let ok = _b.distanceTo(S.pos) > 100;
-    stations.forEach((st, k) => { if (_b.distanceTo(st.pos) < (TR_R[k] > 750 ? TR_R[k] + 250 : 700)) ok = false; });
+    stations.forEach((st, k) => { if (_b.distanceTo(st.pos) < (TR_R[k] > 750 ? (TR_R[k] + 80) * (0.85 + Math.random() * 0.3) : 700)) ok = false; });   /* a ragged edge, not a perfect sphere */
     for (const p of planets) if (_b.distanceTo(p.pos) < p.r + 120) ok = false;
     if (!ok) continue;
     const big = Math.random() < 0.15, r = big ? rnd(14, 26) : rnd(3, 11);
@@ -2395,14 +2395,20 @@ function spawnAsteroid(a, first) {
   }
   a.active = false; a.y = -99999;
 }
+/* near a big station most of the rock field around you is 'inside' the station's clear zone; keep the SAME density in the part that is left instead of cramming all 62 rocks into the thin shell at its edge (that looked like a neatly arranged wall) */
+const _fs = Array.from({ length: 48 }, (_, i) => { const y = 1 - (i + 0.5) / 24 % 2, r = Math.sqrt(Math.max(0, 1 - y * y)), a = i * 2.39996; return V3(Math.cos(a) * r, y * 0.8, Math.sin(a) * r).normalize().multiplyScalar(ASTR * (0.55 + (i % 4) * 0.15)); });
+let fieldT = 0, fieldF = 1;
 function updateSpawns() {
-  fwdOf(S.q, fwd); let act = 0; const target = 62;
+  fwdOf(S.q, fwd); let act = 0;
+  if ((fieldT -= 1) <= 0) { fieldT = 30; let free = 0; for (const v of _fs) { _b.copy(S.pos).add(v); let ok = true; stations.forEach((st, k) => { if (TR_R[k] > 750 && _b.distanceTo(st.pos) < TR_R[k] + 80) ok = false; }); if (ok) free++; } fieldF = free / _fs.length; }   /* re-measured twice a second */
+  const target = Math.round(62 * fieldF);
   for (let i = 0; i < AST_N; i++) {
     const a = asteroids[i];
     if (a.active) { _b.set(a.x - S.pos.x, a.y - S.pos.y, a.z - S.pos.z); const d2 = _b.lengthSq(); if (d2 > ASTR * ASTR * 1.1 || (d2 > 200 * 200 && _b.dot(fwd) < 0 && d2 > 330 * 330)) a.active = false; }
     if (a.active) act++;
   }
-  for (let i = 0; i < AST_N && act < target; i++) { const a = asteroids[i]; if (!a.active) { spawnAsteroid(a, false); if (a.active) act++; } }
+  const fresh = act < target * 0.5;   /* a fresh field (just launched or arrived): scatter rocks all through the space around you, not all at the far edge in front (that made a neat wall) */
+  for (let i = 0; i < AST_N && act < target; i++) { const a = asteroids[i]; if (!a.active) { spawnAsteroid(a, fresh); if (a.active) act++; } }
 }
 function breakAsteroid(a) {
   a.active = false; a.y = -99999; _a.set(a.x, a.y === -99999 ? 0 : a.y, a.z);
