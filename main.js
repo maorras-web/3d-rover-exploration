@@ -731,13 +731,7 @@ function buildManta() {
   const frameM = new THREE.MeshStandardMaterial({ color: 0x2a3358, metalness: 0.7, roughness: 0.35 });
   for (const zz of [-5.2, -3.9, -2.6]) { const pts = [], nz = (zz - CZ) / CL, w = Math.sqrt(Math.max(0.02, 1 - nz * nz)) * CW; for (let i = 0; i <= 12; i++) { const u = -1 + i / 6, x = u * w, h = hullTop(x, zz) - 0.02 + 0.2 * Math.sqrt(Math.max(0, 1 - u * u - nz * nz)); pts.push(new THREE.Vector3(x, h + 0.01, zz)); } g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.035, 4, false), frameM)); }
   // glowing ring where the canopy meets the hull, and two swept horns on the wing tips (cheap, merged into existing materials)
-  { const hornM = new THREE.MeshStandardMaterial({ color: 0x9aa4b8, metalness: 0.7, roughness: 0.35 });
-    for (const sx of [-1, 1]) { const h = new THREE.Mesh(new THREE.ConeGeometry(0.34, 2.3, 6), hornM); h.position.set(sx * (SPAN - 0.55), -0.15, 2.3); h.rotation.set(0.95, 0, -sx * 0.3); g.add(h); } }
-  // twin tail fins
-  const finShape = new THREE.Shape(); finShape.moveTo(0, 0); finShape.lineTo(2.8, 0); finShape.lineTo(0.3, 2.1); finShape.closePath();
-  const finGeo = new THREE.ExtrudeGeometry(finShape, { depth: 0.07, bevelEnabled: false });
-  const finMat = new THREE.MeshStandardMaterial({ color: 0x9aa4b5, metalness: 0.6, roughness: 0.4, side: THREE.DoubleSide });
-  for (const sx of [-1, 1]) { const pv = new THREE.Group(); pv.position.set(sx * 2.3, 0.7, 4.9); pv.rotation.z = -sx * 0.28; const f = new THREE.Mesh(finGeo, finMat); f.rotation.y = Math.PI / 2; pv.add(f); const st = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 1.5), new THREE.MeshBasicMaterial({ color: 0xa98bff })); st.position.set(0.02, 0.5, -1.1); st.rotation.x = 0.7; pv.add(st); g.add(pv); }
+  /* (wing-tip horns and twin tail fins removed) */
   // engines: each nacelle is sized from the real hull profile at its position, so it grows OUT of the rear of the hull (no bulge above/below)
   const engM = new THREE.MeshStandardMaterial({ color: 0x232a45, metalness: 0.8, roughness: 0.3 });
   const bellM = new THREE.MeshStandardMaterial({ color: 0x0b0e1c, metalness: 0.6, roughness: 0.5, side: THREE.BackSide });
@@ -2052,6 +2046,13 @@ function makePics() {
   { const g = new THREE.Group(), b = new THREE.Mesh(msGeo, msMat); g.add(b);   // the homing missile: the very same model the ship fires
     g.rotation.y = -Math.PI / 2 + 0.0; g.rotation.z = 0; snap(g, 'ms', 1.45, 0.8); }
   { const g = ship.clone(true); g.position.set(0, 0, 0); g.quaternion.identity(); g.rotation.y = -Math.PI / 2 + 0.55; g.updateMatrixWorld(true); snap(g, 'sh', 1.05, 0.85); }   // the real ship, 3/4 view
+  /* every hull you can own gets its own 3D picture too (so the MANTA shows in the hangar list without flying it first); made once, the extra model is thrown away after */
+  for (let i = 0; i < SHIPS.length; i++) { let g, tmp = false;
+    if (i === 1) { g = buildManta(); metalizeManta(g); tmp = true; }
+    else { const keep = [...origParts, ...(altShip ? [altShip] : []), ...altFl, ...altCones].map(o => [o, o.visible]); origParts.forEach(o => { o.visible = true; }); if (altShip) altShip.visible = false; altFl.forEach(o => { o.visible = false; }); altCones.forEach(o => { o.visible = false; }); g = ship.clone(true); keep.forEach(([o, v]) => { o.visible = v; }); }
+    g.position.set(0, 0, 0); g.quaternion.identity(); if (i === 1) { g.rotation.set(0, 0.6, 0); g.updateMatrixWorld(true); snap(g, 'sh' + i, 1.35, 0.9); } else { g.rotation.set(0, -Math.PI / 2 + 0.55, 0); g.updateMatrixWorld(true); snap(g, 'sh' + i, 1.05, 0.85); }   /* the wide MANTA reads best from above, three-quarter from the front */
+    if (tmp) g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
+  PIC.sh = PIC['sh' + save.ship] || PIC.sh;
   renderer.setRenderTarget(null); renderer.setClearColor(oc, oa); rt.dispose();
 }
 let crossHitT = 0, crossCls = '', crossX = -1, crossY = -1; const _xf = V3(), _xd = V3();
@@ -2137,7 +2138,7 @@ function openShop(msg) {
     const tot = save.up.reduce((x, y) => x + y, 0), mk = ['I', 'II', 'III', 'IV', 'V'][Math.min(4, tot / 6 | 0)], cw = curW();
     sec('SHIP'); row(SHIPS[save.ship].name + '  MK ' + mk, SHIPS[save.ship].sub + '  ·  hull ' + ST.hullMax + '  ·  shield ' + ST.shieldMax, '', '', false, null, 'sh');
     SHIPS.forEach((sp, i) => { if (i === save.ship) return; const own = save.ships.includes(i);
-      row(sp.name, sp.sub + '  ·  hull ×' + sp.hm + (own ? '' : '  ·  not owned'), '', own ? 'FLY' : CR + ' ' + sp.price, !own && save.credits < sp.price, () => { if (!own) { save.credits -= sp.price; save.ships.push(i); } save.ship = i; applyShip(); PIC.ms = ''; S.hull = ST.hullMax; S.shield = ST.shieldMax; persist(); refreshHud(); sfx('pick'); openShop(msg); }); });
+      row(sp.name, sp.sub + '  ·  hull ×' + sp.hm + (own ? '' : '  ·  not owned'), '', own ? 'FLY' : CR + ' ' + sp.price, !own && save.credits < sp.price, () => { if (!own) { save.credits -= sp.price; save.ships.push(i); } save.ship = i; applyShip(); PIC.ms = ''; S.hull = ST.hullMax; S.shield = ST.shieldMax; persist(); refreshHud(); sfx('pick'); openShop(msg); }, 'sh' + i); });
     sec('PRIMARY WEAPONS');
     const cyc = () => { const o = save.wpn.owned, n = o[(o.indexOf(save.wpn.cur) + 1) % o.length]; if (n === save.wpn.cur) { sfx('ui'); return; } save.wpn.cur = n; persist(); refreshHud(); wpnChip(); sfx('pick'); openShop(msg); };
     for (let hp = 1; hp <= 2; hp++) row(cw.name, 'Hardpoint ' + hp + '  ·  ' + Math.round(ST.dmg * cw.dm * (cw.n || 1)) + ' dmg per ' + (cw.n > 1 ? 'volley' : 'shot') + '  ·  ' + (1 / cw.rate).toFixed(1) + ' shots/s', '', save.wpn.owned.length > 1 ? 'CHANGE' : '', false, cyc, 'w' + save.wpn.cur);
