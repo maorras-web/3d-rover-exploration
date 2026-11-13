@@ -142,7 +142,7 @@ scene.fog = new THREE.FogExp2(0x02030a, 0.0030);
 const SYS_SKY = [new THREE.Color(0x02040d), new THREE.Color(0x0b0502)];   // per-system deep-space tint: PIKRO cold blue, YAPZO warm amber
 const shipRim = { value: new THREE.Color(0.1, 0.55, 0.85) }, RIM_BASE = new THREE.Color(0.1, 0.55, 0.85), rimT = new THREE.Color(), rimP = new THREE.Color();
 const starT = { value: 0 }; let navPts = null, fxBlur = 0;   // star twinkle clock, wing-tip lights, boost blur amount
-const camera = new THREE.PerspectiveCamera(66, innerWidth / innerHeight, 1, 40000);
+const camera = new THREE.PerspectiveCamera(66, innerWidth / innerHeight, 1, 200000);   /* far enough for the planet behind the giant XIAQA */
 scene.add(camera);
 // same render pipeline as the racing game: 4x MSAA 8-bit target, cheap glow (bloom), colour grade
 const MSAA_SAMPLES = (() => {
@@ -1210,11 +1210,12 @@ const stnRun = [0, 1, 2].map(() => new THREE.MeshBasicMaterial({ color: 0x223040
 function stnApproach(g, r, z0, dz, col) { for (let q = 0; q < 3; q++) { const a = []; for (let k = 0; k < 6; k++) { const sp = navSph(1.0); sp.translate(Math.cos(k * 1.0472) * r, Math.sin(k * 1.0472) * r, z0 + q * dz); a.push(sp); } g.add(new THREE.Mesh(mergeGeometries(a), stnRun[q])); } }
 const stnLegMat = (col, t) => stnLit(new THREE.MeshStandardMaterial({ color: new THREE.Color(0xc4ccdc).lerp(new THREE.Color(col), t), roughness: 0.22, metalness: 0.95, envMap: stnEnv, envMapIntensity: 1.5, fog: false }), 1.0);   // legs / struts / fins: plain polished metal in the station's colour, no lit windows
 const stnSunV = { value: new THREE.Vector3(0.7, 0.6, 0.3) }, sunRim = { value: new THREE.Color(1.0, 0.75, 0.45) };   // sunRim: the sun's colour as seen on rims of ships and stations (changes per system)
-function stnLit(m, k) {
+function stnLit(m, k, fk) {
+  fk = fk || 1; m.customProgramCacheKey = () => 'stn' + fk;   /* fk: the haze-with-distance starts and ends fk times further (giant stations) */
   m.onBeforeCompile = (sh) => { sh.uniforms.uSunV = stnSunV; sh.uniforms.uSunC = sunRim;
     sh.fragmentShader = 'uniform vec3 uSunV;\nuniform vec3 uSunC;\n' + sh.fragmentShader
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n float sl = dot(normalize(normal), uSunV); totalEmissiveRadiance *= mix(1.9, 0.3, smoothstep(-0.15, 0.35, sl));')
-      .replace('#include <opaque_fragment>', 'float rimF = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0); vec3 rimC = mix(vec3(0.10, 0.22, 0.5), uSunC, smoothstep(-0.25, 0.5, sl)); outgoingLight += diffuseColor.rgb * vec3(0.45, 0.55, 0.85) * 0.2 * (1.0 - smoothstep(-0.2, 0.4, sl)); outgoingLight = mix(outgoingLight, vec3(0.04, 0.07, 0.15), smoothstep(900.0, 10000.0, length(vViewPosition)) * 0.93); outgoingLight += rimC * rimF * (0.25 + 0.75 * smoothstep(-0.4, 0.6, sl)) * ' + k.toFixed(2) + ';\n#include <opaque_fragment>'); };
+      .replace('#include <opaque_fragment>', 'float rimF = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0); vec3 rimC = mix(vec3(0.10, 0.22, 0.5), uSunC, smoothstep(-0.25, 0.5, sl)); outgoingLight += diffuseColor.rgb * vec3(0.45, 0.55, 0.85) * 0.2 * (1.0 - smoothstep(-0.2, 0.4, sl)); outgoingLight = mix(outgoingLight, vec3(0.04, 0.07, 0.15), smoothstep(' + (900 * fk).toFixed(1) + ', ' + (10000 * fk).toFixed(1) + ', length(vViewPosition)) * 0.93); outgoingLight += rimC * rimF * (0.25 + 0.75 * smoothstep(-0.4, 0.6, sl)) * ' + k.toFixed(2) + ';\n#include <opaque_fragment>'); };
   return m;
 }
 function buildStation(name, col, V) {
@@ -1227,7 +1228,7 @@ function buildStation(name, col, V) {
   // cheap fake reflections: a tiny 6-face canvas cube (blue planet below/behind, black space above) gives the glossy sheen of the reference
   const face = (c0, c1) => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 32); gr.addColorStop(0, c0); gr.addColorStop(1, c1); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); return c; };
   const env = new THREE.CubeTexture([face('#1b2a44', '#3a78c8'), face('#1b2a44', '#2d5fa8'), face('#050810', '#0a1020'), face('#4a8ad8', '#8fc0f0'), face('#16223a', '#2f68b4'), face('#1b2a44', '#3a78c8')]); env.colorSpace = THREE.SRGBColorSpace; env.needsUpdate = true;
-  const skin = new THREE.MeshStandardMaterial({ color: new THREE.Color(0xc4ccdc).lerp(new THREE.Color(col), 0.5), map: plate, bumpMap: plate, bumpScale: 3, roughness: 0.38, metalness: 0.78, envMap: stnEnv, envMapIntensity: 1.5, emissive: 0xffffff, emissiveMap: dots, emissiveIntensity: 1.2, fog: false, flatShading: !!V.seg }); stnLit(skin, 1.1);
+  const skin = new THREE.MeshStandardMaterial({ color: new THREE.Color(0xc4ccdc).lerp(new THREE.Color(col), 0.5), map: plate, bumpMap: plate, bumpScale: 3, roughness: 0.38, metalness: 0.78, envMap: stnEnv, envMapIntensity: 1.5, emissive: 0xffffff, emissiveMap: dots, emissiveIntensity: 1.2, fog: false, flatShading: !!V.seg }); stnLit(skin, 1.1, V.fadeK);
   const citLight = (m) => { const prev = m.onBeforeCompile; m.onBeforeCompile = (sh) => { prev(sh); sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', 'float nyv = normalize(normal).y; outgoingLight *= 0.58 * mix(vec3(0.42, 0.5, 0.7), vec3(1.45, 1.35, 1.25), smoothstep(-0.3, 0.55, sl)); outgoingLight += vec3(0.6, 0.7, 0.9) * smoothstep(0.14, 0.0, abs(nyv - 0.45)) * 0.3 * (0.4 + 0.6 * smoothstep(-0.3, 0.5, sl)); outgoingLight += vec3(0.08, 0.22, 0.6) * smoothstep(0.2, 0.0, abs(nyv + 0.5)) * 0.45;\n#include <opaque_fragment>'); }; return m; };
   const citEnv = (() => { const cv = () => { const c = document.createElement('canvas'); c.width = c.height = 64; return c; }, f = (k) => { const c = cv(), x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 64); gr.addColorStop(0, '#3a4358'); gr.addColorStop(0.16, '#eef3ff'); gr.addColorStop(0.3, '#6f7c96'); gr.addColorStop(0.4, '#f6f8ff'); gr.addColorStop(0.47, '#2a3246'); gr.addColorStop(0.55, '#07090f'); gr.addColorStop(0.7, '#101624'); gr.addColorStop(0.86, '#33466e'); gr.addColorStop(1, '#0c1220'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); x.fillStyle = 'rgba(255,255,255,0.9)'; x.fillRect(k ? 6 : 40, 0, 4, 64); return c; };
     const top = cv(), tx = top.getContext('2d'), tg = tx.createRadialGradient(32, 32, 4, 32, 32, 46); tg.addColorStop(0, '#dbe5f7'); tg.addColorStop(1, '#4a566a'); tx.fillStyle = tg; tx.fillRect(0, 0, 64, 64); const bot = cv(); bot.getContext('2d').fillStyle = '#1a2640'; bot.getContext('2d').fillRect(0, 0, 64, 64);
@@ -1274,25 +1275,30 @@ function buildStation(name, col, V) {
   const ringParts = [];
   if (V.wheel) {   // XIAQA, the Velnorian wheel: a smooth hub tower (spire up, hangar mouth down) inside a BROKEN ring of six curved habitat arcs with a dome at every arc end, carried on spokes; the ring turns slowly. All in the alien shell (veins, no windows)
     const suv = (q, su, sv) => { const uv = q.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv); return q; };   // keep the shell cells the same size on every part (no stretching)
-    const hub = new THREE.LatheGeometry([[0, -52], [6, -50], [10, -45], [12.5, -38], [18, -33], [18.5, -27], [15, -23], [15, -13], [19.5, -9], [20, -1], [16, 3], [12, 6], [11.5, 9], [14.5, 13], [14.5, 20], [10.5, 24], [10, 30], [11.5, 32], [8, 35], [0, 36.5]].map(q => new THREE.Vector2(q[0], q[1])), 28); hub.rotateX(Math.PI / 2); parts.push(hub);
-    for (const [r, z, t] of [[19.8, -5, 1.4], [18.6, -30, 1.1], [14.8, 16, 1.0]]) { const q = new THREE.TorusGeometry(r, t, 6, 40); q.translate(0, 0, z); parts.push(suv(q, 0.6, 0.2)); }   // raised bands round the hub
+    const HP = new THREE.SplineCurve([[0, -64], [1.6, -59], [2.8, -51], [4.6, -43], [8, -35], [13, -26], [17.5, -15], [20, -4], [20.6, 6], [19, 15], [14.5, 23], [8, 28.5], [0, 30.5]].map(q => new THREE.Vector2(q[0], q[1]))).getPoints(30);   /* the hub is a SEED / onion bulb: round and full at the bottom, pinching in to a slim neck that runs up into the spire */
+    const hubR = (z) => { for (let i = 1; i < HP.length; i++) if (HP[i].y >= z) { const a = HP[i - 1], b = HP[i], f = (z - a.y) / (b.y - a.y || 1); return a.x + (b.x - a.x) * f; } return 0; };
+    const hub = new THREE.LatheGeometry(HP, 28); hub.rotateX(Math.PI / 2); parts.push(hub);
+    for (const [z, t] of [[-5, 1.3], [-27, 0.8], [17, 0.9]]) { const q = new THREE.TorusGeometry(hubR(z) - 0.2, t, 6, 40); q.translate(0, 0, z); parts.push(suv(q, 0.6, 0.2)); }   // raised bands that hug the seed
     const R = 60, N = 6, GAP = 0.17, TB = 4.2, ZR = -5;
     for (let k = 0; k < N; k++) { const a0 = k / N * Math.PI * 2 + GAP / 2 + (k === 0 ? 0.26 : 0), a1 = (k + 1) / N * Math.PI * 2 - GAP / 2 - (k === N - 1 ? 0.26 : 0), am = k === 0 ? (a0 + a1) / 2 + 0.13 : k === N - 1 ? (a0 + a1) / 2 - 0.13 : (a0 + a1) / 2;   /* the gap facing the side entrance (+x) is wide, so you fly straight through it */
       const arc = new THREE.TorusGeometry(R, TB, 10, 22, a1 - a0); arc.rotateZ(a0); arc.translate(0, 0, ZR); ringParts.push(suv(arc, 0.6, 0.22));   // a habitat arc
       for (const a of [a0, a1]) { const dm = new THREE.SphereGeometry(5.6, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.55); dm.rotateX(-Math.PI / 2); dm.translate(Math.cos(a) * R, Math.sin(a) * R, ZR - 1.2); ringParts.push(dm);   // dome capping each arc end
         const cl = new THREE.CylinderGeometry(5.9, 5.9, 3.4, 14); cl.rotateX(Math.PI / 2); cl.translate(Math.cos(a) * R, Math.sin(a) * R, ZR + 0.6); ringParts.push(suv(cl, 0.5, 0.2)); }
-      const sp = new THREE.CylinderGeometry(1.8, 2.4, R - 22, 8); sp.rotateZ(am - Math.PI / 2); sp.translate(Math.cos(am) * (R + 19) / 2, Math.sin(am) * (R + 19) / 2, ZR); ringParts.push(suv(sp, 0.15, 0.4)); }   // spoke from the hub to the middle of the arc
-    const inner = new THREE.TorusGeometry(38, 1.1, 6, 60, Math.PI * 2 - 0.9); inner.rotateZ(0.45); inner.translate(0, 0, ZR);   /* open in front of the side entrance */ ringParts.push(suv(inner, 2, 0.1));   // thin inner ring
+      { const c = Math.cos(am), sn = Math.sin(am), zb = -17, rb = hubR(zb) - 0.5, cv = new THREE.QuadraticBezierCurve3(V3(c * rb, sn * rb, zb), V3(c * 40, sn * 40, -27), V3(c * (R - TB + 0.5), sn * (R - TB + 0.5), ZR - 1));
+        const sp = new THREE.TubeGeometry(cv, 14, 1, 6, false), P = sp.attributes.position, cp = V3(), v = V3();   /* a curved arm: rises from the seed's shoulder, arches out and comes down onto the ring */
+        for (let a2 = 0; a2 <= 14; a2++) { const t = a2 / 14, w = 2.9 - 1.5 * t + 1.2 * Math.pow(t, 6); cv.getPoint(t, cp); for (let b2 = 0; b2 <= 6; b2++) { const ix = a2 * 7 + b2; v.fromBufferAttribute(P, ix).sub(cp).multiplyScalar(w).add(cp); P.setXYZ(ix, v.x, v.y, v.z); } }   /* thick at the root, slim in the middle, flaring where it grips the ring */
+        sp.computeVertexNormals(); ringParts.push(suv(sp, 3.2, 0.45)); } }   /* (end of the arcs loop) */
+    const inner = new THREE.TorusGeometry(38, 1.0, 6, 60, Math.PI * 2 - 0.9); inner.rotateZ(0.45); inner.translate(0, 0, -19.3);   /* open in front of the side entrance */ ringParts.push(suv(inner, 2, 0.1));   // thin inner ring
     { /* SIDE ENTRANCE: you fly in level, through the wide gap in the ring, into a flared port in the side of the hub (along +x, at ring height) */
       const AX = (q) => { q.rotateZ(-Math.PI / 2); q.translate(0, 0, ZR); return q; };   /* lathe axis (y) -> +x */
       const port = AX(new THREE.LatheGeometry([[9.2, 15], [9.6, 22], [10.8, 28], [13, 32], [14.6, 33.2]].map(q => new THREE.Vector2(q[0], q[1])), 26));
       const pin = port.clone(); { const ix = pin.index.array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i]; ix[i] = ix[i + 1]; ix[i + 1] = t; } const n = pin.attributes.normal; for (let i = 0; i < n.count; i++) n.setXYZ(i, -n.getX(i), -n.getY(i), -n.getZ(i)); }
       parts.push(suv(port, 0.6, 0.3), suv(pin, 0.6, 0.3));   /* flared port, solid inside and out */
       const lip = new THREE.TorusGeometry(14.6, 1.7, 8, 32); lip.rotateY(Math.PI / 2); lip.translate(33.2, 0, ZR); parts.push(suv(lip, 0.6, 0.15));   /* thick rim */
-      const gg = []; for (const [x, r] of [[21, 9.4], [25, 9.8], [29, 11.6]]) { const q = new THREE.TorusGeometry(r, 0.38, 5, 32); q.rotateY(Math.PI / 2); q.translate(x, 0, ZR); gg.push(q); }   /* glowing yellow ribs down the green-lit throat */
+      const gg = []; for (const [x, r] of [[21, 9.0], [25, 9.6], [29, 10.8]]) { const q = new THREE.TorusGeometry(r, 0.38, 5, 32); q.rotateY(Math.PI / 2); q.translate(x, 0, ZR); gg.push(q); }   /* glowing yellow ribs down the green-lit throat */
       g.add(new THREE.Mesh(mergeGeometries(gg), new THREE.MeshBasicMaterial({ color: 0xffe94a, toneMapped: false, fog: false })));
 
-      for (let q = 0; q < 3; q++) { const a = []; for (let k = 0; k < 6; k++) { const sp = navSph(1.0); sp.translate(46 + q * 14, Math.cos(k * 1.0472) * 16, ZR + Math.sin(k * 1.0472) * 16); a.push(sp); } g.add(new THREE.Mesh(mergeGeometries(a), stnRun[q])); }   /* running lights leading in */
+      /* (no yellow running lights outside the entrance) */
       const hg = glowSprite(new THREE.Color(V.band[0]).getHex(), 34, 0.5); hg.position.set(36, 0, ZR); g.add(hg); g.userData.hg = hg;
       g.userData.mouths = [V3(34, 0, ZR)]; g.userData.mouthAx = V3(0, 0, ZR); }
   }
@@ -1327,7 +1333,7 @@ function buildStation(name, col, V) {
   for (let hk = 0; hk < V.horns; hk++) { const an = hk * Math.PI * 2 / V.horns + 0.3, d = new THREE.Vector3(Math.cos(an) * 0.7, Math.sin(an) * 0.7, -0.7).normalize(), hh = 14 + 14 * V.hl; put(new THREE.ConeGeometry(1.5, hh, 8), [Math.cos(an) * 14, Math.sin(an) * 14, -43 - 3 * V.hl], Qq.clone().setFromUnitVectors(Y, d)); navAt(Math.cos(an) * 14 + d.x * hh * 0.5, Math.sin(an) * 14 + d.y * hh * 0.5, -43 - 3 * V.hl + d.z * hh * 0.5, 1.1); }
   if (V.spire) { put(new THREE.ConeGeometry(2, 34, 8), [0, 0, -69], Qq.clone().setFromUnitVectors(Y, new THREE.Vector3(0, 0, -1))); navAt(0, 0, -86, 1.5); }
   if (V.citadel) { for (const q of citNz) navAt(q[0], q[1], q[2], q[3]); navAt(2, 0, -64, 1.5); navAt(-3, 2.5, -56, 1.2); }   /* (the red marker balls that sat dead-centre in each arm mouth are gone: they blocked the entrance) */
-  else if (V.wheel) for (let k = 0; k < 6; k++) navAt(Math.cos(k * 1.0472 + 0.52) * 20.4, Math.sin(k * 1.0472 + 0.52) * 20.4, -5, 1.4);   // lights where the spokes meet the hub
+  else if (V.wheel) for (let k = 0; k < 6; k++) navAt(Math.cos(k * 1.0472 + 0.52) * 18.6, Math.sin(k * 1.0472 + 0.52) * 18.6, -15, 1.3);   // lights where the spokes meet the hub
   else for (let k = 0; k < 4; k++) navAt(Math.cos(k * 1.5708 + 0.4) * hr, Math.sin(k * 1.5708 + 0.4) * hr, hz, 1.6);   // four marker lights on the halo
   if (V.wheel) for (let k = 0; k < 4; k++) navAt(33.2, Math.cos(k * 1.5708 + 0.785) * 17, -5 + Math.sin(k * 1.5708 + 0.785) * 17, 1.0); else for (let k = 0; k < 3; k++) navAt(Math.cos(k * 2.0944) * 10.5, Math.sin(k * 2.0944) * 10.5, 31 + DZ, 0.9);   // and lights round the hangar mouth
   if (!V.citadel && !V.wheel) { // halo: a dark ring carrying a row of lit light-panels, with a thin glowing rail above and below it (instead of one thick solid band)
@@ -1403,7 +1409,7 @@ function buildStationB(name, col, V) {
 // ---------- solar system: six planets in different colours, each with exactly ONE station in orbit next to it ----------
 // pl.off = where the planet sits relative to its station (the station is always about one planet-radius + 400 away from the surface)
 const stations = [
-  { name: 'XIAQA', col: '#ffa040', v: { wheel: 1, alien: 1, spire: 1, sxy: 1.3, big: 2.3, fins: 0, fw: 4.6, ribs: 0, horns: 0, hl: 1, ringN: 11, tint: 0.25, band: ['#4dff7a', '#ffd24a'] }, pos: V3(0, 0, 0), front: V3(0, -1, 0), pl: { kind: 'gas', lbl: 'DUST GIANT', r: 620, off: V3(-900, -150, -640), atm: [0.9, 0.78, 0.55], ring: true } },
+  { name: 'XIAQA', col: '#ffa040', v: { wheel: 1, alien: 1, spire: 1, sxy: 1.3, big: 23, fadeK: 10, vis: 3, fins: 0, fw: 4.6, ribs: 0, horns: 0, hl: 1, ringN: 11, tint: 0.25, band: ['#4dff7a', '#ffd24a'] }, pos: V3(0, 0, 0), front: V3(0, -1, 0), pl: { kind: 'gas', lbl: 'DUST GIANT', r: 620, off: V3(-900, -150, -640), atm: [0.9, 0.78, 0.55], ring: true } },
   { name: 'TIANOG', col: '#4aa0ff', v: { prof: 1, hr: 21, sxy: 0.9, big: 1.35, fins: 4, fw: 5.4, ribs: 6, horns: 0, spire: 1, hl: 1, ringN: 8, tint: 0.35, band: ['#4aa0ff', '#ffffff'] }, pos: V3(1800, 260, -1500), front: V3(0, -1, 0), pl: { kind: 'ocean', lbl: 'GOLDEN GIANT', r: 420, off: V3(700, -300, -500), atm: [0.8, 0.5, 0.16] } },
   { name: 'MIRAK', col: '#b46bff', v: { sxy: 1.3, sz: 0.75, big: 1.1, fins: 8, fw: 3.2, ribs: 10, horns: 4, hl: 0.8, ringN: 14, tint: 0.4, band: ['#d49aff', '#ff5ad2'] }, pos: V3(-2100, -180, -2000), front: V3(0, -1, 0), pl: { kind: 'purple', lbl: 'MAGENTA GIANT', r: 460, off: V3(-500, 200, -800), atm: [1.0, 0.4, 0.85], ring: true } },
   { name: 'TEPZONIAX', col: '#4cff8a', v: { prof: 2, hz: -15, hr: 30, big: 1.9, fins: 5, fw: 4.2, ribs: 5, horns: 2, hl: 1.4, ringN: 10, tint: 0.4, band: ['#4cff8a', '#bfffd8'] }, pos: V3(3400, -350, 900), front: V3(0, -1, 0), pl: { kind: 'jungle', lbl: 'TEMPEST WORLD', r: 520, off: V3(800, 200, 500), atm: [0.5, 0.5, 1.0] } },
@@ -1949,7 +1955,7 @@ function updateWarp(dt) {
   WP.t += dt; fwdOf(S.q, fwd); S.speed = 160 + WP.t * 420; S.pos.addScaledVector(fwd, S.speed * dt); S.vel.copy(fwd).multiplyScalar(S.speed);
   if (!WP.done && WP.t >= (WP.far ? 1.9 : 1.25)) {
     WP.done = true; homeSt = anchorSt = WP.to; for (const q of planets) { q.fd = null; q.vf = 0; q.sm = 1; }   /* the sky layout of the new home snaps into place while the screen is white (before, the other planets slid and resized for a second after arriving) */ tunnelEl.classList.remove('on'); const st = stations[WP.to];
-    { const od = st.pl.off.clone().normalize(); S.pos.copy(st.pos).addScaledVector(od, -1100); }   // arrive on the line planet -> station -> you: the station stands directly in front of its own planet (the planet is drawn behind the station from this side)
+    { const od = st.pl.off.clone().normalize(); S.pos.copy(st.pos).addScaledVector(od, -Math.max(1100, TR_R[WP.to] * 1.6)); }   /* a giant station: arrive far enough out to see all of it */   // arrive on the line planet -> station -> you: the station stands directly in front of its own planet (the planet is drawn behind the station from this side)
     _m.lookAt(_zero, _a.copy(st.pos).sub(S.pos).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
     fxUntil = performance.now() + 4000; S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); wpnChip(); fadeOut(); if (WP.far) { fadeEl.style.transition = 'opacity 1.1s ease-out'; setTimeout(() => { fadeEl.style.background = ''; }, 1300); }
   }
@@ -2246,13 +2252,13 @@ function tryDock() {
   const st = stations[i]; DK.i = i; DK.t = 0; DK.p0.copy(S.pos); DK.q0.copy(S.q); DK.dir.copy(st.front).negate();
   _m.lookAt(_zero, DK.dir, lookUp(DK.dir)); DK.q1.setFromRotationMatrix(_m); DK.P1.copy(st.pos).addScaledVector(st.front, 125 * ST_K);
   DK.cit = !!st.g.userData.mouths; if (DK.cit) { const [k] = nearArm(st); DK.k = k; const M = armMouth(st, k, DK.M), ax = st.g.localToWorld(st.g.userData.mouthAx ? _mw.copy(st.g.userData.mouthAx) : _mw.set(0, 0, -16)); DK.O.copy(M).sub(ax).normalize();
-    DK.A.copy(M).addScaledVector(DK.O, 180); DK.E.copy(M).addScaledVector(DK.O, -230); const rv = _a.copy(S.pos).sub(M); const za = rv.dot(DK.O); rv.addScaledVector(DK.O, -za); const rl = rv.length(); if (rl > 1) rv.divideScalar(rl); DK.C.copy(DK.A).addScaledVector(rv, rl * 0.9);
+    DK.km = st.v.wheel ? st.v.big / 2.3 : 1; DK.A.copy(M).addScaledVector(DK.O, Math.min(180 * DK.km, 520)); DK.E.copy(M).addScaledVector(DK.O, -Math.min(230 * DK.km, 950)); const rv = _a.copy(S.pos).sub(M); const za = rv.dot(DK.O); rv.addScaledVector(DK.O, -za); const rl = rv.length(); if (rl > 1) rv.divideScalar(rl); DK.C.copy(DK.A).addScaledVector(rv, rl * 0.9);
     DK.dir.copy(DK.O).negate(); _m.lookAt(_zero, DK.dir, lookUp(DK.dir)); DK.q1.setFromRotationMatrix(_m); DK.q0.copy(S.q); S.speed = 0; }
   DK.tA = 1.0; fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; S.mode = 'dockin'; document.body.classList.add('docked'); S.target = null; S.boosting = false; S.sx = S.sy = 0;
 }
 function updateDockIn(dt) {
   if (DK.cit) {   // XIAQA: the ship swings onto the axis, the door folds open, the ship flies in and the screen fades once it is inside
-    DK.t += dt; const t1 = 2.6, t2 = 2.4, st = stations[DK.i], sm = (u) => u * u * (3 - 2 * u);
+    DK.t += dt; const t1 = 2.6, t2 = DK.km > 1 ? 4.2 : 2.4, st = stations[DK.i], sm = (u) => u * u * (3 - 2 * u);
     if (DK.t < t1) { const u = sm(DK.t / t1), v = 1 - u; S.pos.set(0, 0, 0).addScaledVector(DK.p0, v * v).addScaledVector(DK.C, 2 * u * v).addScaledVector(DK.A, u * u); S.q.slerpQuaternions(DK.q0, DK.q1, sm(Math.min(1, DK.t / (t1 * 0.8)))); S.speed = 60 * (1 - u) + 20; if (DK.t > 1.0 && st.g.userData.doors) st.g.userData.doors[DK.k].tgt = 1; }
     else { const u = Math.min(1, (DK.t - t1) / t2), e = Math.pow(u, 1.4); S.pos.copy(DK.A).lerp(DK.E, e); S.q.copy(DK.q1); S.speed = 40; if (st.g.userData.doors) st.g.userData.doors[DK.k].tgt = 1; fadeEl.style.opacity = clamp((u - 0.7) / 0.28, 0, 1).toFixed(2); if (u >= 1) { S.speed = 0; dockAt(DK.i); fadeOut(); } }
     S.camQ.slerp(S.q, 1 - Math.exp(-5 * dt)); S.roll = 0; return;
@@ -2265,7 +2271,7 @@ function nearStation() { let best = -1, bd = 200; for (let i = 0; i < stations.l
 
 function launchFrom(i) {
   ST = stats(); S.station = i; homeSt = anchorSt = i; const st = stations[i];
-  if (st.g.userData.mouths) { const M = armMouth(st, 0, DK.M), ax = st.g.localToWorld(st.g.userData.mouthAx ? _mw.copy(st.g.userData.mouthAx) : _mw.set(0, 0, -16)); DK.O.copy(M).sub(ax).normalize(); S.pos.copy(M).addScaledVector(DK.O, 120); } else S.pos.copy(st.pos).addScaledVector(st.front, (st.v.wheel ? 52 * st.v.big : 48) * ST_K);   /* the big wheel's hangar mouth is much further out: leave from past it, never from inside the hub */   // the citadel is long: you leave from just past its engine ring, never from inside the hull
+  if (st.g.userData.mouths) { const M = armMouth(st, 0, DK.M), ax = st.g.localToWorld(st.g.userData.mouthAx ? _mw.copy(st.g.userData.mouthAx) : _mw.set(0, 0, -16)); DK.O.copy(M).sub(ax).normalize(); S.pos.copy(M).addScaledVector(DK.O, st.v.wheel ? Math.min(120 * st.v.big / 2.3, 520) : 120); } else S.pos.copy(st.pos).addScaledVector(st.front, (st.v.wheel ? 52 * st.v.big : 48) * ST_K);   /* the big wheel's hangar mouth is much further out: leave from past it, never from inside the hub */   // the citadel is long: you leave from just past its engine ring, never from inside the hull
   { const fw = st.g.userData.mouths ? DK.O : st.front; _m.lookAt(_zero, fw, lookUp(fw)); } S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q); entDismissed = i; fadeEl.style.transition = 'none'; fadeEl.style.opacity = '1'; setTimeout(fadeOut, 60);
   if (st.v.citadel) setDoor(st, 1, 0, 0); S.speed = 60; S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100; S.inv = 2; S.nb = true; S.mode = 'fly'; S.target = null; S.patrolT = 45; S.sx = S.sy = 0;
   for (const a of asteroids) a.active = false; for (const l of loot) l.active = false; for (const q of shards) q.t = SH_LIFE;
@@ -2299,7 +2305,7 @@ function spawnAsteroid(a, first) {
     else { _b.set(rnd(-1, 1), rnd(-0.8, 0.8), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.8, 1.0) * ASTR); if (_b.dot(fwd) < 0) _b.addScaledVector(fwd, -2 * _b.dot(fwd)); }
     _b.add(S.pos);
     let ok = _b.distanceTo(S.pos) > 100;
-    for (const st of stations) if (_b.distanceTo(st.pos) < 700) ok = false;
+    stations.forEach((st, k) => { if (_b.distanceTo(st.pos) < (TR_R[k] > 2000 ? TR_R[k] + 250 : 700)) ok = false; });
     for (const p of planets) if (_b.distanceTo(p.pos) < p.r + 120) ok = false;
     if (!ok) continue;
     const big = Math.random() < 0.15, r = big ? rnd(14, 26) : rnd(3, 11);
@@ -2600,7 +2606,7 @@ function frame(now) {
     p.sm = (p.sm || 1) + (((here0 >= 0 && pi !== here0) ? 0.4 : 1) - (p.sm || 1)) * Math.min(1, dt * 1.5); const f = Math.min(PSIZE, 0.75 / a) * (own ? 1 : p.sm); let tr = a * f; if (own) tr = Math.min(tr, p.rg ? PSEE * 0.82 : PSEE);   // the planet of your own station is capped so the whole disc (and its rings, 1.7x wider) always fits on screen
     { const cf = pi !== vpI && SKY[stations[vpI].name] && SKY[stations[vpI].name][stations[pi].name]; if (cf) { _pd.set(cf.dir[0], cf.dir[1], cf.dir[2]).normalize(); tr = Math.tan(cf.radiusDeg * PLANET_K * Math.PI / 180); }   // every other planet sits where the editor put it, seen from the planet you are at
       if (!p.fd) { p.fd = _pd.clone(); p.fr = tr; } else { const q = Math.min(1, dt * (pi === vpI ? 1.2 : 2.5)); p.fd.lerp(_pd, q).normalize(); p.fr += (tr - p.fr) * q; } _pd.copy(p.fd); }
-    const af = p.fr, dA2 = own ? Math.max(dA, (S.pos.distanceTo(stations[pi].pos) + 800) / (1 - Math.min(0.85, af * (p.vf || 1) * (p.rg ? 1.7 : 1)))) : dA; p.mesh.position.copy(camera.position).addScaledVector(_pd, dA2);
+    const af = p.fr, dA2 = own ? Math.max(dA, (S.pos.distanceTo(stations[pi].pos) + (TR_R[pi] > 2000 ? TR_R[pi] + 400 : 800)) / (1 - Math.min(0.85, af * (p.vf || 1) * (p.rg ? 1.7 : 1)))) : dA; p.mesh.position.copy(camera.position).addScaledVector(_pd, dA2);
     if (own && S.mode === 'fly') { const dS = S.pos.distanceTo(stations[pi].pos), w = 1 - clamp((dS - 2000) / 6000, 0, 1); if (w > 0.001) { _pq.copy(S.pos).addScaledVector(_pd, 1100).sub(camera.position).normalize().lerp(_pd, 1 - w).normalize(); p.mesh.position.copy(camera.position).addScaledVector(_pq, dA2); } }   // near its station the planet of that station is pinned at a FIXED depth (1100) in front of the ship's own position, so when the chase camera swings round the ship the planet shifts exactly like the station standing in front of it (they stay locked together); the depth is a constant, so flying towards, past or away from it never moves it; the pin fades out slowly between 2 and 8 km, beyond that it is a pure sky backdrop again
     let vfT = 1; if (pi !== vpI) { vfT = PFAR; for (let q = 0; q < planets.length; q++) { const o = planets[q]; if (q === pi || q === vpI || o.sys !== p.sys || !o.fd) continue; const sep = Math.acos(clamp(p.fd.dot(o.fd), -1, 1)), rp = Math.max(1e-4, af * (p.rg ? 1.7 : 1)); vfT = Math.min(vfT, 0.42 * sep / rp); } vfT = Math.max(1, vfT); }   // neighbours that sit close together in the sky are only enlarged as far as they stay apart (no overlapping discs or rings)
     p.vf = (p.vf && pi !== vpI) ? p.vf + (vfT - p.vf) * Math.min(1, dt * 3) : vfT; const vf = p.vf;   // purely visual: planets of other stations are drawn PFAR times bigger (the aiming/lock logic keeps using the real size)
@@ -2618,7 +2624,7 @@ function frame(now) {
       for (let q = 0; q < flGh.length; q++) { const g = flGh[q], t = FLT[q]; g.style.transform = 'translate(' + (sx + (cx - sx) * t - FLS[q] / 2).toFixed(0) + 'px,' + (sy + (cy - sy) * t - FLS[q] / 2).toFixed(0) + 'px)'; } } }   // sun lens flare: a glow on the sun plus ghost discs along the line through the screen centre
   }
   if (S.mode === 'fly' && homeSt !== anchorSt && stations[anchorSt].sys === curSys && S.pos.distanceTo(stations[anchorSt].pos) < STN_VIS) homeSt = anchorSt;   // coming back to your own station brings its sky back; other stations are never reached by flying (they stay endlessly far, like a real sky)
-  stations.forEach((st, i) => { st.g.visible = i === homeSt && S.pos.distanceTo(st.pos) < STN_VIS; });   // only the station of the region you are in exists in space; the others are reached by travel, so none can pop out of a planet
+  stations.forEach((st, i) => { st.g.visible = i === homeSt && S.pos.distanceTo(st.pos) < STN_VIS * (st.v.vis || 1); });   // only the station of the region you are in exists in space; the others are reached by travel, so none can pop out of a planet
   for (const st of stations) { const tn = st.g.userData.tun; if (tn && st.g.visible) tn.offset.y = (tAcc * 0.55) % 1; }   // the tunnel lights run towards the end wall
   for (const st of stations) { const ds = st.g.userData.doors; if (ds && st.g.visible) ds.forEach((dr, k) => { if (dr.open !== dr.tgt) { const o = dr.open + clamp(dr.tgt - dr.open, -dt * 0.8, dt * 0.8); setDoor(st, o, dr.tgt, k); } }); }   // hangar doors slide open / shut
   for (const st of stations) if (st.g.userData.wheel && st.g.visible) st.g.userData.wheel.rotation.z += dt * 0.04;   // the Velnorian wheel turns slowly (one number per frame)
@@ -2643,7 +2649,7 @@ function frame(now) {
     const cs = (hot ? 'hot' : '') + (crossHitT > 0 ? ' hit' : ''); if (cs !== crossCls) { crossCls = cs; crossEl.classList.toggle('hot', hot); crossEl.classList.toggle('hit', crossHitT > 0); } }   // the DOM is touched only when the state changes
   if (flying) {
     for (let i = 0; i < stations.length; i++) {
-      const d = S.pos.distanceTo(stations[i].pos), home = i === anchorSt && stations[i].sys === curSys; if ((d < STN_VIS && stations[i].g.visible) || home) place(mk[i], stations[i].pos, stations[i].name + ' STATION · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), home); else mk[i].style.display = 'none';   /* your own station (the one you launched from or jumped to) is always marked with its distance, at any range - off screen it sits on the edge as an arrow; it changes only when you dock at or jump to another station */
+      const d = S.pos.distanceTo(stations[i].pos), home = i === anchorSt && stations[i].sys === curSys; if ((d < STN_VIS * (stations[i].v.vis || 1) && stations[i].g.visible) || home) place(mk[i], stations[i].pos, stations[i].name + ' STATION · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), home); else mk[i].style.display = 'none';   /* your own station (the one you launched from or jumped to) is always marked with its distance, at any range - off screen it sits on the edge as an arrow; it changes only when you dock at or jump to another station */
       const lk = S.tPlanet === i; mkp[i].classList.toggle('lock', lk); if (!lk) mkp[i].style.display = 'none'; else place(mkp[i], planets[i].mesh.position, '', lk);
     }
     const m = S.mission;
