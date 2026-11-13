@@ -1147,21 +1147,21 @@ function updateDying(dt) {
     if (e.active || !e.g.visible) { e.dying = 0; dyingList.splice(i, 1); continue; }   // respawned or hidden by a reset: forget it
     d.t += dt; fwdOf(e.q, fwd); e.pos.addScaledVector(fwd, e.speed * 0.5 * dt); e.g.position.copy(e.pos); e.g.rotateZ(d.rz * dt); e.g.rotateX(d.rx * dt);
     d.pf -= dt; if (d.pf <= 0) { d.pf = 0.045; _a.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(5).add(e.pos); smokePuff(_a); if (Math.random() < 0.5) sparks(_a, 2, 12, 0.5); }
-    if (d.t >= d.dur) { e.g.visible = false; e.dying = 0; dyingList.splice(i, 1); explode(e.pos, 18, 1); } }
+    if (d.t >= d.dur) { e.g.visible = false; e.dying = 0; dyingList.splice(i, 1); explode(e.pos, 18); } }
 }
 let explNext = 0;
 const boomQ = [], _bq = new THREE.Vector3();   // chain blasts: a big explosion is followed by 3 small ones a moment later (reuses the same pooled sprites - no new objects in the scene)
-function explode(p, size, snd) {   /* snd: 1 = pirate (user's own near/far blast), 2 = silent chain blast */
+function explode(p, size) {
   const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.w.position.copy(p); e.w.visible = size > 12;
-  sparks(p, size > 12 ? 55 : 18, size * 3.2, 1.3); const pb = snd === 1 && eng && eng.buf && eng.buf.pNear && eng.buf.pFar; if (pb) sfx('pboom', p.distanceTo(S.pos)); else if (snd !== 2) sfx('boom', size);
-  if (size > 12) { fxUntil = Math.max(fxUntil, performance.now() + 5000); for (let i = 0; i < 3; i++) boomQ.push({ t: 0.1 + i * 0.13 + Math.random() * 0.08, x: p.x + (Math.random() - 0.5) * size * 1.6, y: p.y + (Math.random() - 0.5) * size * 1.6, z: p.z + (Math.random() - 0.5) * size * 1.6, s: size * (0.32 + Math.random() * 0.2) , m: pb ? 2 : 0});
+  sparks(p, size > 12 ? 55 : 18, size * 3.2, 1.3); sfx('boom', size);
+  if (size > 12) { fxUntil = Math.max(fxUntil, performance.now() + 5000); for (let i = 0; i < 3; i++) boomQ.push({ t: 0.1 + i * 0.13 + Math.random() * 0.08, x: p.x + (Math.random() - 0.5) * size * 1.6, y: p.y + (Math.random() - 0.5) * size * 1.6, z: p.z + (Math.random() - 0.5) * size * 1.6, s: size * (0.32 + Math.random() * 0.2) });
     for (let i = 0; i < 9; i++) { _bq.set((Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8).add(p); smokePuff(_bq); }   // a cloud of smoke that lingers where the ship was
   }
   if (size > 12) { e.size = size * 1.7; blastStreaks(p, size); const dd = p.distanceTo(S.pos), it = Math.min(1, 1.2 - dd / 380); if (it > 0.05) { const fe = $('flash'); fe.style.transition = 'none'; fe.style.background = 'radial-gradient(ellipse at center,rgba(255,245,215,.55) 0,rgba(255,200,110,.18) 28%,rgba(255,140,50,0) 55%)'; fe.style.opacity = (it * 0.7).toFixed(2); void fe.offsetWidth; fe.style.transition = 'opacity .8s ease-out'; fe.style.opacity = '0'; } }
 }
 function updateFx(dt) {
   updateDying(dt); updateStreaks(dt); updateShards(dt);
-  for (let i = boomQ.length - 1; i >= 0; i--) { const q = boomQ[i]; q.t -= dt; if (q.t <= 0) { boomQ.splice(i, 1); explode(_bq.set(q.x, q.y, q.z), q.s, q.m); } }
+  for (let i = boomQ.length - 1; i >= 0; i--) { const q = boomQ[i]; q.t -= dt; if (q.t <= 0) { boomQ.splice(i, 1); explode(_bq.set(q.x, q.y, q.z), q.s); } }
   for (const e of expl) {
     if (e.t > 1) { if (e.f.visible) e.f.visible = e.r.visible = e.w.visible = false; continue; }
     e.t += dt * 1.5; const k = e.t, dc = camera.position.distanceTo(e.f.position), s = Math.min(e.size * (0.4 + k * 1.5), dc * 0.5 + 3);   // never bigger than about the screen: pixels outside the view cost nothing, pixels piled up inside it do
@@ -1556,56 +1556,6 @@ function activeEnemies() { let n = 0; for (const e of enemies) if (e.active) n++
 const ZONE_R = 500;
 
 // ---------- audio ----------
-// pre-rendered game sounds: pure math, computed ONCE at load into sample arrays (each shot then costs one buffer play)
-const SYN = (() => {
-  let seed = 1; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 * 2 - 1;
-  const norm = (a, pk) => { let m = 0; for (let i = 0; i < a.length; i++) m = Math.max(m, Math.abs(a[i])); if (m > 0) for (let i = 0; i < a.length; i++) a[i] *= pk / m; return a; };
-  const bq = (type, sr) => { let x1 = 0, x2 = 0, y1 = 0, y2 = 0; return (x, f, Q) => { const w = 2 * Math.PI * Math.min(f, sr * 0.45) / sr, al = Math.sin(w) / (2 * Q), c = Math.cos(w); let b0, b1, b2; if (type === 'lp') { b0 = (1 - c) / 2; b1 = 1 - c; b2 = b0; } else if (type === 'hp') { b0 = (1 + c) / 2; b1 = -(1 + c); b2 = b0; } else { b0 = al; b1 = 0; b2 = -al; } const a0 = 1 + al, a1 = -2 * c, a2 = 1 - al;
-      const y = (b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0; x2 = x1; x1 = x; y2 = y1; y1 = y; return y; }; };   // a biquad filter (low/high/band pass)
-  const verb = (a, sr, mix, len) => { const d = [0.0297, 0.0371, 0.0411, 0.0437].map(s => Math.floor(s * sr)), g = Math.pow(0.001, 1 / (len * sr)), out = new Float32Array(a.length);   // small space reverb (four comb filters)
-    for (const D of d) { const fb = Math.pow(g, D), buf = new Float32Array(D); let k = 0, lpv = 0; for (let i = 0; i < a.length; i++) { const y = buf[k]; lpv += 0.35 * (y - lpv); buf[k] = a[i] + lpv * fb; k = (k + 1) % D; out[i] += y * 0.25; } }
-    for (let i = 0; i < a.length; i++) a[i] = a[i] * (1 - mix) + out[i] * mix; return a; };
-  const fadeEnd = (a, sr, s) => { const n = a.length, m = Math.floor(s * sr); for (let i = 0; i < m; i++) a[n - 1 - i] *= i / m; return a; };
-  const dcb = (a, sr, hz) => { let px = 0, py = 0; const R = 1 - 2 * Math.PI * hz / sr; for (let i = 0; i < a.length; i++) { const v = a[i]; py = v - px + R * py; px = v; a[i] = py; } return a; };
-  return {
-    // player cannon (pro layering): a click transient, a short punch of sub, an FM 'energy' core with a metallic edge that drops in pitch only a little, a band of sizzle, and a short room
-    laser: (sr, v) => { seed = 7; v = v || 0; const n = Math.floor(sr * 0.45), a = new Float32Array(n), H = bq('hp', sr), Bz = bq('bp', sr), L = bq('lp', sr); let pc = 0, pm = 0, ps = 0;
-      const C0 = v ? 330 : 520, RAT = v ? 1.414 : 2.76, IDX = v ? 4 : 6;
-      for (let i = 0; i < n; i++) { const t = i / sr, w = rnd();
-        const click = H(w, 3000, 0.7) * Math.exp(-t * 400) * 1.5;
-        ps += (60 + 40 * Math.exp(-t * 60)) / sr; const sub = Math.sin(ps * 2 * Math.PI) * Math.exp(-t * 28) * (v ? 1.1 : 0.8);
-        const fc = C0 * (0.55 + 0.45 * Math.exp(-t * 14)); pm += fc * RAT / sr; const mod = Math.sin(pm * 2 * Math.PI) * IDX * Math.exp(-t * 18); pc += fc / sr;
-        const core = Math.sin(pc * 2 * Math.PI + mod) * Math.min(1, t / 0.002) * Math.exp(-t * (v ? 11 : 14));
-        const siz = Bz(w, v ? 4200 : 6500, 1.1) * Math.exp(-t * 24) * 0.55;
-        a[i] = Math.tanh((L(core, 900 + 7000 * Math.exp(-t * 20), 0.8) * 0.9 + sub + click + siz) * 1.6); }
-      return norm(fadeEnd(dcb(verb(a, sr, 0.18, 0.4), sr, 30), sr, 0.06), 1); },
-    // enemy fire: same build, higher and harsher (narrow raspy FM), so incoming fire reads differently
-    elaser: (sr) => { seed = 9; const n = Math.floor(sr * 0.32), a = new Float32Array(n), H = bq('hp', sr), L = bq('lp', sr); let pc = 0, pm = 0;
-      for (let i = 0; i < n; i++) { const t = i / sr, w = rnd(); const fc = 780 * (0.6 + 0.4 * Math.exp(-t * 16)); pm += fc * 1.5 / sr; pc += fc / sr;
-        const core = Math.sin(pc * 2 * Math.PI + Math.sin(pm * 2 * Math.PI) * 8 * Math.exp(-t * 14)) * Math.min(1, t / 0.002) * Math.exp(-t * 17);
-        a[i] = Math.tanh((L(core, 600 + 5000 * Math.exp(-t * 22), 0.9) + H(w, 2500, 0.7) * Math.exp(-t * 300) * 1.2) * 1.8); }
-      return norm(fadeEnd(dcb(verb(a, sr, 0.16, 0.3), sr, 40), sr, 0.05), 1); },
-    // explosion: a hard initial blast, a deep falling roar, sub pressure, debris rattling down, and a long space-room tail
-    boom: (sr, big) => { seed = big ? 11 : 5; const n = Math.floor(sr * (big ? 3.0 : 1.6)), a = new Float32Array(n), L1 = bq('lp', sr), L2 = bq('lp', sr), B1 = bq('bp', sr), D = bq('bp', sr); let ph = 0, deb = 0;
-      const k = big ? 1 : 1.7;
-      for (let i = 0; i < n; i++) { const t = i / sr, w = rnd();
-        const blast = B1(w, 1400, 0.6) * Math.exp(-t * 28 * k) * 2.2;
-        const roar = L2(L1(w, 120 + 1600 * Math.exp(-t * 6 * k), 0.8), 90 + 900 * Math.exp(-t * 3 * k), 0.7) * Math.exp(-t * 1.7 * k) * 5;
-        ph += (34 + 46 * Math.exp(-t * 5)) / sr; const sub = Math.sin(ph * 2 * Math.PI) * Math.exp(-t * 2.6 * k) * Math.min(1, t / 0.01) * 1.1;
-        if (deb <= 0 && rnd() > 0.99935 && t > 0.15 && t < (big ? 2 : 1)) deb = Math.floor(0.02 * sr); let dv = 0; if (deb > 0) { dv = D(w, 900 + 1500 * Math.abs(rnd()), 3) * 0.3 * Math.exp(-t * 2.5); deb--; } else D(0, 1200, 3);
-        a[i] = Math.tanh((blast + roar + sub + dv) * 1.2); }
-      return norm(fadeEnd(dcb(verb(a, sr, 0.3, big ? 1.4 : 0.9), sr, 25), sr, 0.3), 1); },
-    // hit on the hull / shield: a crunching impact transient, a low body thump, a brief inharmonic metal 'tok' (dies fast, no ringing) and an electrical crackle tail
-    hit: (sr) => { seed = 3; const n = Math.floor(sr * 0.5), a = new Float32Array(n), B = bq('bp', sr), C = bq('bp', sr), L = bq('lp', sr); let ph = 0, pc = 0, pm = 0, cr = 0;
-      for (let i = 0; i < n; i++) { const t = i / sr, w = rnd();
-        const crunch = Math.tanh(B(w, 1800, 0.7) * 6) * Math.exp(-t * 55) * 0.9;
-        ph += (55 + 70 * Math.exp(-t * 40)) / sr; const thump = Math.sin(ph * 2 * Math.PI) * Math.exp(-t * 22) * 1.2;
-        pc += 240 / sr; pm += 240 * 3.17 / sr; const tok = Math.sin(pc * 2 * Math.PI + Math.sin(pm * 2 * Math.PI) * 3 * Math.exp(-t * 30)) * Math.exp(-t * 45) * 0.5;
-        if (cr <= 0 && rnd() > 0.996 && t > 0.03 && t < 0.35) cr = Math.floor(0.004 * sr); let c = 0; if (cr > 0) { c = C(w, 4000, 1.5) * 0.9 * Math.exp(-t * 8); cr--; } else C(0, 4000, 1.5);
-        a[i] = Math.tanh((L(crunch + tok, 5000, 0.7) + thump + c) * 1.5); }
-      return norm(fadeEnd(dcb(verb(a, sr, 0.2, 0.35), sr, 30), sr, 0.06), 1); },
-  };
-})();
 let actx = null, eng = null, lastLaser = 0;
 function initAudio() {
   if (actx) return;
@@ -1623,21 +1573,12 @@ function initAudio() {
     const o2 = { frequency: { setTargetAtTime() {} } };
     const nb = actx.createBuffer(1, actx.sampleRate * 0.6, actx.sampleRate), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     eng = { master, o1, o2, lp, g, hg, nb };
-    eng.buf = {}; const SR = 24000, jobs = [['laser', () => SYN.laser(SR)], ['elaser', () => SYN.elaser(SR)], ['hit', () => SYN.hit(SR)], ['boomS', () => SYN.boom(SR, false)], ['boomB', () => SYN.boom(SR, true)]];
-    const next = () => { const j = jobs.shift(); if (!j) return; const d = j[1](), ab = actx.createBuffer(1, d.length, SR); ab.getChannelData(0).set(d); eng.buf[j[0]] = ab; setTimeout(next, 30); }; setTimeout(next, 30); const ld = (n, u) => { try { fetch(u).then(r => r.ok ? r.arrayBuffer() : null).then(a => { if (a) actx.decodeAudioData(a, b => { eng.buf[n] = b; }, () => {}); }).catch(() => {}); } catch (e) {} }; ld('pNear', 'sounds/pirate_boom_near.mp3'); ld('pFar', 'sounds/pirate_boom_far.mp3');   // the new weapon / explosion sounds are rendered ONCE, one per tick (no hitch); until each is ready the old sound plays
   } catch (e) { actx = null; }
 }
 function sfx(kind, k) {
   if (!actx || !save.snd || actx.state !== 'running') return; const t = actx.currentTime;
   const tone = (type, f0, f1, dur, vol, delay) => { const o = actx.createOscillator(), g = actx.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t + (delay || 0)); o.frequency.exponentialRampToValueAtTime(f1, t + (delay || 0) + dur); g.gain.setValueAtTime(vol, t + (delay || 0)); g.gain.exponentialRampToValueAtTime(0.001, t + (delay || 0) + dur); o.connect(g); g.connect(eng.master); o.start(t + (delay || 0)); o.stop(t + (delay || 0) + dur + 0.02); };
   const noise = (cut, dur, vol) => { const s = actx.createBufferSource(); s.buffer = eng.nb; const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; const g = actx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); s.connect(f); f.connect(g); g.connect(eng.master); s.start(t); };
-  const play = (b, vol, rate) => { const s = actx.createBufferSource(), g = actx.createGain(); s.buffer = b; s.playbackRate.value = rate; g.gain.value = vol; s.connect(g); g.connect(eng.master); s.start(t); };   // one buffer + one gain per sound: far cheaper than building oscillators every shot
-  const B = eng.buf || {};
-  if (kind === 'laser' && B.laser) { if (t - lastLaser < 0.07) return; lastLaser = t; play(B.laser, 0.36, 0.97 + Math.random() * 0.06); return; }
-  if (kind === 'elaser' && B.elaser) { play(B.elaser, 0.13, 0.95 + Math.random() * 0.1); return; }
-  if (kind === 'hit' && B.hit) { play(B.hit, 0.5, 0.92 + Math.random() * 0.16); return; }
-  if (kind === 'boom' && B.boomB) { const big = (k || 10) > 12; play(big ? B.boomB : B.boomS, big ? 0.9 : clamp(0.4 + (k || 10) * 0.03, 0.45, 0.75), 0.9 + Math.random() * 0.2); return; }
-  if (kind === 'pboom') { const d = k || 0, near = d < 350; play(near ? B.pNear : B.pFar, near ? 1 : clamp(1.15 - d / 1400, 0.25, 0.85), 1); return; }   /* the user's own pirate blasts: close one under 350 m, distant one fades with range */
   if (kind === 'laser') {
     if (t - lastLaser < 0.07) return; lastLaser = t; const r = 0.95 + Math.random() * 0.1;
     // blaster: punchy low thump + a bright saw zap that sweeps down through a closing filter + a high sparkle + a tiny click
@@ -2075,7 +2016,7 @@ function makePics() {
   { const g = ship.clone(true); g.position.set(0, 0, 0); g.quaternion.identity(); g.rotation.y = -Math.PI / 2 + 0.55; g.updateMatrixWorld(true); snap(g, 'sh', 1.05, 0.85); }   // the real ship, 3/4 view
   renderer.setRenderTarget(null); renderer.setClearColor(oc, oa); rt.dispose();
 }
-let crossHitT = 0, crossCls = '', crossW = -1, crossH = -1; const aimCam = new THREE.PerspectiveCamera(), _xq = new THREE.Quaternion(); const _xf = V3(), _xd = V3();
+let crossHitT = 0, crossCls = '', crossX = -1, crossY = -1; const _xf = V3(), _xd = V3();
 let shopTab = 'm', lgSt = -1, shopSub = 'u', mapSys = -1;
 const VEL_EMB = '<svg style="width:22px;height:22px;filter:drop-shadow(0 0 3px #6fc0ff)" viewBox="0 0 64 64"><defs><linearGradient id="vlg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4fbff"/><stop offset=".35" stop-color="#8cc4ee"/><stop offset=".6" stop-color="#2c5d8f"/><stop offset="1" stop-color="#d6ecff"/></linearGradient></defs><path d="M27 4 A11.5 11.5 0 0 0 49 4 A14 14 0 0 1 27 4Z" fill="url(#vlg2)"/><path d="M14 17 L23 17 L32 38 L44 17 L59 17 L32 61Z" fill="url(#vlg2)" stroke="#e8f6ff" stroke-width=".8"/><path d="M3 17 L11 17 L7 24Z" fill="url(#vlg2)"/><path d="M28.5 21.5 L37.5 21.5 L33 29Z" fill="none" stroke="#e8f6ff" stroke-width="1.4"/></svg>';   // the ruling race's emblem (same drawing as on the star map; own gradient id)
 const HOLD = 20, GOODS = [{ nm: 'ORE', base: 40, desc: 'Raw asteroid ore' }, { nm: 'FOOD', base: 25, desc: 'Sealed rations' }, { nm: 'MEDS', base: 70, desc: 'Medical supplies' }, { nm: 'TECH', base: 120, desc: 'Electronic parts' }, { nm: 'GEMS', base: 200, desc: 'Cut crystals' }];
@@ -2588,7 +2529,7 @@ function frame(now) {
     for (const c of altCones) { const u = c.userData; if (!u.L) continue; const L = u.L, fk = 0.86 + 0.1 * Math.sin(tAcc * (36 + L.k * 19) + u.ph) + 0.05 * Math.sin(tAcc * 97 + u.ph * 3), len = u.nr * (L.len * (0.4 + 0.6 * fl) * fk + 0.3), r = u.nr * L.r * (0.9 + 0.1 * fl); c.scale.set(r, len, r); c.position.z = u.z0 + len / 2; } }   // MANTA flames flicker and stretch with speed / boost
   flameCones.forEach(c => { const u = c.userData, L = u.L, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + u.ph) + 0.05 * Math.sin(tAcc * 91 + u.ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); c.scale.set(r, len, r); c.position.z = 0.9 + len / 2; });
   for (const e of enemies) if (e.active) { e.g.children[1].scale.setScalar(5 + Math.sin(tAcc * 40 + e.pos.x) * 0.6); }
-  S.camQ.slerp(S.q, 1 - Math.exp(-26 * dt));   // the camera follows the ship tightly, so the ship stays right under the fixed sight in turns
+  S.camQ.slerp(S.q, 1 - Math.exp(-7 * dt));
   const cd = 17 + S.speed * 0.014;
   _a.set(0, 4.6, cd).applyQuaternion(S.camQ); camera.position.copy(S.pos).add(_a);
   _qa.setFromAxisAngle(X, -0.07); camera.quaternion.copy(S.camQ).multiply(_qa);
@@ -2683,9 +2624,8 @@ function frame(now) {
   const showHud = flying;
   crossEl.style.display = showHud ? 'block' : 'none';
   if (crossHitT > 0) crossHitT -= dt;
-  if (showHud) {   // the sight is FIXED on screen: centred, at the height of the gun line in level flight (worked out for this screen size only, so it never moves or shakes)
-    if (crossW !== innerWidth || crossH !== innerHeight) { crossW = innerWidth; crossH = innerHeight; aimCam.fov = 64; aimCam.aspect = innerWidth / innerHeight; aimCam.near = 0.1; aimCam.far = 5000; aimCam.updateProjectionMatrix(); aimCam.position.set(0, 4.6, 17); aimCam.quaternion.setFromAxisAngle(X, -0.07); aimCam.updateMatrixWorld(); aimCam.matrixWorldInverse.copy(aimCam.matrixWorld).invert();
-      _xd.set(0, 0, -450).project(aimCam); const cy = Math.round((0.5 - _xd.y * 0.5) * innerHeight); crossEl.style.left = '50%'; crossEl.style.top = cy + 'px'; } }
+  if (showHud) { fwdOf(S.q, _xf); _xd.copy(S.pos).addScaledVector(_xf, 450).project(camera);   // the sight sits where the guns actually converge (450 m along the nose), so it stays ahead of ANY hull and follows the nose through turns
+    const cx = Math.round((_xd.x * 0.5 + 0.5) * innerWidth), cy = Math.round((0.5 - _xd.y * 0.5) * innerHeight); if (cx !== crossX || cy !== crossY) { crossX = cx; crossY = cy; crossEl.style.left = cx + 'px'; crossEl.style.top = cy + 'px'; } }
   if (showHud) { let hot = false; fwdOf(S.q, _xf);   // is a pirate right under the sight? (a few dot products over 6 enemies)
     for (const e of enemies) { if (!e.active) continue; _xd.copy(e.pos).sub(S.pos); const along = _xd.dot(_xf); if (along < 20 || along > 1100) continue; if (_xd.lengthSq() - along * along < 14 * 14) { hot = true; break; } }
     const cs = (hot ? 'hot' : '') + (crossHitT > 0 ? ' hit' : ''); if (cs !== crossCls) { crossCls = cs; crossEl.classList.toggle('hot', hot); crossEl.classList.toggle('hit', crossHitT > 0); } }   // the DOM is touched only when the state changes
