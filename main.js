@@ -1578,6 +1578,15 @@ const ZONE_R = 500;
 
 // ---------- audio ----------
 let actx = null, eng = null, lastLaser = 0;
+/* per-gun take on the same laser sound: rate = pitch/speed, ft/fc/q = a tone filter, v = volume, dur = how long it rings (fast guns are cut shorter so shots don't pile up), dbl = a second, slightly higher copy a moment later */
+const LSND = [
+  { rate: 1.0, ft: 'lowpass', fc: 16000, q: 0.7, v: 0.30, dur: 0.42 },               // PULSE LASER: the sound as it is
+  { rate: 1.28, ft: 'highpass', fc: 700, q: 0.8, v: 0.34, dur: 0.5 },                // ION LANCE: higher and thinner
+  { rate: 0.9, ft: 'lowpass', fc: 3200, q: 7, v: 0.34, dur: 0.55 },                  // PLASMA WEAVER: a resonant, wobbly edge
+  { rate: 1.1, ft: 'lowpass', fc: 9000, q: 1, v: 0.30, dur: 0.45, dbl: 1.17 },       // SALVO: a quick doubled shot
+  { rate: 0.78, ft: 'lowpass', fc: 2600, q: 2, v: 0.38, dur: 0.7 },                  // VOID PULSE: deeper, darker
+  { rate: 0.6, ft: 'lowpass', fc: 4500, q: 1.2, v: 0.46, dur: 0.88 },                // SOLAR BEAM: slow, heavy, rings out
+];
 function initAudio() {
   if (actx) return;
   try {
@@ -1593,13 +1602,19 @@ function initAudio() {
     const o1 = actx.createOscillator(); o1.type = 'sine'; o1.frequency.value = 62; const hg = actx.createGain(); hg.gain.value = 0.0; o1.connect(hg); hg.connect(master); o1.start();
     const o2 = { frequency: { setTargetAtTime() {} } };
     const nb = actx.createBuffer(1, actx.sampleRate * 0.6, actx.sampleRate), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    eng = { master, o1, o2, lp, g, hg, nb };
+    eng = { master, o1, o2, lp, g, hg, nb, buf: {} };
+    /* the user's own laser sound, loaded once; each gun gets its own fixed filter (made once, shared by every shot of that gun) */
+    eng.wf = LSND.map((L) => { const f = actx.createBiquadFilter(); f.type = L.ft; f.frequency.value = L.fc; f.Q.value = L.q; f.connect(master); return f; });
+    try { fetch('sounds/laser_shot.wav').then(r => r.ok ? r.arrayBuffer() : null).then(a => { if (a) actx.decodeAudioData(a, b => { eng.buf.laser = b; }, () => {}); }).catch(() => {}); } catch (e) {}
   } catch (e) { actx = null; }
 }
 function sfx(kind, k) {
   if (!actx || !save.snd || actx.state !== 'running') return; const t = actx.currentTime;
   const tone = (type, f0, f1, dur, vol, delay) => { const o = actx.createOscillator(), g = actx.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t + (delay || 0)); o.frequency.exponentialRampToValueAtTime(f1, t + (delay || 0) + dur); g.gain.setValueAtTime(vol, t + (delay || 0)); g.gain.exponentialRampToValueAtTime(0.001, t + (delay || 0) + dur); o.connect(g); g.connect(eng.master); o.start(t + (delay || 0)); o.stop(t + (delay || 0) + dur + 0.02); };
   const noise = (cut, dur, vol) => { const s = actx.createBufferSource(); s.buffer = eng.nb; const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; const g = actx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); s.connect(f); f.connect(g); g.connect(eng.master); s.start(t); };
+  if (kind === 'laser' && eng.buf && eng.buf.laser) { if (t - lastLaser < 0.07) return; lastLaser = t; const wi = Math.min(LSND.length - 1, k | 0), L = LSND[wi];
+    const shot = (rate, vol, dl) => { const s = actx.createBufferSource(), g = actx.createGain(), t0 = t + dl, d = L.dur / rate * 1.0; s.buffer = eng.buf.laser; s.playbackRate.value = rate * (0.98 + Math.random() * 0.04); g.gain.setValueAtTime(vol, t0); g.gain.setValueAtTime(vol, t0 + d * 0.7); g.gain.linearRampToValueAtTime(0.0001, t0 + d); s.connect(g); g.connect(eng.wf[wi]); s.start(t0); s.stop(t0 + d + 0.02); };
+    const lv = L.v * 0.224; shot(L.rate, lv, 0); if (L.dbl) shot(L.dbl, lv * 0.6, 0.03); return; }   /* 0.224 = 13 dB quieter */
   if (kind === 'laser') {
     if (t - lastLaser < 0.07) return; lastLaser = t; const r = 0.95 + Math.random() * 0.1;
     // blaster: punchy low thump + a bright saw zap that sweeps down through a closing filter + a high sparkle + a tiny click
@@ -2468,7 +2483,7 @@ function frame(now) {
       if (W.n === 1) fireBolt(_a, _b, W.spd, ST.dmg * W.dm, false, W);
       else if (W === WPN[3]) { _d.crossVectors(_b, Y).normalize(); for (let q = -1; q <= 1; q++) { _c.copy(_b).addScaledVector(_d, q * 0.07).normalize(); fireBolt(_a, _c, W.spd, ST.dmg * W.dm, false, W); } }   // salvo: a fan of three
       else for (let q = 0; q < W.n; q++) { _c.copy(_a).addScaledVector(_b, -13 * q); fireBolt(_c, _b, W.spd, ST.dmg * W.dm, false, W); }   // void pulse: three dashes in a row
-      sfx('laser');
+      sfx('laser', save.wpn.cur);
     }
 
     // ---- bolts ----
