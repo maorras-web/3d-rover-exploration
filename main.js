@@ -1046,6 +1046,34 @@ function breakRock(a) {
     shMesh.setColorAt(k, _col.copy(_shC).multiplyScalar(rnd(0.6, 1))); }
   shMesh.instanceColor.needsUpdate = true; shMesh.visible = shOn = true;
 }
+/* a destroyed ship breaks apart: dark hull chunks (some still glowing hot) fly out and tumble; three of them trail smoke for a moment. Uses the same pooled chunk mesh as the asteroid debris: no new objects. */
+/* a destroyed ship breaks apart into smooth, shiny METAL hull plates (not rock): its own small pool of 12 plates in ONE instanced mesh, drawn only while pieces are flying.
+   Three plates are still glowing hot and trail smoke for a moment. */
+const PL_N = 12, PL_LIFE = 3.6, plates = [], burners = [];
+const plMesh = (() => { const geo = new THREE.BoxGeometry(1, 0.14, 0.7, 1, 1, 1); { const P = geo.attributes.position; for (let i = 0; i < P.count; i++) { const x = P.getX(i), z = P.getZ(i); P.setY(i, P.getY(i) + 0.12 * x * z); P.setX(i, x * (z > 0 ? 0.75 : 1)); } geo.computeVertexNormals(); }   /* a slightly bent, tapered panel */
+  const m = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.9, roughness: 0.28, envMap: SHIP_ENV, envMapIntensity: 2.6 }), PL_N);
+  m.frustumCulled = false; m.visible = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m);
+  for (let i = 0; i < PL_N; i++) { plates.push({ p: V3(0, -99999, 0), v: V3(), r: V3(), w: V3(), sc: V3(1, 1, 1), t: 9 }); m.setColorAt(i, new THREE.Color(0.6, 0.62, 0.68)); }
+  return m; })();
+let plNext = 0, plOn = false;
+function breakShip(p, size) {
+  if (!plMesh.material.envMap && SHIP_ENV) { plMesh.material.envMap = SHIP_ENV; plMesh.material.needsUpdate = true; }
+  for (let i = 0; i < 9; i++) { const q = plates[plNext], k = plNext; plNext = (plNext + 1) % PL_N;
+    q.p.set(p.x + rnd(-1, 1) * 2, p.y + rnd(-1, 1) * 2, p.z + rnd(-1, 1) * 2); q.v.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize().multiplyScalar(rnd(9, 26));
+    q.r.set(Math.random() * 6, Math.random() * 6, Math.random() * 6); q.w.set(rnd(-4, 4), rnd(-4, 4), rnd(-4, 4)); const s0 = size * rnd(0.16, 0.3); q.sc.set(s0 * rnd(0.8, 1.6), s0, s0 * rnd(0.6, 1.2)); q.t = 0;
+    plMesh.setColorAt(k, i < 3 ? _col.setRGB(2.2, 0.85, 0.3) : _col.setRGB(0.62 + Math.random() * 0.2, 0.64 + Math.random() * 0.2, 0.72 + Math.random() * 0.2)); if (i < 3) burners.push({ k, t: 0, pf: 0 }); }
+  plMesh.instanceColor.needsUpdate = true; plMesh.visible = plOn = true;
+}
+function updatePlates(dt) {
+  if (!plOn) return; let any = false;
+  for (let i = burners.length - 1; i >= 0; i--) { const b = burners[i]; b.t += dt; b.pf -= dt; if (b.t > 1.6) { burners.splice(i, 1); continue; } if (b.pf <= 0) { b.pf = 0.07; smokePuff(plates[b.k].p); } }
+  for (let i = 0; i < PL_N; i++) { const q = plates[i];
+    if (q.t >= PL_LIFE) { if (q.p.y > -99000) { q.p.y = -99999; dummy.position.copy(q.p); dummy.scale.setScalar(0); dummy.updateMatrix(); plMesh.setMatrixAt(i, dummy.matrix); } continue; }
+    any = true; q.t += dt; q.p.addScaledVector(q.v, dt); q.v.multiplyScalar(1 - 0.3 * dt); q.r.addScaledVector(q.w, dt);
+    const f = q.t > PL_LIFE - 0.8 ? (PL_LIFE - q.t) / 0.8 : 1;
+    dummy.position.copy(q.p); dummy.rotation.set(q.r.x, q.r.y, q.r.z); dummy.scale.copy(q.sc).multiplyScalar(f); dummy.updateMatrix(); plMesh.setMatrixAt(i, dummy.matrix); }
+  plMesh.instanceMatrix.needsUpdate = true; if (!any) plMesh.visible = plOn = false;
+}
 function updateShards(dt) {
   if (!shOn) return; let any = false;
   for (let i = 0; i < SH_N; i++) { const q = shards[i];
@@ -1117,7 +1145,10 @@ function sparks(p, n, spd, life) {
 }
 const ringTex = canvasTex(128, 128, (x, w, h) => { const g = x.createRadialGradient(64, 64, 34, 64, 64, 62); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.55, 'rgba(255,255,255,0.95)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, w, h); });
 const EXP_N = 8, expl = [];
-for (let i = 0; i < EXP_N; i++) { const f = glowSprite(0xffa040, 1, 0), r = glowSprite(0xffffff, 1, 0), w = glowSprite(0xffd9a0, 1, 0); w.material.map = ringTex; f.visible = r.visible = w.visible = false; scene.add(f, r, w); expl.push({ f, r, w, t: 99, size: 10 }); }
+const swGeo = new THREE.PlaneGeometry(1, 1);
+for (let i = 0; i < EXP_N; i++) { const f = glowSprite(0xffa040, 1, 0), r = glowSprite(0xffffff, 1, 0), w = glowSprite(0xffd9a0, 1, 0); w.material.map = ringTex; f.visible = r.visible = w.visible = false;
+  const d = new THREE.Mesh(swGeo, new THREE.MeshBasicMaterial({ map: ringTex, color: 0xbfe4ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false, side: THREE.DoubleSide })); d.visible = false;   /* a FLAT shockwave disc in a random tilt (big blasts only) */
+  scene.add(f, r, w, d); expl.push({ f, r, w, d, t: 99, size: 10 }); }
 // tiny bright flash where a laser/missile hits
 const HF_N = 6, hflash = []; for (let i = 0; i < HF_N; i++) { const s = glowSprite(0xbff8ff, 1, 0); s.visible = false; scene.add(s); hflash.push({ s, t: 9 }); } let hfNext = 0;
 function hitFlash(p, big) { const h = hflash[hfNext]; hfNext = (hfNext + 1) % HF_N; h.t = 0; h.big = big ? 1.5 : 1; h.s.position.copy(p); h.s.visible = true; }
@@ -1141,12 +1172,12 @@ function updateDying(dt) {
     if (e.active || !e.g.visible) { e.dying = 0; dyingList.splice(i, 1); continue; }   // respawned or hidden by a reset: forget it
     d.t += dt; fwdOf(e.q, fwd); e.pos.addScaledVector(fwd, e.speed * 0.5 * dt); e.g.position.copy(e.pos); e.g.rotateZ(d.rz * dt); e.g.rotateX(d.rx * dt);
     d.pf -= dt; if (d.pf <= 0) { d.pf = 0.045; _a.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(5).add(e.pos); smokePuff(_a); if (Math.random() < 0.5) sparks(_a, 2, 12, 0.5); }
-    if (d.t >= d.dur) { e.g.visible = false; e.dying = 0; dyingList.splice(i, 1); explode(e.pos, 18); } }
+    if (d.t >= d.dur) { e.g.visible = false; e.dying = 0; dyingList.splice(i, 1); explode(e.pos, 18); breakShip(e.pos, 18); } }
 }
 let explNext = 0;
 const boomQ = [], _bq = new THREE.Vector3();   // chain blasts: a big explosion is followed by 3 small ones a moment later (reuses the same pooled sprites - no new objects in the scene)
 function explode(p, size) {
-  const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.w.position.copy(p); e.w.visible = size > 12;
+  const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.w.position.copy(p); e.w.visible = size > 12; e.d.visible = size > 12; if (e.d.visible) { e.d.position.copy(p); e.d.rotation.set(Math.random() * 6.3, Math.random() * 6.3, 0); }
   sparks(p, size > 12 ? 55 : 18, size * 3.2, 1.3); sfx('boom', size);
   if (size > 12) { fxUntil = Math.max(fxUntil, performance.now() + 5000); for (let i = 0; i < 3; i++) boomQ.push({ t: 0.1 + i * 0.13 + Math.random() * 0.08, x: p.x + (Math.random() - 0.5) * size * 1.6, y: p.y + (Math.random() - 0.5) * size * 1.6, z: p.z + (Math.random() - 0.5) * size * 1.6, s: size * (0.32 + Math.random() * 0.2) });
     for (let i = 0; i < 9; i++) { _bq.set((Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8).add(p); smokePuff(_bq); }   // a cloud of smoke that lingers where the ship was
@@ -1154,12 +1185,13 @@ function explode(p, size) {
   if (size > 12) { e.size = size * 1.7; blastStreaks(p, size); const dd = p.distanceTo(S.pos), it = Math.min(1, 1.2 - dd / 380); if (it > 0.05) { const fe = $('flash'); fe.style.transition = 'none'; fe.style.background = 'radial-gradient(ellipse at center,rgba(255,245,215,.55) 0,rgba(255,200,110,.18) 28%,rgba(255,140,50,0) 55%)'; fe.style.opacity = (it * 0.7).toFixed(2); void fe.offsetWidth; fe.style.transition = 'opacity .8s ease-out'; fe.style.opacity = '0'; } }
 }
 function updateFx(dt) {
-  updateDying(dt); updateStreaks(dt); updateShards(dt);
+  updateDying(dt); updateStreaks(dt); updateShards(dt); updatePlates(dt);
   for (let i = boomQ.length - 1; i >= 0; i--) { const q = boomQ[i]; q.t -= dt; if (q.t <= 0) { boomQ.splice(i, 1); explode(_bq.set(q.x, q.y, q.z), q.s); } }
   for (const e of expl) {
-    if (e.t > 1) { if (e.f.visible) e.f.visible = e.r.visible = e.w.visible = false; continue; }
+    if (e.t > 1) { if (e.f.visible) e.f.visible = e.r.visible = e.w.visible = e.d.visible = false; continue; }
     e.t += dt * 1.5; const k = e.t, dc = camera.position.distanceTo(e.f.position), s = Math.min(e.size * (0.4 + k * 1.5), dc * 0.5 + 3);   // never bigger than about the screen: pixels outside the view cost nothing, pixels piled up inside it do
-    e.f.scale.set(s, s, 1); e.f.material.opacity = Math.max(0, 1 - k) * 0.95; e.f.material.color.setRGB(1, Math.max(0.12, 0.9 - k * 0.8), Math.max(0.03, 0.5 - k * 0.5)); e.r.scale.set(s * 0.45, s * 0.45, 1); e.r.material.opacity = Math.max(0, 1 - k * 2.2);
+    e.f.scale.set(s, s, 1); e.f.material.opacity = Math.max(0, 1 - k) * 0.95; e.f.material.color.setRGB(1, Math.max(0.12, 0.9 - k * 0.8), Math.max(0.03, 0.5 - k * 0.5)); { const cs = s * (0.45 + 0.6 * Math.max(0, 1 - k * 5)); e.r.scale.set(cs, cs, 1); } e.r.material.opacity = Math.max(0, 1 - k * 2.2);   /* white-hot core pops big for an instant, then settles */
+    if (e.d.visible) { const u = Math.min(1, k * 1.25), ds = Math.min(e.size * (0.6 + Math.pow(u, 0.6) * 7), dc * 1.6 + 3); e.d.scale.set(ds, ds, 1); e.d.material.opacity = Math.pow(1 - u, 1.6) * 0.9; }   /* flat shockwave races out and thins */
     if (e.w.visible) { const ws = Math.min(e.size * (1 + k * 4.5), dc * 0.75 + 3); e.w.scale.set(ws, ws, 1); e.w.material.opacity = Math.max(0, 1 - k) * 0.8; }
   }
   for (const h of hflash) { if (h.t > 1) { if (h.s.visible) h.s.visible = false; continue; } h.t += dt * 7; const s = (3 + h.t * 5) * h.big; h.s.scale.set(s, s, 1); h.s.material.opacity = Math.max(0, 1 - h.t); }
