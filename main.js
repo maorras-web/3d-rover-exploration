@@ -1600,6 +1600,8 @@ function initAudio() {
     const nb = actx.createBuffer(1, actx.sampleRate * 0.6, actx.sampleRate), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     eng = { master, o1, o2, lp, g, hg, nb, buf: {} };
     /* the user's own laser sound, loaded once; each gun gets its own fixed filter (made once, shared by every shot of that gun) */
+    /* station music goes through the SAME audio system as every other sound (not as a separate media player): phones no longer switch the sound channel when it stops after launch, and its volume is set by a gain that also works on iPhone */
+    try { eng.musG = actx.createGain(); eng.musG.gain.value = 0; actx.createMediaElementSource(stMus).connect(eng.musG); eng.musG.connect(actx.destination); stMus.volume = 1; } catch (e) { eng.musG = null; }
     eng.wf = LSND.map((L) => { const f = actx.createBiquadFilter(); f.type = L.ft; f.frequency.value = L.fc; f.Q.value = L.q; f.connect(master); return f; });
     try { const bs = atob(LASER_MP3), u8 = new Uint8Array(bs.length); for (let i = 0; i < bs.length; i++) u8[i] = bs.charCodeAt(i); actx.decodeAudioData(u8.buffer, b => { eng.buf.laser = b; }, () => {}); } catch (e) {}   /* the laser sound lives INSIDE main.js (no separate file to find or block) */
   } catch (e) { actx = null; }
@@ -2014,8 +2016,8 @@ function unlockMusic() { if (stUnlocked) return; stUnlocked = true; try { const 
 function updateMusic(dt) {
   const want = S.mode === 'dock' && save.snd && !document.hidden ? 0.6 : 0;
   stVol += (want - stVol) * Math.min(1, dt * (want > stVol ? 0.9 : 2.2)); if (Math.abs(want - stVol) < 0.004) stVol = want;
-  if (stVol > 0.01) { if (stMus.paused) { try { const p = stMus.play(); if (p && p.catch) p.catch(() => { }); } catch (e) { } } stMus.volume = clamp(stVol, 0, 1); }
-  else if (!stMus.paused) { stMus.pause(); stMus.volume = 0; }
+  if (stVol > 0.01) { if (stMus.paused) { try { const p = stMus.play(); if (p && p.catch) p.catch(() => { }); } catch (e) { } } if (eng && eng.musG) eng.musG.gain.value = clamp(stVol, 0, 1); else stMus.volume = clamp(stVol, 0, 1); }
+  else if (!stMus.paused) { stMus.pause(); if (eng && eng.musG) eng.musG.gain.value = 0; else stMus.volume = 0; }
 }
 // ---- weapon / missile pictures: the real 3D models drawn ONCE into small images (nothing is rendered again afterwards, so no running cost) ----
 const PIC = {};
