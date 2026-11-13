@@ -1288,15 +1288,16 @@ function buildStation(name, col, V) {
         const sp = new THREE.TubeGeometry(cv, 14, 1, 6, false), P = sp.attributes.position, cp = V3(), v = V3();   /* a curved arm: rises from the seed's shoulder, arches out and comes down onto the ring */
         for (let a2 = 0; a2 <= 14; a2++) { const t = a2 / 14, w = 2.9 - 1.5 * t + 1.2 * Math.pow(t, 6); cv.getPoint(t, cp); for (let b2 = 0; b2 <= 6; b2++) { const ix = a2 * 7 + b2; v.fromBufferAttribute(P, ix).sub(cp).multiplyScalar(w).add(cp); P.setXYZ(ix, v.x, v.y, v.z); } }   /* thick at the root, slim in the middle, flaring where it grips the ring */
         sp.computeVertexNormals(); ringParts.push(suv(sp, 3.2, 0.45)); } }   /* (end of the arcs loop) */
-    const inner = new THREE.TorusGeometry(38, 1.0, 6, 60, Math.PI * 2 - 0.9); inner.rotateZ(0.45); inner.translate(0, 0, -19.3);   /* open in front of the side entrance */ ringParts.push(suv(inner, 2, 0.1));   // thin inner ring
+    /* (the thin inner ring is gone: its cut ends stuck out beside the entrance) */
     { /* SIDE ENTRANCE: you fly in level, through the wide gap in the ring, into a flared port in the side of the hub (along +x, at ring height) */
       const AX = (q) => { q.rotateZ(-Math.PI / 2); q.translate(0, 0, ZR); return q; };   /* lathe axis (y) -> +x */
       const port = AX(new THREE.LatheGeometry([[9.2, 15], [9.6, 22], [10.8, 28], [13, 32], [14.6, 33.2]].map(q => new THREE.Vector2(q[0], q[1])), 26));
       const pin = port.clone(); { const ix = pin.index.array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i]; ix[i] = ix[i + 1]; ix[i + 1] = t; } const n = pin.attributes.normal; for (let i = 0; i < n.count; i++) n.setXYZ(i, -n.getX(i), -n.getY(i), -n.getZ(i)); }
       parts.push(suv(port, 0.6, 0.3), suv(pin, 0.6, 0.3));   /* flared port, solid inside and out */
       const lip = new THREE.TorusGeometry(14.6, 1.7, 8, 32); lip.rotateY(Math.PI / 2); lip.translate(33.2, 0, ZR); parts.push(suv(lip, 0.6, 0.15));   /* thick rim */
-      const gg = []; for (const [x, r] of [[21, 9.0], [25, 9.6], [29, 10.8]]) { const q = new THREE.TorusGeometry(r, 0.38, 5, 32); q.rotateY(Math.PI / 2); q.translate(x, 0, ZR); gg.push(q); }   /* glowing yellow ribs down the green-lit throat */
+      const gg = []; for (const [x, r] of [[22.8, 9.1], [25.8, 9.7], [29, 10.8]]) { const q = new THREE.TorusGeometry(r, 0.38, 5, 32); q.rotateY(Math.PI / 2); q.translate(x, 0, ZR); gg.push(q); }   /* glowing yellow ribs down the green-lit throat */
       g.add(new THREE.Mesh(mergeGeometries(gg), new THREE.MeshBasicMaterial({ color: 0xffe94a, toneMapped: false, fog: false })));
+      { const vd = new THREE.Mesh(new THREE.CircleGeometry(9.7, 24), new THREE.MeshBasicMaterial({ map: canvasTex(64, 64, (x) => { const q = x.createRadialGradient(32, 32, 0, 32, 32, 32); q.addColorStop(0, '#000000'); q.addColorStop(0.7, '#010603'); q.addColorStop(1, '#03160b'); x.fillStyle = q; x.fillRect(0, 0, 64, 64); }), toneMapped: false, fog: false })); vd.rotation.y = Math.PI / 2; vd.position.set(21.7, 0, ZR); g.add(vd); }   /* the back of the entrance is a dark void (no station skin showing through) */
 
       /* (no yellow running lights outside the entrance) */
       const hg = glowSprite(new THREE.Color(V.band[0]).getHex(), 34, 0.5); hg.position.set(36, 0, ZR); g.add(hg); g.userData.hg = hg;
