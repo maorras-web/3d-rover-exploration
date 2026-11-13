@@ -1637,7 +1637,7 @@ function sfx(kind, k) {
   if (kind === 'elaser' && B.elaser) { play(B.elaser, 0.13, 0.95 + Math.random() * 0.1); return; }
   if (kind === 'hit' && B.hit) { play(B.hit, 0.5, 0.92 + Math.random() * 0.16); return; }
   if (kind === 'boom' && B.boomB) { const big = (k || 10) > 12; play(big ? B.boomB : B.boomS, big ? 0.9 : clamp(0.4 + (k || 10) * 0.03, 0.45, 0.75), 0.9 + Math.random() * 0.2); return; }
-  if (kind === 'pboom') { const d = k || 0, near = d < 350; play(near ? B.pNear : B.pFar, near ? 1 : clamp(1.15 - d / 1400, 0.25, 0.85), 0.96 + Math.random() * 0.08); return; }   /* the user's own pirate blasts: close one under 350 m, distant one fades with range */
+  if (kind === 'pboom') { const d = k || 0, near = d < 350; play(near ? B.pNear : B.pFar, near ? 1 : clamp(1.15 - d / 1400, 0.25, 0.85), 1); return; }   /* the user's own pirate blasts: close one under 350 m, distant one fades with range */
   if (kind === 'laser') {
     if (t - lastLaser < 0.07) return; lastLaser = t; const r = 0.95 + Math.random() * 0.1;
     // blaster: punchy low thump + a bright saw zap that sweeps down through a closing filter + a high sparkle + a tiny click
