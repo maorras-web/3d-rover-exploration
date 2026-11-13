@@ -2272,15 +2272,16 @@ function tryDock() {
   const st = stations[i]; DK.i = i; DK.t = 0; DK.p0.copy(S.pos); DK.q0.copy(S.q); DK.dir.copy(st.front).negate();
   _m.lookAt(_zero, DK.dir, lookUp(DK.dir)); DK.q1.setFromRotationMatrix(_m); DK.P1.copy(st.pos).addScaledVector(st.front, 125 * ST_K);
   DK.cit = !!st.g.userData.mouths; if (DK.cit) { const [k] = nearArm(st); DK.k = k; const M = armMouth(st, k, DK.M), ax = st.g.localToWorld(st.g.userData.mouthAx ? _mw.copy(st.g.userData.mouthAx) : _mw.set(0, 0, -16)); DK.O.copy(M).sub(ax).normalize();
-    DK.km = st.v.wheel ? st.v.big / 2.3 : 1; DK.A.copy(M).addScaledVector(DK.O, Math.min(180 * DK.km, 520)); DK.E.copy(M).addScaledVector(DK.O, -Math.min(230 * DK.km, 950)); const rv = _a.copy(S.pos).sub(M); const za = rv.dot(DK.O); rv.addScaledVector(DK.O, -za); const rl = rv.length(); if (rl > 1) rv.divideScalar(rl); DK.C.copy(DK.A).addScaledVector(rv, rl * 0.9);
-    DK.dir.copy(DK.O).negate(); _m.lookAt(_zero, DK.dir, lookUp(DK.dir)); DK.q1.setFromRotationMatrix(_m); DK.q0.copy(S.q); S.speed = 0; }
+    DK.km = st.v.wheel ? st.v.big / 2.3 : 1; const L0 = st.g.userData.solid, dE = L0 ? (st.g.userData.mouths[0].x - L0.back) * ST_K * st.v.big * (st.v.sxy || 1) - 45 : Math.min(230 * DK.km, 950);   /* stop short of the dark back wall: never fly on into (and through) the hull */
+    const rv = _a.copy(S.pos).sub(M); const za = rv.dot(DK.O); DK.A.copy(M).addScaledVector(DK.O, Math.max(-dE * 0.4, Math.min(za, Math.min(180 * DK.km, 520)))); DK.E.copy(M).addScaledVector(DK.O, -dE);   /* already in the mouth? carry on from there instead of backing out */ rv.addScaledVector(DK.O, -za); const rl = rv.length(); if (rl > 1) rv.divideScalar(rl); DK.C.copy(DK.A).addScaledVector(rv, rl * 0.9);
+    DK.t1 = clamp(S.pos.distanceTo(DK.A) / 110, 0.9, 2.6);   /* already lined up close to the mouth: no long hover before going in */ DK.dir.copy(DK.O).negate(); _m.lookAt(_zero, DK.dir, lookUp(DK.dir)); DK.q1.setFromRotationMatrix(_m); DK.q0.copy(S.q); S.speed = 0; }
   DK.tA = 1.0; fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; S.mode = 'dockin'; document.body.classList.add('docked'); S.target = null; S.boosting = false; S.sx = S.sy = 0;
 }
 function updateDockIn(dt) {
   if (DK.cit) {   // XIAQA: the ship swings onto the axis, the door folds open, the ship flies in and the screen fades once it is inside
-    DK.t += dt; const t1 = 2.6, t2 = DK.km > 3 ? 4.2 : DK.km > 1 ? 3.0 : 2.4, st = stations[DK.i], sm = (u) => u * u * (3 - 2 * u);
+    DK.t += dt; const t1 = DK.cit ? (DK.t1 || 2.6) : 2.6, t2 = DK.km > 3 ? 4.2 : DK.km > 1 ? 3.0 : 2.4, st = stations[DK.i], sm = (u) => u * u * (3 - 2 * u);
     if (DK.t < t1) { const u = sm(DK.t / t1), v = 1 - u; S.pos.set(0, 0, 0).addScaledVector(DK.p0, v * v).addScaledVector(DK.C, 2 * u * v).addScaledVector(DK.A, u * u); S.q.slerpQuaternions(DK.q0, DK.q1, sm(Math.min(1, DK.t / (t1 * 0.8)))); S.speed = 60 * (1 - u) + 20; if (DK.t > 1.0 && st.g.userData.doors) st.g.userData.doors[DK.k].tgt = 1; }
-    else { const u = Math.min(1, (DK.t - t1) / t2), e = Math.pow(u, 1.4); S.pos.copy(DK.A).lerp(DK.E, e); S.q.copy(DK.q1); S.speed = 40; if (st.g.userData.doors) st.g.userData.doors[DK.k].tgt = 1; fadeEl.style.opacity = clamp((u - 0.7) / 0.28, 0, 1).toFixed(2); if (u >= 1) { S.speed = 0; dockAt(DK.i); fadeOut(); } }
+    else { const u = Math.min(1, (DK.t - t1) / t2), e = Math.pow(u, 1.4); S.pos.copy(DK.A).lerp(DK.E, e); S.q.copy(DK.q1); S.speed = 40; if (st.g.userData.doors) st.g.userData.doors[DK.k].tgt = 1; fadeEl.style.opacity = clamp((u - (DK.km > 1 ? 0.45 : 0.7)) / (DK.km > 1 ? 0.4 : 0.28), 0, 1).toFixed(2); if (u >= 1) { S.speed = 0; dockAt(DK.i); fadeOut(); } }
     S.camQ.slerp(S.q, 1 - Math.exp(-5 * dt)); S.roll = 0; return;
   }   // no flying into the station: the ship is beamed in - the screen fades to black right where you are and the hangar opens
   DK.t += dt; S.speed *= Math.max(0, 1 - dt * 4); S.vel.multiplyScalar(Math.max(0, 1 - dt * 4)); S.pos.addScaledVector(S.vel, dt); S.roll = 0;
