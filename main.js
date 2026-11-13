@@ -1279,12 +1279,13 @@ function buildStation(name, col, V) {
     const hubR = (z) => { for (let i = 1; i < HP.length; i++) if (HP[i].y >= z) { const a = HP[i - 1], b = HP[i], f = (z - a.y) / (b.y - a.y || 1); return a.x + (b.x - a.x) * f; } return 0; };
     const hub = new THREE.LatheGeometry(HP, 28); hub.rotateX(Math.PI / 2); parts.push(hub);
     for (const [z, t] of [[-5, 1.3], [-27, 0.8], [17, 0.9]]) { const q = new THREE.TorusGeometry(hubR(z) - 0.2, t, 6, 40); q.translate(0, 0, z); parts.push(suv(q, 0.6, 0.2)); }   // raised bands that hug the seed
-    const R = 60, N = 6, GAP = 0.17, TB = 4.2, ZR = -5;
+    const R = 60, N = 6, GAP = 0.17, TB = 4.2, ZR = -5, armPts = [];
     for (let k = 0; k < N; k++) { const a0 = k / N * Math.PI * 2 + GAP / 2 + (k === 0 ? 0.26 : 0), a1 = (k + 1) / N * Math.PI * 2 - GAP / 2 - (k === N - 1 ? 0.26 : 0), am = k === 0 ? (a0 + a1) / 2 + 0.13 : k === N - 1 ? (a0 + a1) / 2 - 0.13 : (a0 + a1) / 2;   /* the gap facing the side entrance (+x) is wide, so you fly straight through it */
       const arc = new THREE.TorusGeometry(R, TB, 10, 22, a1 - a0); arc.rotateZ(a0); arc.translate(0, 0, ZR); ringParts.push(suv(arc, 0.6, 0.22));   // a habitat arc
       for (const a of [a0, a1]) { const dm = new THREE.SphereGeometry(5.6, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.55); dm.rotateX(-Math.PI / 2); dm.translate(Math.cos(a) * R, Math.sin(a) * R, ZR - 1.2); ringParts.push(dm);   // dome capping each arc end
         const cl = new THREE.CylinderGeometry(5.9, 5.9, 3.4, 14); cl.rotateX(Math.PI / 2); cl.translate(Math.cos(a) * R, Math.sin(a) * R, ZR + 0.6); ringParts.push(suv(cl, 0.5, 0.2)); }
       { const c = Math.cos(am), sn = Math.sin(am), zb = -17, rb = hubR(zb) - 0.5, cv = new THREE.QuadraticBezierCurve3(V3(c * rb, sn * rb, zb), V3(c * 40, sn * 40, -27), V3(c * (R - TB + 0.5), sn * (R - TB + 0.5), ZR - 1));
+        armPts.push(cv.getPoints(8));
         const sp = new THREE.TubeGeometry(cv, 14, 1, 6, false), P = sp.attributes.position, cp = V3(), v = V3();   /* a curved arm: rises from the seed's shoulder, arches out and comes down onto the ring */
         for (let a2 = 0; a2 <= 14; a2++) { const t = a2 / 14, w = 2.9 - 1.5 * t + 1.2 * Math.pow(t, 6); cv.getPoint(t, cp); for (let b2 = 0; b2 <= 6; b2++) { const ix = a2 * 7 + b2; v.fromBufferAttribute(P, ix).sub(cp).multiplyScalar(w).add(cp); P.setXYZ(ix, v.x, v.y, v.z); } }   /* thick at the root, slim in the middle, flaring where it grips the ring */
         sp.computeVertexNormals(); ringParts.push(suv(sp, 3.2, 0.45)); } }   /* (end of the arcs loop) */
@@ -1301,7 +1302,8 @@ function buildStation(name, col, V) {
 
       /* (no yellow running lights outside the entrance) */
       const hg = glowSprite(new THREE.Color(V.band[0]).getHex(), 34, 0.5); hg.position.set(36, 0, ZR); g.add(hg); g.userData.hg = hg;
-      g.userData.mouths = [V3(34, 0, ZR)]; g.userData.mouthAx = V3(0, 0, ZR); }
+      g.userData.mouths = [V3(34, 0, ZR)]; g.userData.mouthAx = V3(0, 0, ZR);
+      g.userData.solid = { HP, R, TB, ZR, gap: GAP / 2 + 0.26, arms: armPts, port: [[15, 9.2], [22, 9.6], [28, 10.8], [32, 13], [33.2, 14.6]], back: 21.7 };   /* simple solid shapes (in the station's own units) so nothing flies through the hull */ }
   }
   const citNz = [], legN = parts.length;   // everything pushed from here to the antennae = struts + tail blades -> polished leg metal instead of the window-lit hull
   // struts from the hull to the halo ring
@@ -2299,6 +2301,29 @@ function wrecked() {
 }
 
 // ---------- spawning (asteroids) ----------
+/* keeps a ship out of a station's real shape (hub, ring, arms, entrance walls) instead of one round bubble. p: world position (moved in place), mw: ship radius in metres. Returns true if it pushed. */
+const _sq = V3(), _sa = V3(), _sb = V3(), _sc2 = V3();
+function stationPush(st, p, mw) {
+  const L = st.g.userData.solid; if (!L) return false; const sc = ST_K * st.v.big, m = mw / sc;
+  if (p.distanceToSquared(st.pos) > Math.pow((L.R + L.TB + 6) * sc * (st.v.sxy || 1) + mw, 2)) return false;   // far from it: nothing to do
+  const q = st.g.worldToLocal(_sq.copy(p)); let hit = false;
+  const lerpT = (A, v) => { if (v <= A[0][0]) return A[0][1]; for (let i = 1; i < A.length; i++) if (v <= A[i][0]) { const a = A[i - 1], b = A[i]; return a[1] + (b[1] - a[1]) * (v - a[0]) / (b[0] - a[0]); } return A[A.length - 1][1]; };
+  // entrance tunnel (along +x at ring height): its wall, its rim and the dark back wall
+  const pr = Math.hypot(q.y, q.z - L.ZR), inPort = q.x > L.port[0][0] && q.x < L.port[L.port.length - 1][0] + 1.7;
+  if (inPort) { const w = lerpT(L.port, q.x), t = 0.6 + m; if (Math.abs(pr - w) < t) { const f = (pr < w ? w - t : w + t) / (pr || 1); q.y *= f; q.z = L.ZR + (q.z - L.ZR) * f; hit = true; } }
+  const tunnel = q.x > L.back && pr < lerpT(L.port, q.x) - 0.6 - m;
+  if (tunnel && q.x < L.back + m) { q.x = L.back + m; hit = true; }
+  // the seed hub (and the spire on top)
+  const r = Math.hypot(q.x, q.y), H = L.HP;
+  if (!tunnel && q.z > H[0].y && q.z < H[H.length - 1].y) { let rh = 0; for (let i = 1; i < H.length; i++) if (H[i].y >= q.z) { const a = H[i - 1], b = H[i]; rh = a.x + (b.x - a.x) * (q.z - a.y) / (b.y - a.y || 1); break; }
+    if (r < rh + m) { const f = (rh + m) / (r || 1); if (r < 1e-3) q.x = rh + m; else { q.x *= f; q.y *= f; } hit = true; } }
+  else if (q.z > -87 && q.z <= H[0].y && r < 2 + m) { const f = (2 + m) / (r || 1); q.x *= f; q.y *= f; hit = true; }
+  // the ring (open only in the wide gap in front of the entrance)
+  if (Math.abs(Math.atan2(q.y, q.x)) > L.gap) { const dr = r - L.R, dz = q.z - L.ZR, dc = Math.hypot(dr, dz), t = L.TB + 1.4 + m; if (dc < t) { const f = t / (dc || 1), nr = L.R + dr * f, k = nr / (r || 1); q.x *= k; q.y *= k; q.z = L.ZR + dz * f; hit = true; } }
+  // the six arms (each a short chain of capsules)
+  for (const A of L.arms) for (let i = 1; i < A.length; i++) { const a = A[i - 1], b = A[i]; _sa.subVectors(b, a); const u = Math.max(0, Math.min(1, _sb.subVectors(q, a).dot(_sa) / _sa.lengthSq())); _sc2.copy(a).addScaledVector(_sa, u); const d = q.distanceTo(_sc2), t = (2.6 - 1.2 * (i / A.length)) + m; if (d < t) { q.sub(_sc2).multiplyScalar(t / (d || 1)).add(_sc2); hit = true; } }
+  if (hit) p.copy(st.g.localToWorld(q)); return hit;
+}
 function spawnAsteroid(a, first) {
   fwdOf(S.q, fwd); a.active = false;
   for (let tries = 0; tries < 10; tries++) {
@@ -2497,6 +2522,7 @@ function frame(now) {
       fwdOf(e.q, _c);
       const wantSp = e.evadeT > 0 ? 100 : dist > 400 ? 105 : dist > 160 ? 85 : 66; e.speed = damp(e.speed, wantSp, 1.4, dt);
       e.vel.copy(_c).multiplyScalar(e.speed); e.pos.addScaledVector(e.vel, dt);
+      for (const st of stations) if (st.g.visible && stationPush(st, e.pos, 6)) e.speed *= 0.7;   /* pirates can't fly through a station either */
       e.fireT -= dt;
       if (dist < 420 && e.evadeT <= 0 && _c.dot(dirTo) > 0.965 && e.fireT <= 0) {
         e.burst = 3; e.fireT = rnd(1.4, 2.4);
@@ -2516,7 +2542,7 @@ function frame(now) {
       }
     }
     if (S.inv > 0) S.inv -= dt;
-    for (const st of stations) { if (!st.g.visible) continue; _a.copy(S.pos).sub(st.pos); const d = _a.length(), cr = 40 * ST_K * (st.v.citadel ? st.v.big : st.v.wheel ? st.v.big * 0.72 : 1);  /* wheel: just outside the hub tower (the ring arcs are open) */ if (d < cr) { S.pos.copy(st.pos).addScaledVector(_a.multiplyScalar(cr / (d || 1)), 1); S.speed *= 0.6; } }   // the big citadel has a bigger solid core
+    for (const st of stations) { if (!st.g.visible) continue; _a.copy(S.pos).sub(st.pos); if (st.g.userData.solid) { if (stationPush(st, S.pos, 7)) S.speed *= 0.6; continue; } const d = _a.length(), cr = 40 * ST_K * (st.v.citadel ? st.v.big : 1); if (d < cr) { S.pos.copy(st.pos).addScaledVector(_a.multiplyScalar(cr / (d || 1)), 1); S.speed *= 0.6; } }   // the big citadel has a bigger solid core
     // planets are scenery: they can never be reached (see the planet placement in the world animation)
     const mag = 20 + 0;
     for (let i = 0; i < LOOT_N; i++) {
