@@ -1409,7 +1409,7 @@ function buildStationB(name, col, V) {
 // ---------- solar system: six planets in different colours, each with exactly ONE station in orbit next to it ----------
 // pl.off = where the planet sits relative to its station (the station is always about one planet-radius + 400 away from the surface)
 const stations = [
-  { name: 'XIAQA', col: '#ffa040', v: { wheel: 1, alien: 1, spire: 1, sxy: 1.3, big: 23, fadeK: 10, vis: 3, fins: 0, fw: 4.6, ribs: 0, horns: 0, hl: 1, ringN: 11, tint: 0.25, band: ['#4dff7a', '#ffd24a'] }, pos: V3(0, 0, 0), front: V3(0, -1, 0), pl: { kind: 'gas', lbl: 'DUST GIANT', r: 620, off: V3(-900, -150, -640), atm: [0.9, 0.78, 0.55], ring: true } },
+  { name: 'XIAQA', col: '#ffa040', v: { wheel: 1, alien: 1, spire: 1, sxy: 1.3, big: 3.3, fadeK: 2, vis: 1.6, fins: 0, fw: 4.6, ribs: 0, horns: 0, hl: 1, ringN: 11, tint: 0.25, band: ['#4dff7a', '#ffd24a'] }, pos: V3(0, 0, 0), front: V3(0, -1, 0), pl: { kind: 'gas', lbl: 'DUST GIANT', r: 620, off: V3(-900, -150, -640), atm: [0.9, 0.78, 0.55], ring: true } },
   { name: 'TIANOG', col: '#4aa0ff', v: { prof: 1, hr: 21, sxy: 0.9, big: 1.35, fins: 4, fw: 5.4, ribs: 6, horns: 0, spire: 1, hl: 1, ringN: 8, tint: 0.35, band: ['#4aa0ff', '#ffffff'] }, pos: V3(1800, 260, -1500), front: V3(0, -1, 0), pl: { kind: 'ocean', lbl: 'GOLDEN GIANT', r: 420, off: V3(700, -300, -500), atm: [0.8, 0.5, 0.16] } },
   { name: 'MIRAK', col: '#b46bff', v: { sxy: 1.3, sz: 0.75, big: 1.1, fins: 8, fw: 3.2, ribs: 10, horns: 4, hl: 0.8, ringN: 14, tint: 0.4, band: ['#d49aff', '#ff5ad2'] }, pos: V3(-2100, -180, -2000), front: V3(0, -1, 0), pl: { kind: 'purple', lbl: 'MAGENTA GIANT', r: 460, off: V3(-500, 200, -800), atm: [1.0, 0.4, 0.85], ring: true } },
   { name: 'TEPZONIAX', col: '#4cff8a', v: { prof: 2, hz: -15, hr: 30, big: 1.9, fins: 5, fw: 4.2, ribs: 5, horns: 2, hl: 1.4, ringN: 10, tint: 0.4, band: ['#4cff8a', '#bfffd8'] }, pos: V3(3400, -350, 900), front: V3(0, -1, 0), pl: { kind: 'jungle', lbl: 'TEMPEST WORLD', r: 520, off: V3(800, 200, 500), atm: [0.5, 0.5, 1.0] } },
@@ -2258,7 +2258,7 @@ function tryDock() {
 }
 function updateDockIn(dt) {
   if (DK.cit) {   // XIAQA: the ship swings onto the axis, the door folds open, the ship flies in and the screen fades once it is inside
-    DK.t += dt; const t1 = 2.6, t2 = DK.km > 1 ? 4.2 : 2.4, st = stations[DK.i], sm = (u) => u * u * (3 - 2 * u);
+    DK.t += dt; const t1 = 2.6, t2 = DK.km > 3 ? 4.2 : DK.km > 1 ? 3.0 : 2.4, st = stations[DK.i], sm = (u) => u * u * (3 - 2 * u);
     if (DK.t < t1) { const u = sm(DK.t / t1), v = 1 - u; S.pos.set(0, 0, 0).addScaledVector(DK.p0, v * v).addScaledVector(DK.C, 2 * u * v).addScaledVector(DK.A, u * u); S.q.slerpQuaternions(DK.q0, DK.q1, sm(Math.min(1, DK.t / (t1 * 0.8)))); S.speed = 60 * (1 - u) + 20; if (DK.t > 1.0 && st.g.userData.doors) st.g.userData.doors[DK.k].tgt = 1; }
     else { const u = Math.min(1, (DK.t - t1) / t2), e = Math.pow(u, 1.4); S.pos.copy(DK.A).lerp(DK.E, e); S.q.copy(DK.q1); S.speed = 40; if (st.g.userData.doors) st.g.userData.doors[DK.k].tgt = 1; fadeEl.style.opacity = clamp((u - 0.7) / 0.28, 0, 1).toFixed(2); if (u >= 1) { S.speed = 0; dockAt(DK.i); fadeOut(); } }
     S.camQ.slerp(S.q, 1 - Math.exp(-5 * dt)); S.roll = 0; return;
@@ -2305,7 +2305,7 @@ function spawnAsteroid(a, first) {
     else { _b.set(rnd(-1, 1), rnd(-0.8, 0.8), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.8, 1.0) * ASTR); if (_b.dot(fwd) < 0) _b.addScaledVector(fwd, -2 * _b.dot(fwd)); }
     _b.add(S.pos);
     let ok = _b.distanceTo(S.pos) > 100;
-    stations.forEach((st, k) => { if (_b.distanceTo(st.pos) < (TR_R[k] > 2000 ? TR_R[k] + 250 : 700)) ok = false; });
+    stations.forEach((st, k) => { if (_b.distanceTo(st.pos) < (TR_R[k] > 750 ? TR_R[k] + 250 : 700)) ok = false; });
     for (const p of planets) if (_b.distanceTo(p.pos) < p.r + 120) ok = false;
     if (!ok) continue;
     const big = Math.random() < 0.15, r = big ? rnd(14, 26) : rnd(3, 11);
@@ -2606,7 +2606,7 @@ function frame(now) {
     p.sm = (p.sm || 1) + (((here0 >= 0 && pi !== here0) ? 0.4 : 1) - (p.sm || 1)) * Math.min(1, dt * 1.5); const f = Math.min(PSIZE, 0.75 / a) * (own ? 1 : p.sm); let tr = a * f; if (own) tr = Math.min(tr, p.rg ? PSEE * 0.82 : PSEE);   // the planet of your own station is capped so the whole disc (and its rings, 1.7x wider) always fits on screen
     { const cf = pi !== vpI && SKY[stations[vpI].name] && SKY[stations[vpI].name][stations[pi].name]; if (cf) { _pd.set(cf.dir[0], cf.dir[1], cf.dir[2]).normalize(); tr = Math.tan(cf.radiusDeg * PLANET_K * Math.PI / 180); }   // every other planet sits where the editor put it, seen from the planet you are at
       if (!p.fd) { p.fd = _pd.clone(); p.fr = tr; } else { const q = Math.min(1, dt * (pi === vpI ? 1.2 : 2.5)); p.fd.lerp(_pd, q).normalize(); p.fr += (tr - p.fr) * q; } _pd.copy(p.fd); }
-    const af = p.fr, dA2 = own ? Math.max(dA, (S.pos.distanceTo(stations[pi].pos) + (TR_R[pi] > 2000 ? TR_R[pi] + 400 : 800)) / (1 - Math.min(0.85, af * (p.vf || 1) * (p.rg ? 1.7 : 1)))) : dA; p.mesh.position.copy(camera.position).addScaledVector(_pd, dA2);
+    const af = p.fr, dA2 = own ? Math.max(dA, (S.pos.distanceTo(stations[pi].pos) + (TR_R[pi] > 750 ? TR_R[pi] + 400 : 800)) / (1 - Math.min(0.85, af * (p.vf || 1) * (p.rg ? 1.7 : 1)))) : dA; p.mesh.position.copy(camera.position).addScaledVector(_pd, dA2);
     if (own && S.mode === 'fly') { const dS = S.pos.distanceTo(stations[pi].pos), w = 1 - clamp((dS - 2000) / 6000, 0, 1); if (w > 0.001) { _pq.copy(S.pos).addScaledVector(_pd, 1100).sub(camera.position).normalize().lerp(_pd, 1 - w).normalize(); p.mesh.position.copy(camera.position).addScaledVector(_pq, dA2); } }   // near its station the planet of that station is pinned at a FIXED depth (1100) in front of the ship's own position, so when the chase camera swings round the ship the planet shifts exactly like the station standing in front of it (they stay locked together); the depth is a constant, so flying towards, past or away from it never moves it; the pin fades out slowly between 2 and 8 km, beyond that it is a pure sky backdrop again
     let vfT = 1; if (pi !== vpI) { vfT = PFAR; for (let q = 0; q < planets.length; q++) { const o = planets[q]; if (q === pi || q === vpI || o.sys !== p.sys || !o.fd) continue; const sep = Math.acos(clamp(p.fd.dot(o.fd), -1, 1)), rp = Math.max(1e-4, af * (p.rg ? 1.7 : 1)); vfT = Math.min(vfT, 0.42 * sep / rp); } vfT = Math.max(1, vfT); }   // neighbours that sit close together in the sky are only enlarged as far as they stay apart (no overlapping discs or rings)
     p.vf = (p.vf && pi !== vpI) ? p.vf + (vfT - p.vf) * Math.min(1, dt * 3) : vfT; const vf = p.vf;   // purely visual: planets of other stations are drawn PFAR times bigger (the aiming/lock logic keeps using the real size)
