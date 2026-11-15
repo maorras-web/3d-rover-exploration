@@ -809,17 +809,372 @@ function metalizeManta(g) {
     if (m.map) { m.bumpMap = m.map; m.bumpScale = 2.2; }
     m.needsUpdate = true; }); });
 }
+// ---- new default hull for the STAR COURIER: an angular dark-gunmetal fighter (swept wings, twin cannons on each wing, two dorsal fins, six square engine nozzles). ~1,300 triangles, 5 materials, built once ----
+// ---- the STAR COURIER: the dome ship designed in the workshop (a dome cockpit wrapped by one ring that runs out into two prongs, flat delta wings,
+//      an engine bay with 8 square nozzles carved into the back of the dome, two weapon pockets and a tractor-beam bay pressed into the ring). ~9,600 triangles, built once ----
+const NH_NOZ = [];   // [x, y, z of the glowing face, size] - filled in from the model
+const MUZ_NH = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];   // gun muzzles - filled in from the weapon pockets
+let newHull = null; const nhFl = [], nhCones = [];
+const NH_PARAMS = {"winAng": 180, "hsRing": 1, "wingY": -0.3, "wingTip": 4.4, "wingRootZ": -0.2, "wingRearRootZ": 1.9, "wingTipZ": -1.3, "wingT": 0.06, "wpX": 0.39, "wpUp": 0.42, "wpW": 0.28, "tbUp": -0.91, "tbW": 0.22, "tbD": 0.09, "tbH": 0.47, "engRowGap": 1.39, "engSpread": 1.11}, NH_COLORS = {"white": "#7f9bd0", "chrome": "#c9d6f0", "seam": "#1a2132", "bayM": "#2c3446", "dark": "#0e1119", "engGlow": "#cfe6ff", "red": "#39445c"}, NH_ENGINE_COLORS = {"dark": "#0041f5", "bayM": "#290a1b", "engGlow": "#9ebb11"}, NH_SCALE = 1.2;
+// white/red dome ship v2. forward = -z, dome radius ~1
+function buildDomeModel(P = {}, MAT = null) {
+  const p = Object.assign({ domeSX: 1.08, domeSY: 0.92, podX: 1.08, podY: -0.25, podZ0: 0.3, podLen: 3.5, podR: 0.43, podIn: 0.13, podBend: 0.06, wingY: -0.3, wingTip: 4.5, wingRootZ: -0.55, wingRearRootZ: 2.9, wingTipZ: -0.25, wingT: 0.07, hsR: 1.12, hsY: -0.27, hsZ: 0.25, hsLen: 3.5, hsTipX: 0.63, hsDrop: 0.7, hsBulge: 0.0, hsThick: 0.48, hsRing: 1.0, wingJoin: 0.45, tbOn: 1, tbUp: -0.65, tbW: 0.42, tbH: 0.26, tbD: 0.2, wpOn: 1, wpX: 0.4, wpUp: 0.8, wpW: 0.36, wpH: 0.2, wpD: 0.14, winAng: 0, engSpread: 1, engRowGap: 1, engShift: 0, vb: 1, vbT0: 1.28, vbT1: 1.72, vbW: 0.72, vbDepth: 0.26, vbOut: 0, engOn: 0, engY: -0.05, engW: 1.5, engWb: 1.15, engH: 0.52, engDepth: 0.32, engFlat: 0 }, P);
+  const g = new THREE.Group();
+  const white = new THREE.MeshStandardMaterial({ color: 0xdcdee3, metalness: 0.85, roughness: 0.16, side: THREE.DoubleSide });
+  const red = new THREE.MeshStandardMaterial({ color: 0xb3080d, metalness: 0.7, roughness: 0.18, side: THREE.DoubleSide });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1b1d22, metalness: 0.5, roughness: 0.45, side: THREE.DoubleSide });
+  const glass = new THREE.MeshStandardMaterial({ color: 0x14161b, metalness: 0.7, roughness: 0.12, side: THREE.DoubleSide });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xeef1f6, metalness: 0.9, roughness: 0.12, side: THREE.DoubleSide });
+  const glow = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+  const seam = new THREE.MeshBasicMaterial({ color: 0x8e9098, side: THREE.DoubleSide });
+  const engGlow = new THREE.MeshBasicMaterial({ color: 0x9fd0ff });
+  const bayM = new THREE.MeshStandardMaterial({ color: 0x5c616b, metalness: 0.55, roughness: 0.38, side: THREE.DoubleSide });
+  if (MAT) { Object.assign(MAT, { white, red, dark, glass, chrome, glow, seam, engGlow, bayM }); }
+  let cur = 'dome'; const MK = (geo, mat) => { const m = new THREE.Mesh(geo, mat); m.userData.part = cur; return m; };
+  // ---- dome: flattened sphere on a rounded lower body ----
+  cur = 'dome'; const lp = [new THREE.Vector2(0.0001, -0.62)];
+  for (let i = 1; i <= 10; i++) { const a = -Math.PI / 2 + (Math.PI / 2) * i / 10; lp.push(new THREE.Vector2(Math.cos(a) * 1.0 + 0.0001, Math.sin(a) * 0.62)); }
+  for (let i = 1; i <= 18; i++) { const a = (Math.PI / 2) * i / 18; lp.push(new THREE.Vector2(Math.cos(a) + 0.0001, Math.sin(a))); }
+  const domeG = new THREE.LatheGeometry(lp, 52); domeG.scale(p.domeSX, p.domeSY, p.domeSX);
+  // ---- engine bay (from the user's sketch): a flat facet cut into the back of the dome, a trapezoid recess in it,
+  //      split in two by a centre post, 4 metal nozzles in each half (8 in all) ----
+  const ePhi = (p.winAng + 180) * Math.PI / 180;
+  const eN = new THREE.Vector3(Math.sin(ePhi), 0, -Math.cos(ePhi)), eU = new THREE.Vector3(0, 1, 0), eR = eU.clone().cross(eN).normalize();
+  const HT = p.engW / 2, HB = p.engWb / 2, EH = p.engH / 2;
+  const halfW = (ly) => HB + (HT - HB) * Math.min(1, Math.max(0, (ly + EH) / (2 * EH)));
+  let eP = null;
+  if (p.engOn) {
+    const pa = domeG.attributes.position, v = new THREE.Vector3();
+    // outer reach of the dome in that direction at the bay height
+    let reach = 0; for (let i = 0; i < pa.count; i++) { v.fromBufferAttribute(pa, i); if (Math.abs(v.y - p.engY) < 0.12) reach = Math.max(reach, v.dot(eN)); }
+    const need = Math.max(HT, HB) + 0.16, Rh = reach;                 // facet must be wide enough for the trapezoid + rim
+    const f = p.engFlat || Math.max(0.04, Rh - Math.sqrt(Math.max(0.01, Rh * Rh - need * need)));
+    const d0 = reach - f; eP = eN.clone().multiplyScalar(d0).setY(p.engY);
+    for (let i = 0; i < pa.count; i++) { v.fromBufferAttribute(pa, i); const o = v.dot(eN) - d0; if (o > 0) { const dy = Math.abs(v.y - p.engY) - (EH + 0.09), w = dy <= 0 ? 1 : Math.max(0, 1 - dy / 0.28); const ww = w * w * (3 - 2 * w); v.addScaledVector(eN, -o * ww); pa.setXYZ(i, v.x, v.y, v.z); } }   // flatten only a band around the bay, easing back into the round dome
+    const ix = domeG.index.array, keep = [], c = new THREE.Vector3(), t = new THREE.Vector3();
+    for (let i = 0; i < ix.length; i += 3) { c.set(0, 0, 0); for (let q = 0; q < 3; q++) c.add(t.fromBufferAttribute(pa, ix[i + q])); c.divideScalar(3); c.sub(eP);
+      const lx = c.dot(eR), ly = c.dot(eU), ln = c.dot(eN); if (ln > -0.02 && Math.abs(ly) < EH && Math.abs(lx) < halfW(ly)) continue; keep.push(ix[i], ix[i + 1], ix[i + 2]); }
+    domeG.setIndex(keep); domeG.computeVertexNormals(); }
+  const dome = MK(domeG, white); g.add(dome);
+  // ---- engine vents in the target-image style: two red-framed openings sunk into the dome (curving with it),
+  //      a ribbed centre plate between them, 4 metal nozzles in each (8 in all). They sit opposite the windows. ----
+  // ---- engine housing (from the target images): one thick bezel standing OUT of the dome, stretched and pointed at both ends,
+  //      a deep dark cavity inside it with two clusters of nozzles and a centre divider, and three big nozzles hanging under it ----
+  // ---- engine cavity: a clean hollow carved into the sphere, its edge rolling smoothly inward, engines installed inside ----
+  if (p.vb) { cur = 'enginevents';
+    const P0 = (p.winAng + 180) * Math.PI / 180, sx = p.domeSX, sy = p.domeSY;
+    const W = p.vbW, T0 = p.vbT0, T1 = p.vbT1, TM = (T0 + T1) / 2, HT = (T1 - T0) / 2, IN = 1 - p.vbDepth;
+    const at = (ph, th, r) => { const q = P0 + ph; return new THREE.Vector3(Math.sin(th) * Math.sin(q) * sx * r, Math.cos(th) * sy * r, -Math.sin(th) * Math.cos(q) * sx * r); };
+    // outline: a rounded slot (stadium), shrunk by k for the inner rings of the rolled edge
+    const slot = (k) => { const pts = [], hw = W - k, hh = HT - k * 0.8, rr = hh; const cxL = -hw + rr, cxR = hw - rr;
+      for (let i = 0; i <= 16; i++) { const a = -Math.PI / 2 + Math.PI * i / 16; pts.push([cxR + Math.cos(a) * rr, TM + Math.sin(a) * hh]); }
+      for (let i = 0; i <= 16; i++) { const a = Math.PI / 2 + Math.PI * i / 16; pts.push([cxL + Math.cos(a) * rr, TM + Math.sin(a) * hh]); }
+      pts.push(pts[0]); return pts; };
+    const strip = (A, B, mat) => { const pos = [], idx = []; A.forEach((v, i) => pos.push(v.x, v.y, v.z, B[i].x, B[i].y, B[i].z)); for (let i = 0; i < A.length - 1; i++) { const k = i * 2; idx.push(k, k + 2, k + 1, k + 2, k + 3, k + 1); }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals(); g.add(MK(geo, mat)); };
+    const O = slot(0);
+    // open the sphere: every skin vertex inside the outline is pulled out onto the outline, so the opening has a clean edge with no gaps
+    { const E = slot(0); const inPoly = (x, y) => { let c = false; for (let i = 0, j = E.length - 2; i < E.length - 1; j = i++) { const [xi, yi] = E[i], [xj, yj] = E[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
+      const near = (x, y) => { let best = null, bd = 1e9; for (let i = 0; i < E.length - 1; i++) { const [ax, ay] = E[i], [bx, by] = E[i + 1], dx = bx - ax, dy = by - ay, t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1))), px = ax + dx * t, py = ay + dy * t, d = (px - x) ** 2 + (py - y) ** 2; if (d < bd) { bd = d; best = [px, py]; } } return best; };
+      const pa = domeG.attributes.position, v = new THREE.Vector3(), moved = new Uint8Array(pa.count);
+      for (let i = 0; i < pa.count; i++) { v.fromBufferAttribute(pa, i); const nx = v.x / sx, ny = v.y / sy, nz = v.z / sx, L = Math.hypot(nx, ny, nz); if (L < 1e-4) continue;
+        const th = Math.acos(ny / L); let ph = Math.atan2(nx, -nz) - P0; ph = Math.atan2(Math.sin(ph), Math.cos(ph));
+        if (!inPoly(ph, th)) continue; moved[i] = 1; const [qx, qy] = near(ph, th); const w = at(qx, qy, L); pa.setXYZ(i, w.x, w.y, w.z); }
+      const ix = domeG.index.array, keep = []; for (let i = 0; i < ix.length; i += 3) if (!(moved[ix[i]] && moved[ix[i + 1]] && moved[ix[i + 2]])) keep.push(ix[i], ix[i + 1], ix[i + 2]); domeG.setIndex(keep);
+      domeG.computeVertexNormals(); }
+    // rolled edge: the skin curves over and down into the hollow (quarter round), then the walls go straight to the floor
+    const RND = 0.06, steps = 5; let prev = slot(0).map(q => at(q[0], q[1], 1.0));
+    for (let i = 1; i <= steps; i++) { const a = Math.PI / 2 * i / steps, k = RND * Math.sin(a), r = 1.0 - RND * (1 - Math.cos(a));
+      const cur2 = slot(k).map(q => at(q[0], q[1], r)); strip(prev, cur2, white); prev = cur2; }
+    const wallTop = prev, wallBot = slot(RND).map(q => at(q[0], q[1], IN)); strip(wallTop, wallBot, bayM);
+    { const pts = slot(RND).slice(0, -1).map(([x, y]) => new THREE.Vector2(x, y)), tris = THREE.ShapeUtils.triangulateShape(pts, []), pos = [], idx = [];
+      pts.forEach(q => { const v = at(q.x, q.y, IN); pos.push(v.x, v.y, v.z); }); tris.forEach(t => idx.push(t[0], t[1], t[2]));
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals(); g.add(MK(geo, bayM)); }
+    // engines installed on the floor of the hollow: 2 rows x 4 metal nozzles
+    const n = 4, usable = W - RND - 0.05, rS = Math.min((HT - RND) * 0.44, usable / n * sx * 0.44), len = p.vbDepth * 0.85;
+    for (let k = 0; k < n; k++) for (const w of [-0.5, 0.5]) { const ph = (-usable + usable * 2 * (k + 0.5) / n) * p.engSpread + p.engShift, th = TM + w * (HT - RND) * 0.95 * p.engRowGap;   // spread apart, rows apart, slide left/right
+      const base = at(ph, th, IN), nrm = at(0, TM, 1).sub(at(0, TM, 0.9)).setY(0).normalize();   // every engine points the same way: straight back
+      const xa = new THREE.Vector3(0, 1, 0).cross(nrm).normalize(), ya = nrm.clone().cross(xa).normalize();   // keep every square upright, edges level
+      const grp = new THREE.Group(); grp.position.copy(base); grp.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xa, ya, nrm)); g.add(grp);
+      // square nozzle with rounded corners: a thick metal frame, a dark shaft inside, glow at the bottom
+      const rsq = (h, r) => { const sh = new THREE.Shape(); sh.moveTo(-h + r, -h); sh.lineTo(h - r, -h); sh.quadraticCurveTo(h, -h, h, -h + r); sh.lineTo(h, h - r); sh.quadraticCurveTo(h, h, h - r, h); sh.lineTo(-h + r, h); sh.quadraticCurveTo(-h, h, -h, h - r); sh.lineTo(-h, -h + r); sh.quadraticCurveTo(-h, -h, -h + r, -h); return sh; };
+      (g.userData.noz = g.userData.noz || []).push([base.x + nrm.x * len, base.y + nrm.y * len, base.z + nrm.z * len, rS * 1.68, nrm.x, nrm.y, nrm.z]);   /* nozzle mouth + size + direction, used by the game for its flames */
+      const H = rS * 0.84, Hi = H * 0.74, frame = rsq(H, H * 0.35); const hole = rsq(Hi, Hi * 0.3); frame.holes.push(new THREE.Path(hole.getPoints(3)));
+      const fg = new THREE.ExtrudeGeometry(frame, { depth: len, bevelEnabled: true, bevelThickness: rS * 0.08, bevelSize: rS * 0.06, bevelSegments: 1, curveSegments: 3 }); grp.add(MK(fg, chrome));
+      const shaft = new THREE.ShapeGeometry(rsq(Hi, Hi * 0.3), 3); shaft.translate(0, 0, len * 0.12); grp.add(MK(shaft, engGlow));
+      const sideG = new THREE.CylinderGeometry(Hi * 1.38, Hi * 1.38, len * 0.8, 4, 1, true); sideG.rotateX(Math.PI / 2); sideG.rotateZ(Math.PI / 4); sideG.translate(0, 0, len * 0.55); grp.add(MK(sideG, dark));
+      grp.rotateZ(0); }
+  }
+  if (p.engOn) { cur = 'enginebay';
+    const bay = new THREE.Group(); bay.position.copy(eP); bay.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(eR, eU, eN)); g.add(bay);
+    const D = p.engDepth, trap = (k) => { const sh = new THREE.Shape(); sh.moveTo(-HB - k, -EH - k); sh.lineTo(HB + k, -EH - k); sh.lineTo(HT + k, EH + k); sh.lineTo(-HT - k, EH + k); sh.closePath(); return sh; };
+    // frame around the opening
+    const fr = trap(0.08); const hole = new THREE.Path(); hole.moveTo(-HB + 0.01, -EH + 0.01); hole.lineTo(-HT + 0.01, EH - 0.01); hole.lineTo(HT - 0.01, EH - 0.01); hole.lineTo(HB - 0.01, -EH + 0.01); hole.closePath(); fr.holes.push(hole);
+    const frG = new THREE.ExtrudeGeometry(fr, { depth: 0.06, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.015, bevelSegments: 2 }); frG.translate(0, 0, -0.03); bay.add(MK(frG, white));
+    // walls of the recess
+    const corners = [[-HB, -EH], [HB, -EH], [HT, EH], [-HT, EH]], pos = [], idx = [];
+    corners.forEach(([x, y], q) => { const [x2, y2] = corners[(q + 1) % 4], b = pos.length / 3; pos.push(x, y, 0, x2, y2, 0, x2, y2, -D, x, y, -D); idx.push(b, b + 2, b + 1, b, b + 3, b + 2); });
+    const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); wg.setIndex(idx); wg.computeVertexNormals(); bay.add(MK(wg, dark));
+    const bk = new THREE.ShapeGeometry(trap(0)); bk.translate(0, 0, -D); bay.add(MK(bk, dark));
+    // centre post splitting the recess in two
+    const post = new THREE.BoxGeometry(0.1, EH * 2, D); post.translate(0, 0, -D / 2); bay.add(MK(post, white));
+    // 8 metal nozzles: 2 x 2 in each half
+    const hw = (HB + HT) / 2, cell = Math.min((hw - 0.06) / 2, EH), r = cell * 0.4;
+    for (const sx of [-1, 1]) for (const cx of [0.5, 1.5]) for (const cy of [-0.5, 0.5]) {
+      const x = sx * (0.05 + cell * cx), y = cy * EH;
+      const nz = new THREE.CylinderGeometry(r, r * 1.15, D * 0.7, 20, 1, true); nz.rotateX(Math.PI / 2); nz.translate(x, y, -D + D * 0.35); bay.add(MK(nz, chrome));
+      const lip = new THREE.TorusGeometry(r, r * 0.18, 6, 20); lip.translate(x, y, -D * 0.3); bay.add(MK(lip, chrome));
+      const gl = new THREE.CircleGeometry(r * 0.85, 20); gl.translate(x, y, -D * 0.5); bay.add(MK(gl, engGlow)); } }
+  let phiShift = 0; const onDome = (phi0, th, r = 1) => { const phi = phi0 + phiShift; const x = Math.sin(th) * Math.sin(phi), y = Math.cos(th), z = -Math.sin(th) * Math.cos(phi); return new THREE.Vector3(x * p.domeSX * r, y * p.domeSY * r, z * p.domeSX * r); };   // phi 0 = straight ahead
+  const patch = (ph0, ph1, th0, th1, mat, r = 1.004, n = 6) => { const pos = [], idx = [];
+    for (let i = 0; i <= n; i++) for (let j = 0; j <= 2; j++) { const v = onDome(ph0 + (ph1 - ph0) * i / n, th0 + (th1 - th0) * j / 2, r); pos.push(v.x, v.y, v.z); }
+    for (let i = 0; i < n; i++) for (let j = 0; j < 2; j++) { const a = i * 3 + j, b = a + 3; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals(); const m = MK(geo, mat);  return m; };
+  // wall between two radii at a fixed polar angle (gives frames and recesses real thickness)
+  const wall = (ph0, ph1, th, r0, r1, mat, n = 8) => { const pos = [], idx = [];
+    for (let i = 0; i <= n; i++) for (const r of [r0, r1]) { const v = onDome(ph0 + (ph1 - ph0) * i / n, th, r); pos.push(v.x, v.y, v.z); }
+    for (let i = 0; i < n; i++) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 2, a + 3, a + 1); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals(); const m = MK(geo, mat);  return m; };
+  const mwall = (ph, th0, th1, r0, r1, mat) => { const pos = [], idx = [];
+    for (let j = 0; j <= 4; j++) for (const r of [r0, r1]) { const v = onDome(ph, th0 + (th1 - th0) * j / 4, r); pos.push(v.x, v.y, v.z); }
+    for (let j = 0; j < 4; j++) { const a = j * 2; idx.push(a, a + 2, a + 1, a + 2, a + 3, a + 1); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals(); const m = MK(geo, mat);  return m; };
+  // cockpit visor: a raised faceted band, the panes set into it, thick white mullions between them
+  const VR = 1.05, T0 = 0.66, T1 = 1.14, PH = 1.22;
+  phiShift = p.winAng * Math.PI / 180;
+  cur = 'visor'; g.add(patch(-PH, PH, T0, T0 + 0.05, white, VR, 24)); g.add(patch(-PH, PH, T1 - 0.05, T1, white, VR, 24));
+  g.add(wall(-PH, PH, T0, 1.0, VR, white, 24)); g.add(wall(-PH, PH, T1, 1.0, VR, white, 24));
+  g.add(mwall(-PH, T0, T1, 1.0, VR, white)); g.add(mwall(PH, T0, T1, 1.0, VR, white));
+  cur = 'glass'; g.add(patch(-PH, PH, T0 + 0.05, T1 - 0.05, glass, VR - 0.03, 24));        // glass sits a little deeper than the frame
+  cur = 'visor'; const ml = [-1.22, -0.92, -0.5, 0.5, 0.92, 1.22];
+  for (const m of ml) { g.add(patch(m - 0.035, m + 0.035, T0, T1, white, VR, 1)); g.add(mwall(m - 0.035, T0, T1, VR - 0.03, VR, white)); g.add(mwall(m + 0.035, T0, T1, VR - 0.03, VR, white)); }
+  g.add(patch(-0.2, 0.2, T0, 0.84, white, VR, 2)); g.add(wall(-0.2, 0.2, 0.84, VR - 0.03, VR, white, 2));   // hatch over the centre pane
+  
+  // faceted top cap: raised panel ribs in a grid, a hatch in the middle
+  phiShift = 0;
+  cur = 'cap'; for (const th of [0.24, 0.45]) { g.add(patch(-Math.PI, Math.PI, th, th + 0.02, white, 1.012, 48)); g.add(wall(-Math.PI, Math.PI, th, 1.0, 1.012, white, 48)); }
+  for (let k = 0; k < 10; k++) { const a0 = -Math.PI + k * Math.PI / 5; g.add(patch(a0 - 0.012, a0 + 0.012, 0.24, T0, seam, 1.004, 1)); }
+  for (let k = 0; k < 6; k++) { const a0 = -Math.PI + k * Math.PI / 3 + 0.3; g.add(patch(a0 - 0.012, a0 + 0.012, 0.0, 0.24, seam, 1.004, 1)); }
+  g.add(patch(-0.2, 0.2, 0.47, 0.62, white, 1.03, 3)); g.add(wall(-0.2, 0.2, 0.62, 1.0, 1.03, white, 3)); g.add(mwall(-0.2, 0.47, 0.62, 1.0, 1.03, white)); g.add(mwall(0.2, 0.47, 0.62, 1.0, 1.03, white));
+  // band of panels below the visor
+  cur = 'cap'; for (const m of [-1.5, -1.05, -0.6, 0.6, 1.05, 1.5]) g.add(patch(m - 0.01, m + 0.01, T1, 1.55, seam, 1.003, 1));
+  g.add(patch(-1.6, 1.6, 1.24, 1.255, seam, 1.003, 24));
+  // chin vents: recessed boxes with slats, in red frames; a ribbed centre plate between them
+  cur = 'vents'; const vent = (ph0, ph1, th0, th1, slats) => {
+    g.add(patch(ph0 - 0.03, ph1 + 0.03, th0 - 0.03, th1 + 0.03, red, 1.025, 4));
+    g.add(wall(ph0 - 0.03, ph1 + 0.03, th0 - 0.03, 1.0, 1.025, red, 4)); g.add(wall(ph0 - 0.03, ph1 + 0.03, th1 + 0.03, 1.0, 1.025, red, 4));
+    g.add(patch(ph0, ph1, th0, th1, dark, 1.03, 4));
+    g.add(wall(ph0, ph1, th0, 0.95, 1.03, dark, 4)); g.add(wall(ph0, ph1, th1, 0.95, 1.03, dark, 4));
+    for (let i = 1; i < slats; i++) { const a0 = ph0 + (ph1 - ph0) * i / slats; g.add(mwall(a0, th0, th1, 0.99, 1.03, chrome)); }
+  };
+  for (const s2 of [-1, 1]) { const a0 = s2 > 0 ? 0.08 : -0.44, a1 = s2 > 0 ? 0.44 : -0.08; vent(a0, a1, 1.3, 1.47, 7); vent(a0 + (s2 > 0 ? 0.02 : 0.02), a1 - 0.02, 1.58, 1.78, 9); }
+  g.add(patch(-0.05, 0.05, 1.3, 1.95, white, 1.04, 1)); g.add(mwall(-0.05, 1.3, 1.95, 1.0, 1.04, white)); g.add(mwall(0.05, 1.3, 1.95, 1.0, 1.04, white));
+  for (let i = 0; i < 6; i++) { const th = 1.34 + i * 0.1; g.add(patch(-0.05, 0.05, th, th + 0.012, dark, 1.042, 1)); }
+  // ---- pods: lathe, then bent down toward the nose and tilted inward ----
+  for (const sx of [-1, 1]) {
+    const L = p.podLen, R = p.podR, pp = [new THREE.Vector2(0.0001, 0)], M = 30;
+    for (let i = 0; i <= M; i++) { const t = i / M; let r;
+      if (t < 0.08) r = R * (0.7 + 0.3 * Math.sin(t / 0.08 * Math.PI / 2)); else if (t < 0.3) r = R * (1 + 0.08 * Math.sin((t - 0.08) / 0.22 * Math.PI / 2)); else { const u = (t - 0.3) / 0.7; r = R * 1.08 * Math.max(0, 1 - u) ** 0.72; }
+      pp.push(new THREE.Vector2(Math.max(r, 0.0001), t * L)); }
+    const geo = new THREE.LatheGeometry(pp, 28); geo.rotateX(-Math.PI / 2);     // lathe axis now -z
+    const pa = geo.attributes.position; for (let i = 0; i < pa.count; i++) { const z = -pa.getZ(i); pa.setY(i, pa.getY(i) - p.podBend * z * z); }
+    geo.computeVertexNormals();
+    cur = 'pods'; const o = new THREE.Group(); o.add(MK(geo, white));
+    const bent = (z) => -p.podBend * z * z;
+    const rAt = (z) => { const t = z / L; if (t < 0.3) return R * 1.08; const u = (t - 0.3) / 0.7; return R * 1.08 * Math.max(0, 1 - u) ** 0.72; };
+    // red band where the pod meets the dome
+    cur = 'bands'; const band = MK(new THREE.CylinderGeometry(R * 1.1, R * 1.1, 0.7, 28, 1, true), red);  band.rotation.x = Math.PI / 2; band.position.set(0, bent(0.85), -0.85); o.add(band);
+    // panel seams
+    cur = 'podseams'; for (const z of [1.25, 1.75, 2.25]) { const t = MK(new THREE.TorusGeometry(rAt(z) + 0.002, 0.009, 4, 28), seam); t.position.set(0, bent(z), -z); t.rotation.x = -Math.atan(2 * p.podBend * z); o.add(t); }
+    for (const ang of [0.5, 1.2, -0.5, -1.2, Math.PI - 0.6, Math.PI + 0.6]) { const pts = []; for (let k = 0; k <= 12; k++) { const z = 0.25 + (L * 0.78 - 0.25) * k / 12, r = rAt(z) + 0.004; pts.push(new THREE.Vector3(Math.sin(ang) * r, bent(z) + Math.cos(ang) * r, -z)); }
+      o.add(MK(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 12, 0.007, 3, false), seam)); }
+    // chrome cone + glowing tip
+    cur = 'tips'; const cz = L * 0.8, cone = MK(new THREE.ConeGeometry(rAt(cz) - 0.004, L * 0.21, 20, 1, true), chrome); cone.rotation.x = -Math.PI / 2 + Math.atan(2 * p.podBend * cz); cone.position.set(0, bent(cz + L * 0.1), -(cz + L * 0.1)); o.add(cone);
+    const tip = MK(new THREE.SphereGeometry(0.075, 10, 8), glow); tip.scale.set(1, 1.3, 3); tip.position.set(0, bent(L * 0.93), -L * 0.93); o.add(tip);
+    // engine at the back
+    cur = 'engines'; const nz = MK(new THREE.CylinderGeometry(R * 0.6, R * 0.68, 0.16, 24, 1, true), dark);  nz.rotation.x = Math.PI / 2; nz.position.z = 0.04; o.add(nz);
+    const eg = MK(new THREE.CircleGeometry(R * 0.56, 24), engGlow); eg.position.z = 0.03; o.add(eg);
+    o.position.set(sx * p.podX, p.podY, p.podZ0); o.rotation.y = sx * p.podIn;
+    g.add(o);
+  }
+  // ---- wings: flat triangles from the pods outward ----
+  for (const sx of [-1, 1]) {
+    const sh = new THREE.Shape(), T = p.wingTip, z0 = p.wingRootZ, zr = p.wingRearRootZ, zt = p.wingTipZ;
+    sh.moveTo(0.7, z0); sh.lineTo(T, zt); sh.lineTo(T, zt + 0.07); sh.lineTo(0.7, zr); sh.closePath();
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: p.wingT, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.025, bevelSegments: 1 }); geo.rotateX(Math.PI / 2);
+    cur = 'wings'; if (!(p.wingJoin > 0)) { const w = MK(geo, white); w.scale.x = sx; w.position.y = p.wingY + p.wingT / 2; g.add(w); }
+    const edge = (x) => z0 + (zt - z0) * (x - 0.7) / (T - 0.7), back = (x) => zr + (zt + 0.07 - zr) * (x - 0.7) / (T - 0.7);
+    // red panels: one at the root running under the pod band, one mid-span
+    cur = 'wingred'; for (const [xa, xb] of [[1.35, 1.9], [2.15, 3.25]]) { const s2 = new THREE.Shape(); const f = (x, k) => edge(x) + (back(x) - edge(x)) * k;
+      s2.moveTo(xa, f(xa, 0.1)); s2.lineTo(xb, f(xb, 0.12)); s2.lineTo(xb, f(xb, 0.62)); s2.lineTo(xa, f(xa, 0.5)); s2.closePath();
+      const rg = new THREE.ShapeGeometry(s2); rg.rotateX(Math.PI / 2); const rp = MK(rg, red);  rp.scale.x = sx; rp.position.y = p.wingY + p.wingT + 0.022; g.add(rp); }
+    // panel seams across the wing
+    cur = 'wingseams'; for (const k of [0.3, 0.55, 0.78]) { const x0 = 0.9, x1 = T - 0.2; const a0 = edge(x0) + (back(x0) - edge(x0)) * k, a1 = edge(x1) + (back(x1) - edge(x1)) * k, Ls = Math.hypot(x1 - x0, a1 - a0); const ln = MK(new THREE.BoxGeometry(Ls, 0.004, 0.012), seam); ln.position.set(sx * (x0 + x1) / 2, p.wingY + p.wingT + 0.025, (a0 + a1) / 2); ln.rotation.y = -sx * Math.atan2(a1 - a0, x1 - x0); g.add(ln); }
+    for (const x of [1.3, 1.75, 2.2, 2.65, 3.1, 3.55, 3.95]) { const a = edge(x), b = back(x); const sm = MK(new THREE.BoxGeometry(0.012, 0.004, b - a), seam); sm.position.set(sx * x, p.wingY + p.wingT + 0.025, (a + b) / 2); g.add(sm); }
+    // white light strip under the leading edge
+    cur = 'lights'; const xs = 1.6, xe = T - 0.25, L = Math.hypot(xe - xs, edge(xe) - edge(xs)); const st = MK(new THREE.BoxGeometry(L, 0.025, 0.035), glow);
+    st.position.set(sx * (xs + xe) / 2, p.wingY - 0.01, (edge(xs) + edge(xe)) / 2 + 0.03); st.rotation.y = -sx * Math.atan2(edge(xe) - edge(xs), xe - xs); g.add(st);
+  }
+  // ---- wing bridge: joins the two wings behind the ring, closing in a sharp point (from the user's sketches) ----
+  cur = 'wings';
+  if (p.wingJoin > 0) {   // both wings and the pointed back are ONE flat piece: one outline, one extrusion, no seams or overlaps
+    const T = p.wingTip, z0 = p.wingRootZ, zr = p.wingRearRootZ, zt = p.wingTipZ, x0 = 0.7;
+    // the plate stops at the ring: the part that would sit inside the ring is left out, so a thick wing can never poke through the ring
+    const cz = p.hsZ, Rc = p.hsR + p.hsThick * p.hsRing * 0.5;
+    const hit = (ax, az, bx, bz) => { let lo = 0, hi = 1, fa = Math.hypot(ax, az - cz) - Rc, fb = Math.hypot(bx, bz - cz) - Rc; if (fa * fb > 0) return null;
+      for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2, f = Math.hypot(ax + (bx - ax) * m, az + (bz - az) * m - cz) - Rc; if ((f > 0) === (fb > 0)) hi = m; else lo = m; } const m = (lo + hi) / 2; return [ax + (bx - ax) * m, az + (bz - az) * m]; };
+    const AL = hit(-x0, z0, -T, zt), AR = hit(x0, z0, T, zt), sh = new THREE.Shape();
+    if (AL && AR && Math.hypot(x0, zr - cz) > Rc) {
+      sh.moveTo(AL[0], AL[1]); sh.lineTo(-T, zt); sh.lineTo(-T, zt + 0.07); sh.lineTo(-x0, zr); sh.lineTo(0, zr + p.wingJoin); sh.lineTo(x0, zr); sh.lineTo(T, zt + 0.07); sh.lineTo(T, zt); sh.lineTo(AR[0], AR[1]);
+      const tR = Math.atan2(AR[1] - cz, AR[0]), tL0 = Math.atan2(AL[1] - cz, AL[0]), tL = tL0 < tR ? tL0 + Math.PI * 2 : tL0;
+      for (let i = 1; i <= 40; i++) { const t = tR + (tL - tR) * i / 40; sh.lineTo(Math.cos(t) * Rc, cz + Math.sin(t) * Rc); } sh.closePath(); }
+    else { sh.moveTo(-x0, z0); sh.lineTo(-T, zt); sh.lineTo(-T, zt + 0.07); sh.lineTo(-x0, zr); sh.lineTo(0, zr + p.wingJoin); sh.lineTo(x0, zr); sh.lineTo(T, zt + 0.07); sh.lineTo(T, zt); sh.lineTo(x0, z0); sh.closePath(); }
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: p.wingT, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.025, bevelSegments: 1 }); geo.rotateX(Math.PI / 2);
+    const m = MK(geo, white); m.position.y = p.wingY + p.wingT / 2; g.add(m); }
+  // ---- tail fairing behind the dome ----
+  cur = 'tail'; const tail = MK(new THREE.SphereGeometry(1, 28, 16), white); tail.scale.set(0.8, 0.5, 2.0); tail.position.set(0, -0.2, 0.9); g.add(tail);
+  cur = 'spine'; const spine = MK(new THREE.BoxGeometry(0.2, 0.06, 1.7), red); spine.position.set(0, 0.24, 1.45); spine.rotation.x = 0.2; g.add(spine);
+  // ---- one continuous piece: left prong -> around behind the cockpit -> right prong (a single swept tube, no joints) ----
+  cur = 'horseshoe';
+  { const R = p.hsR, y0 = p.hsY, z0 = p.hsZ, L = p.hsLen, T = p.hsThick, K = p.hsRing;
+    const prong = (s) => [new THREE.Vector3(s * p.hsTipX, y0 - p.hsDrop, z0 - L), new THREE.Vector3(s * (R + (p.hsTipX - R) * 0.45 + p.hsBulge), y0 - p.hsDrop * 0.4, z0 - L * 0.62),
+      new THREE.Vector3(s * (R + p.hsBulge * 0.6), y0 - p.hsDrop * 0.08, z0 - L * 0.28), new THREE.Vector3(s * R, y0, z0)];
+    const ring = []; for (let i = 1; i < 12; i++) { const a = Math.PI * i / 12; ring.push(new THREE.Vector3(-R * Math.cos(a), y0, z0 + R * Math.sin(a))); }
+    const pts = [...prong(-1), ...ring, ...prong(1).reverse()];
+    const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+    const N = 80, RS = 14, pos = [], idx = [];
+    const rad = (q) => { if (q.z > z0 - 0.02) return T * K; const t = Math.min(1, (z0 - q.z) / L); const grow = t < 0.18 ? K + (1 - K) * Math.sin(t / 0.18 * Math.PI / 2) : 1; return T * grow * (t > 0.3 ? Math.max(0, 1 - (t - 0.3) / 0.7) ** 0.8 : 1); };   // ring and prong roots share one thickness, so the loop never thins out
+    const UPV = new THREE.Vector3(0, 1, 0), frameAt = (u) => { const t = curve.getTangentAt(u), sd = UPV.clone().cross(t).normalize(), bn = t.clone().cross(sd).normalize(); return [sd, bn]; };
+    // weapon pockets (from the user's sketch): rectangular recesses pressed into the ring itself, left and right of centre
+    const CL = curve.getLength(), PKT = [];
+    const pockets = []; if (p.wpOn) for (const s2 of [-1, 1]) pockets.push([s2 * p.wpX, p.wpUp, p.wpW / 2, p.wpH / 2, p.wpD, 0]);
+    if (p.tbOn) pockets.push([0, p.tbUp, p.tbW / 2, p.tbH / 2, p.tbD, 0.25]);   // tractor-beam bay, wider at the top
+    for (const [px, pup, phw, phh, pD, ptap] of pockets) { const xr = Math.max(-R * 0.98, Math.min(R * 0.98, px)), an = Math.acos(xr / R), target = new THREE.Vector3(xr, y0, z0 + R * Math.sin(an));
+      let best = 0, bd = 1e9; for (let k = 0; k <= 2000; k++) { const d = curve.getPointAt(k / 2000).distanceTo(target); if (d < bd) { bd = d; best = k / 2000; } }
+      const out = new THREE.Vector3(target.x, 0, target.z - z0).normalize(), nrm = out.multiplyScalar(Math.cos(pup)).addScaledVector(UPV, Math.sin(pup)).normalize(), [sd, bn] = frameAt(best);
+      PKT.push({ uc: best, a0: Math.atan2(nrm.dot(bn), nrm.dot(sd)), hw: phw, hh: phh, D: pD, tap: ptap }); }
+    const EDG = 0.02, rrP = T * K;
+    g.userData.pk = PKT.filter(k => k.tap === 0).map(k => { const c = curve.getPointAt(k.uc), [sd, bn] = frameAt(k.uc), d = sd.clone().multiplyScalar(Math.cos(k.a0)).addScaledVector(bn, Math.sin(k.a0)), r = rad(c) - k.D; return [c.x + d.x * r, c.y + d.y * r, c.z + d.z * r, k.hw]; });   /* weapon pocket floors, used by the game as gun positions */
+    // the tube is built in stretches: plain stretches use a light 14-sided ring; only the short stretches with a pocket get a fine grid.
+    // where a fine stretch meets a plain one, its edge points sit exactly on the plain ring's edges, so there is no gap.
+    const wrap = (x) => Math.atan2(Math.sin(x), Math.cos(x)), TAU = Math.PI * 2;
+    const sm = (e, x) => { const t = Math.min(1, Math.max(0, x / e)); return t * t * (3 - 2 * t); };
+    // pockets: grid rows/columns are placed exactly on each pocket's edges, so every edge is one straight line; the tapered bay is made by sliding its rows sideways
+    const LIP = 0.012, MG = (k) => 0.03 + k.tap * k.hw;
+    const press = (u, a) => { for (const k of PKT) { const su = Math.abs((u - k.uc) * CL), sa = Math.abs(wrap(a - k.a0)) * rrP; if (su < k.hw - LIP / 2 && sa < k.hh - LIP / 2) return k.D; } return 0; };
+    const warpU = (u, a) => { for (const k of PKT) { const sa = wrap(a - k.a0) * rrP; if (Math.abs(sa) > k.hh + 1e-6) continue; let su = (u - k.uc) * CL; const m = MG(k), as = Math.abs(su), sg = Math.sign(su) || 1;
+        if (as > k.hw + m) continue; const hwE = k.hw * (1 + k.tap * sa / k.hh);
+        su = as <= k.hw ? su * hwE / k.hw : sg * (hwE + (as - k.hw) / m * (k.hw + m - hwE)); return k.uc + su / CL; } return u; };
+    const fine = PKT.map(k => { const du = (k.hw * (1 + k.tap) + 0.05) / CL; return [Math.max(0, k.uc - du), Math.min(1, k.uc + du), k]; }).sort((x, y) => x[0] - y[0]);
+    const spans = []; for (const f of fine) { const l = spans[spans.length - 1]; if (l && f[0] <= l[1]) { l[1] = Math.max(l[1], f[1]); l[2].push(f[2]); } else spans.push([f[0], f[1], [f[2]]]); }
+    const base = []; for (let i = 0; i <= N; i++) base.push(i / N);
+    const coarseA = []; for (let j = 0; j < RS; j++) coarseA.push(j / RS * TAU);
+    const NRM = [], st = TAU / RS;
+    const ringPt = (u0, a) => { const u = Math.min(1, Math.max(0, warpU(u0, a))), c = curve.getPointAt(u), r = Math.max(0.0005, rad(c)), [nn, bb] = frameAt(u);
+      const aa = ((a % TAU) + TAU) % TAU, j = Math.floor(aa / st + 1e-9), t = (aa - j * st) / st, a1 = j * st, a2 = a1 + st;
+      const cs = Math.cos(a1) * (1 - t) + Math.cos(a2) * t, sn = Math.sin(a1) * (1 - t) + Math.sin(a2) * t;   // always on the 14-sided ring, so every stretch has the same shape
+      const pr = press(u0, a), k = Math.max(0.0005, r - pr);
+      NRM.push(pr > 1e-5 ? null : [Math.cos(aa) * nn.x + Math.sin(aa) * bb.x, Math.cos(aa) * nn.y + Math.sin(aa) * bb.y, Math.cos(aa) * nn.z + Math.sin(aa) * bb.z]);
+      return [c.x + k * (cs * nn.x + sn * bb.x), c.y + k * (cs * nn.y + sn * bb.y), c.z + k * (cs * nn.z + sn * bb.z)]; };
+    const grid = (us, as) => { const b0 = pos.length / 3, RA = as.length;
+      us.forEach(u => as.forEach(a => pos.push(...ringPt(u, a))));
+      for (let i = 0; i < us.length - 1; i++) for (let j = 0; j < RA; j++) { const j2 = (j + 1) % RA, q = b0 + i * RA + j, q2 = q + RA, q1 = b0 + i * RA + j2, q3 = q1 + RA; idx.push(q, q2, q1, q2, q3, q1); } };
+    let u0 = 0;
+    for (const [s0, s1, ks] of spans) {
+      const cu = base.filter(u => u > u0 && u < s0); grid([u0, ...cu, s0], coarseA);
+      const FU = new Set([s0, s1, ...base.filter(u => u > s0 && u < s1)].map(v => +v.toFixed(7)));
+      const lin = (c, h, n, add) => { for (let i = 0; i <= n; i++) add(c - h + 2 * h * i / n); };
+      for (const k of ks) { const m = MG(k); for (const d of [k.hw + m, k.hw, k.hw - LIP]) { FU.add(+(k.uc - d / CL).toFixed(7)); FU.add(+(k.uc + d / CL).toFixed(7)); } lin(k.uc, (k.hw - LIP) / CL, 2, v => FU.add(+v.toFixed(7))); }
+      const fu = []; [...FU].filter(v => v > s0 + 1e-6 && v < s1 - 1e-6).sort((x, y) => x - y).forEach(v => { if (!fu.length || v - fu[fu.length - 1] > 1e-5) fu.push(v); });
+      if (fu.length && fu[0] - s0 < 1e-5) fu.shift(); fu.unshift(s0); if (s1 - fu[fu.length - 1] < 1e-5) fu.pop(); fu.push(s1);   // stretch must start and end exactly where its neighbours do
+      const A = new Set(coarseA.map(v => +v.toFixed(7)));   // keep every corner of the plain ring, so the stretch has exactly the same outline as its neighbours
+      const addA = (v) => A.add(+((((v % TAU) + TAU) % TAU)).toFixed(7));
+      for (const k of ks) { for (const d of [k.hh + 0.03, k.hh, k.hh - LIP]) { addA(k.a0 - d / rrP); addA(k.a0 + d / rrP); } lin(k.a0, (k.hh - LIP) / rrP, 2, addA); }
+      grid(fu, [...A].sort((x, y) => x - y)); u0 = s1; }
+    grid([u0, ...base.filter(u => u > u0 && u < 1), 1], coarseA);
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
+    { const na = geo.attributes.normal; NRM.forEach((n, i) => { if (n) na.setXYZ(i, n[0], n[1], n[2]); }); }   // smooth round shading, no seams between stretches
+    // dark floor inside each pocket
+    for (const k of PKT) { const M = 6, P2 = [], I2 = [], du = (k.hw - EDG) / CL, da = (k.hh - EDG) / rrP;
+      for (let i = 0; i <= M; i++) for (let j = 0; j <= M; j++) { const tj = -1 + 2 * j / M, a = k.a0 - da + 2 * da * j / M, dU = (k.hw * (1 + k.tap * tj * (k.hh - EDG) / k.hh) - EDG) / CL, u = k.uc - dU + 2 * dU * i / M, c = curve.getPointAt(Math.min(1, Math.max(0, u))), r = rad(c) - k.D + 0.004, [nn, bb] = frameAt(Math.min(1, Math.max(0, u)));
+        P2.push(c.x + r * (Math.cos(a) * nn.x + Math.sin(a) * bb.x), c.y + r * (Math.cos(a) * nn.y + Math.sin(a) * bb.y), c.z + r * (Math.cos(a) * nn.z + Math.sin(a) * bb.z)); }
+      for (let i = 0; i < M; i++) for (let j = 0; j < M; j++) { const a = i * (M + 1) + j, b2 = a + M + 1; I2.push(a, b2, a + 1, b2, b2 + 1, a + 1); }
+      const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.Float32BufferAttribute(P2, 3)); fg.setIndex(I2); fg.computeVertexNormals(); cur = 'weaponpockets'; g.add(MK(fg, dark)); cur = 'horseshoe'; }
+    g.add(MK(geo, white));
+    // sweep a section of the same tube again, slightly larger, for coloured bands / chrome tips
+    const tAt = (u) => { const q = curve.getPointAt(u); return q.z > z0 - 0.02 ? -1 : Math.min(1, (z0 - q.z) / L); };
+    const ranges = (t0, t1) => { const out = []; let cur2 = null; for (let k = 0; k <= 400; k++) { const u = k / 400, t = tAt(u); const inR = t >= t0 && t <= t1; if (inR && !cur2) cur2 = [u, u]; if (inR) cur2[1] = u; if (!inR && cur2) { out.push(cur2); cur2 = null; } } if (cur2) out.push(cur2); return out; };
+    const sweep = (u0, u1, k, mat, segs = 24) => { const P = [], I = []; for (let i = 0; i <= segs; i++) { const u = u0 + (u1 - u0) * i / segs, c = curve.getPointAt(u), tg = curve.getTangentAt(u), r = Math.max(0.0005, rad(c)) * k;
+        const nn = new THREE.Vector3(0, 1, 0).cross(tg).normalize(), bb = tg.clone().cross(nn).normalize();
+        for (let j = 0; j <= RS; j++) { const a = j / RS * Math.PI * 2; P.push(c.x + r * (Math.cos(a) * nn.x + Math.sin(a) * bb.x), c.y + r * (Math.cos(a) * nn.y + Math.sin(a) * bb.y), c.z + r * (Math.cos(a) * nn.z + Math.sin(a) * bb.z)); } }
+      for (let i = 0; i < segs; i++) for (let j = 0; j < RS; j++) { const a = i * (RS + 1) + j, b2 = a + RS + 1; I.push(a, b2, a + 1, b2, b2 + 1, a + 1); }
+      const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); gg.setIndex(I); gg.computeVertexNormals(); g.add(MK(gg, mat)); };
+    cur = 'hsbands'; for (const [u0, u1] of ranges(0.05, 0.2)) sweep(u0, u1, 1.04, red, 10);
+    cur = 'hsseams'; for (let tt = 0.24; tt < 0.8; tt += 0.075) for (const [u0, u1] of ranges(tt, tt + 0.008)) sweep(u0, u1, 1.012, seam, 1);
+    for (let k = 1; k < 12; k++) { const u = k / 12 * 0.5; const q = curve.getPointAt(0.5 + (u - 0.25) * 0.0); }
+    { const LN = 6; for (let j = 0; j < LN; j++) { const a = j / LN * Math.PI * 2 + 0.3, P = [], I = []; const segs = 60;
+        for (let i = 0; i <= segs; i++) { const u = i / segs, c = curve.getPointAt(u), tg = curve.getTangentAt(u), r = Math.max(0.0005, rad(c)) * 1.006;
+          const nn = new THREE.Vector3(0, 1, 0).cross(tg).normalize(), bb = tg.clone().cross(nn).normalize(), dir = nn.clone().multiplyScalar(Math.cos(a)).addScaledVector(bb, Math.sin(a)), side = tg.clone().cross(dir).normalize().multiplyScalar(0.008);
+          const pc = c.clone().addScaledVector(dir, r); P.push(pc.x - side.x, pc.y - side.y, pc.z - side.z, pc.x + side.x, pc.y + side.y, pc.z + side.z); }
+        for (let i = 0; i < segs; i++) { const k2 = i * 2; I.push(k2, k2 + 2, k2 + 1, k2 + 2, k2 + 3, k2 + 1); }
+        const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); gg.setIndex(I); gg.computeVertexNormals(); g.add(MK(gg, seam)); } }
+    cur = 'hstips'; for (const [u0, u1] of ranges(0.78, 1.0)) sweep(u0, u1, 1.01, chrome, 14);
+    for (const s2 of [-1, 1]) { const tip = MK(new THREE.SphereGeometry(0.06, 10, 8), glow); tip.scale.set(1, 1.4, 2.6); const e = prong(s2)[0]; const d = prong(s2)[1].clone().sub(e).normalize(); tip.position.copy(e).addScaledVector(d, 0.09); g.add(tip); } }
+  // ---- rear collar: a rounded ring hugging the back of the dome, sitting on the wings and closing the gap between them ----
+  cur = 'collar';
+  { const R0 = 1.02 * p.domeSX, tube = 0.46, arc = Math.PI * 1.1;
+    const tg = new THREE.TorusGeometry(R0, tube, 14, 40, arc); tg.scale(1, 1, 0.75); tg.rotateX(-Math.PI / 2); tg.rotateY(-(Math.PI - arc) / 2 - Math.PI);   // lies flat, opens toward the front
+    const col = MK(tg, white); col.position.y = p.wingY + p.wingT + 0.12; g.add(col);
+    for (const sx of [-1, 1]) { const a0 = sx > 0 ? -(Math.PI - arc) / 2 : Math.PI + (Math.PI - arc) / 2;   // round caps on the two ends
+      const cap = MK(new THREE.SphereGeometry(tube, 14, 10), white); cap.scale.set(1, 0.75, 1); cap.position.set(Math.cos(a0) * R0, col.position.y, -Math.sin(a0) * R0); g.add(cap); } }
+  // the dome is a turned shape whose first and last columns meet at the front (x = 0). Those twin points get one shared normal, so no line shows there
+  { const pa = domeG.attributes.position, na = domeG.attributes.normal, grp = new Map();
+    for (let i = 0; i < pa.count; i++) { if (Math.abs(pa.getX(i)) > 1e-5) continue; const k = Math.round(pa.getY(i) * 1e4) + ',' + Math.round(pa.getZ(i) * 1e4); if (!grp.has(k)) grp.set(k, []); grp.get(k).push(i); }
+    for (const ids of grp.values()) if (ids.length > 1) { let x = 0, y = 0, z = 0; for (const i of ids) { x += na.getX(i); y += na.getY(i); z += na.getZ(i); } const l = Math.hypot(x, y, z) || 1; for (const i of ids) na.setXYZ(i, x / l, y / l, z / l); } }
+  // parts the user deleted are dropped from the ship completely
+  { const DEL = new Set(["pods", "wingred", "lights", "wingseams", "tips", "podseams", "engines", "bands", "spine", "vents", "tail", "cap", "collar", "visor", "hsbands", "hstips", "hsseams", "enginebay"]); const gone = []; g.traverse(o => { if (o.isMesh && DEL.has(o.userData.part)) gone.push(o); }); gone.forEach(o => { o.parent.remove(o); o.geometry.dispose(); }); }
+  return g;
+}
+
+function buildNewHull() {
+  const MAT = {}, model = buildDomeModel(NH_PARAMS, MAT);
+  for (const k in NH_COLORS) if (MAT[k]) MAT[k].color.set(NH_COLORS[k]);
+  const key = new Map(Object.entries(MAT).map(([k, m]) => [m, k])), own = {};
+  model.updateMatrixWorld(true);
+  const g = new THREE.Group(), meshes = []; model.traverse(o => { if (o.isMesh) meshes.push(o); });
+  for (const o of meshes) {   // bake every piece into ship space (one flat list, no nested groups)
+    const geo = o.geometry.clone(); geo.applyMatrix4(o.matrixWorld);
+    if (o.matrixWorld.determinant() < 0 && geo.index) { const ix = geo.index.array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; } }
+    let m = o.material; const k = key.get(m);
+    if (o.userData.part === 'enginevents' && k && NH_ENGINE_COLORS[k]) { own[k] = own[k] || m.clone(); own[k].color.set(NH_ENGINE_COLORS[k]); m = own[k]; }   // the engine bay has its own colours
+    g.add(new THREE.Mesh(geo, m)); g.children[g.children.length - 1].userData.part = o.userData.part; }
+  // wings were made 3x thicker in the workshop (about their own middle)
+  for (const o of g.children) if (o.userData.part === 'wings') { o.geometry.computeBoundingBox(); const cy = (o.geometry.boundingBox.min.y + o.geometry.boundingBox.max.y) / 2; o.geometry.translate(0, -cy, 0); o.geometry.scale(1, 3, 1); o.geometry.translate(0, cy, 0); o.geometry.computeVertexNormals(); }
+  // real metal look: the ship reflection cube the other hulls use
+  const seen = new Set(); g.traverse(o => { if (!o.isMesh) return; const m = o.material; if (seen.has(m) || !m.isMeshStandardMaterial) return; seen.add(m); m.envMap = SHIP_ENV; m.envMapIntensity = 1.6; m.needsUpdate = true; });
+  // the model looks along +z (windows in front); the game flies along -z, so turn it round and size it
+  g.rotation.y = Math.PI; g.scale.setScalar(NH_SCALE);
+  const T = (a) => [-a[0] * NH_SCALE, a[1] * NH_SCALE, -a[2] * NH_SCALE];
+  NH_NOZ.length = 0; for (const n of model.userData.noz || []) { const p = T(n); NH_NOZ.push([p[0], p[1], p[2], n[3] * NH_SCALE * 2.4]); }
+  const pk = model.userData.pk || []; if (pk.length === 2) { let i = 0; for (const q of pk) for (const dx of [-0.35, 0.35]) { const p = T([q[0] + dx * q[3], q[1], q[2]]); MUZ_NH[i][0] = p[0]; MUZ_NH[i][1] = p[1]; MUZ_NH[i][2] = p[2] - 0.05; i++; } }
+  model.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
+  return g;
+}
 function applyShip() {
-  const alt = save.ship === 1;
+  const alt = save.ship === 1, nh = save.ship === 0;
+  if (nh && !newHull) {   /* the new STAR COURIER hull + its own thrust: a glow, a hot core and three flame cones per square nozzle (same flame colours as before: blue, orange on boost) */
+    newHull = buildNewHull(); shipBody.add(newHull);
+    for (const [x, y, z, w] of NH_NOZ) { const k = w / 0.62; const a = glowSprite(0x7fe9ff, 1.5, 0.32); a.position.set(x, y, z + 0.35 * k); a.userData.sc = 0.36 * k; shipBody.add(a); const b = glowSprite(0xffffff, 0.9, 0.6); b.position.set(x, y, z + 0.12 * k); b.userData.sc = 0.4 * k; b.userData.core = 1; shipBody.add(b); nhFl.push(a, b);
+      FL.forEach((L, j) => { const fc = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 4, 1, true), flameMats[j]); fc.rotation.set(Math.PI / 2, Math.PI / 4, 0); fc.userData = { L, k: k * 0.85, z0: z, ph: x * 2.3 + y * 5 + j }; fc.position.set(x, y, z); shipBody.add(fc); nhCones.push(fc); }); } }   /* square (4-sided) flames to match the square nozzles */
   if (alt && !altShip) {
     altShip = buildManta(); metalizeManta(altShip); altShip.scale.setScalar(0.55); altShip.position.set(0, 0.4, -0.3); shipBody.add(altShip);
     for (const e of altShip.userData.eng) { const ex = e[0] * 0.55, ey = e[1] * 0.55 + 0.4, ez = e[2] * 0.55 - 0.3; const a = glowSprite(0x7fe9ff, 1.5, 0.32); a.position.set(ex, ey, ez + 0.3); a.userData.sc = 0.6; shipBody.add(a); const b = glowSprite(0xffffff, 0.9, 0.6); b.position.set(ex, ey, ez + 0.1); b.userData.sc = 0.6; b.userData.core = 1; shipBody.add(b); altFl.push(a, b);
       const nr = (e[3] || 0.4) * 0.55, disc = new THREE.Mesh(new THREE.CircleGeometry(nr * 0.95, 20), mantaNozMat); disc.position.set(ex, ey, ez + 0.006); shipBody.add(disc); altCones.push(disc);   // the nozzle mouth glows from inside
       MFL.forEach((L, k) => { const fc = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 16, 1, true), mantaFlameMats[k]); fc.rotation.x = Math.PI / 2; fc.userData = { L, nr, z0: ez, ph: ex * 2.3 + k }; fc.position.set(ex, ey, ez); shipBody.add(fc); altCones.push(fc); }); }   // flames start exactly at the nozzles
   }
-  origParts.forEach(o => { o.visible = !alt; });
-  if (altShip) altShip.visible = alt;
-  const M = alt ? MUZ1 : MUZ0; for (let i = 0; i < MUZ.length; i++) { MUZ[i][0] = M[i][0]; MUZ[i][1] = M[i][1]; MUZ[i][2] = M[i][2]; mFlash[i].position.set(M[i][0], M[i][1], M[i][2] - 0.15); }
+  origParts.forEach(o => { o.visible = false; });   /* the old STAR COURIER body is no longer shown */
+  if (altShip) altShip.visible = alt; if (newHull) newHull.visible = nh;
+  const M = alt ? MUZ1 : MUZ_NH; for (let i = 0; i < MUZ.length; i++) { MUZ[i][0] = M[i][0]; MUZ[i][1] = M[i][1]; MUZ[i][2] = M[i][2]; mFlash[i].position.set(M[i][0], M[i][1], M[i][2] - 0.15); }
   ST = stats();
 }
 // muzzle flashes: one small glow per gun, lit for a moment on every shot (4 sprites, nothing else)
@@ -2088,7 +2443,7 @@ function makePics() {
   /* every hull you can own gets its own 3D picture too (so the MANTA shows in the hangar list without flying it first); made once, the extra model is thrown away after */
   for (let i = 0; i < SHIPS.length; i++) { let g, tmp = false;
     if (i === 1) { g = buildManta(); metalizeManta(g); tmp = true; }
-    else { const keep = [...origParts, ...(altShip ? [altShip] : []), ...altFl, ...altCones].map(o => [o, o.visible]); origParts.forEach(o => { o.visible = true; }); if (altShip) altShip.visible = false; altFl.forEach(o => { o.visible = false; }); altCones.forEach(o => { o.visible = false; }); g = ship.clone(true); keep.forEach(([o, v]) => { o.visible = v; }); }
+    else { if (!newHull) { const sv = save.ship; save.ship = 0; applyShip(); save.ship = sv; applyShip(); } const keep = [...origParts, ...(altShip ? [altShip] : []), ...altFl, ...altCones, newHull, ...nhFl, ...nhCones].map(o => [o, o.visible]); origParts.forEach(o => { o.visible = false; }); if (altShip) altShip.visible = false; altFl.forEach(o => { o.visible = false; }); altCones.forEach(o => { o.visible = false; }); newHull.visible = true; nhFl.forEach(o => { o.visible = false; }); nhCones.forEach(o => { o.visible = false; }); g = ship.clone(true); keep.forEach(([o, v]) => { o.visible = v; }); }
     g.position.set(0, 0, 0); g.quaternion.identity(); if (i === 1) { g.rotation.set(0, 0.6, 0); g.updateMatrixWorld(true); snap(g, 'sh' + i, 1.35, 0.9); } else { g.rotation.set(0, -Math.PI / 2 + 0.55, 0); g.updateMatrixWorld(true); snap(g, 'sh' + i, 1.05, 0.85); }   /* the wide MANTA reads best from above, three-quarter from the front */
     if (tmp) g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
   PIC.sh = PIC['sh' + save.ship] || PIC.sh;
@@ -2629,10 +2984,12 @@ function frame(now) {
   ship.position.copy(S.pos); ship.quaternion.copy(S.q); shipBody.rotation.z = S.roll;
   if (S.shGlow > 0) { S.shGlow = Math.max(0, S.shGlow - dt * 2.4); shGl.visible = S.shGlow > 0; shGl.material.uniforms.op.value = S.shGlow; shGl.material.uniforms.t.value = tAcc; }
   const vis = S.mode !== 'wreck', blink = S.inv > 0 && !S.nb && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
-  { const on = S.mode !== 'dock', o0 = on && save.ship === 0; flames.forEach(f => f.visible = o0); flameCore.forEach(f => f.visible = o0); flameCones.forEach(f => f.visible = o0); FINST.forEach(f => f.im.visible = o0); hoverPads.forEach(p => p.visible = on); const o1 = on && save.ship === 1; altFl.forEach(f => { f.visible = o1; }); altCones.forEach(f => { f.visible = o1; }); }
+  { const on = S.mode !== 'dock', o0 = false; flames.forEach(f => f.visible = o0); flameCore.forEach(f => f.visible = o0); flameCones.forEach(f => f.visible = o0); FINST.forEach(f => f.im.visible = o0); const oN = on && save.ship === 0; nhFl.forEach(f => { f.visible = oN; }); nhCones.forEach(f => { f.visible = oN; }); hoverPads.forEach(p => p.visible = on); const o1 = on && save.ship === 1; altFl.forEach(f => { f.visible = o1; }); altCones.forEach(f => { f.visible = o1; }); }
   for (const f of mFlash) if (f.visible) { f.userData.t -= dt * 9; if (f.userData.t <= 0) f.visible = false; else { f.material.opacity = f.userData.t; f.scale.setScalar(2.3 * (0.5 + 0.7 * f.userData.t)); } }
   const fl = 0.7 + S.speed / 220 + (S.boosting ? 0.9 : 0), flick = 0.9 + Math.sin(tAcc * 50) * 0.1;
   flames.forEach(f => { if (f.userData.pts) f.material.size = 2.9 * fl * flick * f.userData.sc; else f.scale.setScalar(1.9 * fl * flick * f.userData.sc); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => { if (f.userData.pts) f.material.size = 1.05 * fl * flick * f.userData.sc; else f.scale.setScalar(0.7 * fl * flick * f.userData.sc); }); flameMats.forEach((fm, k) => fm.color.setHex(flameCols[k][S.boosting ? 1 : 0])); FINST.forEach(F => { const L = F.L, es = ENGS[0][3]; ENGS.forEach((en, i) => { const ph = i * 1.7 + F.k, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + ph) + 0.05 * Math.sin(tAcc * 91 + ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); _fd.position.set(en[0], en[1], en[2] + es * (0.9 + len / 2)); _fd.rotation.set(Math.PI / 2, 0, 0); _fd.scale.set(r * es, len * es, r * es); _fd.updateMatrix(); F.im.setMatrixAt(i, _fd.matrix); }); F.im.instanceMatrix.needsUpdate = true; });
+  if (save.ship === 0) { nhFl.forEach(f => { f.scale.setScalar((f.userData.core ? 0.7 : 1.9) * fl * flick * f.userData.sc); if (!f.userData.core) f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); });
+    for (const c of nhCones) { const u = c.userData, L = u.L, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + u.ph) + 0.05 * Math.sin(tAcc * 91 + u.ph * 3), len = (L.len * (0.45 + 0.55 * fl) * fk + 0.2) * u.k, r = L.r * (0.85 + 0.15 * fl) * u.k * 1.15; c.scale.set(r, len, r); c.position.z = u.z0 + len / 2; } }   // new hull: flames flicker and stretch with speed / boost
   if (save.ship === 1) { const bi = S.boosting ? 1 : 0; altFl.forEach(f => { f.scale.setScalar((f.userData.core ? 0.7 : 1.9) * fl * flick * f.userData.sc); f.material.color.setHex(f.userData.core ? MF_CORE[bi] : MF_GLOW[bi]); });
     mantaFlameMats.forEach((m, k) => m.color.setHex(MF_COL[k][bi])); mantaNozMat.color.setHex(bi ? 0x1a3cff : 0x8a3cff);
     for (const c of altCones) { const u = c.userData; if (!u.L) continue; const L = u.L, fk = 0.86 + 0.1 * Math.sin(tAcc * (36 + L.k * 19) + u.ph) + 0.05 * Math.sin(tAcc * 97 + u.ph * 3), len = u.nr * (L.len * (0.4 + 0.6 * fl) * fk + 0.3), r = u.nr * L.r * (0.9 + 0.1 * fl); c.scale.set(r, len, r); c.position.z = u.z0 + len / 2; } }   // MANTA flames flicker and stretch with speed / boost
