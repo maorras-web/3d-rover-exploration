@@ -817,7 +817,7 @@ function metalizeManta(g) {
 const NH_NOZ = [];   // [x, y, z of the glowing face, size] - filled in from the model
 const MUZ_NH = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];   // gun muzzles - filled in from the weapon pockets
 let newHull = null; const nhFl = [], nhCones = [];
-const NH_PARAMS = {"winAng": 180, "hsRing": 1, "wingY": -0.3, "wingTip": 4.4, "wingRootZ": -0.2, "wingRearRootZ": 1.9, "wingTipZ": -1.3, "wingT": 0.06, "wpX": 0.39, "wpUp": 0.42, "wpW": 0.28, "tbUp": -0.91, "tbW": 0.22, "tbD": 0.09, "tbH": 0.47, "engRowGap": 1.39, "engSpread": 1.11}, NH_COLORS = {"white": "#7f9bd0", "chrome": "#c9d6f0", "seam": "#1a2132", "bayM": "#2c3446", "dark": "#0e1119", "engGlow": "#cfe6ff", "red": "#39445c"}, NH_ENGINE_COLORS = {"dark": "#0041f5", "bayM": "#290a1b", "engGlow": "#9ebb11"}, NH_SCALE = 1.45, NH_UP = 0.5, NH_FWD = -1.2;
+const NH_PARAMS = {"winAng": 180, "hsRing": 1, "wingY": -0.3, "wingTip": 4.4, "wingRootZ": -0.2, "wingRearRootZ": 1.9, "wingTipZ": -1.3, "wingT": 0.06, "wpX": 0.39, "wpUp": 0.42, "wpW": 0.28, "tbUp": -0.91, "tbW": 0.22, "tbD": 0.09, "tbH": 0.47, "engRowGap": 1.39, "engSpread": 1.11}, NH_COLORS = {"white": "#40006b", "chrome": "#c9d6f0", "seam": "#1a2132", "bayM": "#2c3446", "dark": "#0e1119", "engGlow": "#cfe6ff", "red": "#39445c"}, NH_ENGINE_COLORS = {"dark": "#0041f5", "bayM": "#030303", "engGlow": "#9ebb11", "white": "#546e0d"}, NH_PARTS = {"wings": {"off": [0, 0, 0], "scl": [1, 3, 1], "rot": [0, 0, 0]}, "glass": {"off": [0, 0, 0], "scl": [1, 1.23, 1.02], "rot": [0, 0, 0]}}, NH_SKIN = {"pat": "hex", "size": 0.82, "depth": 2, "ao": 1, "glow": 0.37, "glowCol": "#a6ff00"}, NH_HEAD = 1.6, NH_SCALE = 1.45, NH_UP = 0.5, NH_FWD = -1.2;
 // white/red dome ship v2. forward = -z, dome radius ~1
 function buildDomeModel(P = {}, MAT = null) {
   const p = Object.assign({ domeSX: 1.08, domeSY: 0.92, podX: 1.08, podY: -0.25, podZ0: 0.3, podLen: 3.5, podR: 0.43, podIn: 0.13, podBend: 0.06, wingY: -0.3, wingTip: 4.5, wingRootZ: -0.55, wingRearRootZ: 2.9, wingTipZ: -0.25, wingT: 0.07, hsR: 1.12, hsY: -0.27, hsZ: 0.25, hsLen: 3.5, hsTipX: 0.63, hsDrop: 0.7, hsBulge: 0.0, hsThick: 0.48, hsRing: 1.0, wingJoin: 0.45, tbOn: 1, tbUp: -0.65, tbW: 0.42, tbH: 0.26, tbD: 0.2, wpOn: 1, wpX: 0.4, wpUp: 0.8, wpW: 0.36, wpH: 0.2, wpD: 0.14, winAng: 0, engSpread: 1, engRowGap: 1, engShift: 0, vb: 1, vbT0: 1.28, vbT1: 1.72, vbW: 0.72, vbDepth: 0.26, vbOut: 0, engOn: 0, engY: -0.05, engW: 1.5, engWb: 1.15, engH: 0.52, engDepth: 0.32, engFlat: 0 }, P);
@@ -1138,6 +1138,73 @@ function buildDomeModel(P = {}, MAT = null) {
   return g;
 }
 
+// ---- 3D-looking hull skin: one small 256x256 tiling texture made in code (no image file) ----
+//      r,g = surface slope (fake depth), b = shade in the grooves, a = where grooves can glow.
+//      Laid on the hull from three sides (so no stretching on the round dome or the ring); the lights treat it as real relief.
+const SKIN_PATTERNS = ['none', 'panels', 'hex', 'scales', 'carbon', 'ribs', 'tech'];
+function skinHeight(pat, N) {
+  const H = new Float32Array(N * N), G = new Float32Array(N * N), sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const fr = (x) => x - Math.floor(x), rnd = (i, j) => fr(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const u = x / N, v = y / N; let h = 0, g = 0;
+    if (pat === 'panels') {   // plates in offset rows, bevelled edges, a rivet near each corner
+      const rows = 4, cols = 2, ry = v * rows, row = Math.floor(ry), fx = fr(u * cols + (row % 2) * 0.5), fy = fr(ry);
+      const dx = Math.min(fx, 1 - fx) / cols, dy = Math.min(fy, 1 - fy) / rows, d = Math.min(dx, dy);
+      h = sm(0.004, 0.02, d); g = 1 - sm(0.0, 0.008, d);
+      const cx = Math.min(fx, 1 - fx) / cols, cy = Math.min(fy, 1 - fy) / rows; const rd = Math.hypot(cx - 0.03, cy - 0.03); h += 0.5 * (1 - sm(0.006, 0.011, rd));
+    } else if (pat === 'hex') {   // hexagon armour plates
+      const qx = u * 6, qy = v * 6; let best = 9, sec = 9;   // 6 x 6 cells, every other row shifted half a cell, so it tiles
+      for (let j = -1; j <= 7; j++) for (let i = -1; i <= 7; i++) { const px = i + (j % 2 ? 0.5 : 0), py = j * 1.0; const dd = Math.hypot(qx - px, (qy - py) * 1.0); if (dd < best) { sec = best; best = dd; } else if (dd < sec) sec = dd; }
+      const e = (sec - best) * 0.5; h = sm(0.02, 0.12, e); g = 1 - sm(0.0, 0.04, e);
+    } else if (pat === 'scales') {   // overlapping round scales, each one rising toward its lower edge
+      const c = 6, r = 8, ry = v * r, row = Math.floor(ry), fx = fr(u * c + (row % 2) * 0.5) - 0.5, fy = fr(ry);
+      let best = -1, edge = 1;
+      for (const [ox, oy] of [[0, 0], [0.5, 1], [-0.5, 1], [1, 0], [-1, 0]]) { const dx = fx - ox, dy = (fy - oy) * c / r * 1.4, dd = Math.hypot(dx, dy); const hh = 1 - dd / 0.62; if (hh > best) { best = hh; } }
+      h = Math.max(0, best) ** 0.6; g = 1 - sm(0.0, 0.08, Math.max(0, best));
+    } else if (pat === 'carbon') {   // woven carbon fibre
+      const n = 8, a = u * n, b = v * n, ia = Math.floor(a), ib = Math.floor(b), over = (ia + ib) % 2;
+      const along = over ? fr(a) : fr(b), across = over ? fr(b) : fr(a);
+      h = Math.sin(Math.PI * along) * 0.6 + 0.4 * Math.sin(Math.PI * across) ** 0.3; g = 1 - sm(0.0, 0.12, Math.min(across, 1 - across));
+      h *= 0.55;
+    } else if (pat === 'ribs') {   // deep parallel grooves
+      const n = 10, f = fr(v * n), d = Math.min(f, 1 - f); h = sm(0.04, 0.22, d); g = 1 - sm(0.0, 0.06, d);
+    } else if (pat === 'tech') {   // raised machined blocks of different sizes
+      const n = 8, ix = Math.floor(u * n), iy = Math.floor(v * n), fx = fr(u * n), fy = fr(v * n), r0 = rnd(ix, iy);
+      const sx = r0 > 0.5 ? 2 : 1, bx = Math.floor(ix / sx) * sx, lx = (u * n - bx) / sx;
+      const d = Math.min(lx, 1 - lx, fy, 1 - fy) / n, lvl = 0.4 + 0.6 * rnd(bx, iy);
+      h = sm(0.003, 0.015, d) * lvl; g = 1 - sm(0.0, 0.006, d);
+    }
+    H[y * N + x] = h; G[y * N + x] = g; }
+  return [H, G];
+}
+function domeSkinTex(THREE, pat, old) {
+  const N = 256, data = old ? old.image.data : new Uint8Array(N * N * 4);
+  if (pat && pat !== 'none') { const [H, G] = skinHeight(pat, N), at = (x, y) => H[((y + N) % N) * N + ((x + N) % N)], K = 6;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const dx = (at(x + 1, y) - at(x - 1, y)) * K, dy = (at(x, y + 1) - at(x, y - 1)) * K, l = Math.hypot(dx, dy, 1), i = (y * N + x) * 4;
+      data[i] = 128 - 127 * dx / l; data[i + 1] = 128 - 127 * dy / l; data[i + 2] = 255 * (0.35 + 0.65 * Math.min(1, at(x, y) + 0.15)); data[i + 3] = 255 * G[y * N + x]; } }
+  else for (let i = 0; i < data.length; i += 4) { data[i] = 128; data[i + 1] = 128; data[i + 2] = 255; data[i + 3] = 0; }
+  const t = old || new THREE.DataTexture(data, N, N, THREE.RGBAFormat);
+  if (!old) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.anisotropy = 4; }
+  t.needsUpdate = true; return t;
+}
+// U: shared uniforms { skinMap, skinScale, skinDepth, skinAO, skinGlow } - change their values any time, no recompiling
+function domeSkinMat(mat, U) {
+  if (mat.userData.skinned) return mat; mat.userData.skinned = true;
+  mat.onBeforeCompile = (sh) => { if (!U.skinHead) U.skinHead = { value: 0 }; Object.assign(sh.uniforms, U);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vSkP; varying vec3 vSkN;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSkP = position; vSkN = objectNormal;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vSkP; varying vec3 vSkN; uniform mat3 normalMatrix; uniform sampler2D skinMap; uniform float skinScale, skinDepth, skinAO, skinHead; uniform vec3 skinGlow; float skAO = 1.0, skGl = 0.0;')
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+  { vec3 nO = normalize(vSkN) * faceDirection; vec3 w = pow(abs(nO), vec3(4.0)); w /= (w.x + w.y + w.z);
+    vec3 p = vSkP * skinScale; vec4 tX = texture2D(skinMap, p.zy), tY = texture2D(skinMap, p.xz), tZ = texture2D(skinMap, p.xy);
+    vec2 gX = tX.xy * 2.0 - 1.0, gY = tY.xy * 2.0 - 1.0, gZ = tZ.xy * 2.0 - 1.0;
+    vec3 d = vec3(0.0, gX.y, gX.x) * w.x + vec3(gY.x, 0.0, gY.y) * w.y + vec3(gZ.x, gZ.y, 0.0) * w.z;
+    normal = normalize(normalMatrix * normalize(nO + d * skinDepth));
+    vec4 tt = tX * w.x + tY * w.y + tZ * w.z; skAO = mix(1.0, tt.b, skinAO); skGl = tt.a; diffuseColor.rgb *= skAO; }`)
+      .replace('#include <aomap_fragment>', 'reflectedLight.indirectDiffuse += diffuseColor.rgb * skinHead * max(dot(normal, normalize(vViewPosition)), 0.0);   /* soft light from the camera, like a headlamp: only on the hull */\nreflectedLight.indirectSpecular *= skAO; reflectedLight.directSpecular *= mix(1.0, skAO, 0.6);\n#include <aomap_fragment>')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += skinGlow * skGl;'); };
+  mat.customProgramCacheKey = () => 'domeskin'; mat.needsUpdate = true; return mat;
+}
 function buildNewHull() {
   const MAT = {}, model = buildDomeModel(NH_PARAMS, MAT);
   for (const k in NH_COLORS) if (MAT[k]) MAT[k].color.set(NH_COLORS[k]);
@@ -1150,8 +1217,15 @@ function buildNewHull() {
     let m = o.material; const k = key.get(m);
     if (o.userData.part === 'enginevents' && k && NH_ENGINE_COLORS[k]) { own[k] = own[k] || m.clone(); own[k].color.set(NH_ENGINE_COLORS[k]); m = own[k]; }   // the engine bay has its own colours
     g.add(new THREE.Mesh(geo, m)); g.children[g.children.length - 1].userData.part = o.userData.part; }
-  // wings were made 3x thicker in the workshop (about their own middle)
-  for (const o of g.children) if (o.userData.part === 'wings') { o.geometry.computeBoundingBox(); const cy = (o.geometry.boundingBox.min.y + o.geometry.boundingBox.max.y) / 2; o.geometry.translate(0, -cy, 0); o.geometry.scale(1, 3, 1); o.geometry.translate(0, cy, 0); o.geometry.computeVertexNormals(); }
+  // the workshop's per-part moves / turns / stretches (wings 3x thicker, taller windows), about the same pivot the workshop uses
+  { const bins = {}; for (const o of g.children) { const p = NH_PARTS[o.userData.part]; if (!p) continue; o.geometry.computeBoundingBox(); const b = o.geometry.boundingBox, cx = (b.min.x + b.max.x) / 2, sd = cx > 0.04 ? 1 : cx < -0.04 ? -1 : 0; (bins[o.userData.part + '|' + sd] = bins[o.userData.part + '|' + sd] || []).push(o); }
+    const ctr = (l) => { const b = new THREE.Box3(); for (const o of l) b.union(o.geometry.boundingBox); return b.getCenter(new THREE.Vector3()); };
+    for (const key in bins) { const [id, s] = key.split('|'), sd = +s, p = NH_PARTS[id], m = sd === -1 ? -1 : 1; let pv; if (sd === -1 && bins[id + '|1']) { pv = ctr(bins[id + '|1']); pv.x = -pv.x; } else pv = ctr(bins[key]);
+      const M = new THREE.Matrix4().compose(new THREE.Vector3(pv.x + m * p.off[0], pv.y + p.off[1], pv.z + p.off[2]), new THREE.Quaternion().setFromEuler(new THREE.Euler(p.rot[0] * Math.PI / 180, m * p.rot[1] * Math.PI / 180, m * p.rot[2] * Math.PI / 180)), new THREE.Vector3(...p.scl)).multiply(new THREE.Matrix4().makeTranslation(-pv.x, -pv.y, -pv.z));
+      for (const o of bins[key]) o.geometry.applyMatrix4(M); } }   // applyMatrix4 also turns the normals, so the smooth shading stays as designed
+  // the 3D skin chosen in the workshop: one small texture made in code, on the white and red hull colours (and their per-part copies)
+  if (NH_SKIN && NH_SKIN.pat !== 'none') { const U = { skinMap: { value: domeSkinTex(THREE, NH_SKIN.pat) }, skinScale: { value: 1 / NH_SKIN.size }, skinDepth: { value: NH_SKIN.depth }, skinAO: { value: NH_SKIN.ao }, skinGlow: { value: new THREE.Color(NH_SKIN.glowCol).multiplyScalar(NH_SKIN.glow) }, skinHead: { value: NH_HEAD } };
+    const sk = new Set([MAT.white, MAT.red, own.white, own.red].filter(Boolean)); for (const o of g.children) if (sk.has(o.material)) domeSkinMat(o.material, U); }
   // real metal look: the ship reflection cube the other hulls use
   const seen = new Set(); g.traverse(o => { if (!o.isMesh) return; const m = o.material; if (seen.has(m) || !m.isMeshStandardMaterial) return; seen.add(m); m.envMap = SHIP_ENV; m.envMapIntensity = 1.6; m.needsUpdate = true; });
   // the model looks along +z (windows in front); the game flies along -z, so turn it round and size it
@@ -2089,8 +2163,19 @@ canvas.addEventListener('pointermove', (e) => {
 const endStick = (e) => { if (e.pointerId !== stickId) return; stickId = null; touchX = touchY = 0; setKnob(0, 0); stickEl.style.left = ''; stickEl.style.bottom = ''; };
 canvas.addEventListener('pointerup', endStick); canvas.addEventListener('pointercancel', endStick);
 let thrId = null, thrY0 = 0, thr0 = 1;
+/* free look: the eye button turns it on; then dragging on the right half of the screen swings the camera all the way round the ship (the stick still steers).
+   turning it off glides the view back behind the ship. only the camera moves - nothing extra is drawn. */
+const FLK = { on: false, yaw: 0, pitch: 0, id: null, x: 0, y: 0 };
+canvas.addEventListener('pointerdown', (e) => { if (!FLK.on || FLK.id !== null || e.clientX <= innerWidth * 0.5) return; FLK.id = e.pointerId; canvas.setPointerCapture(e.pointerId); FLK.x = e.clientX; FLK.y = e.clientY; });
+canvas.addEventListener('pointermove', (e) => { if (e.pointerId !== FLK.id) return; const k = 5.5 / Math.max(innerWidth, innerHeight);
+  FLK.yaw -= (e.clientX - FLK.x) * k; FLK.pitch = clamp(FLK.pitch - (e.clientY - FLK.y) * k, -1.45, 1.45); FLK.x = e.clientX; FLK.y = e.clientY; });
+const endLook = (e) => { if (e.pointerId === FLK.id) FLK.id = null; };
+canvas.addEventListener('pointerup', endLook); canvas.addEventListener('pointercancel', endLook);
+function setLook(v) { FLK.on = v; $('b-look').classList.toggle('on', v); if (!v) { FLK.id = null; FLK.yaw = Math.atan2(Math.sin(FLK.yaw), Math.cos(FLK.yaw)); } }   // back the short way round
+$('b-look').addEventListener('click', () => { initAudio(); setLook(!FLK.on); });
+const _qLk = new THREE.Quaternion(), _eLk = new THREE.Euler(0, 0, 0, 'YXZ');
 canvas.addEventListener('pointerdown', (e) => {
-  if (thrId !== null || e.clientX <= innerWidth * 0.5 || S.mode !== 'fly') return;
+  if (thrId !== null || e.clientX <= innerWidth * 0.5 || S.mode !== 'fly' || FLK.on) return;
   thrId = e.pointerId; canvas.setPointerCapture(e.pointerId); thrY0 = e.clientY; thr0 = S.thr;
 });
 canvas.addEventListener('pointermove', (e) => { if (e.pointerId !== thrId) return; S.thr = clamp(thr0 - (e.clientY - thrY0) / (innerHeight * 0.4), 0, 1); });
@@ -3000,8 +3085,11 @@ function frame(now) {
   for (const e of enemies) if (e.active) { e.g.children[1].scale.setScalar(5 + Math.sin(tAcc * 40 + e.pos.x) * 0.6); }
   S.camQ.slerp(S.q, 1 - Math.exp(-7 * dt));
   const cd = 17 + S.speed * 0.014;
-  _a.set(0, 4.6, cd).applyQuaternion(S.camQ); camera.position.copy(S.pos).add(_a);
-  _qa.setFromAxisAngle(X, -0.07); camera.quaternion.copy(S.camQ).multiply(_qa);
+  if (!FLK.on && (FLK.yaw || FLK.pitch)) { FLK.yaw = damp(FLK.yaw, 0, 5, dt); FLK.pitch = damp(FLK.pitch, 0, 5, dt); if (Math.abs(FLK.yaw) + Math.abs(FLK.pitch) < 0.002) FLK.yaw = FLK.pitch = 0; }
+  if (S.mode !== 'fly' && S.mode !== 'warp' && FLK.on) setLook(false);
+  _eLk.set(FLK.pitch, FLK.yaw, 0); _qLk.setFromEuler(_eLk).premultiply(S.camQ);   // free look: the whole camera rig swings round the ship
+  _a.set(0, 4.6, cd).applyQuaternion(_qLk); camera.position.copy(S.pos).add(_a);
+  _qa.setFromAxisAngle(X, -0.07); camera.quaternion.copy(_qLk).multiply(_qa);
   if (S.shake > 0) { const a = S.shake * 0.35; camera.position.x += Math.sin(tAcc * 71) * a; camera.position.y += Math.sin(tAcc * 83) * a; }
   _qa.setFromAxisAngle(Z, -S.sx * 0.05); camera.quaternion.multiply(_qa);
   const wantFov = 64 + clamp(S.speed / 150, 0, 1.4) * 12 + (S.boosting ? 13 : 0) + (S.mode === 'warp' && WP.far ? Math.min(34, WP.t * 24) : 0);   // jump: the view stretches wide, then springs back on arrival

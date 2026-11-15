@@ -564,6 +564,7 @@
 </div>
 <div id="mission" class="hud"></div>
 <style>
+#b-look.on{background:linear-gradient(160deg,#e4ff7a,#7fa000);color:#14200a}
 #pause-ov{position:fixed;inset:0;z-index:58;display:none;align-items:center;justify-content:center;background:rgba(2,6,14,.72);backdrop-filter:blur(3px)}
 #pause-ov .pbox{width:min(300px,86vw);max-height:92vh;overflow:auto;display:flex;flex-direction:column;gap:7px;padding:14px 16px;border:1px solid rgba(126,240,255,.4);border-radius:12px;background:linear-gradient(160deg,rgba(18,36,60,.95),rgba(6,12,24,.95))}
 #pause-ov .pt{text-align:center;color:#9fd8ff;letter-spacing:6px;font:800 14px system-ui,Arial,sans-serif;margin-bottom:2px}
@@ -576,7 +577,7 @@
 .pitem.on i{background:rgba(95,228,255,.5)} .pitem.on i:after{left:18px;background:#fff}
 #b-resume{background:linear-gradient(160deg,rgba(95,228,255,.5),rgba(40,120,160,.5));color:#fff}
 </style>
-<div id="top-right" class="hud"><button class="sbtn" id="b-pause"><svg class="ics" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" stroke-width="3.2"/></svg></button></div><div id="pause-ov"><div class="pbox"><div class="pt">PAUSED</div><button class="pitem go" id="b-resume"><svg class="ics" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="currentColor"/></svg><span>RESUME</span></button><button class="pitem" id="b-map"><svg class="ics" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9" ry="4.5"/><path d="M12 3v3M12 18v3"/></svg><span>STAR MAP</span></button><button class="pitem" id="b-fs"><svg class="ics" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg><span>FULLSCREEN</span></button><button class="pitem" id="b-inv"><svg class="ics" viewBox="0 0 24 24"><path d="M8 4v15M4 8l4-4 4 4M16 20V5M12 16l4 4 4-4"/></svg><span>INVERT CONTROLS</span><i></i></button><button class="pitem" id="b-snd"><svg class="ics" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/></svg><span>SOUND</span><i></i></button></div></div>
+<div id="top-right" class="hud"><button class="sbtn" id="b-look" aria-label="Free look"><svg class="ics" viewBox="0 0 24 24"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="sbtn" id="b-pause"><svg class="ics" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" stroke-width="3.2"/></svg></button></div><div id="pause-ov"><div class="pbox"><div class="pt">PAUSED</div><button class="pitem go" id="b-resume"><svg class="ics" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="currentColor"/></svg><span>RESUME</span></button><button class="pitem" id="b-map"><svg class="ics" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9" ry="4.5"/><path d="M12 3v3M12 18v3"/></svg><span>STAR MAP</span></button><button class="pitem" id="b-fs"><svg class="ics" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg><span>FULLSCREEN</span></button><button class="pitem" id="b-inv"><svg class="ics" viewBox="0 0 24 24"><path d="M8 4v15M4 8l4-4 4 4M16 20V5M12 16l4 4 4-4"/></svg><span>INVERT CONTROLS</span><i></i></button><button class="pitem" id="b-snd"><svg class="ics" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/></svg><span>SOUND</span><i></i></button></div></div>
 <div id="speed" class="hud"><span id="kmh">0</span><small>m/s</small></div>
 <canvas id="radar" class="hud" width="320" height="136"></canvas>
 
@@ -700,11 +701,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=498', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=501', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=498'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=501'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>
