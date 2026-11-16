@@ -1920,7 +1920,14 @@ const SYS_K = 2.2;   // spread the system out: distance between stations x2.2 (p
 stations.forEach(s => s.pos.multiplyScalar(SYS_K));
 const PLANET_K = 1;   // planets are scaled down so the whole planet (and its rings) fits in view from the station; the gap between surface and station stays the same
 stations.forEach(s => { const p = s.pl, gap = p.off.length() - p.r; p.r *= PLANET_K; p.off.setLength(gap + p.r); });
-stations.forEach(s => { s.front.normalize(); s.g = (s.v.ring ? buildStationB : buildStation)(s.name, s.col, s.v); s.g.scale.set(ST_K * (s.v.big || 1) * (s.v.sxy || 1), ST_K * (s.v.big || 1) * (s.v.sxy || 1), ST_K * (s.v.big || 1) * (s.v.sz || 1)); s.g.position.copy(s.pos); s.g.up.set(0, 0, 1); s.g.lookAt(s.pos.clone().add(s.front)); if (s.g.userData.mouthAx) { s.g.updateMatrixWorld(true); const l = s.g.worldToLocal(s.pos.clone().addScaledVector(s.pl.off.clone().normalize(), -100)); s.g.rotateZ(Math.atan2(l.y, l.x)); }   /* a side entrance turns to face the way you arrive (from the side away from the planet) */ scene.add(s.g); });
+// every world in both systems has the big XIAQA wheel station (same model, built ONCE and shared - only the station you are at is ever drawn, so it costs nothing extra).
+// each copy keeps its own name, colour and planet (the planet is drawn pushed back behind any station by its real size, so a big station never cuts into it).
+{ const XV = stations[0].v; for (const s of stations) s.v = Object.assign({}, XV); }
+const XRAW = buildStation(stations[0].name, stations[0].col, stations[0].v);
+function cloneStation(src) { const c = src.clone(true), map = new Map(), a = [], b = []; src.traverse(o => a.push(o)); c.traverse(o => b.push(o)); a.forEach((o, i) => map.set(o, b[i]));
+  c.userData = {}; for (const k in src.userData) { const v = src.userData[k]; c.userData[k] = v && v.isObject3D ? map.get(v) : v; }   // shared data, but links point at the copy's own parts
+  a.forEach((o, i) => { if (o === src) return; const u = {}; for (const k in o.userData) { const v = o.userData[k]; u[k] = v && v.isObject3D ? map.get(v) : v; } b[i].userData = u; }); return c; }
+stations.forEach((s, i) => { s.front.normalize(); s.g = i === 0 ? XRAW : cloneStation(XRAW); s.g.scale.set(ST_K * (s.v.big || 1) * (s.v.sxy || 1), ST_K * (s.v.big || 1) * (s.v.sxy || 1), ST_K * (s.v.big || 1) * (s.v.sz || 1)); s.g.position.copy(s.pos); s.g.up.set(0, 0, 1); s.g.lookAt(s.pos.clone().add(s.front)); if (s.g.userData.mouthAx) { s.g.updateMatrixWorld(true); const l = s.g.worldToLocal(s.pos.clone().addScaledVector(s.pl.off.clone().normalize(), -100)); s.g.rotateZ(Math.atan2(l.y, l.x)); }   /* a side entrance turns to face the way you arrive (from the side away from the planet) */ scene.add(s.g); });
 const planets = [];
 {
   const geo = new THREE.SphereGeometry(1, 48, 32), geoLo = new THREE.SphereGeometry(1, 14, 9);   // geoLo: cheap sphere for planets that are only a small disc on screen
