@@ -133,7 +133,7 @@ const curW = () => WPN[save.wpn.cur] || WPN[0];
 // ---------- renderer / scene ----------
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-const AUTO_Q = false;   // auto-quality (lowering the resolution when the game runs slow) is OFF: the resolution always stays full. set to true to bring it back
+const AUTO_Q = true;   // auto-quality (lowering the resolution when the game runs slow) is OFF: the resolution always stays full. set to true to bring it back
 let PR_MAX = Math.min(window.devicePixelRatio || 1, 2), pr = PR_MAX; const PR_MIN = 0.75; let fxUntil = 0, lastDrop = 0;   // fxUntil: a big blast is a short, one-off load - the auto-quality ignores it
 renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15; renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -2436,33 +2436,34 @@ const GATE_R = 80, GATES = SYSTEMS.map((nm, k) => { const si = stations.findInde
   if (!pos) pos = st.pos.clone().addScaledVector(od, -9000);
   const n = st.pos.clone().sub(pos).setY(0).normalize();   // n: the side you fly in from (the gate faces its station)
   return { k, si, pos, n, g: null, side: 0, hz: null, top: null }; });
-function buildGate(gt) {
-  const g = new THREE.Group(), R0 = GATE_R;
+function buildGate(gt) {   /* lean version: 5 draw calls, ~1,300 triangles, no big glow sprite (that covered a large part of the screen) */
+  const g = new THREE.Group(), R0 = GATE_R, put = (geo, x, y, rz, sz) => { if (sz) geo.scale(1, 1, sz); if (rz) geo.rotateZ(rz); geo.translate(x || 0, y || 0, 0); return geo; };
   const metal = new THREE.MeshStandardMaterial({ color: 0x2a2f3a, metalness: 0.85, roughness: 0.32, envMap: SHIP_ENV, envMapIntensity: 1.3 });
   const trim = new THREE.MeshStandardMaterial({ color: 0x8e98aa, metalness: 0.9, roughness: 0.22, envMap: SHIP_ENV, envMapIntensity: 1.6 });
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(R0 + 6, 7, 10, 72), metal); g.add(ring);   // the heavy outer ring
-  const lip = new THREE.Mesh(new THREE.TorusGeometry(R0 + 6, 2.2, 6, 72), trim); lip.scale.z = 4.2; g.add(lip);   // a bright band around its middle
-  const glowM = new THREE.MeshBasicMaterial({ color: 0x6fe4ff, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false, fog: false });
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(R0 - 0.5, 1.6, 6, 72), glowM); g.add(rim);   // the glowing inner edge
-  const rim2 = new THREE.Mesh(new THREE.TorusGeometry(R0 - 4, 0.7, 4, 72), glowM); g.add(rim2);
-  const clampG = new THREE.BoxGeometry(14, 22, 26);   // six clamps that hold the ring, each with a light
-  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + Math.PI / 6, c = new THREE.Mesh(clampG, trim); c.position.set(Math.cos(a) * (R0 + 12), Math.sin(a) * (R0 + 12), 0); c.rotation.z = a; g.add(c);
-    const l = glowSprite(i % 2 ? 0xff5a4a : 0xc8f030, 16, 0.9); l.position.set(Math.cos(a) * (R0 + 24), Math.sin(a) * (R0 + 24), 0); l.userData.ph = i; g.add(l); (g.userData.lights = g.userData.lights || []).push(l); }
-  const mod = new THREE.Mesh(new THREE.BoxGeometry(30, 18, 34), metal); mod.position.set(-(R0 + 22), R0 * 0.55, 0); mod.rotation.z = 0.5; g.add(mod);   // a control module on the upper left
-  const pan = new THREE.Mesh(new THREE.BoxGeometry(44, 2, 16), trim); pan.position.set(-(R0 + 46), R0 * 0.72, 0); pan.rotation.z = 0.5; g.add(pan);
-  // the event horizon: one disc, a cheap swirl in the shader (a few sin() per pixel), added light only
-  const hz = new THREE.Mesh(new THREE.CircleGeometry(R0 - 1, 64), new THREE.ShaderMaterial({ uniforms: { t: { value: 0 }, col: { value: new THREE.Color(0x3fb8ff) } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false, toneMapped: false,
+  // the heavy outer ring + the control module: one mesh
+  g.add(new THREE.Mesh(mergeGeometries([new THREE.TorusGeometry(R0 + 6, 7, 6, 40), put(new THREE.BoxGeometry(30, 18, 34), -(R0 + 22), R0 * 0.55, 0.5)]), metal));
+  // the bright band, six clamps and the panel: one mesh
+  const tr = [put(new THREE.TorusGeometry(R0 + 6, 2.2, 4, 40), 0, 0, 0, 4.2), put(new THREE.BoxGeometry(44, 2, 16), -(R0 + 46), R0 * 0.72, 0.5)], lp = [], lc = [];
+  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + Math.PI / 6; tr.push(put(new THREE.BoxGeometry(14, 22, 26), Math.cos(a) * (R0 + 12), Math.sin(a) * (R0 + 12), a));
+    lp.push(Math.cos(a) * (R0 + 24), Math.sin(a) * (R0 + 24), 0); const c = new THREE.Color(i % 2 ? 0xff5a4a : 0xc8f030); lc.push(c.r, c.g, c.b); }
+  g.add(new THREE.Mesh(mergeGeometries(tr), trim));
+  // the glowing inner edge: one thin tube
+  g.add(new THREE.Mesh(new THREE.TorusGeometry(R0 - 0.5, 1.6, 4, 48), new THREE.MeshBasicMaterial({ color: 0x6fe4ff, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false, fog: false })));
+  // the six clamp lights: one draw call (points), blinking together
+  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3)); lg.setAttribute('color', new THREE.Float32BufferAttribute(lc, 3));
+  const lights = new THREE.Points(lg, new THREE.PointsMaterial({ map: glowTex, size: 16, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false })); g.add(lights); gt.lights = lights;
+  // the event horizon: one disc, a light swirl in the shader, added light only (drawn only when the gate is near)
+  const hz = new THREE.Mesh(new THREE.CircleGeometry(R0 - 1, 32), new THREE.ShaderMaterial({ uniforms: { t: { value: 0 }, col: { value: new THREE.Color(0x3fb8ff) } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false, toneMapped: false,
     vertexShader: 'varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: 'uniform float t; uniform vec3 col; varying vec2 vU; void main(){ vec2 p = vU * 2.0 - 1.0; float r = length(p), a = atan(p.y, p.x); float sw = 0.5 + 0.5 * sin(a * 5.0 + r * 13.0 - t * 1.8), sn = 0.5 + 0.5 * sin(a * 3.0 - r * 8.0 + t * 1.1); float e = smoothstep(0.45, 1.0, r); float k = (0.12 + 0.38 * sw * sn + 1.1 * e * e * e) * smoothstep(1.0, 0.96, r); gl_FragColor = vec4(col * k + vec3(0.6, 0.9, 1.0) * pow(e, 8.0) * 0.6, 1.0); }' }));
+    fragmentShader: 'uniform float t; uniform vec3 col; varying vec2 vU; void main(){ vec2 p = vU * 2.0 - 1.0; float r = length(p); float sw = 0.5 + 0.5 * sin(atan(p.y, p.x) * 5.0 + r * 13.0 - t * 1.8); float e = smoothstep(0.45, 1.0, r); float k = (0.12 + 0.3 * sw + 1.1 * e * e * e) * smoothstep(1.0, 0.96, r); gl_FragColor = vec4(col * k, 1.0); }' }));
   g.add(hz); gt.hz = hz;
-  const halo = glowSprite(0x58c8ff, R0 * 3.4, 0.35); g.add(halo);
   g.position.copy(gt.pos); g.lookAt(_a.copy(gt.pos).add(gt.n)); g.visible = false; scene.add(g); gt.g = g; g.updateMatrixWorld(true); gt.top = V3(0, R0 + 60, 0).applyMatrix4(g.matrixWorld); }   // top: where its name tag sits (above the ring, never on top of a station's tag)
 GATES.forEach(buildGate);
 const mkGate = (() => { const e = $('mk-s0').cloneNode(true); e.id = 'mk-gate'; e.style.display = 'none'; $('mk-s0').parentNode.appendChild(e); return e; })();
 function warpToGate() { const gt = GATES[curSys]; if (S.mode !== 'fly') return; if (S.pos.distanceTo(gt.pos) < 1200) { toast('THE STARGATE IS RIGHT HERE', 2); return; } startWarp(gt.si, 1); }
 function updateGates(dt) { const flying = S.mode === 'fly';
   for (const gt of GATES) { const here = gt.k === curSys && S.mode !== 'dock' && S.mode !== 'menu', d = S.pos.distanceTo(gt.pos), vis = here && d < 15000; gt.g.visible = vis;
-    if (vis) { gt.hz.material.uniforms.t.value = tAcc; for (const l of gt.g.userData.lights) l.material.opacity = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(tAcc * 3 + l.userData.ph * 1.3)); }
+    if (vis) { gt.hz.visible = d < 6000; gt.hz.material.uniforms.t.value = tAcc; gt.lights.material.opacity = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(tAcc * 3)); }
     const sd = _a.copy(S.pos).sub(gt.pos).dot(gt.n);
     if (here && flying && d < GATE_R * 3) { const rad = Math.sqrt(Math.max(0, d * d - sd * sd)); if (gt.side * sd < 0 && Math.abs(gt.side - sd) < 60 && rad < GATE_R * 0.92) { gt.side = 0; startWarp(GATES[(gt.k + 1) % GATES.length].si, 2); continue; } }   // crossed the glowing middle (from either side): jump
     gt.side = sd; } }
@@ -2497,17 +2498,17 @@ const WP = { t: 0, to: 0, done: false, far: false }, tunnelEl = document.getElem
 function startWarp(i, gate) {
   if (S.mode !== 'fly') return; if (!gate && stations[i].sys !== curSys) { toast('OTHER SYSTEMS ONLY THROUGH THE STARGATE', 2.5); warpToGate(); return; }   /* the stargate is the only way to another system */
   if (!gate && i === homeSt && S.pos.distanceTo(stations[i].pos) < STN_NEAR) return; WP.t = 0; WP.to = i; WP.done = false; WP.gate = gate || 0; WP.far = stations[i].sys !== curSys; S.mode = 'warp'; S.tPlanet = -1; S.target = null; S.boosting = false; S.sx = S.sy = 0;
-  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; sfx('boost'); if (WP.far) { tunnelEl.classList.add('on'); fadeEl.style.background = '#dfe9ff'; }   // jump tunnel: pure CSS, runs on the GPU
-  setTimeout(() => { if (S.mode === 'warp') { fadeEl.style.transition = 'opacity .65s linear'; fadeEl.style.opacity = '1'; } }, WP.far ? 1250 : 450);   /* the fade is ONE css transition now, not a style write on a full-screen layer every frame */
+  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; sfx('boost'); if (WP.gate === 2) fadeEl.style.background = 'radial-gradient(circle at center, #d9f4ff 0%, #5fb4f0 30%, #1b4f9a 65%, #061226 100%)'; else if (WP.far) { tunnelEl.classList.add('on'); fadeEl.style.background = '#dfe9ff'; }   /* through a stargate: a soft blue dissolve, no flash and no rings */   // jump tunnel: pure CSS, runs on the GPU
+  setTimeout(() => { if (S.mode === 'warp') { fadeEl.style.transition = WP.gate === 2 ? 'opacity .85s ease-in-out' : 'opacity .65s linear'; fadeEl.style.opacity = '1'; } }, WP.gate === 2 ? 300 : WP.far ? 1250 : 450);   /* the fade is ONE css transition now, not a style write on a full-screen layer every frame */
 }
 function updateWarp(dt) {
-  WP.t += dt; fwdOf(S.q, fwd); S.speed = 160 + WP.t * 420; S.pos.addScaledVector(fwd, S.speed * dt); S.vel.copy(fwd).multiplyScalar(S.speed);
-  if (!WP.done && WP.t >= (WP.far ? 1.9 : 1.25)) {
+  WP.t += dt; fwdOf(S.q, fwd); S.speed = WP.gate === 2 ? 110 + WP.t * 90 : 160 + WP.t * 420;   // through a gate: glide in, no rocket-launch S.pos.addScaledVector(fwd, S.speed * dt); S.vel.copy(fwd).multiplyScalar(S.speed);
+  if (!WP.done && WP.t >= (WP.gate === 2 ? 1.3 : WP.far ? 1.9 : 1.25)) {
     WP.done = true; homeSt = anchorSt = WP.to; for (const q of planets) { q.fd = null; q.vf = 0; q.sm = 1; }   /* the sky layout of the new home snaps into place while the screen is white (before, the other planets slid and resized for a second after arriving) */ tunnelEl.classList.remove('on'); const st = stations[WP.to];
     { const od = st.pl.off.clone().normalize(); S.pos.copy(st.pos).addScaledVector(od, -Math.max(1100, TR_R[WP.to] * 1.6)); }
     const gA = WP.gate ? GATES[st.sys] : null; if (gA) { if (WP.gate === 1) S.pos.copy(gA.pos).addScaledVector(gA.n, 520); else S.pos.copy(gA.pos).addScaledVector(gA.n, 170); gA.side = 0; }   /* by gate: arrive in front of your own system's gate, or come out of the other one heading toward its station */   /* a giant station: arrive far enough out to see all of it */   // arrive on the line planet -> station -> you: the station stands directly in front of its own planet (the planet is drawn behind the station from this side)
     _m.lookAt(_zero, gA ? (WP.gate === 1 ? _a.copy(gA.n).negate() : _a.copy(gA.n)) : _a.copy(st.pos).sub(S.pos).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
-    fxUntil = performance.now() + 4000; S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); wpnChip(); fadeOut(); if (WP.far) { fadeEl.style.transition = 'opacity 1.1s ease-out'; setTimeout(() => { fadeEl.style.background = ''; }, 1300); }
+    fxUntil = performance.now() + 4000; S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); wpnChip(); fadeOut(); if (WP.far) { fadeEl.style.transition = WP.gate === 2 ? 'opacity 1.5s ease-out' : 'opacity 1.1s ease-out'; setTimeout(() => { fadeEl.style.background = ''; }, 1700); }
   }
 }
 
@@ -3163,7 +3164,7 @@ function frame(now) {
   _qa.setFromAxisAngle(X, -0.07); camera.quaternion.copy(_qLk).multiply(_qa);
   if (S.shake > 0) { const a = S.shake * 0.35; camera.position.x += Math.sin(tAcc * 71) * a; camera.position.y += Math.sin(tAcc * 83) * a; }
   _qa.setFromAxisAngle(Z, -S.sx * 0.05); camera.quaternion.multiply(_qa);
-  const wantFov = 64 + clamp(S.speed / 150, 0, 1.4) * 12 + (S.boosting ? 13 : 0) + (S.mode === 'warp' && WP.far ? Math.min(34, WP.t * 24) : 0);   // jump: the view stretches wide, then springs back on arrival
+  const wantFov = 64 + clamp(S.speed / 150, 0, 1.4) * 12 + (S.boosting ? 13 : 0) + (S.mode === 'warp' && WP.far ? (WP.gate === 2 ? Math.min(10, WP.t * 9) : Math.min(34, WP.t * 24)) : 0);   // jump: the view stretches wide, then springs back on arrival
   if (Math.abs(camera.fov - wantFov) > 0.05) { camera.fov = damp(camera.fov, wantFov, S.boosting ? 6 : 3.5, dt); camera.updateProjectionMatrix(); }
   if (S.mode === 'dock') {
     // hangar view: the ship sits on its platform, the camera swings slowly round it (like Galaxy on Fire 2)
