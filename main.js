@@ -816,7 +816,7 @@ function metalizeManta(g) {
 //      an engine bay with 8 square nozzles carved into the back of the dome, two weapon pockets and a tractor-beam bay pressed into the ring). ~9,600 triangles, built once ----
 const NH_NOZ = [];   // [x, y, z of the glowing face, size] - filled in from the model
 const MUZ_NH = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];   // gun muzzles - filled in from the weapon pockets
-let newHull = null; const nhFl = [], nhCones = [];
+let newHull = null; const nhFl = [], nhCones = [], NHD = [], _nhQ = new THREE.Quaternion(), _nhP = new THREE.Vector3(), _nhS = new THREE.Vector3(), _nhM = new THREE.Matrix4();
 const NH_PARAMS = {"winAng": 180, "hsRing": 1, "wingY": -0.3, "wingTip": 4.4, "wingRootZ": -0.2, "wingRearRootZ": 1.9, "wingTipZ": -1.3, "wingT": 0.06, "wpX": 0.39, "wpUp": 0.42, "wpW": 0.28, "tbUp": -0.91, "tbW": 0.22, "tbD": 0.09, "tbH": 0.47, "engRowGap": 1.39, "engSpread": 1.11}, NH_COLORS = {"white": "#40006b", "chrome": "#c9d6f0", "seam": "#1a2132", "bayM": "#2c3446", "dark": "#0e1119", "engGlow": "#cfe6ff", "red": "#39445c"}, NH_ENGINE_COLORS = {"dark": "#0041f5", "bayM": "#030303", "engGlow": "#9ebb11", "white": "#546e0d"}, NH_PARTS = {"wings": {"off": [0, 0, 0], "scl": [1, 3, 1], "rot": [0, 0, 0]}, "glass": {"off": [0, 0, 0], "scl": [1, 1.23, 1.02], "rot": [0, 0, 0]}}, NH_SKIN = {"pat": "hex", "size": 0.82, "depth": 2, "ao": 1, "glow": 0.37, "glowCol": "#a6ff00"}, NH_HEAD = 1.6, NH_SCALE = 1.45, NH_UP = 0.5, NH_FWD = -1.2;
 // white/red dome ship v2. forward = -z, dome radius ~1
 function buildDomeModel(P = {}, MAT = null) {
@@ -1226,6 +1226,12 @@ function buildNewHull() {
   // the 3D skin chosen in the workshop: one small texture made in code, on the white and red hull colours (and their per-part copies)
   if (NH_SKIN && NH_SKIN.pat !== 'none') { const U = { skinMap: { value: domeSkinTex(THREE, NH_SKIN.pat) }, skinScale: { value: 1 / NH_SKIN.size }, skinDepth: { value: NH_SKIN.depth }, skinAO: { value: NH_SKIN.ao }, skinGlow: { value: new THREE.Color(NH_SKIN.glowCol).multiplyScalar(NH_SKIN.glow) }, skinHead: { value: NH_HEAD } };
     const sk = new Set([MAT.white, MAT.red, own.white, own.red].filter(Boolean)); for (const o of g.children) if (sk.has(o.material)) domeSkinMat(o.material, U); }
+  // one draw call per material: all hull pieces that share a material are merged into one mesh (before: ~38 pieces = ~38 draw calls; now ~10). same triangles, same look.
+  { const byM = new Map(); for (const o of [...g.children]) { if (!o.isMesh) continue; (byM.get(o.material) || byM.set(o.material, []).get(o.material)).push(o); }
+    for (const [mat, list] of byM) { if (list.length < 2) continue;
+      const geos = list.map(o => { const q = o.geometry; if (!q.attributes.normal) q.computeVertexNormals(); for (const k of Object.keys(q.attributes)) if (k !== 'position' && k !== 'normal') q.deleteAttribute(k);
+        if (!q.index) { const n = q.attributes.position.count, ix = new (n > 65535 ? Uint32Array : Uint16Array)(n); for (let i = 0; i < n; i++) ix[i] = i; q.setIndex(new THREE.BufferAttribute(ix, 1)); } return q; });
+      const mg = mergeGeometries(geos); if (!mg) continue; list.forEach(o => { g.remove(o); o.geometry.dispose(); }); const m = new THREE.Mesh(mg, mat); m.userData.part = 'merged'; g.add(m); } }
   // real metal look: the ship reflection cube the other hulls use
   const seen = new Set(); g.traverse(o => { if (!o.isMesh) return; const m = o.material; if (seen.has(m) || !m.isMeshStandardMaterial) return; seen.add(m); m.envMap = SHIP_ENV; m.envMapIntensity = 1.6; m.needsUpdate = true; });
   // the model looks along +z (windows in front); the game flies along -z, so turn it round and size it
@@ -1240,8 +1246,12 @@ function applyShip() {
   const alt = save.ship === 1, nh = save.ship === 0;
   if (nh && !newHull) {   /* the new STAR COURIER hull + its own thrust: a glow, a hot core and three flame cones per square nozzle (same flame colours as before: blue, orange on boost) */
     newHull = buildNewHull(); shipBody.add(newHull);
-    for (const [x, y, z, w] of NH_NOZ) { const k = w / 0.62; const a = glowSprite(0x7fe9ff, 1.5, 0.32); a.position.set(x, y, z + 0.2 * k); a.userData.sc = 0.15 * k; shipBody.add(a); const b = glowSprite(0xffffff, 0.9, 0.6); b.position.set(x, y, z + 0.08 * k); b.userData.sc = 0.22 * k; b.userData.core = 1; shipBody.add(b); nhFl.push(a, b);
-      FL.forEach((L, j) => { const fc = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 8, 1, true), nhFlameMats[j]); fc.rotation.set(Math.PI / 2, 0, 0); fc.userData = { L, k: k * 0.85, z0: z, ph: x * 2.3 + y * 5 + j }; fc.position.set(x, y, z); shipBody.add(fc); nhCones.push(fc); }); } }   /* square (4-sided) flames to match the square nozzles */
+    /* the thrust of all 8 nozzles is 5 draw calls (before: 40 - a glow and a core sprite plus 3 flame cones per nozzle): one instanced layer each, same look */
+    const N = NH_NOZ.length, gm = (c, o) => new THREE.MeshBasicMaterial({ map: glowTex, color: c, transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false });
+    const iq = (geo, mat) => { const m = new THREE.InstancedMesh(geo, mat, N); m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); shipBody.add(m); return m; };
+    const gO = iq(new THREE.PlaneGeometry(1, 1), gm(0x7fe9ff, 0.32)), gC = iq(new THREE.PlaneGeometry(1, 1), gm(0xffffff, 0.6)); gC.userData.core = 1; nhFl.push(gO, gC);
+    FL.forEach((L, j) => { const c = iq(new THREE.ConeGeometry(1, 1, 8, 1, true).rotateX(Math.PI / 2), nhFlameMats[j]); c.userData.L = L; nhCones.push(c); });
+    NH_NOZ.forEach(([x, y, z, w]) => { const k = w / 0.62; NHD.push({ x, y, z, k, ph: x * 2.3 + y * 5 }); }); }
   if (alt && !altShip) {
     altShip = buildManta(); metalizeManta(altShip); altShip.scale.setScalar(0.55); altShip.position.set(0, 0.4, -0.3); shipBody.add(altShip);
     for (const e of altShip.userData.eng) { const ex = e[0] * 0.55, ey = e[1] * 0.55 + 0.4, ez = e[2] * 0.55 - 0.3; const a = glowSprite(0x7fe9ff, 1.5, 0.32); a.position.set(ex, ey, ez + 0.3); a.userData.sc = 0.6; shipBody.add(a); const b = glowSprite(0xffffff, 0.9, 0.6); b.position.set(ex, ey, ez + 0.1); b.userData.sc = 0.6; b.userData.core = 1; shipBody.add(b); altFl.push(a, b);
@@ -1536,7 +1546,7 @@ function dropLoot(p, val, ore, n) {
     const l = loot.find(o => !o.active); if (!l) return;
     l.active = true; l.pos.copy(p); l.vel.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).multiplyScalar(rnd(8, 22)); l.val = val; l.ore = ore; l.life = 60; l.nm = ''; l.s = ore ? rnd(0.8, 1.3) : 1;
     let hex = 0xffd166; if (ore) { const o = pickOre(); hex = o[1]; l.nm = o[0]; l.val = o[2]; }
-    const ix = loot.indexOf(l); lootMesh.setColorAt(ix, _col.set(hex)); lootGlow.setColorAt(ix, _col.set(hex)); lootMesh.instanceColor.needsUpdate = lootGlow.instanceColor.needsUpdate = true;
+    l.hex = hex;   // written when drawn
   }
 }
 const _col = new THREE.Color();
@@ -1565,7 +1575,7 @@ function fireBolt(pos, dir, speed, dmg, enemy, w) {
   b.pos.copy(pos); b.vel.copy(dir).multiplyScalar(speed); b.life = enemy ? 2.6 : 1.7; b.enemy = enemy; b.dmg = dmg;
   b.sx = w.t * 1.3; b.sz = w.l * 1.2; b.hr = w.hr; b.wob = w.wob; b.age = 0;
   if (w.wob) { b.p1.crossVectors(dir, Y); if (b.p1.lengthSq() < 0.01) b.p1.set(1, 0, 0); b.p1.normalize(); b.p2.crossVectors(dir, b.p1).normalize(); }
-  { const bi = bolts.indexOf(b); _col.set(enemy ? 0xff5a2a : w.c); boltMesh.setColorAt(bi, _col); boltHalo.setColorAt(bi, _col); boltMesh.instanceColor.needsUpdate = true; boltHalo.instanceColor.needsUpdate = true; }
+  b.c = enemy ? 0xff5a2a : w.c;   // its colour is written when it is drawn (only live bolts are drawn)
 }
 
 // ---------- debris / sparks + explosions ----------
@@ -2416,10 +2426,12 @@ const TR_R = stations.map((st) => { let mx = 0; const v = V3(); st.g.updateMatri
 // ---- STARGATES: the ONLY way between solar systems. one ring per system, a little way out from the system's first station
 //      (on the far side from its planet, so a planet is never near it). fly through the glowing middle -> you come out of the other system's gate.
 //      ~2,600 triangles each, drawn only in its own system and only within 15 km. ----
-const GATE_R = 80, GATES = SYSTEMS.map((nm, k) => { const si = firstOfSys(k), st = stations[si], od = st.pl.off.clone().normalize(), sd = V3().crossVectors(od, Y).normalize();
-  // at least 6 km from EVERY station and well clear of every planet of the system: try directions around the first station, keep the first that fits
+// the two stargates sit by fixed worlds and never move: PEXTRA (PIKRO system) and VELNOR (YAPZO system)
+const GATE_AT = ['PEXTRA', 'VELNOR'];
+const GATE_R = 80, GATES = SYSTEMS.map((nm, k) => { const si = stations.findIndex(q => q.name === GATE_AT[k]), a0 = 0, st = stations[si], od = st.pl.off.clone().normalize(), sd = V3().crossVectors(od, Y).normalize();
+  // at least 6 km from EVERY station and well clear of every planet of the system: try directions around the chosen station , keep the first that fits
   let pos = null; const ok = (p) => stations.every(q => q.sys !== k || q.pos.distanceTo(p) >= 6500) && planets.every(q => q.sys !== k || q.pos.distanceTo(p) - q.r >= 3000);
-  for (let r = 7000; !pos && r <= 16000; r += 1500) for (let a = 0; a < 16 && !pos; a++) { const ang = a * Math.PI / 8, c = st.pos.clone().addScaledVector(od, -Math.cos(ang) * r).addScaledVector(sd, Math.sin(ang) * r); if (ok(c)) pos = c; }
+  for (let r = 7000; !pos && r <= 16000; r += 1500) for (let a = 0; a < 16 && !pos; a++) { const ang = ((a + a0) % 16) * Math.PI / 8, c = st.pos.clone().addScaledVector(od, -Math.cos(ang) * r).addScaledVector(sd, Math.sin(ang) * r); if (ok(c)) pos = c; }
   if (!pos) pos = st.pos.clone().addScaledVector(od, -9000);
   const n = st.pos.clone().sub(pos).setY(0).normalize();   // n: the side you fly in from (the gate faces its station)
   return { k, si, pos, n, g: null, side: 0, hz: null, top: null }; });
@@ -3119,8 +3131,16 @@ function frame(now) {
   const fl = 0.7 + S.speed / 220 + (S.boosting ? 0.9 : 0), flick = 0.9 + Math.sin(tAcc * 50) * 0.1;
   flames.forEach(f => { if (f.userData.pts) f.material.size = 2.9 * fl * flick * f.userData.sc; else f.scale.setScalar(1.9 * fl * flick * f.userData.sc); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => { if (f.userData.pts) f.material.size = 1.05 * fl * flick * f.userData.sc; else f.scale.setScalar(0.7 * fl * flick * f.userData.sc); }); flameMats.forEach((fm, k) => fm.color.setHex(flameCols[k][S.boosting ? 1 : 0])); FINST.forEach(F => { const L = F.L, es = ENGS[0][3]; ENGS.forEach((en, i) => { const ph = i * 1.7 + F.k, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + ph) + 0.05 * Math.sin(tAcc * 91 + ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); _fd.position.set(en[0], en[1], en[2] + es * (0.9 + len / 2)); _fd.rotation.set(Math.PI / 2, 0, 0); _fd.scale.set(r * es, len * es, r * es); _fd.updateMatrix(); F.im.setMatrixAt(i, _fd.matrix); }); F.im.instanceMatrix.needsUpdate = true; });
   if (save.ship === 0) { const th = Math.min(1, S.speed / 90), bo = S.boosting ? 1 : 0;   // th: how hard the engines push (0 when standing still)
-    nhFl.forEach(f => { f.scale.setScalar((f.userData.core ? 0.7 * (0.8 + 0.2 * th + 0.3 * bo) : 1.9 * (0.4 + 0.6 * th + 1.3 * bo)) * flick * f.userData.sc); f.material.color.setHex(f.userData.core ? (S.boosting ? 0x9dff70 : 0xf6ffc8) : (S.boosting ? 0x169a00 : 0xc8f030)); }); nhFlameMats.forEach((fm, k) => fm.color.setHex(nhFlameCols[k][S.boosting ? 1 : 0]));
-    for (const c of nhCones) { const u = c.userData, L = u.L, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + u.ph) + 0.05 * Math.sin(tAcc * 91 + u.ph * 3), len = L.len * (0.15 + 1.4 * th + 2.4 * bo) * fk * u.k, r = L.r * (0.8 + 0.35 * th + 0.6 * bo) * u.k * 0.6; c.visible = c.visible && (th > 0.04 || bo > 0); c.scale.set(r, len, r); c.position.z = u.z0 + len / 2; } }   // new hull: no flame at all when stopped (only the lit nozzles), flames grow with speed and get much longer on boost
+    if (nhFl.length) { const [gO, gC] = nhFl; _nhQ.copy(ship.quaternion).multiply(shipBody.quaternion).invert().multiply(camera.quaternion);   // glows face the camera, like sprites
+      const sO = 1.9 * (0.4 + 0.6 * th + 1.3 * bo) * flick, sC = 0.7 * (0.8 + 0.2 * th + 0.3 * bo) * flick;
+      NHD.forEach((d, i) => { gO.setMatrixAt(i, _nhM.compose(_nhP.set(d.x, d.y, d.z + 0.2 * d.k), _nhQ, _nhS.setScalar(sO * 0.15 * d.k))); gC.setMatrixAt(i, _nhM.compose(_nhP.set(d.x, d.y, d.z + 0.08 * d.k), _nhQ, _nhS.setScalar(sC * 0.22 * d.k))); });
+      gO.instanceMatrix.needsUpdate = gC.instanceMatrix.needsUpdate = true; gO.material.color.setHex(S.boosting ? 0x169a00 : 0xc8f030); gC.material.color.setHex(S.boosting ? 0x9dff70 : 0xf6ffc8); }
+    nhFlameMats.forEach((fm, k) => fm.color.setHex(nhFlameCols[k][S.boosting ? 1 : 0]));
+    const fOn = th > 0.04 || bo > 0;
+    nhCones.forEach((c, j) => { const L = c.userData.L; c.visible = c.visible && fOn; if (!c.visible) return;
+      NHD.forEach((d, i) => { const ph = d.ph + j, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + ph) + 0.05 * Math.sin(tAcc * 91 + ph * 3), u = d.k * 0.85, len = L.len * (0.15 + 1.4 * th + 2.4 * bo) * fk * u, r = L.r * (0.8 + 0.35 * th + 0.6 * bo) * u * 0.6;
+        _nhQ.identity(); c.setMatrixAt(i, _nhM.compose(_nhP.set(d.x, d.y, d.z + len / 2), _nhQ, _nhS.set(r, r, len))); });
+      c.instanceMatrix.needsUpdate = true; }); }   // new hull: no flame at all when stopped (only the lit nozzles), flames grow with speed and get much longer on boost
   if (save.ship === 1) { const bi = S.boosting ? 1 : 0; altFl.forEach(f => { f.scale.setScalar((f.userData.core ? 0.7 : 1.9) * fl * flick * f.userData.sc); f.material.color.setHex(f.userData.core ? MF_CORE[bi] : MF_GLOW[bi]); });
     mantaFlameMats.forEach((m, k) => m.color.setHex(MF_COL[k][bi])); mantaNozMat.color.setHex(bi ? 0x1a3cff : 0x8a3cff);
     for (const c of altCones) { const u = c.userData; if (!u.L) continue; const L = u.L, fk = 0.86 + 0.1 * Math.sin(tAcc * (36 + L.k * 19) + u.ph) + 0.05 * Math.sin(tAcc * 97 + u.ph * 3), len = u.nr * (L.len * (0.4 + 0.6 * fl) * fk + 0.3), r = u.nr * L.r * (0.9 + 0.1 * fl); c.scale.set(r, len, r); c.position.z = u.z0 + len / 2; } }   // MANTA flames flicker and stretch with speed / boost
@@ -3155,22 +3175,20 @@ function frame(now) {
     dummy.updateMatrix(); a.mesh.setMatrixAt(a.idx, dummy.matrix);
   }
   astMeshes.forEach(m => m.instanceMatrix.needsUpdate = true);
-  for (let i = 0; i < LOOT_N; i++) {
-    const l = loot[i];
-    if (!l.active) { dummy.position.set(0, -99999, 0); dummy.scale.setScalar(0.0001); dummy.quaternion.identity(); dummy.updateMatrix(); lootMesh.setMatrixAt(i, dummy.matrix); lootGlow.setMatrixAt(i, dummy.matrix); continue; }
-    dummy.position.copy(l.pos); dummy.rotation.set(tAcc * 1.1 + i, tAcc * 1.8 + i, 0); dummy.scale.set(l.ore ? 1.5 * l.s : 1.0, l.ore ? 1.2 * l.s : 1.7, l.ore ? 1.0 * l.s : 1.0); dummy.updateMatrix(); lootMesh.setMatrixAt(i, dummy.matrix);
-    dummy.quaternion.copy(camera.quaternion); dummy.scale.setScalar(8); dummy.updateMatrix(); lootGlow.setMatrixAt(i, dummy.matrix);
-  }
-  lootMesh.instanceMatrix.needsUpdate = true; lootGlow.instanceMatrix.needsUpdate = true;
+  { let n = 0;   /* only loot that is really floating there is drawn */
+    for (let i = 0; i < LOOT_N; i++) { const l = loot[i]; if (!l.active) continue;
+      dummy.position.copy(l.pos); dummy.rotation.set(tAcc * 1.1 + i, tAcc * 1.8 + i, 0); dummy.scale.set(l.ore ? 1.5 * l.s : 1.0, l.ore ? 1.2 * l.s : 1.7, l.ore ? 1.0 * l.s : 1.0); dummy.updateMatrix(); lootMesh.setMatrixAt(n, dummy.matrix);
+      dummy.quaternion.copy(camera.quaternion); dummy.scale.setScalar(8); dummy.updateMatrix(); lootGlow.setMatrixAt(n, dummy.matrix); _col.set(l.hex || 0xffd166); lootMesh.setColorAt(n, _col); lootGlow.setColorAt(n, _col); n++; }
+    lootMesh.count = lootGlow.count = n; lootMesh.visible = lootGlow.visible = n > 0;
+    if (n) { lootMesh.instanceMatrix.needsUpdate = lootGlow.instanceMatrix.needsUpdate = true; lootMesh.instanceColor.needsUpdate = lootGlow.instanceColor.needsUpdate = true; } }
   // bolts
   boltT.value = tAcc % 100;
-  for (let i = 0; i < BOLT_N; i++) {
-    const b = bolts[i];
-    if (b.life <= 0) { dummy.position.set(0, -99999, 0); dummy.scale.setScalar(0.0001); dummy.quaternion.identity(); }
-    else { dummy.position.copy(b.pos); dummy.scale.set(b.sx, b.sx, b.sz); _m.lookAt(_zero, b.vel, Y); dummy.quaternion.setFromRotationMatrix(_m); }
-    dummy.updateMatrix(); boltMesh.setMatrixAt(i, dummy.matrix); boltHalo.setMatrixAt(i, dummy.matrix);
-  }
-  boltMesh.instanceMatrix.needsUpdate = true; boltHalo.instanceMatrix.needsUpdate = true;
+  { let n = 0;   /* only the bolts in flight are drawn (before: all 120 were drawn every frame, the dead ones shrunk away - ~89,000 hidden triangles a frame) */
+    for (let i = 0; i < BOLT_N; i++) { const b = bolts[i]; if (b.life <= 0) continue;
+      dummy.position.copy(b.pos); dummy.scale.set(b.sx, b.sx, b.sz); _m.lookAt(_zero, b.vel, Y); dummy.quaternion.setFromRotationMatrix(_m);
+      dummy.updateMatrix(); boltMesh.setMatrixAt(n, dummy.matrix); boltHalo.setMatrixAt(n, dummy.matrix); _col.set(b.c); boltMesh.setColorAt(n, _col); boltHalo.setColorAt(n, _col); n++; }
+    boltMesh.count = boltHalo.count = n; boltMesh.visible = boltHalo.visible = n > 0;
+    if (n) { for (const m of [boltMesh, boltHalo]) { m.instanceMatrix.clearUpdateRanges(); m.instanceMatrix.addUpdateRange(0, n * 16); m.instanceMatrix.needsUpdate = true; m.instanceColor.clearUpdateRanges(); m.instanceColor.addUpdateRange(0, n * 3); m.instanceColor.needsUpdate = true; } } }
   updCurSys();
   let pBuilt = false; const PSIZE = 2, PSEE = 0.5, PFAR = 8;   // every planet is drawn twice as big
   fwdOf(S.q, fwd); const here0 = nearPlanet(); if (stations[homeSt].sys !== curSys) { let bd = 1e18; stations.forEach((q, i) => { if (q.sys === curSys) { const dd = S.pos.distanceToSquared(q.pos); if (dd < bd) { bd = dd; homeSt = anchorSt = i; } } }); }
