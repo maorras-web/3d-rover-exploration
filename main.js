@@ -818,6 +818,16 @@ function metalizeManta(g) {
 const NH_NOZ = [];   // [x, y, z of the glowing face, size] - filled in from the model
 const MUZ_NH = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];   // gun muzzles - filled in from the weapon pockets
 let newHull = null; const nhFl = [], nhCones = [], NHD = [], _nhQ = new THREE.Quaternion(), _nhP = new THREE.Vector3(), _nhS = new THREE.Vector3(), _nhM = new THREE.Matrix4();
+let NH_MCT = null; const NH_MATCAP = true, NH_MC_K = 1.6;
+// a metal's colour seen in a matcap: keep its hue, but lift dark colours (a shiny metal shows its reflections even when its paint is dark)
+function nhMcCol(m, lift) { const c = m.color.clone(), h = {}; if (!lift) return c.multiplyScalar(NH_MC_K * 1.2); c.getHSL(h, THREE.SRGBColorSpace); const sat = h.s * (1 - 0.4 * m.metalness); c.setHSL(h.h, sat, Math.max(h.l, 0.3 + 0.35 * m.metalness * (1 - sat)), THREE.SRGBColorSpace); return c.multiplyScalar(NH_MC_K); }
+function nhMatcap() { if (NH_MCT) return NH_MCT;   // drawn once: a cool steel ball - bright sky above, dark horizon line, soft ground bounce, a rim of light and one sharp highlight
+  NH_MCT = canvasTex(128, 128, (x) => { const c = 64, R = 64; x.fillStyle = '#000'; x.fillRect(0, 0, 128, 128); x.save(); x.beginPath(); x.arc(c, c, R, 0, Math.PI * 2); x.clip();
+    let gr = x.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, '#f4f7fc'); gr.addColorStop(0.3, '#c9d1de'); gr.addColorStop(0.55, '#929db0'); gr.addColorStop(0.68, '#626a7b'); gr.addColorStop(0.72, '#30353f'); gr.addColorStop(0.86, '#555c6c'); gr.addColorStop(1, '#7a8396'); x.fillStyle = gr; x.fillRect(0, 0, 128, 128);
+    gr = x.createRadialGradient(c, c, 0, c, c, R); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.7, 'rgba(0,0,0,0.12)'); gr.addColorStop(0.93, 'rgba(0,0,0,0.35)'); gr.addColorStop(1, 'rgba(0,0,0,0.2)'); x.fillStyle = gr; x.fillRect(0, 0, 128, 128);
+    gr = x.createRadialGradient(c, c, R * 0.86, c, c, R); gr.addColorStop(0, 'rgba(190,215,255,0)'); gr.addColorStop(1, 'rgba(190,215,255,0.55)'); x.fillStyle = gr; x.fillRect(0, 0, 128, 128);
+    gr = x.createRadialGradient(44, 36, 0, 44, 36, 22); gr.addColorStop(0, 'rgba(255,255,255,0.95)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 128, 128); x.restore(); });
+  NH_MCT.colorSpace = THREE.SRGBColorSpace; return NH_MCT; }
 const NH_PARAMS = {"winAng": 180, "hsRing": 1, "wingY": -0.3, "wingTip": 4.4, "wingRootZ": -0.2, "wingRearRootZ": 1.9, "wingTipZ": -1.3, "wingT": 0.06, "wpX": 0.39, "wpUp": 0.42, "wpW": 0.28, "tbUp": -0.91, "tbW": 0.22, "tbD": 0.09, "tbH": 0.47, "engRowGap": 1.39, "engSpread": 1.11}, NH_COLORS = {"white": "#40006b", "chrome": "#c9d6f0", "seam": "#1a2132", "bayM": "#2c3446", "dark": "#0e1119", "engGlow": "#cfe6ff", "red": "#39445c"}, NH_ENGINE_COLORS = {"dark": "#0041f5", "bayM": "#030303", "engGlow": "#9ebb11", "white": "#546e0d"}, NH_PARTS = {"wings": {"off": [0, 0, 0], "scl": [1, 3, 1], "rot": [0, 0, 0]}, "glass": {"off": [0, 0, 0], "scl": [1, 1.23, 1.02], "rot": [0, 0, 0]}}, NH_SKIN = {"pat": "hex", "size": 0.82, "depth": 2, "ao": 1, "glow": 0.37, "glowCol": "#a6ff00"}, NH_HEAD = 1.6, NH_SCALE = 1.45, NH_UP = 0.5, NH_FWD = -1.2;
 // white/red dome ship v2. forward = -z, dome radius ~1
 function buildDomeModel(P = {}, MAT = null) {
@@ -1216,6 +1226,7 @@ function buildNewHull() {
     const geo = o.geometry.clone(); geo.applyMatrix4(o.matrixWorld);
     if (o.matrixWorld.determinant() < 0 && geo.index) { const ix = geo.index.array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; } }
     let m = o.material; const k = key.get(m);
+    if (NH_MATCAP && o.userData.part === 'horseshoe' && k === 'white') { own.hsSteel = own.hsSteel || m.clone(); own.hsSteel.color.lerp(new THREE.Color(0xb4bdd2), 0.55); m = own.hsSteel; }   // the ring and prongs: purple-tinted steel (with the skin they read as steel)
     if (o.userData.part === 'enginevents' && k && NH_ENGINE_COLORS[k]) { own[k] = own[k] || m.clone(); own[k].color.set(NH_ENGINE_COLORS[k]); m = own[k]; }   // the engine bay has its own colours
     g.add(new THREE.Mesh(geo, m)); g.children[g.children.length - 1].userData.part = o.userData.part; }
   // the workshop's per-part moves / turns / stretches (wings 3x thicker, taller windows), about the same pivot the workshop uses
@@ -1225,7 +1236,7 @@ function buildNewHull() {
       const M = new THREE.Matrix4().compose(new THREE.Vector3(pv.x + m * p.off[0], pv.y + p.off[1], pv.z + p.off[2]), new THREE.Quaternion().setFromEuler(new THREE.Euler(p.rot[0] * Math.PI / 180, m * p.rot[1] * Math.PI / 180, m * p.rot[2] * Math.PI / 180)), new THREE.Vector3(...p.scl)).multiply(new THREE.Matrix4().makeTranslation(-pv.x, -pv.y, -pv.z));
       for (const o of bins[key]) o.geometry.applyMatrix4(M); } }   // applyMatrix4 also turns the normals, so the smooth shading stays as designed
   // the 3D skin chosen in the workshop: one small texture made in code, on the white and red hull colours (and their per-part copies)
-  if (NH_SKIN && NH_SKIN.pat !== 'none') { const U = { skinMap: { value: domeSkinTex(THREE, NH_SKIN.pat) }, skinScale: { value: 1 / NH_SKIN.size }, skinDepth: { value: NH_SKIN.depth }, skinAO: { value: NH_SKIN.ao }, skinGlow: { value: new THREE.Color(NH_SKIN.glowCol).multiplyScalar(NH_SKIN.glow) }, skinHead: { value: NH_HEAD } };
+  if (NH_SKIN && NH_SKIN.pat !== 'none' && !NH_MATCAP) { const U = { skinMap: { value: domeSkinTex(THREE, NH_SKIN.pat) }, skinScale: { value: 1 / NH_SKIN.size }, skinDepth: { value: NH_SKIN.depth }, skinAO: { value: NH_SKIN.ao }, skinGlow: { value: new THREE.Color(NH_SKIN.glowCol).multiplyScalar(NH_SKIN.glow) }, skinHead: { value: NH_HEAD } };
     const sk = new Set([MAT.white, MAT.red, own.white, own.red].filter(Boolean)); for (const o of g.children) if (sk.has(o.material)) domeSkinMat(o.material, U); }
   // one draw call per material: all hull pieces that share a material are merged into one mesh (before: ~38 pieces = ~38 draw calls; now ~10). same triangles, same look.
   { const byM = new Map(); for (const o of [...g.children]) { if (!o.isMesh) continue; (byM.get(o.material) || byM.set(o.material, []).get(o.material)).push(o); }
@@ -1235,6 +1246,10 @@ function buildNewHull() {
       const mg = mergeGeometries(geos); if (!mg) continue; list.forEach(o => { g.remove(o); o.geometry.dispose(); }); const m = new THREE.Mesh(mg, mat); m.userData.part = 'merged'; g.add(m); } }
   // real metal look: the ship reflection cube the other hulls use
   const seen = new Set(); g.traverse(o => { if (!o.isMesh) return; const m = o.material; if (seen.has(m) || !m.isMeshStandardMaterial) return; seen.add(m); m.envMap = SHIP_ENV; m.envMapIntensity = 1.6; m.needsUpdate = true; });
+  // hand-painted metal: every lit metal surface reads its look from one small pre-drawn picture of a shiny ball (a "matcap") - one texture read per pixel,
+  // no light or reflection maths at all. it always looks lit from the camera side, so the hull colour shows in any light.
+  if (NH_MATCAP) { const conv = new Map(); g.traverse(o => { if (!o.isMesh || !o.material.isMeshStandardMaterial) return; const m = o.material;
+    if (!conv.has(m)) conv.set(m, new THREE.MeshMatcapMaterial({ matcap: nhMatcap(), color: nhMcCol(m, m === MAT.white || m === own.hsSteel || m === own.white), side: m.side, transparent: m.transparent, opacity: m.opacity })); o.material = conv.get(m); }); }
   // the model looks along +z (windows in front); the game flies along -z, so turn it round and size it
   g.rotation.y = Math.PI; g.scale.setScalar(NH_SCALE); g.position.set(0, NH_UP, NH_FWD);   // a little up and forward, so the whole ship stays clear of the radar
   const T = (a) => [-a[0] * NH_SCALE, a[1] * NH_SCALE + NH_UP, -a[2] * NH_SCALE + NH_FWD];
