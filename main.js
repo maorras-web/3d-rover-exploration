@@ -822,11 +822,17 @@ let NH_MCT = null; const NH_MATCAP = true, NH_MC_K = 1.6;
 // a metal's colour seen in a matcap: keep its hue, but lift dark colours (a shiny metal shows its reflections even when its paint is dark)
 function nhMcCol(m, lift) { const c = m.color.clone(), h = {}; if (!lift) return c.multiplyScalar(NH_MC_K * 1.2); c.getHSL(h, THREE.SRGBColorSpace); const sat = h.s * (1 - 0.4 * m.metalness); c.setHSL(h.h, sat, Math.max(h.l, 0.3 + 0.35 * m.metalness * (1 - sat)), THREE.SRGBColorSpace); return c.multiplyScalar(NH_MC_K); }
 function nhMatcap() { if (NH_MCT) return NH_MCT;   // drawn once: a cool steel ball - bright sky above, dark horizon line, soft ground bounce, a rim of light and one sharp highlight
-  NH_MCT = canvasTex(128, 128, (x) => { const c = 64, R = 64; x.fillStyle = '#000'; x.fillRect(0, 0, 128, 128); x.save(); x.beginPath(); x.arc(c, c, R, 0, Math.PI * 2); x.clip();
-    let gr = x.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, '#f4f7fc'); gr.addColorStop(0.3, '#c9d1de'); gr.addColorStop(0.55, '#929db0'); gr.addColorStop(0.68, '#626a7b'); gr.addColorStop(0.72, '#30353f'); gr.addColorStop(0.86, '#555c6c'); gr.addColorStop(1, '#7a8396'); x.fillStyle = gr; x.fillRect(0, 0, 128, 128);
-    gr = x.createRadialGradient(c, c, 0, c, c, R); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.7, 'rgba(0,0,0,0.12)'); gr.addColorStop(0.93, 'rgba(0,0,0,0.35)'); gr.addColorStop(1, 'rgba(0,0,0,0.2)'); x.fillStyle = gr; x.fillRect(0, 0, 128, 128);
-    gr = x.createRadialGradient(c, c, R * 0.86, c, c, R); gr.addColorStop(0, 'rgba(190,215,255,0)'); gr.addColorStop(1, 'rgba(190,215,255,0.55)'); x.fillStyle = gr; x.fillRect(0, 0, 128, 128);
-    gr = x.createRadialGradient(44, 36, 0, 44, 36, 22); gr.addColorStop(0, 'rgba(255,255,255,0.95)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 128, 128); x.restore(); });
+  NH_MCT = canvasTex(256, 256, (x) => { const c = 128, R = 128; x.fillStyle = '#000'; x.fillRect(0, 0, 256, 256); x.save(); x.beginPath(); x.arc(c, c, R, 0, Math.PI * 2); x.clip();
+    // chrome-like surroundings reflected in a ball: bright sky, a crisp dark horizon, darker ground with a soft bounce
+    let gr = x.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.22, '#dfe6f1'); gr.addColorStop(0.46, '#8c97aa'); gr.addColorStop(0.6, '#5a6274'); gr.addColorStop(0.64, '#0d0f13'); gr.addColorStop(0.8, '#20242c'); gr.addColorStop(1, '#5c6474'); x.fillStyle = gr; x.fillRect(0, 0, 256, 256);
+    // two studio light strips (the long sharp reflections that make metal read as metal)
+    x.globalCompositeOperation = 'lighter'; for (const [y0, h, a] of [[70, 9, 0.75], [104, 4, 0.5]]) { gr = x.createLinearGradient(0, y0 - h, 0, y0 + h); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.5, 'rgba(255,255,255,' + a + ')'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, y0 - h, 256, h * 2); }
+    x.globalCompositeOperation = 'source-over';
+    // the ball's edge: a little darker, then a cool rim of light
+    gr = x.createRadialGradient(c, c, 0, c, c, R); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.72, 'rgba(0,0,0,0.1)'); gr.addColorStop(0.92, 'rgba(0,0,0,0.38)'); gr.addColorStop(1, 'rgba(0,0,0,0.15)'); x.fillStyle = gr; x.fillRect(0, 0, 256, 256);
+    gr = x.createRadialGradient(c, c, R * 0.88, c, c, R); gr.addColorStop(0, 'rgba(190,215,255,0)'); gr.addColorStop(1, 'rgba(200,222,255,0.6)'); x.fillStyle = gr; x.fillRect(0, 0, 256, 256);
+    // one sharp hot spot
+    gr = x.createRadialGradient(86, 70, 0, 86, 70, 34); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.7)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 256, 256); x.restore(); });
   NH_MCT.colorSpace = THREE.SRGBColorSpace; return NH_MCT; }
 const NH_PARAMS = {"winAng": 180, "hsRing": 1, "wingY": -0.3, "wingTip": 4.4, "wingRootZ": -0.2, "wingRearRootZ": 1.9, "wingTipZ": -1.3, "wingT": 0.06, "wpX": 0.39, "wpUp": 0.42, "wpW": 0.28, "tbUp": -0.91, "tbW": 0.22, "tbD": 0.09, "tbH": 0.47, "engRowGap": 1.39, "engSpread": 1.11}, NH_COLORS = {"white": "#40006b", "chrome": "#c9d6f0", "seam": "#1a2132", "bayM": "#2c3446", "dark": "#0e1119", "engGlow": "#cfe6ff", "red": "#39445c"}, NH_ENGINE_COLORS = {"dark": "#0041f5", "bayM": "#030303", "engGlow": "#9ebb11", "white": "#546e0d"}, NH_PARTS = {"wings": {"off": [0, 0, 0], "scl": [1, 3, 1], "rot": [0, 0, 0]}, "glass": {"off": [0, 0, 0], "scl": [1, 1.23, 1.02], "rot": [0, 0, 0]}}, NH_SKIN = {"pat": "hex", "size": 0.82, "depth": 2, "ao": 1, "glow": 0.37, "glowCol": "#a6ff00"}, NH_HEAD = 1.6, NH_SCALE = 1.45, NH_UP = 0.5, NH_FWD = -1.2;
 // white/red dome ship v2. forward = -z, dome radius ~1
@@ -1249,7 +1255,9 @@ function buildNewHull() {
   // hand-painted metal: every lit metal surface reads its look from one small pre-drawn picture of a shiny ball (a "matcap") - one texture read per pixel,
   // no light or reflection maths at all. it always looks lit from the camera side, so the hull colour shows in any light.
   if (NH_MATCAP) { const conv = new Map(); g.traverse(o => { if (!o.isMesh || !o.material.isMeshStandardMaterial) return; const m = o.material;
-    if (!conv.has(m)) conv.set(m, new THREE.MeshMatcapMaterial({ matcap: nhMatcap(), color: nhMcCol(m, m === MAT.white || m === own.hsSteel || m === own.white), side: m.side, transparent: m.transparent, opacity: m.opacity })); o.material = conv.get(m); }); }
+    if (!conv.has(m)) { const mm = new THREE.MeshMatcapMaterial({ matcap: nhMatcap(), color: nhMcCol(m, m === MAT.white || m === own.hsSteel || m === own.white), side: m.side, transparent: m.transparent, opacity: m.opacity });
+      mm.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('vec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb;', 'float hl = smoothstep(0.6, 1.0, max(matcapColor.r, max(matcapColor.g, matcapColor.b))); vec3 outgoingLight = mix(diffuseColor.rgb * matcapColor.rgb, matcapColor.rgb * 1.2, hl * 0.8);'); };   /* real metal: the paint colours the body, but the bright reflections stay white (a few math ops, no extra texture) */
+      conv.set(m, mm); } o.material = conv.get(m); }); }
   // the model looks along +z (windows in front); the game flies along -z, so turn it round and size it
   g.rotation.y = Math.PI; g.scale.setScalar(NH_SCALE); g.position.set(0, NH_UP, NH_FWD);   // a little up and forward, so the whole ship stays clear of the radar
   const T = (a) => [-a[0] * NH_SCALE, a[1] * NH_SCALE + NH_UP, -a[2] * NH_SCALE + NH_FWD];
@@ -1359,8 +1367,21 @@ hoverGlow.rotation.x = -Math.PI / 2; hoverGlow.position.y = 0.66; hoverGlow.visi
   }
   for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + 0.39; add(new THREE.CylinderGeometry(1.1, 1.1, WH, 8), std(0x2f4a3b, 0x1c3a28), Math.sin(a) * (WR - 1.4), WH / 2, Math.cos(a) * (WR - 1.4)); }
 }
+// fewer draw calls in the hangar, same picture: pieces whose materials are identical (same colour, textures, shine...) share ONE material and are merged into one mesh.
+// (the hangar was ~63 separate pieces = 63 draw calls.) the pad tiles stay separate (their shape changes by system); hidden pieces are dropped.
+{ const sig = (m) => [m.type, m.color && m.color.getHex(), m.emissive && m.emissive.getHex(), m.map && m.map.uuid, m.emissiveMap && m.emissiveMap.uuid, m.bumpMap && m.bumpMap.uuid, m.bumpScale, m.envMap && m.envMap.uuid, m.envMapIntensity,
+    m.roughness, m.metalness, m.opacity, m.transparent, m.side, m.blending, m.depthWrite, m.polygonOffset, m.polygonOffsetFactor, m.flatShading, m.toneMapped, m.vertexColors].join('|');
+  const keep = new Set([...padTiles, hoverGlow]), groups = new Map();
+  for (const o of [...hangar.children]) { if (!o.isMesh || keep.has(o)) continue; if (!o.visible) { hangar.remove(o); continue; } const k = sig(o.material); (groups.get(k) || groups.set(k, []).get(k)).push(o); }
+  for (const list of groups.values()) { if (list.length < 2) continue;
+    const geos = list.map(o => { o.updateMatrix(); const q = o.geometry.clone().applyMatrix4(o.matrix); if (!q.index) q.setIndex([...Array(q.attributes.position.count).keys()]); for (const a of Object.keys(q.attributes)) if (!['position', 'normal', 'uv'].includes(a)) q.deleteAttribute(a); return q; });
+    const mg = mergeGeometries(geos); if (!mg) continue; list.forEach(o => hangar.remove(o)); hangar.add(new THREE.Mesh(mg, list[0].material)); } }
 const padGeo = { box: padTiles[0].geometry, tri: new THREE.CylinderGeometry(0.75, 0.75, 0.14, 3), cir: new THREE.CylinderGeometry(0.52, 0.52, 0.14, 20) };
-const setPad = (sys) => padTiles.forEach((o, k) => { o.geometry = sys === 1 ? (k % 2 ? padGeo.cir : padGeo.tri) : padGeo.box; });
+// the 9 pad markers: two ready-made merged sets (squares / triangles + circles) sharing one material - one draw call, the set is swapped by system
+const padSets = [0, 1].map(sys => { const geos = padTiles.map((o, k) => { o.updateMatrix(); return (sys === 1 ? (k % 2 ? padGeo.cir : padGeo.tri) : padGeo.box).clone().applyMatrix4(o.matrix); });
+  const m = new THREE.Mesh(mergeGeometries(geos), padTiles[0].material); m.visible = sys === 0; hangar.add(m); return m; });
+padTiles.forEach(o => hangar.remove(o));
+const setPad = (sys) => { padSets[0].visible = sys !== 1; padSets[1].visible = sys === 1; };
 let hangarVO = false, vo = 0;
 // recolour the whole hangar to the colour of the station you docked at (hue only; shapes and brightness stay)
 const hangarMats = []; hangar.traverse(ob => { if (ob.material && !hangarMats.some(r => r.m === ob.material)) hangarMats.push({ m: ob.material, c: ob.material.color.clone(), e: ob.material.emissive ? ob.material.emissive.clone() : null }); });
