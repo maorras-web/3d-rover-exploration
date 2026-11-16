@@ -2451,41 +2451,65 @@ const TR_R = stations.map((st) => { let mx = 0; const v = V3(); st.g.updateMatri
 //      ~2,600 triangles each, drawn only in its own system and only within 15 km. ----
 // the two stargates sit by fixed worlds and never move: PEXTRA (PIKRO system) and VELNOR (YAPZO system)
 const GATE_AT = ['PEXTRA', 'VELNOR'];
-const GATE_R = 80, GATES = SYSTEMS.map((nm, k) => { const si = stations.findIndex(q => q.name === GATE_AT[k]), a0 = 0, st = stations[si], od = st.pl.off.clone().normalize(), sd = V3().crossVectors(od, Y).normalize();
+const GATE_R = 160, GATES = SYSTEMS.map((nm, k) => { const si = stations.findIndex(q => q.name === GATE_AT[k]), a0 = 0, st = stations[si], od = st.pl.off.clone().normalize(), sd = V3().crossVectors(od, Y).normalize();
   // at least 6 km from EVERY station and well clear of every planet of the system: try directions around the chosen station , keep the first that fits
   let pos = null; const ok = (p) => stations.every(q => q.sys !== k || q.pos.distanceTo(p) >= 6500) && planets.every(q => q.sys !== k || q.pos.distanceTo(p) - q.r >= 3000);
   for (let r = 7000; !pos && r <= 16000; r += 1500) for (let a = 0; a < 16 && !pos; a++) { const ang = ((a + a0) % 16) * Math.PI / 8, c = st.pos.clone().addScaledVector(od, -Math.cos(ang) * r).addScaledVector(sd, Math.sin(ang) * r); if (ok(c)) pos = c; }
   if (!pos) pos = st.pos.clone().addScaledVector(od, -9000);
   const n = st.pos.clone().sub(pos).setY(0).normalize();   // n: the side you fly in from (the gate faces its station)
   return { k, si, pos, n, g: null, side: 0, hz: null, top: null }; });
-function buildGate(gt) {   /* lean version: 5 draw calls, ~1,300 triangles, no big glow sprite (that covered a large part of the screen) */
-  const g = new THREE.Group(), R0 = GATE_R, put = (geo, x, y, rz, sz) => { if (sz) geo.scale(1, 1, sz); if (rz) geo.rotateZ(rz); geo.translate(x || 0, y || 0, 0); return geo; };
-  const metal = new THREE.MeshStandardMaterial({ color: 0x2a2f3a, metalness: 0.85, roughness: 0.32, envMap: SHIP_ENV, envMapIntensity: 1.3 });
-  const trim = new THREE.MeshStandardMaterial({ color: 0x8e98aa, metalness: 0.9, roughness: 0.22, envMap: SHIP_ENV, envMapIntensity: 1.6 });
-  // the heavy outer ring + the control module: one mesh
-  g.add(new THREE.Mesh(mergeGeometries([new THREE.TorusGeometry(R0 + 6, 7, 6, 40), put(new THREE.BoxGeometry(30, 18, 34), -(R0 + 22), R0 * 0.55, 0.5)]), metal));
-  // the bright band, six clamps and the panel: one mesh
-  const tr = [put(new THREE.TorusGeometry(R0 + 6, 2.2, 4, 40), 0, 0, 0, 4.2), put(new THREE.BoxGeometry(44, 2, 16), -(R0 + 46), R0 * 0.72, 0.5)], lp = [], lc = [];
-  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + Math.PI / 6; tr.push(put(new THREE.BoxGeometry(14, 22, 26), Math.cos(a) * (R0 + 12), Math.sin(a) * (R0 + 12), a));
-    lp.push(Math.cos(a) * (R0 + 24), Math.sin(a) * (R0 + 24), 0); const c = new THREE.Color(i % 2 ? 0xff5a4a : 0xc8f030); lc.push(c.r, c.g, c.b); }
-  g.add(new THREE.Mesh(mergeGeometries(tr), trim));
-  // the glowing inner edge: one thin tube
-  g.add(new THREE.Mesh(new THREE.TorusGeometry(R0 - 0.5, 1.6, 4, 48), new THREE.MeshBasicMaterial({ color: 0x6fe4ff, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false, fog: false })));
-  // the six clamp lights: one draw call (points), blinking together
-  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3)); lg.setAttribute('color', new THREE.Float32BufferAttribute(lc, 3));
-  const lights = new THREE.Points(lg, new THREE.PointsMaterial({ map: glowTex, size: 16, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false })); g.add(lights); gt.lights = lights;
-  // the event horizon: one disc, a light swirl in the shader, added light only (drawn only when the gate is near)
-  const hz = new THREE.Mesh(new THREE.CircleGeometry(R0 - 1, 32), new THREE.ShaderMaterial({ uniforms: { t: { value: 0 }, col: { value: new THREE.Color(0x3fb8ff) } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false, toneMapped: false,
+// ---- STARGATE model: the same code runs in the workshop and in the game. P = design (see GATE_DEF). ~5 draw calls. ----
+const GATE_DEF = { shape: 'round', R: 80, tube: 7, band: 1, bandW: 4.2, bandT: 2.2, rimT: 1.6, rim2: 1, ring2: 0, ring2Gap: 26, ring2T: 2.5,
+  clamps: 6, clampW: 14, clampH: 22, clampD: 26, clampOut: 12, clampRot: 30, lights: 1, lightSize: 16, module: 1, moduleAng: 150, moduleSize: 1, panel: 1,
+  hzArms: 5, hzTwist: 13, hzSpeed: 1.8, hzSwirl: 0.3, hzEdge: 1.1, hzCore: 0.12,
+  colMetal: '#2a2f3a', colTrim: '#8e98aa', colRim: '#6fe4ff', colHz: '#3fb8ff', colLightA: '#c8f030', colLightB: '#ff5a4a' };
+function buildGateModel(THREE, P, mergeGeometries, glowTex, envMap) {
+  P = Object.assign({}, GATE_DEF, P || {});
+  const g = new THREE.Group(), R0 = P.R, TS = P.shape === 'hex' ? 6 : P.shape === 'oct' ? 8 : 40;   // the ring's outline: round, 6 or 8 sides
+  const put = (geo, x, y, rz, sz) => { if (sz) geo.scale(1, 1, sz); if (rz) geo.rotateZ(rz); geo.translate(x || 0, y || 0, 0); return geo; };
+  const ringTurn = TS === 6 ? Math.PI / 6 : TS === 8 ? Math.PI / 8 : 0, rr = (geo) => { if (ringTurn) geo.rotateZ(ringTurn); return geo; };
+  const metal = new THREE.MeshStandardMaterial({ color: P.colMetal, metalness: 0.85, roughness: 0.32, envMap: envMap || null, envMapIntensity: 1.3 });
+  const trim = new THREE.MeshStandardMaterial({ color: P.colTrim, metalness: 0.9, roughness: 0.22, envMap: envMap || null, envMapIntensity: 1.6 });
+  const M = [rr(new THREE.TorusGeometry(R0 + P.tube - 1, P.tube, 6, TS))], T = [];
+  if (P.ring2) M.push(rr(new THREE.TorusGeometry(R0 + P.tube * 2 + P.ring2Gap, P.ring2T, 4, TS)));
+  if (P.module) { const a = P.moduleAng * Math.PI / 180, d = R0 + 22 + P.tube - 7, s = P.moduleSize; M.push(put(new THREE.BoxGeometry(30 * s, 18 * s, 34 * s), Math.cos(a) * d, Math.sin(a) * d, a));
+    if (P.panel) T.push(put(new THREE.BoxGeometry(44 * s, 2, 16 * s), Math.cos(a) * (d + 24 * s), Math.sin(a) * (d + 24 * s), a)); }
+  if (P.band) T.push(rr(put(new THREE.TorusGeometry(R0 + P.tube - 1, P.bandT, 4, TS), 0, 0, 0, P.bandW)));
+  const lp = [], lc = [], cA = new THREE.Color(P.colLightA), cB = new THREE.Color(P.colLightB);
+  for (let i = 0; i < P.clamps; i++) { const a = i / P.clamps * Math.PI * 2 + P.clampRot * Math.PI / 180, d = R0 + P.clampOut + P.tube - 7;
+    T.push(put(new THREE.BoxGeometry(P.clampW, P.clampH, P.clampD), Math.cos(a) * d, Math.sin(a) * d, a));
+    lp.push(Math.cos(a) * (d + P.clampW * 0.5 + 5), Math.sin(a) * (d + P.clampW * 0.5 + 5), 0); const c = i % 2 ? cB : cA; lc.push(c.r, c.g, c.b); }
+  g.add(new THREE.Mesh(mergeGeometries(M), metal));
+  if (T.length) g.add(new THREE.Mesh(mergeGeometries(T), trim));
+  const glowM = new THREE.MeshBasicMaterial({ color: P.colRim, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false, fog: false });
+  const RG = [rr(new THREE.TorusGeometry(R0 - 0.5, P.rimT, 4, TS === 40 ? 48 : TS))]; if (P.rim2) RG.push(rr(new THREE.TorusGeometry(R0 - 4, P.rimT * 0.45, 3, TS === 40 ? 48 : TS)));
+  g.add(new THREE.Mesh(mergeGeometries(RG), glowM));
+  let lights = null;
+  if (P.lights && lp.length) { const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3)); lg.setAttribute('color', new THREE.Float32BufferAttribute(lc, 3));
+    lights = new THREE.Points(lg, new THREE.PointsMaterial({ map: glowTex, size: P.lightSize, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false })); g.add(lights); }
+  // the event horizon: one disc (same outline as the ring), a light swirl in the shader, added light only
+  const hzGeo = TS === 40 ? new THREE.CircleGeometry(R0 - 1, 32) : rr(new THREE.CircleGeometry(R0 - 1, TS));
+  const hz = new THREE.Mesh(hzGeo, new THREE.ShaderMaterial({ uniforms: { t: { value: 0 }, col: { value: new THREE.Color(P.colHz) }, A: { value: P.hzArms }, W: { value: P.hzTwist }, S: { value: P.hzSpeed }, K: { value: P.hzSwirl }, E: { value: P.hzEdge }, C: { value: P.hzCore } },
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false, toneMapped: false,
     vertexShader: 'varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: 'uniform float t; uniform vec3 col; varying vec2 vU; void main(){ vec2 p = vU * 2.0 - 1.0; float r = length(p); float sw = 0.5 + 0.5 * sin(atan(p.y, p.x) * 5.0 + r * 13.0 - t * 1.8); float e = smoothstep(0.45, 1.0, r); float k = (0.12 + 0.3 * sw + 1.1 * e * e * e) * smoothstep(1.0, 0.96, r); gl_FragColor = vec4(col * k, 1.0); }' }));
-  g.add(hz); gt.hz = hz;
-  g.position.copy(gt.pos); g.lookAt(_a.copy(gt.pos).add(gt.n)); g.visible = false; scene.add(g); gt.g = g; g.updateMatrixWorld(true); gt.top = V3(0, R0 + 60, 0).applyMatrix4(g.matrixWorld); }   // top: where its name tag sits (above the ring, never on top of a station's tag)
+    fragmentShader: 'uniform float t, A, W, S, K, E, C; uniform vec3 col; varying vec2 vU; void main(){ vec2 p = vU * 2.0 - 1.0; float r = length(p); float sw = 0.5 + 0.5 * sin(atan(p.y, p.x) * floor(A + 0.5) + r * W - t * S); float e = smoothstep(0.45, 1.0, r); float k = (C + K * sw + E * e * e * e) * smoothstep(1.0, 0.96, r); gl_FragColor = vec4(col * k, 1.0); }' }));
+  g.add(hz);
+  g.userData = { hz, lights };
+  return g;
+}
+// the stargate exactly as designed in the gate workshop
+const GATE_DESIGN = {"shape":"round","R":160,"tube":20,"band":1,"bandW":1,"bandT":0.5,"rimT":2.9,"rim2":1,"ring2":1,"ring2Gap":62,"ring2T":8,"clamps":3,"clampW":40,"clampH":50,"clampD":60,"clampOut":40,"clampRot":90,"lights":1,"lightSize":40,"module":1,"moduleAng":0,"moduleSize":1,"panel":1,"hzArms":5,"hzTwist":13,"hzSpeed":0.6,"hzSwirl":0.56,"hzEdge":1.1,"hzCore":0.52,"colMetal":"#5b5b5d","colTrim":"#000000","colRim":"#a5c40e","colHz":"#ccff14","colLightA":"#0010f5","colLightB":"#0400ff"};
+function buildGate(gt) {
+  const g = buildGateModel(THREE, GATE_DESIGN, mergeGeometries, glowTex, SHIP_ENV); gt.hz = g.userData.hz; gt.lights = g.userData.lights;
+  g.position.copy(gt.pos); g.lookAt(_a.copy(gt.pos).add(gt.n)); g.visible = false; scene.add(g); gt.g = g; g.updateMatrixWorld(true);
+  const D = Object.assign({}, GATE_DEF, GATE_DESIGN), top = D.R + D.tube * 2 + (D.ring2 ? D.ring2Gap + D.ring2T * 2 : 0) + 40;
+  gt.top = V3(0, top, 0).applyMatrix4(g.matrixWorld); }   // top: where its name tag sits (above the ring, never on top of a station's tag)
 GATES.forEach(buildGate);
 const mkGate = (() => { const e = $('mk-s0').cloneNode(true); e.id = 'mk-gate'; e.style.display = 'none'; $('mk-s0').parentNode.appendChild(e); return e; })();
 function warpToGate() { const gt = GATES[curSys]; if (S.mode !== 'fly') return; if (S.pos.distanceTo(gt.pos) < 1200) { toast('THE STARGATE IS RIGHT HERE', 2); return; } startWarp(gt.si, 1); }
 function updateGates(dt) { const flying = S.mode === 'fly';
   for (const gt of GATES) { const here = gt.k === curSys && S.mode !== 'dock' && S.mode !== 'menu', d = S.pos.distanceTo(gt.pos), vis = here && d < 15000; gt.g.visible = vis;
-    if (vis) { gt.hz.visible = d < 6000; gt.hz.material.uniforms.t.value = tAcc; gt.lights.material.opacity = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(tAcc * 3)); }
+    if (vis) { gt.hz.visible = d < 6000; gt.hz.material.uniforms.t.value = tAcc; if (gt.lights) gt.lights.material.opacity = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(tAcc * 3)); }
     const sd = _a.copy(S.pos).sub(gt.pos).dot(gt.n);
     if (here && flying && d < GATE_R * 3) { const rad = Math.sqrt(Math.max(0, d * d - sd * sd)); if (gt.side * sd < 0 && Math.abs(gt.side - sd) < 60 && rad < GATE_R * 0.92) { gt.side = 0; startWarp(GATES[(gt.k + 1) % GATES.length].si, 2); continue; } }   // crossed the glowing middle (from either side): jump
     gt.side = sd; } }
@@ -2520,7 +2544,7 @@ const WP = { t: 0, to: 0, done: false, far: false }, tunnelEl = document.getElem
 function startWarp(i, gate) {
   if (S.mode !== 'fly') return; if (!gate && stations[i].sys !== curSys) { toast('OTHER SYSTEMS ONLY THROUGH THE STARGATE', 2.5); warpToGate(); return; }   /* the stargate is the only way to another system */
   if (!gate && i === homeSt && S.pos.distanceTo(stations[i].pos) < STN_NEAR) return; WP.t = 0; WP.to = i; WP.done = false; WP.gate = gate || 0; WP.far = stations[i].sys !== curSys; S.mode = 'warp'; S.tPlanet = -1; S.target = null; S.boosting = false; S.sx = S.sy = 0;
-  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; sfx('boost'); if (WP.gate === 2) fadeEl.style.background = 'radial-gradient(circle at center, #d9f4ff 0%, #5fb4f0 30%, #1b4f9a 65%, #061226 100%)'; else if (WP.far) { tunnelEl.classList.add('on'); fadeEl.style.background = '#dfe9ff'; }   /* through a stargate: a soft blue dissolve, no flash and no rings */   // jump tunnel: pure CSS, runs on the GPU
+  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; sfx('boost'); if (WP.gate === 2) { const c = new THREE.Color(GATE_DESIGN.colHz || '#3fb8ff'), hx = (k) => '#' + c.clone().multiplyScalar(k).getHexString(); fadeEl.style.background = 'radial-gradient(circle at center, ' + '#' + c.clone().lerp(new THREE.Color(1, 1, 1), 0.75).getHexString() + ' 0%, ' + hx(1) + ' 30%, ' + hx(0.4) + ' 65%, ' + hx(0.08) + ' 100%)'; }   /* the dissolve takes the colour of the gate's swirl */ else if (WP.far) { tunnelEl.classList.add('on'); fadeEl.style.background = '#dfe9ff'; }   /* through a stargate: a soft blue dissolve, no flash and no rings */   // jump tunnel: pure CSS, runs on the GPU
   setTimeout(() => { if (S.mode === 'warp') { fadeEl.style.transition = WP.gate === 2 ? 'opacity .85s ease-in-out' : 'opacity .65s linear'; fadeEl.style.opacity = '1'; } }, WP.gate === 2 ? 300 : WP.far ? 1250 : 450);   /* the fade is ONE css transition now, not a style write on a full-screen layer every frame */
 }
 function updateWarp(dt) {
