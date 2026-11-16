@@ -133,6 +133,7 @@ const curW = () => WPN[save.wpn.cur] || WPN[0];
 // ---------- renderer / scene ----------
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+const AUTO_Q = false;   // auto-quality (lowering the resolution when the game runs slow) is OFF: the resolution always stays full. set to true to bring it back
 let PR_MAX = Math.min(window.devicePixelRatio || 1, 2), pr = PR_MAX; const PR_MIN = 0.75; let fxUntil = 0, lastDrop = 0;   // fxUntil: a big blast is a short, one-off load - the auto-quality ignores it
 renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15; renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -2920,7 +2921,7 @@ const STN_VIS = 10000, STN_NEAR = 2600;   // a station is drawn up to 10 km away
 const mk = stations.map((s, i) => $('mk-s' + i) || (() => { const e = $('mk-s0').cloneNode(true); e.id = 'mk-s' + i; $('mk-s0').parentNode.appendChild(e); return e; })()), mkWp = $('mk-wp'), tgtEl = $('tgt'), leadEl = $('lead'), crossEl = $('cross');
 const mkp = stations.map((s, i) => { const e = $('mk-s0').cloneNode(true); e.id = 'mk-p' + i; e.classList.add('pl'); e.style.color = s.col; $('mk-s0').parentNode.appendChild(e); return e; });
 const radar = $('radar'), rctx = radar.getContext('2d');
-let last = performance.now(), tAcc = 0, slow = 0, fast = 0, frames = 0, ema = 16, flip = 0, wasFx = 0;
+let last = performance.now(), tAcc = 0, slow = 0, fast = 0, frames = 0, ema = 16, flip = 0, wasFx = 0, prPrev = 0, emaAtDrop = 0, prChecked = true, prLock = 0;
 const proj = V3(), qInv = new THREE.Quaternion();
 function place(el, worldPos, label, edge, hideIfBehind) {
   proj.copy(worldPos).project(camera);
@@ -2969,7 +2970,14 @@ function frame(now) {
   requestAnimationFrame(frame);
   let dt = (now - last) / 1000; last = now; if (paused || dt > 0.05) dt = paused ? 0 : 0.05; if (dt <= 0) return;
   tAcc += dt; ema += (dt * 1000 - ema) * 0.05; frames++;
-  if (frames > 60) { if (now < fxUntil) { slow = 0; fast = 0; wasFx = 1; } else if (wasFx) { wasFx = 0; ema = 16; slow = 0; fast = 0; } else if (ema > 24) { slow += dt; fast = 0; } else if (ema < 18.5) { fast += dt; slow = 0; } else { slow = fast = 0; } if (slow > 1.5 && pr > PR_MIN) { pr = Math.max(PR_MIN, pr * 0.85); applyPR(); slow = 0; lastDrop = now; } else if (slow > 3 && pr <= PR_MIN + 0.01 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; } if (fast > 3 && pr < PR_MAX && now - lastDrop > 6000) { pr = Math.min(PR_MAX, pr * 1.2); applyPR(); fast = 0; } }
+  /* auto-quality, calmer: lowers the resolution only after 3 s of steady slowness (not after a short spike, a blast or a hitch), one small step at a time.
+     3 s after each step it checks: if the game did not get faster, the screen size was not the problem (e.g. a phone locked at 30 fps), so it puts the
+     resolution straight back and stops trying for a minute. it climbs back up as soon as there is room. */
+  if (AUTO_Q && frames > 60) { if (now < fxUntil) { slow = 0; fast = 0; wasFx = 1; } else if (wasFx) { wasFx = 0; ema = 16; slow = 0; fast = 0; } else if (ema > 26) { slow += dt; fast = 0; } else if (ema < 20) { fast += dt; slow = 0; } else { slow = fast = 0; }
+    if (!prChecked && now - lastDrop > 3000 && now >= fxUntil) { prChecked = true; if (ema > emaAtDrop * 0.9) { pr = prPrev; applyPR(); prLock = now + 60000; slow = 0; } }
+    if (slow > 3 && pr > PR_MIN && prChecked && now > prLock) { prPrev = pr; emaAtDrop = ema; prChecked = false; pr = Math.max(PR_MIN, pr * 0.9); applyPR(); slow = 0; lastDrop = now; }
+    else if (slow > 5 && pr <= PR_MIN + 0.01 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; }
+    if (fast > 2 && pr < PR_MAX && prChecked && now - lastDrop > 4000) { pr = Math.min(PR_MAX, pr * 1.15); applyPR(); fast = 0; } }
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = '0'; }
   const flying = S.mode === 'fly';
   starT.value = tAcc; fxBlur += (((S.boosting && flying) ? 1 : 0) - fxBlur) * Math.min(1, dt * 4); { const gu = gradePass.uniforms; gu.uBl.value = fxBlur * 0.6;   /* was 1.1: at boost the edge streaking smeared planets into comet shapes */ gu.uCA.value = 0.02 + 0.05 * fxBlur; }
