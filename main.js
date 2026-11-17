@@ -1371,9 +1371,11 @@ function buildNewHull() {
   return g;
 }
 // ---- the workshop hulls in the game: sized, turned to fly along -z, with their own thrust (5 instanced draw calls, like the STAR COURIER's) ----
-const QH = {}, Q_SC = { 2: 1.7, 3: 1.15 }, Q_UP = 0.5, Q_FWD = -0.5; let MSL = null;
-function qHull(i) { const r = QSHIP.build(QS_DATA[SHIPS[i].q]), s = Q_SC[i], T = (a) => [-a[0] * s, a[1] * s + Q_UP, -a[2] * s + Q_FWD];
-  r.g.rotation.y = Math.PI; r.g.scale.setScalar(s); r.g.position.set(0, Q_UP, Q_FWD);
+// size and fore/aft place of each hull: the long KORVA sits further forward, so its tail is no nearer the camera than the STAR COURIER's
+// (a tail right in front of the lens magnifies every small turn of the ship into a visible shake)
+const QH = {}, Q_SC = { 2: 1.6, 3: 1.15 }, Q_UP = 0.5, Q_FW = { 2: -2.3, 3: -1.4 }; let MSL = null;
+function qHull(i) { const r = QSHIP.build(QS_DATA[SHIPS[i].q]), s = Q_SC[i], F = Q_FW[i], T = (a) => [-a[0] * s, a[1] * s + Q_UP, -a[2] * s + F];
+  r.g.rotation.y = Math.PI; r.g.scale.setScalar(s); r.g.position.set(0, Q_UP, F);
   const mz = r.muz.map(T); mz.forEach(m => { m[2] -= 0.05; });
   return { g: r.g, glow: r.glow, muz: [0, 1, 2, 3].map(k => mz[k % mz.length].slice()), msl: r.msl.map(T), noz: r.noz.map(n => { const p = T(n); return [p[0], p[1], p[2], n[3] * s]; }) }; }
 function qAttach(i) { const R = qHull(i); shipBody.add(R.g);
@@ -3560,7 +3562,7 @@ function frame(now) {
   ship.position.copy(S.pos); ship.quaternion.copy(S.q); shipBody.rotation.z = S.roll;
   if (S.shGlow > 0) { S.shGlow = Math.max(0, S.shGlow - dt * 2.4); shGl.visible = S.shGlow > 0; shGl.material.uniforms.op.value = S.shGlow; shGl.material.uniforms.t.value = tAcc; }
   const vis = S.mode !== 'wreck', blink = S.inv > 0 && !S.nb && Math.floor(S.inv * 14) % 2 === 0; ship.visible = vis && !blink;
-  { const on = S.mode !== 'dock', o0 = false; flames.forEach(f => f.visible = o0); flameCore.forEach(f => f.visible = o0); flameCones.forEach(f => f.visible = o0); FINST.forEach(f => f.im.visible = o0); const oN = on && save.ship === 0; nhFl.forEach(f => { f.visible = oN; }); nhCones.forEach(f => { f.visible = oN; }); hoverPads.forEach(p => p.visible = on); const o1 = on && save.ship === 1; altFl.forEach(f => { f.visible = o1; }); altCones.forEach(f => { f.visible = o1; }); for (const k in QH) { const R = QH[k], oq = on && save.ship === +k; R.fl.forEach(f => { f.visible = oq; }); R.cones.forEach(f => { f.visible = oq; }); } }
+  { const on = S.mode !== 'dock', o0 = false; flames.forEach(f => f.visible = o0); flameCore.forEach(f => f.visible = o0); flameCones.forEach(f => f.visible = o0); FINST.forEach(f => f.im.visible = o0); const oN = on && save.ship === 0; nhFl.forEach(f => { f.visible = oN; }); nhCones.forEach(f => { f.visible = oN; }); hoverPads.forEach(p => p.visible = on); const o1 = on && save.ship === 1; altFl.forEach(f => { f.visible = o1; }); altCones.forEach(f => { f.visible = o1; }); for (const k in QH) { const R = QH[k], oq = on && save.ship === +k; R.fl.forEach(f => { f.visible = oq; }); R.cones.forEach(f => { f.visible = oq; }); R.g.position.z = on ? Q_FW[k] : -0.5; } }   /* on the hangar pad: centred */
   for (const f of mFlash) if (f.visible) { f.userData.t -= dt * 9; if (f.userData.t <= 0) f.visible = false; else { f.material.opacity = f.userData.t; f.scale.setScalar(2.3 * (0.5 + 0.7 * f.userData.t)); } }
   const fl = 0.7 + S.speed / 220 + (S.boosting ? 0.9 : 0), flick = 0.9 + Math.sin(tAcc * 50) * 0.1;
   flames.forEach(f => { if (f.userData.pts) f.material.size = 2.9 * fl * flick * f.userData.sc; else f.scale.setScalar(1.9 * fl * flick * f.userData.sc); f.material.color.setHex(S.boosting ? 0xffa050 : 0x7fe9ff); }); flameCore.forEach(f => { if (f.userData.pts) f.material.size = 1.05 * fl * flick * f.userData.sc; else f.scale.setScalar(0.7 * fl * flick * f.userData.sc); }); flameMats.forEach((fm, k) => fm.color.setHex(flameCols[k][S.boosting ? 1 : 0])); FINST.forEach(F => { const L = F.L, es = ENGS[0][3]; ENGS.forEach((en, i) => { const ph = i * 1.7 + F.k, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + ph) + 0.05 * Math.sin(tAcc * 91 + ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); _fd.position.set(en[0], en[1], en[2] + es * (0.9 + len / 2)); _fd.rotation.set(Math.PI / 2, 0, 0); _fd.scale.set(r * es, len * es, r * es); _fd.updateMatrix(); F.im.setMatrixAt(i, _fd.matrix); }); F.im.instanceMatrix.needsUpdate = true; });
@@ -3575,7 +3577,6 @@ function frame(now) {
       NHD.forEach((d, i) => { const ph = d.ph + j, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + ph) + 0.05 * Math.sin(tAcc * 91 + ph * 3), u = d.k * 0.85, len = L.len * (0.15 + 1.4 * th + 2.4 * bo) * fk * u, r = L.r * (0.8 + 0.35 * th + 0.6 * bo) * u * 0.6;
         _nhQ.identity(); c.setMatrixAt(i, _nhM.compose(_nhP.set(d.x, d.y, d.z + len / 2), _nhQ, _nhS.set(r, r, len))); });
       c.instanceMatrix.needsUpdate = true; }); }   // new hull: no flame at all when stopped (only the lit nozzles), flames grow with speed and get much longer on boost
-  if (save.ship >= 2 && QH[save.ship]) qFlames(QH[save.ship], Math.min(1, S.speed / 90), S.boosting ? 1 : 0, flick);
   if (save.ship === 1) { const bi = S.boosting ? 1 : 0; altFl.forEach(f => { f.scale.setScalar((f.userData.core ? 0.7 : 1.9) * fl * flick * f.userData.sc); f.material.color.setHex(f.userData.core ? MF_CORE[bi] : MF_GLOW[bi]); });
     mantaFlameMats.forEach((m, k) => m.color.setHex(MF_COL[k][bi])); mantaNozMat.color.setHex(bi ? 0x1a3cff : 0x8a3cff);
     for (const c of altCones) { const u = c.userData; if (!u.L) continue; const L = u.L, fk = 0.86 + 0.1 * Math.sin(tAcc * (36 + L.k * 19) + u.ph) + 0.05 * Math.sin(tAcc * 97 + u.ph * 3), len = u.nr * (L.len * (0.4 + 0.6 * fl) * fk + 0.3), r = u.nr * L.r * (0.9 + 0.1 * fl); c.scale.set(r, len, r); c.position.z = u.z0 + len / 2; } }   // MANTA flames flicker and stretch with speed / boost
@@ -3705,6 +3706,8 @@ function frame(now) {
     if (++flip % 2 === 0) drawRadar();
   } else { if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } if (trvOn) { trvOn = false; $('trv-dlg').style.display = 'none'; } for (const e of mk) e.style.display = 'none'; mkGate.style.display = 'none'; for (const e of mkp) e.style.display = 'none'; mkWp.style.display = 'none'; tgtEl.style.display = 'none'; leadEl.style.display = 'none'; }
   updateAudio(); updateMusic(dt);
+  { camera.updateMatrixWorld(); stnSunV.value.copy(sun.position).normalize().transformDirection(camera.matrixWorldInverse);   // sun shading and engine glows use THIS frame's camera (no one-frame lag in turns)
+    if (save.ship >= 2 && QH[save.ship] && S.mode !== 'dock') qFlames(QH[save.ship], Math.min(1, S.speed / 90), S.boosting ? 1 : 0, 0.9 + Math.sin(tAcc * 50) * 0.1); }
   composer.render();
 }
 
