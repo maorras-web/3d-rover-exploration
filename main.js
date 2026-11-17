@@ -1373,7 +1373,7 @@ function buildNewHull() {
 // ---- the workshop hulls in the game: sized, turned to fly along -z, with their own thrust (5 instanced draw calls, like the STAR COURIER's) ----
 // size and fore/aft place of each hull: the long KORVA sits further forward, so its tail is no nearer the camera than the STAR COURIER's
 // (a tail right in front of the lens magnifies every small turn of the ship into a visible shake)
-const QH = {}, Q_SC = { 2: 1.6, 3: 1.15 }, Q_UP = 0.5, Q_FW = { 2: -2.3, 3: -1.4 }; let MSL = null;
+const QH = {}, Q_SC = { 2: 1.7, 3: 1.15 }, Q_UP = 0.5, Q_FW = { 2: -0.5, 3: -0.5 }; let MSL = null;
 function qHull(i) { const r = QSHIP.build(QS_DATA[SHIPS[i].q]), s = Q_SC[i], F = Q_FW[i], T = (a) => [-a[0] * s, a[1] * s + Q_UP, -a[2] * s + F];
   r.g.rotation.y = Math.PI; r.g.scale.setScalar(s); r.g.position.set(0, Q_UP, F);
   const mz = r.muz.map(T); mz.forEach(m => { m[2] -= 0.05; });
@@ -3420,6 +3420,9 @@ function frame(now) {
   fwdOf(S.q, fwd);
 
   if (flying) {
+    // the camera's catch-up is split in two halves, one before and one after the ship turns this frame: the gap between where the ship points and where
+    // the camera looks then stays the same whether a frame took 16 ms or 33 ms (before, uneven frames on a busy phone made the ship and the sight shake in turns)
+    S.camQ.slerp(S.q, 1 - Math.exp(-3.5 * dt));
     // ---- steering (local axes: full 3D flight) ----
     let ix = touchX, iy = touchY;
     if (keys.ArrowLeft || keys.KeyA) ix -= 1; if (keys.ArrowRight || keys.KeyD) ix += 1; if (keys.ArrowUp || keys.KeyW) iy -= 1; if (keys.ArrowDown || keys.KeyS) iy += 1;
@@ -3582,7 +3585,7 @@ function frame(now) {
     for (const c of altCones) { const u = c.userData; if (!u.L) continue; const L = u.L, fk = 0.86 + 0.1 * Math.sin(tAcc * (36 + L.k * 19) + u.ph) + 0.05 * Math.sin(tAcc * 97 + u.ph * 3), len = u.nr * (L.len * (0.4 + 0.6 * fl) * fk + 0.3), r = u.nr * L.r * (0.9 + 0.1 * fl); c.scale.set(r, len, r); c.position.z = u.z0 + len / 2; } }   // MANTA flames flicker and stretch with speed / boost
   flameCones.forEach(c => { const u = c.userData, L = u.L, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + u.ph) + 0.05 * Math.sin(tAcc * 91 + u.ph * 3), len = L.len * (0.45 + 0.55 * fl) * fk + 0.2, r = L.r * (0.85 + 0.15 * fl); c.scale.set(r, len, r); c.position.z = 0.9 + len / 2; });
   for (const e of enemies) if (e.active) { e.g.children[1].scale.setScalar(5 + Math.sin(tAcc * 40 + e.pos.x) * 0.6); }
-  S.camQ.slerp(S.q, 1 - Math.exp(-7 * dt));
+  S.camQ.slerp(S.q, 1 - Math.exp(-(flying ? 3.5 : 7) * dt));
   const cd = 17 + S.speed * 0.014;
   if (!FLK.on && (FLK.yaw || FLK.pitch)) { FLK.yaw = damp(FLK.yaw, 0, 5, dt); FLK.pitch = damp(FLK.pitch, 0, 5, dt); if (Math.abs(FLK.yaw) + Math.abs(FLK.pitch) < 0.002) FLK.yaw = FLK.pitch = 0; }
   if (S.mode !== 'fly' && S.mode !== 'warp' && FLK.on) setLook(false);
