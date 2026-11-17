@@ -2028,10 +2028,12 @@ const QSHIP = (() => {
       g.add(new THREE.Mesh(geo, k === 'glass' ? glassMat(col.glass, geo) : metalMat(k === 'hull' ? col.hull : col.panel)));
       if (k === 'hull') { geo.computeBoundingBox(); shipH = (geo.boundingBox.max.y - geo.boundingBox.min.y) / 2; } }
     // seams on the corners and thin light lines on the sharpest edges: two flat strips per edge
-    D.E.forEach((e, j) => { const A = unpack(e.a), B = unpack(e.b), Sd = dec(e.s, Int8Array), w = size * (j ? 0.0025 : 0.006) / 2, P = new Float32Array(A.length / 3 * 18);
+    const dark = (c) => { const k = new THREE.Color(c); return k.r + k.g + k.b < 0.12; };
+    D.E.forEach((e, j) => { if (j && dark(col.edge)) return;   /* a black 'light line' is invisible next to the seams, but hair-thin lines shimmer when the ship banks */
+      const A = unpack(e.a), B = unpack(e.b), Sd = dec(e.s, Int8Array), w = size * (j ? 0.0035 : 0.006) / 2, P = new Float32Array(A.length / 3 * 18);
       for (let i = 0, n = A.length / 3; i < n; i++) { const sx = Sd[i * 3] / 127 * w, sy = Sd[i * 3 + 1] / 127 * w, sz = Sd[i * 3 + 2] / 127 * w, a = i * 3, o = i * 18;
         P.set([A[a] - sx, A[a + 1] - sy, A[a + 2] - sz, B[a] - sx, B[a + 1] - sy, B[a + 2] - sz, B[a] + sx, B[a + 1] + sy, B[a + 2] + sz, A[a] - sx, A[a + 1] - sy, A[a + 2] - sz, B[a] + sx, B[a + 1] + sy, B[a + 2] + sz, A[a] + sx, A[a + 1] + sy, A[a + 2] + sz], o); }
-      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: j ? col.edge : col.seam }))); });
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(P, 3)); const sm = new THREE.MeshBasicMaterial({ color: j ? col.edge : col.seam }); sm.userData.strip = 1; g.add(new THREE.Mesh(geo, sm)); });
     const muz = [], msl = [], noz = [];
     (D.turbines || []).forEach(tb => { if (tb.kind === 'missile' && tb.shape) { g.add(makeLauncherWall(tb, col, wear)); for (const [x, y] of tb.holes) msl.push([tb.p[0] + x, tb.p[1] + y, tb.p[2]]); } });
     (D.plugs || []).forEach(pl => g.add(makePlug(pl)));
@@ -2041,14 +2043,14 @@ const QSHIP = (() => {
     (D.decals || []).forEach(dc => g.add(makeDecal(dc, size)));
     g.updateMatrixWorld(true);
     // merge: all metal -> 1 mesh, all plain solid colours -> 1, the engines' glowing discs -> 1, their soft halos -> 1; the canopy and each alien word stay as they are
-    const metal = [], solid = [], halo = [], disc = [], keep = [], _v = new THREE.Vector3(); let discMap = null, haloCol = null;
+    const metal = [], solid = [], strip = [], halo = [], disc = [], keep = [], _v = new THREE.Vector3(); let discMap = null, haloCol = null;
     g.traverse(o => { if (!o.isMesh) return; const m = o.material; let geo = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); geo.applyMatrix4(o.matrixWorld); if (!geo.attributes.normal) geo.computeVertexNormals();
       for (const k of Object.keys(geo.attributes)) if (k !== 'position' && k !== 'normal') geo.deleteAttribute(k);
       if (m.userData.qm) { metal.push([geo, m.color]); }
       else if (m.isShaderMaterial || m.userData.decal || o.userData.decal) { keep.push(o); return; }
       else if (m.map) { discMap = m.map; disc.push(geo); const p = _v.setFromMatrixPosition(o.matrixWorld); o.geometry.computeBoundingSphere(); noz.push([p.x, p.y, p.z, o.geometry.boundingSphere.radius]); geo.setAttribute('uv', o.geometry.index ? o.geometry.toNonIndexed().attributes.uv.clone() : o.geometry.attributes.uv.clone()); }
       else if (m.blending === THREE.AdditiveBlending) { haloCol = m.color; halo.push(geo); }
-      else solid.push([geo, m.color]); });
+      else (m.userData.strip ? strip : solid).push([geo, m.color]); });
     const out = new THREE.Group(), S = size * 0.42;
     const paint = (list) => list.map(([geo, c]) => { const n = geo.attributes.position.count, ca = new Float32Array(n * 3); for (let i = 0; i < n; i++) { ca[i * 3] = c.r; ca[i * 3 + 1] = c.g; ca[i * 3 + 2] = c.b; } geo.setAttribute('color', new THREE.BufferAttribute(ca, 3)); return geo; });
     { const mg = mergeGeometries(paint(metal)), pos = mg.attributes.position.array, uv = new Float32Array(pos.length / 3 * 2), A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
@@ -2061,6 +2063,8 @@ const QSHIP = (() => {
         sh.fragmentShader = 'uniform vec3 uSunV;\nuniform vec3 uSunC;\nuniform vec3 uWear;\nuniform sampler2D uWearT;\nvarying vec2 vWUv; varying float vWY;\n' + sh.fragmentShader.replace('vec3 outgoingLight = diffuseColor.rgb * matcapColor.rgb;', SHADE); };
       mm.customProgramCacheKey = () => 'qmetal'; out.add(new THREE.Mesh(mg, mm)); }
     if (solid.length) out.add(new THREE.Mesh(mergeGeometries(paint(solid)), new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })));
+    // the seams sit a hair above the plating; pulled toward the camera in the depth test so they never flicker in and out of the hull while the ship banks
+    if (strip.length) out.add(new THREE.Mesh(mergeGeometries(paint(strip)), new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })));
     if (disc.length) out.add(new THREE.Mesh(mergeGeometries(disc), new THREE.MeshBasicMaterial({ map: discMap, toneMapped: false })));
     if (halo.length) out.add(new THREE.Mesh(mergeGeometries(halo), new THREE.MeshBasicMaterial({ color: haloCol, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })));
     for (const o of keep) { o.geometry.applyMatrix4(o.matrixWorld); o.position.set(0, 0, 0); o.quaternion.identity(); o.scale.set(1, 1, 1); out.add(o); }
