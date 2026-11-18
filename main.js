@@ -528,7 +528,14 @@ function metalizeManta(g) {
 // ---- the workshop hulls in the game: sized, turned to fly along -z, with their own thrust (5 instanced draw calls, like the STAR COURIER's) ----
 // size and fore/aft place of each hull: the long KORVA sits further forward, so its tail is no nearer the camera than the STAR COURIER's
 // (a tail right in front of the lens magnifies every small turn of the ship into a visible shake)
-const _nhQ = new THREE.Quaternion(), _nhP = new THREE.Vector3(), _nhS = new THREE.Vector3(), _nhM = new THREE.Matrix4();   // scratch values for the flame instances
+const _nhQ = new THREE.Quaternion(), _nhP = new THREE.Vector3(), _nhS = new THREE.Vector3(), _nhM = new THREE.Matrix4();
+// soft plume picture for the workshop ships' flames: bright and wide at the nozzle, narrowing to a soft tip, no hard edges (painted once, 32x128)
+const plumeTex = (() => { const w = 32, h = 128, c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'), im = x.createImageData(w, h);
+  for (let py = 0; py < h; py++) { const t = 1 - py / (h - 1), e = Math.min(1, t / 0.3), sg = 0.1 + 0.24 * e * e * (3 - 2 * e) * (1 - 0.65 * t), fade = Math.pow(1 - t, 1.5) * Math.min(1, t / 0.06);   // narrow at the nozzle (no glow spilling onto the hull), swelling a little, then a soft tip
+    for (let px = 0; px < w; px++) { const u = (px + 0.5) / w - 0.5, a = Math.exp(-(u * u) / (sg * sg * 0.5)) * fade, o = (py * w + px) * 4; im.data[o] = im.data[o + 1] = im.data[o + 2] = 255; im.data[o + 3] = Math.round(255 * Math.min(1, a)); } }
+  x.putImageData(im, 0, 0); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+const PL = [{ w: 1.25, len: 2.3, k: 0 }, { w: 0.55, len: 1.45, k: 1 }];   // two soft ribbons per nozzle: a wide coloured plume and a thin white-hot core
+const _plC = new THREE.Vector3(), _plA = new THREE.Vector3(0, 0, 1), _plX = new THREE.Vector3(), _plZ = new THREE.Vector3(), _plR = new THREE.Matrix4();   // scratch values for the flame instances
 const QH = {}, Q_SC = { 2: 1.7, 3: 1.15, 4: 2.05, 5: 1.1 }, Q_UP = 0.5, Q_FW = { 2: -0.5, 3: -0.5, 4: -0.5, 5: -0.5 }; let MSL = null;
 function qHull(i) { const r = QSHIP.build(QS_DATA[SHIPS[i].q]), s = Q_SC[i], F = Q_FW[i], T = (a) => [-a[0] * s, a[1] * s + Q_UP, -a[2] * s + F];
   r.g.rotation.y = Math.PI; r.g.scale.setScalar(s); r.g.position.set(0, Q_UP, F);
@@ -537,11 +544,11 @@ function qHull(i) { const r = QSHIP.build(QS_DATA[SHIPS[i].q]), s = Q_SC[i], F =
 function qAttach(i) { const R = qHull(i); shipBody.add(R.g);
   const c = new THREE.Color(R.glow), W = new THREE.Color(1, 1, 1), mix = (k) => c.clone().lerp(W, k).getHex();
   R.cols = [[c.getHex(), mix(0.3)], [mix(0.35), mix(0.6)], [mix(0.8), 0xffffff]]; R.gcol = [[c.getHex(), mix(0.35)], [mix(0.75), 0xffffff]];   // cruise / boost: the ship's own light colour, whiter and hotter on boost
-  R.fm = R.cols.map((cc, k) => mkFlame(cc[0], [0.5, 0.55, 0.8][k]));
   const N = R.noz.length, gm = (cc, o) => new THREE.MeshBasicMaterial({ map: glowTex, color: cc, transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false });
   const iq = (geo, mat) => { const m = new THREE.InstancedMesh(geo, mat, N); m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); shipBody.add(m); return m; };
   R.fl = [iq(new THREE.PlaneGeometry(1, 1), gm(R.gcol[0][0], 0.32)), iq(new THREE.PlaneGeometry(1, 1), gm(R.gcol[1][0], 0.6))];
-  R.cones = FL.map((L, j) => { const m = iq(new THREE.ConeGeometry(1, 1, 8, 1, true).rotateX(Math.PI / 2), R.fm[j]); m.userData.L = L; return m; });
+  R.pm = [R.cols[0], R.cols[2]].map((cc, k) => new THREE.MeshBasicMaterial({ color: cc[0], map: plumeTex, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide, toneMapped: false }));
+  R.cones = PL.map((L, j) => { const m = iq(new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0), R.pm[j]); m.userData.L = L; return m; });   // flat ribbons that turn round their own axis to face the camera: soft edges, 2 quads per nozzle (was 3 cones of 8 sides)
   R.D = R.noz.map(([x, y, z, r]) => ({ x, y, z, k: r * 3, ph: x * 2.3 + y * 5 })); QH[i] = R; }
 // weak phones: only the ship being flown is kept built; a workshop hull you just left is taken apart and its memory freed (rebuilt in a moment if you fly it again)
 function qPrune() { for (const k in QH) { if (+k === save.ship) continue; const R = QH[k];
@@ -549,13 +556,16 @@ function qPrune() { for (const k in QH) { if (+k === save.ship) continue; const 
   delete QH[k]; } }
 function qFlames(R, th, bo, flick) { const [gO, gC] = R.fl, bi = bo ? 1 : 0; _nhQ.copy(ship.quaternion).multiply(shipBody.quaternion).invert().multiply(camera.quaternion);
   const sO = 1.9 * (0.4 + 0.6 * th + 1.3 * bo) * flick, sC = 0.7 * (0.8 + 0.2 * th + 0.3 * bo) * flick;
-  R.D.forEach((d, i) => { gO.setMatrixAt(i, _nhM.compose(_nhP.set(d.x, d.y, d.z + 0.2 * d.k), _nhQ, _nhS.setScalar(sO * 0.15 * d.k))); gC.setMatrixAt(i, _nhM.compose(_nhP.set(d.x, d.y, d.z + 0.08 * d.k), _nhQ, _nhS.setScalar(sC * 0.22 * d.k))); });
+  R.D.forEach((d, i) => { gO.setMatrixAt(i, _nhM.compose(_nhP.set(d.x, d.y, d.z + 0.2 * d.k), _nhQ, _nhS.setScalar(sO * 0.11 * d.k))); gC.setMatrixAt(i, _nhM.compose(_nhP.set(d.x, d.y, d.z + 0.08 * d.k), _nhQ, _nhS.setScalar(sC * 0.22 * d.k))); });
   gO.instanceMatrix.needsUpdate = gC.instanceMatrix.needsUpdate = true; gO.material.color.setHex(R.gcol[0][bi]); gC.material.color.setHex(R.gcol[1][bi]);
-  R.fm.forEach((fm, k) => fm.color.setHex(R.cols[k][bi]));
+  R.pm[0].color.setHex(R.cols[0][bi]); R.pm[1].color.setHex(R.cols[2][bi]);
   const fOn = th > 0.04 || bo > 0;
+  shipBody.updateMatrixWorld(); shipBody.worldToLocal(_plC.copy(camera.position));   // the camera in the ship's own space: each ribbon turns round its axis to face it
   R.cones.forEach((c, j) => { const L = c.userData.L; c.visible = c.visible && fOn; if (!c.visible) return;
-    R.D.forEach((d, i) => { const ph = d.ph + j, fk = 0.88 + 0.12 * Math.sin(tAcc * (38 + L.k * 17) + ph) + 0.05 * Math.sin(tAcc * 91 + ph * 3), u = d.k * 0.85, len = L.len * (0.15 + 1.4 * th + 2.4 * bo) * fk * u, r = L.r * (0.8 + 0.35 * th + 0.6 * bo) * u * 0.6;
-      _nhQ.identity(); c.setMatrixAt(i, _nhM.compose(_nhP.set(d.x, d.y, d.z + len / 2), _nhQ, _nhS.set(r, r, len))); });
+    R.D.forEach((d, i) => { const ph = d.ph + j, fk = 0.9 + 0.1 * Math.sin(tAcc * (38 + L.k * 17) + ph) + 0.05 * Math.sin(tAcc * 91 + ph * 3), u = d.k * 0.85,
+        len = L.len * (0.6 + 1.35 * th + 2.0 * bo) * fk * u, w = L.w * (0.75 + 0.3 * th + 0.45 * bo) * u * (2 - fk);
+      _plZ.set(_plC.x - d.x, _plC.y - d.y, 0); if (_plZ.lengthSq() < 1e-6) _plZ.set(0, 1, 0); _plZ.normalize(); _plX.crossVectors(_plA, _plZ);   // ribbon: up = flame axis (+z, backwards), face = towards the camera
+      _plR.makeBasis(_plX, _plA, _plZ); _nhQ.setFromRotationMatrix(_plR); c.setMatrixAt(i, _nhM.compose(_nhP.set(d.x, d.y, d.z + 0.05 * d.k), _nhQ, _nhS.set(w, len, 1)));   /* starts just behind the nozzle mouth */ });
     c.instanceMatrix.needsUpdate = true; }); }   // no flame when stopped (only the lit nozzles), longer with speed, much longer on boost
 function applyShip() {
   const alt = save.ship === 1, qi = save.ship >= 2 ? save.ship : 0;
@@ -2180,7 +2190,7 @@ function makePics() {
   PIC.sh = PIC['sh' + save.ship] || PIC.sh;
   renderer.setRenderTarget(null); renderer.setClearColor(oc, oa); rt.dispose();
 }
-let retSt = '';
+let retSt = ''; document.getElementById('cross').appendChild(document.createElement('b'));   // the in-range flash ring
 let crossHitT = 0, crossCls = '', crossX = -1, crossY = -1; const _xf = V3(), _xd = V3();
 let shopTab = 'm', lgSt = -1, shopSub = 'u', mapSys = -1;
 const VEL_EMB = '<svg style="width:22px;height:22px;filter:drop-shadow(0 0 3px #6fc0ff)" viewBox="0 0 64 64"><defs><linearGradient id="vlg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4fbff"/><stop offset=".35" stop-color="#8cc4ee"/><stop offset=".6" stop-color="#2c5d8f"/><stop offset="1" stop-color="#d6ecff"/></linearGradient></defs><path d="M27 4 A11.5 11.5 0 0 0 49 4 A14 14 0 0 1 27 4Z" fill="url(#vlg2)"/><path d="M14 17 L23 17 L32 38 L44 17 L59 17 L32 61Z" fill="url(#vlg2)" stroke="#e8f6ff" stroke-width=".8"/><path d="M3 17 L11 17 L7 24Z" fill="url(#vlg2)"/><path d="M28.5 21.5 L37.5 21.5 L33 29Z" fill="none" stroke="#e8f6ff" stroke-width="1.4"/></svg>';   // the ruling race's emblem (same drawing as on the star map; own gradient id)
@@ -2523,10 +2533,12 @@ const mkp = stations.map((s, i) => { const e = $('mk-s0').cloneNode(true); e.id 
 const ering = document.createElement('div'); ering.id = 'ering'; ering.className = 'hud'; document.body.appendChild(ering);
 const pips = []; for (let k = 0; k < 8; k++) { const e = document.createElement('div'); e.className = 'pip hud'; document.body.appendChild(e); pips.push(e); }   // pirates off screen: small red arrows on the ring (fixed pool, no allocations)
 let ringOn = false; const _rp = [0, 0, 0];
+let ringR = 180; function sizeRing() { const W = innerWidth, H = innerHeight; ringR = Math.max(110, Math.min(H * 0.475, W * 0.33, Math.hypot(W / 2 - 246, H / 2 - 122) - 7)); ering.style.width = ering.style.height = 2 * ringR + 'px'; }   // as big as it can be while staying clear of the mission line (top-left, up to ~250 x 136 px)
+sizeRing(); addEventListener('resize', sizeRing);
 // where an off-screen point sits on the edge ring: [x, y, angle] in pixels/degrees, or null when it is on screen
 function ringAt(worldPos, out) { proj.copy(worldPos).project(camera); const behind = proj.z > 1; let nx = proj.x, ny = proj.y;
   if (!behind && Math.abs(nx) < 0.92 && Math.abs(ny) < 0.84) return null;
-  if (behind) { nx = -nx; ny = -ny; } const W = innerWidth, H = innerHeight, R = Math.min(H * 0.4, W * 0.28); let dx = nx * W, dy = -ny * H; const m = Math.hypot(dx, dy) || 1; dx /= m; dy /= m;
+  if (behind) { nx = -nx; ny = -ny; } const W = innerWidth, H = innerHeight, R = ringR; let dx = nx * W, dy = -ny * H; const m = Math.hypot(dx, dy) || 1; dx /= m; dy /= m;
   out[0] = W / 2 + dx * R; out[1] = H / 2 + dy * R; out[2] = Math.atan2(dx, -dy) * 180 / Math.PI; return out; }
 let last = performance.now(), tAcc = 0, slow = 0, fast = 0, frames = 0, ema = 16, flip = 0, wasFx = 0, prPrev = 0, emaAtDrop = 0, prChecked = true, prLock = 0;
 const proj = V3(), qInv = new THREE.Quaternion();
@@ -2836,7 +2848,8 @@ function frame(now) {
     const cx = Math.round((_xd.x * 0.5 + 0.5) * innerWidth * 4) / 4, cy = Math.round((0.5 - _xd.y * 0.5) * innerHeight * 4) / 4; if (cx !== crossX || cy !== crossY) {   /* quarter-pixel steps: a smooth glide instead of 1-px hops */ crossX = cx; crossY = cy; crossEl.style.left = cx + 'px'; crossEl.style.top = cy + 'px'; } }
   if (showHud) { let hot = false; fwdOf(S.q, _xf);   // is a pirate right under the sight? (a few dot products over 6 enemies)
     for (const e of enemies) { if (!e.active) continue; _xd.copy(e.pos).sub(S.pos); const along = _xd.dot(_xf); if (along < 20 || along > 1100) continue; if (_xd.lengthSq() - along * along < 14 * 14) { hot = true; break; } }
-    { const st = S.target && S.target.active ? 'lock' : ''; if (st !== retSt) { retSt = st; crossEl.classList.toggle('lock', !!st); } }   // locked on: the sight tightens, four ticks close in and it pulses
+    { const tg = S.target && S.target.active ? S.target : null, st = tg ? (tg.pos.distanceToSquared(S.pos) < (curW().spd * 1.55) ** 2 ? 'lock inr' : 'lock') : '';   // in range = the bolts reach it before they fade (speed x 1.7 s life, a little margin)
+      if (st !== retSt) { retSt = st; crossEl.classList.toggle('lock', !!st); crossEl.classList.toggle('inr', st === 'lock inr'); } }   // entering range adds 'inr' once: a single ring flash (CSS), nothing per frame   // locked on: the sight tightens, four ticks close in and it pulses
     const cs = (hot ? 'hot' : '') + (crossHitT > 0 ? ' hit' : ''); if (cs !== crossCls) { crossCls = cs; crossEl.classList.toggle('hot', hot); crossEl.classList.toggle('hit', crossHitT > 0); } }   // the DOM is touched only when the state changes
   if (flying) {
     for (let i = 0; i < stations.length; i++) {
