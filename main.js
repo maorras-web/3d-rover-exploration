@@ -1979,6 +1979,13 @@ const trLights = new THREE.Points(trLGeo, new THREE.PointsMaterial({ vertexColor
 const _tc = new THREE.Color(), TR_U = [], TR_V = [];
 // how far each station reaches from its centre (measured once from its real geometry), so the traffic circles OUTSIDE it and never flies through the hull
 const TR_R = stations.map((st) => { let mx = 0; const v = V3(); st.g.updateMatrixWorld(true); st.g.traverse((o) => { if (!o.isMesh || o.isInstancedMesh || !o.geometry || !o.geometry.attributes.position) return; const pa = o.geometry.attributes.position; for (let i = 0; i < pa.count; i += 2) { v.fromBufferAttribute(pa, i).applyMatrix4(o.matrixWorld); const d = v.distanceToSquared(st.pos); if (d > mx) mx = d; } }); return Math.sqrt(mx); });
+// ---- the stargate asks where to jump: every other system is offered (name + who rules it); choosing one starts the jump right away
+let gateOn = false, gateAsked = -1;
+function openGateDlg(gt) { if (gateOn || S.mode !== 'fly') return; gateOn = true; gateAsked = gt.k; const box = $('gate-btns'); box.innerHTML = '';
+  SYSTEMS.forEach((nm, k) => { if (k === gt.k) return; const b = document.createElement('button'); b.textContent = nm + ' SYSTEM';
+    b.addEventListener('click', () => { gateOn = false; $('gate-dlg').style.display = 'none'; initAudio(); if (S.mode !== 'fly') return; gt.dest = -1; startWarp(GATES[k].si, 2); }); box.appendChild(b); });
+  $('gate-dlg').style.display = 'flex'; sfx('lock'); }
+$('gate-no').addEventListener('click', () => { gateOn = false; $('gate-dlg').style.display = 'none'; });
 // ---- STARGATES: the ONLY way between solar systems. one ring per system, a little way out from the system's first station
 //      (on the far side from its planet, so a planet is never near it). fly through the glowing middle -> you come out of the other system's gate.
 //      ~2,600 triangles each, drawn only in its own system and only within 15 km. ----
@@ -2044,7 +2051,8 @@ function updateGates(dt) { const flying = S.mode === 'fly';
   for (const gt of GATES) { const here = gt.k === curSys && S.mode !== 'dock' && S.mode !== 'menu', d = S.pos.distanceTo(gt.pos), vis = here && d < 15000; gt.g.visible = vis;
     if (vis) { gt.hz.visible = d < 6000; gt.hz.material.uniforms.t.value = tAcc; if (gt.lights) gt.lights.material.opacity = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(tAcc * 3)); }
     const sd = _a.copy(S.pos).sub(gt.pos).dot(gt.n);
-    if (here && flying && d < GATE_R * 3) { const rad = Math.sqrt(Math.max(0, d * d - sd * sd)); if (gt.side * sd < 0 && Math.abs(gt.side - sd) < 60 && rad < GATE_R * 0.92) { gt.side = 0; startWarp(GATES[(gt.k + 1) % GATES.length].si, 2); continue; } }   // crossed the glowing middle (from either side): jump
+    if (here && flying && d < GATE_R * 3) { const rad = Math.sqrt(Math.max(0, d * d - sd * sd)); if (gt.side * sd < 0 && Math.abs(gt.side - sd) < 60 && rad < GATE_R * 0.92) { gt.side = 0; if (gt.dest >= 0) { const k = gt.dest; gt.dest = -1; startWarp(GATES[k].si, 2); continue; } openGateDlg(gt); } }   // crossed the glowing middle: jump to the system you chose (no choice yet: the choice opens)
+    if (here && flying && !gateOn && !trvOn && !mapOn && d < 1500 && gateAsked !== gt.k) openGateDlg(gt); if (d > 2600 && gateAsked === gt.k) gateAsked = -1;   // arriving at the gate: choose where to jump
     gt.side = sd; } }
 stations.forEach((st, k) => { const n = V3(Math.sin(k * 1.7), 1.2, Math.cos(k * 2.3)).normalize(), u = V3(1, 0, 0).cross(n).normalize(), v = n.clone().cross(u); TR_U.push(u); TR_V.push(v); });
 const _tq = new THREE.Quaternion(), _tp = V3(), _tt = V3(), _ts = V3(40, 40, 40), _tsB = V3(15, 15, 15);   // traffic ships enlarged x1.6
@@ -2085,7 +2093,7 @@ function updateWarp(dt) {
   if (!WP.done && WP.t >= (WP.gate === 2 ? 1.3 : WP.far ? 1.9 : 1.25)) {
     WP.done = true; homeSt = anchorSt = WP.to; for (const q of planets) { q.fd = null; q.vf = 0; q.sm = 1; }   /* the sky layout of the new home snaps into place while the screen is white (before, the other planets slid and resized for a second after arriving) */ tunnelEl.classList.remove('on'); const st = stations[WP.to];
     { const od = st.pl.off.clone().normalize(); S.pos.copy(st.pos).addScaledVector(od, -Math.max(1100, TR_R[WP.to] * 1.6)); }
-    const gA = WP.gate ? GATES[st.sys] : null; if (gA) { if (WP.gate === 1) S.pos.copy(gA.pos).addScaledVector(gA.n, 520); else S.pos.copy(gA.pos).addScaledVector(gA.n, 170); gA.side = 0; }   /* by gate: arrive in front of your own system's gate, or come out of the other one heading toward its station */   /* a giant station: arrive far enough out to see all of it */   // arrive on the line planet -> station -> you: the station stands directly in front of its own planet (the planet is drawn behind the station from this side)
+    const gA = WP.gate ? GATES[st.sys] : null; if (gA && WP.gate === 2) gateAsked = gA.k; /* just came out of this gate: don't ask again until you fly away from it */ if (gA) { if (WP.gate === 1) S.pos.copy(gA.pos).addScaledVector(gA.n, 520); else S.pos.copy(gA.pos).addScaledVector(gA.n, 170); gA.side = 0; }   /* by gate: arrive in front of your own system's gate, or come out of the other one heading toward its station */   /* a giant station: arrive far enough out to see all of it */   // arrive on the line planet -> station -> you: the station stands directly in front of its own planet (the planet is drawn behind the station from this side)
     _m.lookAt(_zero, gA ? (WP.gate === 1 ? _a.copy(gA.n).negate() : _a.copy(gA.n)) : _a.copy(st.pos).sub(S.pos).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
     fxUntil = performance.now() + 4000; S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); wpnChip(); fadeOut(); if (WP.far) { fadeEl.style.transition = WP.gate === 2 ? 'opacity 1.5s ease-out' : 'opacity 1.1s ease-out'; setTimeout(() => { fadeEl.style.background = ''; }, 1700); }
   }
@@ -2372,7 +2380,7 @@ const mapBs = SYSTEMS.map((nm, k) => { let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -
   $('map-sys').addEventListener('click', () => { if (S.mode !== 'fly') return; closeMap(); initAudio(); S.tPlanet = -2; sfx('lock'); trvOn = true; $('trv-name').textContent = 'THE STARGATE'; $('trv-dlg').style.display = 'flex'; });   // other systems: only through the stargate
 })();
 function updateMap() {
-  updCurSys(); mapB = mapBs[curSys]; $('map-sys').textContent = '\u27A4 STARGATE \u2192 ' + SYSTEMS[(curSys + 1) % SYSTEMS.length] + ' SYSTEM'; $('map-title').innerHTML = 'STAR MAP<b>' + SYSTEMS[curSys] + '</b>'; $('map-ruler').textContent = SYS_RULER[curSys]; { const sv = $('map-rule').querySelector('svg'); if (!window.__velSvg) window.__velSvg = sv.outerHTML; sv.outerHTML = curSys === 2 ? HUM_EMB.replace(/style="[^"]*"/, '') : window.__velSvg; } planets.forEach((p, i) => { $('mn' + i).style.display = p.sys === curSys ? '' : 'none'; });
+  updCurSys(); mapB = mapBs[curSys]; $('map-sys').textContent = '\u27A4 STARGATE'; $('map-title').innerHTML = 'STAR MAP<b>' + SYSTEMS[curSys] + '</b>'; $('map-ruler').textContent = SYS_RULER[curSys]; { const sv = $('map-rule').querySelector('svg'); if (!window.__velSvg) window.__velSvg = sv.outerHTML; sv.outerHTML = curSys === 2 ? HUM_EMB.replace(/style="[^"]*"/, '') : window.__velSvg; } planets.forEach((p, i) => { $('mn' + i).style.display = p.sys === curSys ? '' : 'none'; });
   const sc = mapB.sx * 84; mapMe.style.left = (50 + (S.pos.x - mapB.cx) * sc) + '%'; mapMe.style.top = (50 + (S.pos.z - mapB.cz) * sc) + '%';
   const f = new THREE.Vector3(0, 0, -1).applyQuaternion(S.q); mapMe.style.transform = 'translate(-50%,-60%) rotate(' + Math.atan2(f.x, -f.z) + 'rad)';
   const n = nearPlanet(); mapMe.style.display = n >= 0 ? 'none' : '';   /* at a planet its 'YOU ARE HERE' badge says it: no arrow on top of the name */ planets.forEach((p, i) => { const e = $('mn' + i); e.classList.toggle('cur', n === i); e.lastChild.textContent = n === i ? 'YOU ARE HERE' : ''; });
@@ -2383,7 +2391,7 @@ function updateMap() {
   planets.forEach((p, i) => { if (p.sys !== curSys || i === from) return; const q = P(p.pos); L += '<line x1="' + fp[0] + '" y1="' + fp[1] + '" x2="' + q[0] + '" y2="' + q[1] + '"/>';
     const t = document.createElement('div'); t.className = 'ly'; t.style.left = (fp[0] * 0.42 + q[0] * 0.58) + '%'; t.style.top = (fp[1] * 0.42 + q[1] * 0.58) + '%'; t.textContent = (stations[from].pos.distanceTo(stations[i].pos) / 1000).toFixed(1) + ' LY'; mapFld.appendChild(t); });
   const ml = $('map-lines'); ml.setAttribute('viewBox', '0 0 100 100'); ml.setAttribute('preserveAspectRatio', 'none'); ml.innerHTML = L;
-  { const g = $('map-gate'), gp = P(GATES[curSys].pos); g.style.left = gp[0] + '%'; g.style.top = gp[1] + '%'; g.lastChild.textContent = 'GATE \u2192 ' + SYSTEMS[(curSys + 1) % SYSTEMS.length]; }
+  { const g = $('map-gate'), gp = P(GATES[curSys].pos); g.style.left = gp[0] + '%'; g.style.top = Math.min(gp[1], 84) + '%';   /* never down on the stargate button */ g.lastChild.textContent = 'STARGATE'; }
 }
 function openMap() { if (S.mode !== 'fly') return; if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } mapOn = true; mapOv.style.display = 'block'; updateMap(); }
 function closeMap() { mapOn = false; mapOv.style.display = 'none'; }
@@ -2844,7 +2852,7 @@ function frame(now) {
       const d = S.pos.distanceTo(stations[i].pos), home = i === anchorSt && stations[i].sys === curSys; if ((d < STN_VIS * (stations[i].v.vis || 1) && stations[i].g.visible) || home) place(mk[i], stations[i].pos, stations[i].name + ' STATION · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), home); else mk[i].style.display = 'none';   /* your own station (the one you launched from or jumped to) is always marked with its distance, at any range - off screen it sits on the edge as an arrow; it changes only when you dock at or jump to another station */
       const lk = S.tPlanet === i; mkp[i].classList.toggle('lock', lk); if (!lk) mkp[i].style.display = 'none'; else place(mkp[i], planets[i].mesh.position, '', lk);
     }
-    { const gt = GATES[curSys], d = S.pos.distanceTo(gt.pos); place(mkGate, d < 2500 ? gt.top : gt.pos, 'STARGATE \u2192 ' + SYSTEMS[(gt.k + 1) % GATES.length] + ' · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), true); }
+    { const gt = GATES[curSys], d = S.pos.distanceTo(gt.pos); place(mkGate, d < 2500 ? gt.top : gt.pos, 'STARGATE · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), true); }
     const m = S.mission;
     if (m && (m.type === 'bounty' || m.type === 'delivery')) { const p = m.type === 'bounty' ? m.zone : stations[m.to].pos, d = S.pos.distanceTo(p); place(mkWp, p, (m.type === 'bounty' ? 'BOUNTY ZONE' : 'DELIVERY') + ' · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), true); } else mkWp.style.display = 'none';
     if (S.target && S.target.active) {
