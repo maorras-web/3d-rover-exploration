@@ -921,11 +921,18 @@ function sparks(p, n, spd, life) {
   dbAlive = DB_N; dbGeo.attributes.color.needsUpdate = true;
 }
 const ringTex = canvasTex(128, 128, (x, w, h) => { const g = x.createRadialGradient(64, 64, 34, 64, 64, 62); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.55, 'rgba(255,255,255,0.95)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, w, h); });
+// the fireball: a FILLED round ball (white-hot middle, yellow, orange, a soft billowy red rim) and a burst of thin rays - both painted once at load
+const fireTex = canvasTex(128, 128, (x) => { const g = x.createRadialGradient(64, 64, 0, 64, 64, 62); g.addColorStop(0, 'rgba(255,255,245,1)'); g.addColorStop(0.28, 'rgba(255,236,160,1)'); g.addColorStop(0.55, 'rgba(255,160,50,.9)'); g.addColorStop(0.8, 'rgba(235,80,15,.4)'); g.addColorStop(1, 'rgba(200,40,0,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  let sd = 7; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647; x.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 26; i++) { const a = r() * 6.283, d = 26 + r() * 22, cx = 64 + Math.cos(a) * d, cy = 64 + Math.sin(a) * d, rr = 9 + r() * 12, b = x.createRadialGradient(cx, cy, 0, cx, cy, rr); b.addColorStop(0, 'rgba(255,150,50,.32)'); b.addColorStop(1, 'rgba(255,90,20,0)'); x.fillStyle = b; x.fillRect(cx - rr, cy - rr, rr * 2, rr * 2); } });   // billows on the rim so it is not a perfect disc
+const raysTex = canvasTex(128, 128, (x) => { let sd = 3; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647; x.translate(64, 64); x.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 18; i++) { const a = i / 18 * 6.283 + r() * 0.3, L = 34 + r() * 28, w = 1.6 + r() * 2.2, g = x.createLinearGradient(0, 0, Math.cos(a) * L, Math.sin(a) * L); g.addColorStop(0, 'rgba(255,240,190,1)'); g.addColorStop(0.5, 'rgba(255,170,60,.6)'); g.addColorStop(1, 'rgba(255,110,20,0)'); x.fillStyle = g;
+    x.beginPath(); x.moveTo(-Math.sin(a) * w, Math.cos(a) * w); x.lineTo(Math.cos(a) * L, Math.sin(a) * L); x.lineTo(Math.sin(a) * w, -Math.cos(a) * w); x.closePath(); x.fill(); } });
 const EXP_N = 12, expl = [];   // pooled blasts (idle ones are hidden and cost nothing)
 const swGeo = new THREE.PlaneGeometry(1, 1);
-for (let i = 0; i < EXP_N; i++) { const f = glowSprite(0xffa040, 1, 0), r = glowSprite(0xffffff, 1, 0), w = glowSprite(0xffd9a0, 1, 0); w.material.map = ringTex; f.visible = r.visible = w.visible = false;
-  const d = new THREE.Mesh(swGeo, new THREE.MeshBasicMaterial({ map: ringTex, color: 0xbfe4ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false, side: THREE.DoubleSide })); d.visible = false;   /* a FLAT shockwave disc in a random tilt (big blasts only) */
-  scene.add(f, r, w, d); expl.push({ f, r, w, d, t: 99, size: 10 }); }
+for (let i = 0; i < EXP_N; i++) { const f = glowSprite(0xffffff, 1, 0), r = glowSprite(0xffffff, 1, 0), w = glowSprite(0xffb060, 1, 0), y = glowSprite(0xffffff, 1, 0); f.material.map = fireTex; y.material.map = raysTex; w.material.map = ringTex; f.visible = r.visible = w.visible = y.visible = false;
+  const d = new THREE.Mesh(swGeo, new THREE.MeshBasicMaterial({ map: ringTex, color: 0xffc070, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false, side: THREE.DoubleSide })); d.visible = false;   /* a FLAT shockwave disc in a random tilt (big blasts only) */
+  scene.add(f, r, w, d, y); expl.push({ f, r, w, d, y, t: 99, size: 10, sp: 1.5 }); }
 // tiny bright flash where a laser/missile hits
 const HF_N = 6, hflash = []; for (let i = 0; i < HF_N; i++) { const s = glowSprite(0xbff8ff, 1, 0); s.visible = false; scene.add(s); hflash.push({ s, t: 9 }); } let hfNext = 0;
 function hitFlash(p, big) { const h = hflash[hfNext]; hfNext = (hfNext + 1) % HF_N; h.t = 0; h.big = big ? 1.5 : 1; h.s.position.copy(p); h.s.visible = true; }
@@ -955,7 +962,7 @@ function updateDying(dt) {
 let explNext = 0;
 const boomQ = [], _bq = new THREE.Vector3();   // chain blasts: a big explosion is followed by 3 small ones a moment later (reuses the same pooled sprites - no new objects in the scene)
 function explode(p, size) {
-  const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.w.position.copy(p); e.w.visible = size > 12; e.d.visible = size > 12; if (e.d.visible) { e.d.position.copy(p); e.d.rotation.set(Math.random() * 6.3, Math.random() * 6.3, 0); }
+  const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.sp = size > 20 ? 1.05 : size > 12 ? 1.25 : 1.6; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.y.position.copy(p); e.y.visible = size > 7; e.y.material.rotation = Math.random() * 6.28; e.w.position.copy(p); e.w.visible = size > 12; e.d.visible = size > 12; if (e.d.visible) { e.d.position.copy(p); e.d.rotation.set(Math.random() * 6.3, Math.random() * 6.3, 0); }
   sparks(p, size > 20 ? 95 : size > 12 ? 55 : size < 8 ? 8 : 18, size * (size > 20 ? 3.8 : 3.2), size > 20 ? 1.6 : 1.3); sfx('boom', Math.min(size, 20));
   if (size > 12) { fxUntil = Math.max(fxUntil, performance.now() + 5000); const nc = size > 20 ? 6 : 3, sp = size > 20 ? 2.2 : 1.6; for (let i = 0; i < nc; i++) boomQ.push({ t: 0.08 + i * (size > 20 ? 0.11 : 0.13) + Math.random() * 0.08, x: p.x + (Math.random() - 0.5) * size * sp, y: p.y + (Math.random() - 0.5) * size * sp, z: p.z + (Math.random() - 0.5) * size * sp, s: Math.min(11.5, size * (0.3 + Math.random() * 0.25)) });   // a pirate goes up in a rolling chain of 6 blasts (each under the size that would start a chain of its own)
     for (let i = 0; i < 9; i++) { _bq.set((Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8).add(p); smokePuff(_bq); }   // a cloud of smoke that lingers where the ship was
@@ -966,9 +973,10 @@ function updateFx(dt) {
   updateDying(dt); updateStreaks(dt); updateShards(dt); updatePlates(dt);
   for (let i = boomQ.length - 1; i >= 0; i--) { const q = boomQ[i]; q.t -= dt; if (q.t <= 0) { boomQ.splice(i, 1); explode(_bq.set(q.x, q.y, q.z), q.s); } }
   for (const e of expl) {
-    if (e.t > 1) { if (e.f.visible) e.f.visible = e.r.visible = e.w.visible = e.d.visible = false; continue; }
-    e.t += dt * 1.5; const k = e.t, dc = camera.position.distanceTo(e.f.position), s = Math.min(e.size * (0.4 + k * 1.5), dc * 0.5 + 3);   // never bigger than about the screen: pixels outside the view cost nothing, pixels piled up inside it do
-    e.f.scale.set(s, s, 1); e.f.material.opacity = Math.max(0, 1 - k) * 0.95; e.f.material.color.setRGB(1, Math.max(0.12, 0.9 - k * 0.8), Math.max(0.03, 0.5 - k * 0.5)); { const cs = s * (0.45 + 0.6 * Math.max(0, 1 - k * 5)); e.r.scale.set(cs, cs, 1); } e.r.material.opacity = Math.max(0, 1 - k * 2.2);   /* white-hot core pops big for an instant, then settles */
+    if (e.t > 1) { if (e.f.visible) e.f.visible = e.r.visible = e.w.visible = e.d.visible = e.y.visible = false; continue; }
+    e.t += dt * e.sp; const k = e.t, dc = camera.position.distanceTo(e.f.position), pop = 1 - Math.pow(1 - k, 3), s = Math.min(e.size * (0.55 + 1.5 * pop), dc * 0.5 + 3);   // a round ball that pops out fast and then hangs, burning white -> yellow -> orange -> red
+    e.f.scale.set(s, s, 1); e.f.material.opacity = k < 0.55 ? 1 : Math.max(0, (1 - k) / 0.45); e.f.material.color.setRGB(1, Math.max(0.35, 1 - k * 0.75), Math.max(0.1, 0.9 - k * 1.3)); { const cs = s * (0.5 + 0.7 * Math.max(0, 1 - k * 4)); e.r.scale.set(cs, cs, 1); } e.r.material.opacity = Math.max(0, 1 - k * 2.4);   /* white-hot core pops big for an instant, then settles */
+    if (e.y.visible) { const ys = Math.min(e.size * (1.1 + pop * 2.6), dc * 0.9 + 3); e.y.scale.set(ys, ys, 1); e.y.material.opacity = Math.max(0, 1 - k * 1.7); e.y.material.rotation += dt * 0.6; }   /* energy rays flung outwards */
     if (e.d.visible) { const u = Math.min(1, k * 1.25), ds = Math.min(e.size * (0.6 + Math.pow(u, 0.6) * 7), dc * 1.6 + 3); e.d.scale.set(ds, ds, 1); e.d.material.opacity = Math.pow(1 - u, 1.6) * 0.9; }   /* flat shockwave races out and thins */
     if (e.w.visible) { const ws = Math.min(e.size * (1 + k * 4.5), dc * 0.75 + 3); e.w.scale.set(ws, ws, 1); e.w.material.opacity = Math.max(0, 1 - k) * 0.8; }
   }
