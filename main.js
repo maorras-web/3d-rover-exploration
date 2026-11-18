@@ -1591,7 +1591,7 @@ for (const h of stations) { if (h.sys !== 2 || SKY[h.name]) continue; SKY[h.name
     ks.forEach((k, n) => { SKY[h][k].dir = [v[n].x, v[n].y, v[n].z]; }); } }
 const VOFF = V3(0, 0, 3000), _pq = V3(), _pd = V3(), _pv = V3(), _pc = V3(), PCENS = SYSTEMS.map((nm, k) => { const c = V3(); let n = 0; planets.forEach(p => { if (p.sys === k) { c.add(p.pos); n++; } }); return c.multiplyScalar(1 / (n || 1)); });
 let curSys = 0, lastSkySys = 0;   // the system you are in = the system of the nearest station
-const sysBanner = (k) => { const el = document.getElementById('sysbn'); if (!el) return; el.firstChild.textContent = 'ENTERING ' + SYSTEMS[k] + ' SYSTEM'; el.lastChild.textContent = SYSTEM_SUB[k]; el.style.opacity = '1'; setTimeout(() => { el.style.opacity = '0'; }, 3400); };
+const sysBanner = (k) => { const el = document.getElementById('sysbn'); if (!el || (S.mode !== 'fly' && S.mode !== 'warp')) return;   /* only out in space: never over the start screen or inside a station */ el.firstChild.textContent = 'ENTERING ' + SYSTEMS[k] + ' SYSTEM'; el.lastChild.textContent = SYSTEM_SUB[k]; el.style.opacity = '1'; setTimeout(() => { el.style.opacity = '0'; }, 3400); };
 const SYSTEM_SUB = ['5 WORLDS', '5 WORLDS \u00B7 AMBER NEBULA', '5 WORLDS \u00B7 HOME OF THE HUMANS'];
 // the sun's colour per system: PIKRO warm white-yellow, YAPZO a slightly dark blue (disc, glow, sunlight, lens flare and the warm rim light on ships and stations)
 const SUNS = [{ disc: [1.0, 0.96, 0.82], glow: 0xfff0c0, light: 0xfff0d8, rim: [1.0, 0.75, 0.45], fl: '255,244,214', fl2: '255,200,120' }, { disc: [0.3, 0.5, 1.0], glow: 0x3a62e0, light: 0x8aa4ff, rim: [0.3, 0.5, 1.0], fl: '150,190,255', fl2: '70,110,255' }, { disc: [1.0, 0.98, 0.9], glow: 0xfff6e0, light: 0xfff8ee, rim: [1.0, 0.86, 0.62], fl: '255,250,232', fl2: '255,226,170' }];   // SOLARA: a plain white-yellow sun, like home
@@ -2198,6 +2198,8 @@ function makePics() {
   PIC.sh = PIC['sh' + save.ship] || PIC.sh;
   renderer.setRenderTarget(null); renderer.setClearColor(oc, oa); rt.dispose();
 }
+const TIPS = ['LEFT STICK  ·  STEER', 'DRAG UP / DOWN ON THE RIGHT  ·  SPEED', 'FIRE  ·  LASERS     TARGET  ·  NEXT ENEMY', 'MISSILE  ·  LOCKED TARGET     BOOST  ·  OUTRUN', 'FLY CLOSE TO A STATION TO DOCK'];
+let tipT = 0, tipK = -1; const tipEl = document.createElement('div'); tipEl.id = 'tip'; tipEl.className = 'hud'; document.body.appendChild(tipEl);
 let retSt = ''; document.getElementById('cross').appendChild(document.createElement('b'));   // the in-range flash ring
 let crossHitT = 0, crossCls = '', crossX = -1, crossY = -1; const _xf = V3(), _xd = V3();
 let shopTab = 'm', lgSt = -1, shopSub = 'u', mapSys = -1;
@@ -2455,13 +2457,14 @@ function launchFrom(i) {
   for (const a of asteroids) a.active = false; for (const l of loot) l.active = false; for (const q of shards) q.t = SH_LIFE;
   document.body.classList.remove('docked'); $('shop').classList.remove('show');
 }
-function startGame() { initAudio(); unlockMusic(); if (actx && actx.state === 'suspended') actx.resume(); $('start').classList.remove('show'); updateMissionHud(); offered = genMissions(START_ST);
+document.body.classList.add('menu');   // start screen: no HUD behind the title (fewer words on screen)
+function startGame() { document.body.classList.remove('menu'); initAudio(); unlockMusic(); if (actx && actx.state === 'suspended') actx.resume(); $('start').classList.remove('show'); updateMissionHud(); offered = genMissions(START_ST);
   ST = stats(); mapSys = -1; tintHangar(stations[START_ST].col); setPad(stations[START_ST].sys); S.station = START_ST; homeSt = anchorSt = START_ST; S.mode = 'dock'; S.target = null; S.speed = 0; S.vel.set(0, 0, 0); S.pos.set(HP.x, HP.y + DOCK_H, HP.z); S.q.identity(); S.shield = ST.shieldMax; S.hull = ST.hullMax; S.boost = 100;
   fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0';
   setTimeout(() => { fadeEl.style.transition = 'opacity .5s'; fadeEl.style.opacity = '1'; }, 2300); setTimeout(() => { if (S.mode === 'dock' && !$('shop').classList.contains('show')) launchFrom(START_ST); }, 2850); }   // the game opens inside the station hangar, then the ship launches out
 $('go-start').addEventListener('click', startGame);
 $('go-start').textContent = 'LAUNCH';
-{ const b = document.createElement('div'); b.style.cssText = 'margin-top:10px;font-size:10px;opacity:.5;letter-spacing:2px'; b.textContent = 'BUILD ' + BUILD; $('go-start').parentNode.appendChild(b); }
+// (the BUILD number under LAUNCH was removed: fewer words on the start screen)
 $('go-launch').addEventListener('click', () => { unlockMusic(); $('sh-dlg').style.display = 'flex'; });
 document.addEventListener('click', (e) => {   // one place gives every menu button its sound
   const b = e.target.closest('button, .go'); if (!b || !b.closest('#shop, .edlg, #sh-dlg, #map-ov, #start, #pause-ov')) return; const id = b.id || '';
@@ -2884,6 +2887,7 @@ function frame(now) {
         const p = pips[n++]; p.style.display = 'block'; p.style.transform = `translate(${_rp[0]}px,${_rp[1]}px) rotate(${_rp[2]}deg)`; p.classList.toggle('t', e === S.target); }
       for (; n < pips.length; n++) if (pips[n].style.display !== 'none') pips[n].style.display = 'none'; }
   } else { if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } if (trvOn) { trvOn = false; $('trv-dlg').style.display = 'none'; } for (const e of mk) e.style.display = 'none'; mkGate.style.display = 'none'; for (const e of mkp) e.style.display = 'none'; mkWp.style.display = 'none'; tgtEl.style.display = 'none'; leadEl.style.display = 'none'; }
+  if (!save.tips && flying) { tipT += dt; const k = Math.floor(tipT / 4.2); if (k !== tipK) { tipK = k; if (k >= TIPS.length) { tipEl.style.opacity = '0'; save.tips = 1; persist(); } else { tipEl.textContent = TIPS[k]; tipEl.style.opacity = '1'; } } if (tipK < TIPS.length && tipT - tipK * 4.2 > 3.5) tipEl.style.opacity = '0'; } else if (tipK >= 0 && !flying && tipEl.style.opacity !== '0') tipEl.style.opacity = '0';   // first flight only: short control hints, one at a time (the clock runs only while flying)
   updateAudio(); updateMusic(dt);
   { camera.updateMatrixWorld(); stnSunV.value.copy(sun.position).normalize().transformDirection(camera.matrixWorldInverse);   // sun shading and engine glows use THIS frame's camera (no one-frame lag in turns)
     if (save.ship >= 2 && QH[save.ship] && S.mode !== 'dock') qFlames(QH[save.ship], Math.min(1, S.speed / 90), S.boosting ? 1 : 0, 0.9 + Math.sin(tAcc * 50) * 0.1); }
