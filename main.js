@@ -2045,7 +2045,7 @@ function buildGate(gt) {
   const D = Object.assign({}, GATE_DEF, GATE_DESIGN), top = D.R + D.tube * 2 + (D.ring2 ? D.ring2Gap + D.ring2T * 2 : 0) + 40;
   gt.top = V3(0, top, 0).applyMatrix4(g.matrixWorld); }   // top: where its name tag sits (above the ring, never on top of a station's tag)
 GATES.forEach(buildGate);
-const mkGate = (() => { const e = $('mk-s0').cloneNode(true); e.id = 'mk-gate'; e.style.display = 'none'; $('mk-s0').parentNode.appendChild(e); return e; })();
+const mkGate = (() => { const e = $('mk-s0').cloneNode(true); e.id = 'mk-gate'; e.classList.remove('st'); e.classList.add('gt'); e.style.display = 'none'; $('mk-s0').parentNode.appendChild(e); return e; })();
 function warpToGate() { const gt = GATES[curSys]; if (S.mode !== 'fly') return; if (S.pos.distanceTo(gt.pos) < 1200) { toast('THE STARGATE IS RIGHT HERE', 2); return; } startWarp(gt.si, 1); }
 function updateGates(dt) { const flying = S.mode === 'fly';
   for (const gt of GATES) { const here = gt.k === curSys && S.mode !== 'dock' && S.mode !== 'menu', d = S.pos.distanceTo(gt.pos), vis = here && d < 15000; gt.g.visible = vis;
@@ -2180,6 +2180,7 @@ function makePics() {
   PIC.sh = PIC['sh' + save.ship] || PIC.sh;
   renderer.setRenderTarget(null); renderer.setClearColor(oc, oa); rt.dispose();
 }
+let retSt = '';
 let crossHitT = 0, crossCls = '', crossX = -1, crossY = -1; const _xf = V3(), _xd = V3();
 let shopTab = 'm', lgSt = -1, shopSub = 'u', mapSys = -1;
 const VEL_EMB = '<svg style="width:22px;height:22px;filter:drop-shadow(0 0 3px #6fc0ff)" viewBox="0 0 64 64"><defs><linearGradient id="vlg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4fbff"/><stop offset=".35" stop-color="#8cc4ee"/><stop offset=".6" stop-color="#2c5d8f"/><stop offset="1" stop-color="#d6ecff"/></linearGradient></defs><path d="M27 4 A11.5 11.5 0 0 0 49 4 A14 14 0 0 1 27 4Z" fill="url(#vlg2)"/><path d="M14 17 L23 17 L32 38 L44 17 L59 17 L32 61Z" fill="url(#vlg2)" stroke="#e8f6ff" stroke-width=".8"/><path d="M3 17 L11 17 L7 24Z" fill="url(#vlg2)"/><path d="M28.5 21.5 L37.5 21.5 L33 29Z" fill="none" stroke="#e8f6ff" stroke-width="1.4"/></svg>';   // the ruling race's emblem (same drawing as on the star map; own gradient id)
@@ -2518,9 +2519,29 @@ function updateSpawns() {
 const STN_VIS = 10000, STN_NEAR = 2600;   // a station is drawn up to 10 km away, growing fainter and fainter with distance (the fade is inside the hull shader); STN_NEAR = 'you are at the station' for the warp check
 const mk = stations.map((s, i) => $('mk-s' + i) || (() => { const e = $('mk-s0').cloneNode(true); e.id = 'mk-s' + i; $('mk-s0').parentNode.appendChild(e); return e; })()), mkWp = $('mk-wp'), tgtEl = $('tgt'), leadEl = $('lead'), crossEl = $('cross');
 const mkp = stations.map((s, i) => { const e = $('mk-s0').cloneNode(true); e.id = 'mk-p' + i; e.classList.add('pl'); e.style.color = s.col; $('mk-s0').parentNode.appendChild(e); return e; });
-const radar = $('radar'), rctx = radar.getContext('2d');
+{ const r = $('radar'); if (r) r.remove(); const rf = document.getElementById('reticle'); if (rf) rf.remove(); }   // no radar and no big frame any more: a small sight on the nose + a faint edge ring (off-screen contacts ride on it)
+const ering = document.createElement('div'); ering.id = 'ering'; ering.className = 'hud'; document.body.appendChild(ering);
+const pips = []; for (let k = 0; k < 8; k++) { const e = document.createElement('div'); e.className = 'pip hud'; document.body.appendChild(e); pips.push(e); }   // pirates off screen: small red arrows on the ring (fixed pool, no allocations)
+let ringOn = false; const _rp = [0, 0, 0];
+// where an off-screen point sits on the edge ring: [x, y, angle] in pixels/degrees, or null when it is on screen
+function ringAt(worldPos, out) { proj.copy(worldPos).project(camera); const behind = proj.z > 1; let nx = proj.x, ny = proj.y;
+  if (!behind && Math.abs(nx) < 0.92 && Math.abs(ny) < 0.84) return null;
+  if (behind) { nx = -nx; ny = -ny; } const W = innerWidth, H = innerHeight, R = Math.min(H * 0.4, W * 0.28); let dx = nx * W, dy = -ny * H; const m = Math.hypot(dx, dy) || 1; dx /= m; dy /= m;
+  out[0] = W / 2 + dx * R; out[1] = H / 2 + dy * R; out[2] = Math.atan2(dx, -dy) * 180 / Math.PI; return out; }
 let last = performance.now(), tAcc = 0, slow = 0, fast = 0, frames = 0, ema = 16, flip = 0, wasFx = 0, prPrev = 0, emaAtDrop = 0, prChecked = true, prLock = 0;
 const proj = V3(), qInv = new THREE.Quaternion();
+// labels that land on top of each other are moved down one line at a time (estimated sizes: no layout reads, so no cost); the mission marker keeps its place first
+const _dcl = [];
+function declutter(list) { _dcl.length = 0;
+  for (const el of list) { const t = el.querySelector('span'); if (!t) continue; if (el.style.display === 'none') { if (t.dataset.k !== '0') { t.dataset.k = '0'; t.style.transform = ''; } continue; }
+    const ar = el.querySelector('svg'), edge = ar && ar.style.display === 'block', x = parseFloat(el.style.left), w = Math.max(14, (t.textContent.length * 8.4 + 8) / 2);
+    let y = parseFloat(el.style.top), k = 0;
+    if (edge) {   // a marker parked on the screen edge: the whole marker (arrow + label) moves down until it is clear
+      for (let tries = 0; tries < 6; tries++) { const yy = y + k * 26; if (!_dcl.some(r => Math.abs(r[0] - x) < r[2] + w && Math.abs(r[1] - yy) < (r[3] + 19))) break; k++; }
+      if (k) { y += k * 26; el.style.top = y + 'px'; } _dcl.push([x, y, w, 19]); if (t.dataset.k !== '0') { t.dataset.k = '0'; t.style.transform = ''; } continue; }
+    // a marker on its target: the icon stays put, only its label steps down a line
+    const yl = y + 14; for (let tries = 0; tries < 5; tries++) { const yy = yl + k * 13; if (!_dcl.some(r => Math.abs(r[0] - x) < r[2] + w && Math.abs(r[1] - yy) < (r[3] + 6))) break; k++; }
+    _dcl.push([x, yl + k * 13, w, 6]); if (t.dataset.k !== String(k)) { t.dataset.k = String(k); t.style.transform = k ? 'translateY(' + k * 13 + 'px)' : ''; } } }
 function place(el, worldPos, label, edge, hideIfBehind) {
   proj.copy(worldPos).project(camera);
   const behind = proj.z > 1; let nx = proj.x, ny = proj.y; const W = innerWidth, H = innerHeight;
@@ -2529,39 +2550,8 @@ function place(el, worldPos, label, edge, hideIfBehind) {
   if (txt && label !== undefined) txt.textContent = label;
   if (inView) { el.style.display = 'block'; el.style.left = (nx * 0.5 + 0.5) * W + 'px'; el.style.top = (1 - (ny * 0.5 + 0.5)) * H + 'px'; if (arrow) { arrow.style.display = 'none'; dot.style.display = 'block'; } return true; }
   if (!edge) { el.style.display = 'none'; return false; }
-  if (behind) { nx = -nx; ny = -ny; } const m = Math.max(Math.abs(nx), Math.abs(ny), 1e-4); nx /= m; ny /= m;
-  el.style.display = 'block'; el.style.left = clamp((nx * 0.5 + 0.5) * W, 90, W - 90) + 'px'; el.style.top = clamp((1 - (ny * 0.5 + 0.5)) * H, 70, H - 150) + 'px';
-  arrow.style.display = 'block'; dot.style.display = 'none'; arrow.style.transform = `rotate(${Math.atan2(nx, ny) * 180 / Math.PI}deg)`; return false;
-}
-function drawRadar() {
-  // wide, low glass scanner: top-down, forward = up, wider than tall so it stays below the ship
-  const c = rctx, W = 320, H = 136, cx = 160, cy = 68, RX = 152, RZ = 60, range = 1500, kx = RX / range, kz = RZ / range;
-  c.clearRect(0, 0, W, H);
-  c.fillStyle = 'rgba(8,26,40,.34)'; c.fillRect(cx - RX, cy - RZ, RX * 2, RZ * 2);
-  const fov = c.createLinearGradient(0, cy - RZ, 0, cy); fov.addColorStop(0, 'rgba(170,140,255,.16)'); fov.addColorStop(1, 'rgba(170,140,255,0)');
-  c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx - RX * 0.5, cy - RZ); c.lineTo(cx + RX * 0.5, cy - RZ); c.closePath(); c.fillStyle = fov; c.fill();
-  c.strokeStyle = 'rgba(170,140,255,.2)'; c.lineWidth = 1.5; c.beginPath();
-  c.moveTo(cx, cy - RZ); c.lineTo(cx, cy + RZ); c.moveTo(cx - RX, cy); c.lineTo(cx + RX, cy);
-  c.rect(cx - RX / 2, cy - RZ / 2, RX, RZ); c.stroke();
-  c.strokeStyle = 'rgba(160,248,255,.9)'; c.lineWidth = 3; c.beginPath(); const L = 22;
-  c.moveTo(cx - RX, cy - RZ + L); c.lineTo(cx - RX, cy - RZ); c.lineTo(cx - RX + L, cy - RZ);
-  c.moveTo(cx + RX - L, cy - RZ); c.lineTo(cx + RX, cy - RZ); c.lineTo(cx + RX, cy - RZ + L);
-  c.moveTo(cx - RX, cy + RZ - L); c.lineTo(cx - RX, cy + RZ); c.lineTo(cx - RX + L, cy + RZ);
-  c.moveTo(cx + RX - L, cy + RZ); c.lineTo(cx + RX, cy + RZ); c.lineTo(cx + RX, cy + RZ - L); c.stroke();
-  qInv.copy(S.q).invert();
-  const dot = (p, col, size, sq) => {
-    _c.copy(p).sub(S.pos).applyQuaternion(qInv); let x = _c.x, z = _c.z; const y = _c.y, d = Math.max(Math.abs(x), Math.abs(z)); let a = 1;
-    if (d > range) { x *= range / d; z *= range / d; a = 0.45; }
-    const px = cx + x * kx, py = cy + z * kz, ey = clamp(y * kz * 0.5, -16, 16);
-    c.globalAlpha = a; c.strokeStyle = col; c.fillStyle = col; c.lineWidth = 1.5; c.beginPath(); c.moveTo(px, py); c.lineTo(px, py - ey); c.stroke();
-    if (sq) c.fillRect(px - size, py - ey - size, size * 2, size * 2); else { c.beginPath(); c.arc(px, py - ey, size, 0, 7); c.fill(); } c.globalAlpha = 1;
-  };
-  for (const s of stations) if (s.g.visible && S.pos.distanceTo(s.pos) < STN_VIS) dot(s.pos, '#8fe8ff', 5, true);
-  if (S.mission && S.mission.type === 'bounty') dot(S.mission.zone, '#ffd166', 5, true);
-  if (S.mission && S.mission.type === 'delivery') dot(stations[S.mission.to].pos, '#ffd166', 6, true);
-  for (const l of loot) if (l.active) dot(l.pos, '#ffd166', 2.2);
-  for (const e of enemies) if (e.active) dot(e.pos, e === S.target ? '#ffffff' : '#ff5a4a', e === S.target ? 5 : 4);
-  c.fillStyle = '#b6f8ff'; c.beginPath(); c.moveTo(cx, cy - 9); c.lineTo(cx + 8, cy + 6); c.lineTo(cx, cy + 3); c.lineTo(cx - 8, cy + 6); c.closePath(); c.fill();
+  ringAt(worldPos, _rp); el.style.display = 'block'; el.style.left = _rp[0] + 'px'; el.style.top = _rp[1] + 'px';   // off screen: parked on the faint edge ring, the arrow points the way to turn
+  arrow.style.display = 'block'; dot.style.display = 'none'; arrow.style.transform = `rotate(${_rp[2]}deg)`; return false;
 }
 
 const DTR = new Array(9).fill(1 / 60); let DTI = 0;
@@ -2840,34 +2830,38 @@ function frame(now) {
   $('b-bo').style.transform = `scaleX(${clamp(S.boost / 100, 0, 1).toFixed(3)})`;
   $('kmh').textContent = Math.round(S.speed);
   const showHud = flying;
-  crossEl.style.display = showHud ? 'block' : 'none';
+  crossEl.style.display = showHud ? 'block' : 'none'; if (ringOn !== showHud) { ringOn = showHud; ering.style.display = showHud ? 'block' : 'none'; if (!showHud) for (const p of pips) p.style.display = 'none'; }
   if (crossHitT > 0) crossHitT -= dt;
   if (showHud) { fwdOf(S.q, _xf); camera.updateMatrixWorld(); _xd.copy(S.pos).addScaledVector(_xf, 450).project(camera);   /* use THIS frame's camera: the stored matrix was last frame's, so the sight lagged one frame behind and shook in turns */   // the sight sits where the guns actually converge (450 m along the nose), so it stays ahead of ANY hull and follows the nose through turns
     const cx = Math.round((_xd.x * 0.5 + 0.5) * innerWidth * 4) / 4, cy = Math.round((0.5 - _xd.y * 0.5) * innerHeight * 4) / 4; if (cx !== crossX || cy !== crossY) {   /* quarter-pixel steps: a smooth glide instead of 1-px hops */ crossX = cx; crossY = cy; crossEl.style.left = cx + 'px'; crossEl.style.top = cy + 'px'; } }
   if (showHud) { let hot = false; fwdOf(S.q, _xf);   // is a pirate right under the sight? (a few dot products over 6 enemies)
     for (const e of enemies) { if (!e.active) continue; _xd.copy(e.pos).sub(S.pos); const along = _xd.dot(_xf); if (along < 20 || along > 1100) continue; if (_xd.lengthSq() - along * along < 14 * 14) { hot = true; break; } }
+    { const st = S.target && S.target.active ? 'lock' : ''; if (st !== retSt) { retSt = st; crossEl.classList.toggle('lock', !!st); } }   // locked on: the sight tightens, four ticks close in and it pulses
     const cs = (hot ? 'hot' : '') + (crossHitT > 0 ? ' hit' : ''); if (cs !== crossCls) { crossCls = cs; crossEl.classList.toggle('hot', hot); crossEl.classList.toggle('hit', crossHitT > 0); } }   // the DOM is touched only when the state changes
   if (flying) {
     for (let i = 0; i < stations.length; i++) {
-      const d = S.pos.distanceTo(stations[i].pos), home = i === anchorSt && stations[i].sys === curSys; if ((d < STN_VIS * (stations[i].v.vis || 1) && stations[i].g.visible) || home) place(mk[i], stations[i].pos, stations[i].name + ' STATION · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), home); else mk[i].style.display = 'none';   /* your own station (the one you launched from or jumped to) is always marked with its distance, at any range - off screen it sits on the edge as an arrow; it changes only when you dock at or jump to another station */
+      const d = S.pos.distanceTo(stations[i].pos), home = i === anchorSt && stations[i].sys === curSys; if ((d < STN_VIS * (stations[i].v.vis || 1) && stations[i].g.visible) || home) place(mk[i], stations[i].pos, '', home);   /* stations: just a small violet mark, no words */ else mk[i].style.display = 'none';   /* your own station (the one you launched from or jumped to) is always marked with its distance, at any range - off screen it sits on the edge as an arrow; it changes only when you dock at or jump to another station */
       const lk = S.tPlanet === i; mkp[i].classList.toggle('lock', lk); if (!lk) mkp[i].style.display = 'none'; else place(mkp[i], planets[i].mesh.position, '', lk);
     }
-    { const gt = GATES[curSys], d = S.pos.distanceTo(gt.pos); place(mkGate, d < 2500 ? gt.top : gt.pos, 'STARGATE · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), true); }
+    { const gt = GATES[curSys], d = S.pos.distanceTo(gt.pos); place(mkGate, d < 2500 ? gt.top : gt.pos, '', true);   /* the stargate: a small turquoise ring, no words */ }
     const m = S.mission;
-    if (m && (m.type === 'bounty' || m.type === 'delivery')) { const p = m.type === 'bounty' ? m.zone : stations[m.to].pos, d = S.pos.distanceTo(p); place(mkWp, p, (m.type === 'bounty' ? 'BOUNTY ZONE' : 'DELIVERY') + ' · ' + (d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'), true); } else mkWp.style.display = 'none';
+    if (m && (m.type === 'bounty' || m.type === 'delivery')) { const p = m.type === 'bounty' ? m.zone : stations[m.to].pos, d = S.pos.distanceTo(p); place(mkWp, p, d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m', true);   /* the mission target: yellow like the mission line, with only its distance */ } else mkWp.style.display = 'none';
+    declutter([mkWp, mkGate, ...mk]);
     if (S.target && S.target.active) {
       const e = S.target; const d = S.pos.distanceTo(e.pos);
       const on = place(tgtEl, e.pos, undefined, false); $('t-txt').textContent = e.name + ' · ' + Math.round(d) + ' m';
       $('t-sh').style.transform = `scaleX(${clamp(e.shield / e.shieldMax, 0, 1)})`; $('t-hu').style.transform = `scaleX(${clamp(e.hull / e.hullMax, 0, 1)})`;
       if (on && !crossCls.includes('hot')) { place(leadEl, S.lead, undefined, false); } else leadEl.style.display = 'none';   // the lead mark hides once the target is already under the sight (one sight at a time)
-      if (!on) { /* off-screen: radar shows it */ }
     } else { tgtEl.style.display = 'none'; leadEl.style.display = 'none'; }
     const ns = nearStation();
     if (entDismissed >= 0) { const sd = stations[entDismissed]; let dd = S.pos.distanceTo(sd.pos) / (sd.v.big || 1); if (sd.g.userData.mouths) dd = Math.min(dd, nearArm(sd)[1] / 1.1); if (dd > 300) entDismissed = -1; }   /* measured like nearStation() (from the docking mouth too): leaving a station by its gate no longer pops 'Enter?' at once */   /* same scale as nearStation(): the big citadel used to re-pop the dialog at once after 'No' */
     const wantEnt = ns >= 0 && ns !== entDismissed && stations[ns].g.visible && !trvOn && !mapOn;
     if (wantEnt && !entOn) { entOn = true; entFor = ns; $('ent-name').textContent = stations[ns].name; $('ent-dlg').style.display = 'flex'; sfx('lock'); }
     else if (!wantEnt && entOn) { entOn = false; $('ent-dlg').style.display = 'none'; }
-    if (++flip % 2 === 0) drawRadar();
+    if (++flip % 2 === 0) { let n = 0;   // pirates off screen -> red arrows on the ring (every 2nd frame; the locked one is white and bigger)
+      for (const e of enemies) { if (n >= pips.length) break; if (!e.active || e.pos.distanceToSquared(S.pos) > 3000 * 3000 || !ringAt(e.pos, _rp)) continue;
+        const p = pips[n++]; p.style.display = 'block'; p.style.transform = `translate(${_rp[0]}px,${_rp[1]}px) rotate(${_rp[2]}deg)`; p.classList.toggle('t', e === S.target); }
+      for (; n < pips.length; n++) if (pips[n].style.display !== 'none') pips[n].style.display = 'none'; }
   } else { if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } if (trvOn) { trvOn = false; $('trv-dlg').style.display = 'none'; } for (const e of mk) e.style.display = 'none'; mkGate.style.display = 'none'; for (const e of mkp) e.style.display = 'none'; mkWp.style.display = 'none'; tgtEl.style.display = 'none'; leadEl.style.display = 'none'; }
   updateAudio(); updateMusic(dt);
   { camera.updateMatrixWorld(); stnSunV.value.copy(sun.position).normalize().transformDirection(camera.matrixWorldInverse);   // sun shading and engine glows use THIS frame's camera (no one-frame lag in turns)
