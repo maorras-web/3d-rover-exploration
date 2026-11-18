@@ -916,8 +916,8 @@ const dbGeo = new THREE.BufferGeometry(); dbGeo.setAttribute('position', new THR
 const sparkTex = canvasTex(32, 32, (x) => { const g = x.createRadialGradient(16, 16, 0, 16, 16, 16); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, 'rgba(255,255,255,0.85)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 32, 32); });   // round soft spark instead of a square pixel
 const debris = new THREE.Points(dbGeo, new THREE.PointsMaterial({ map: sparkTex, alphaTest: 0.01, color: 0xffffff, vertexColors: true, size: 2.4, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }));
 debris.frustumCulled = false; scene.add(debris);
-function sparks(p, n, spd, life) {
-  for (let i = 0; i < n; i++) { const k = dbNext; dbNext = (dbNext + 1) % DB_N; dbPos[k * 3] = p.x; dbPos[k * 3 + 1] = p.y; dbPos[k * 3 + 2] = p.z; { const q = Math.random(); dbCol[k * 3] = 1; dbCol[k * 3 + 1] = q < 0.25 ? 0.95 : q < 0.7 ? 0.6 : 0.3; dbCol[k * 3 + 2] = q < 0.25 ? 0.8 : q < 0.7 ? 0.2 : 0.1; } _a.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.3, 1) * spd); dbVel[k * 3] = _a.x; dbVel[k * 3 + 1] = _a.y; dbVel[k * 3 + 2] = _a.z; dbLife[k] = rnd(0.4, 1) * life; }
+function sparks(p, n, spd, life, red) {
+  for (let i = 0; i < n; i++) { const k = dbNext; dbNext = (dbNext + 1) % DB_N; dbPos[k * 3] = p.x; dbPos[k * 3 + 1] = p.y; dbPos[k * 3 + 2] = p.z; { const q = Math.random(); dbCol[k * 3] = 1; if (red) { dbCol[k * 3 + 1] = q < 0.25 ? 0.75 : 0.12 + q * 0.15; dbCol[k * 3 + 2] = q < 0.25 ? 0.8 : 0.2 + q * 0.15; } else { dbCol[k * 3 + 1] = q < 0.25 ? 0.95 : q < 0.7 ? 0.6 : 0.3; dbCol[k * 3 + 2] = q < 0.25 ? 0.8 : q < 0.7 ? 0.2 : 0.1; } } _a.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.3, 1) * spd); dbVel[k * 3] = _a.x; dbVel[k * 3 + 1] = _a.y; dbVel[k * 3 + 2] = _a.z; dbLife[k] = rnd(0.4, 1) * life; }
   dbAlive = DB_N; dbGeo.attributes.color.needsUpdate = true;
 }
 const ringTex = canvasTex(128, 128, (x, w, h) => { const g = x.createRadialGradient(64, 64, 34, 64, 64, 62); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.55, 'rgba(255,255,255,0.95)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, w, h); });
@@ -961,13 +961,14 @@ function updateDying(dt) {
 }
 let explNext = 0;
 const boomQ = [], _bq = new THREE.Vector3();   // chain blasts: a big explosion is followed by 3 small ones a moment later (reuses the same pooled sprites - no new objects in the scene)
-function explode(p, size) {
-  const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.sp = size > 20 ? 1.05 : size > 12 ? 1.25 : 1.6; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.y.position.copy(p); e.y.visible = size > 7; e.y.material.rotation = Math.random() * 6.28; e.w.position.copy(p); e.w.visible = size > 12; e.d.visible = size > 12; if (e.d.visible) { e.d.position.copy(p); e.d.rotation.set(Math.random() * 6.3, Math.random() * 6.3, 0); }
-  sparks(p, size > 20 ? 95 : size > 12 ? 55 : size < 8 ? 8 : 18, size * (size > 20 ? 3.8 : 3.2), size > 20 ? 1.6 : 1.3); sfx('boom', Math.min(size, 20));
-  if (size > 12) { fxUntil = Math.max(fxUntil, performance.now() + 5000); const nc = size > 20 ? 6 : 3, sp = size > 20 ? 2.2 : 1.6; for (let i = 0; i < nc; i++) boomQ.push({ t: 0.08 + i * (size > 20 ? 0.11 : 0.13) + Math.random() * 0.08, x: p.x + (Math.random() - 0.5) * size * sp, y: p.y + (Math.random() - 0.5) * size * sp, z: p.z + (Math.random() - 0.5) * size * sp, s: Math.min(11.5, size * (0.3 + Math.random() * 0.25)) });   // a pirate goes up in a rolling chain of 6 blasts (each under the size that would start a chain of its own)
+function explode(p, size, red) {
+  const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.red = !!red; e.w.material.color.setHex(red ? 0xff3a5a : 0xffb060); e.d.material.color.setHex(red ? 0xff5070 : 0xffc070); e.y.material.color.setHex(red ? 0xff6a80 : 0xffffff); e.r.material.color.setHex(red ? 0xffd0dc : 0xffffff);   /* red = a mine: a crimson energy blast */ e.sp = size > 20 ? 1.05 : size > 12 ? 1.25 : 1.6; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.y.position.copy(p); e.y.visible = size > 7; e.y.material.rotation = Math.random() * 6.28; e.w.position.copy(p); e.w.visible = size > 12 || !!red; e.d.visible = size > 12 || !!red; if (e.d.visible) { e.d.position.copy(p); e.d.rotation.set(Math.random() * 6.3, Math.random() * 6.3, 0); }
+  sparks(p, red ? 70 : size > 20 ? 95 : size > 12 ? 55 : size < 8 ? 8 : 18, size * (red ? 4.2 : size > 20 ? 3.8 : 3.2), size > 20 ? 1.6 : 1.3, red); sfx('boom', Math.min(size, 20));
+  if (size > 12 && !red) { fxUntil = Math.max(fxUntil, performance.now() + 5000); const nc = size > 20 ? 6 : 3, sp = size > 20 ? 2.2 : 1.6; for (let i = 0; i < nc; i++) boomQ.push({ t: 0.08 + i * (size > 20 ? 0.11 : 0.13) + Math.random() * 0.08, x: p.x + (Math.random() - 0.5) * size * sp, y: p.y + (Math.random() - 0.5) * size * sp, z: p.z + (Math.random() - 0.5) * size * sp, s: Math.min(11.5, size * (0.3 + Math.random() * 0.25)) });   // a pirate goes up in a rolling chain of 6 blasts (each under the size that would start a chain of its own)
     for (let i = 0; i < 9; i++) { _bq.set((Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8).add(p); smokePuff(_bq); }   // a cloud of smoke that lingers where the ship was
   }
-  if (size > 12) { e.size = size * 1.7; blastStreaks(p, size); const dd = p.distanceTo(S.pos), it = Math.min(1, 1.2 - dd / 380); if (it > 0.05) { const fe = $('flash'); fe.style.transition = 'none'; fe.style.background = 'radial-gradient(ellipse at center,rgba(255,245,215,.55) 0,rgba(255,200,110,.18) 28%,rgba(255,140,50,0) 55%)'; fe.style.opacity = (it * (size > 20 ? 0.95 : 0.7)).toFixed(2); void fe.offsetWidth; fe.style.transition = 'opacity .8s ease-out'; fe.style.opacity = '0'; } }
+  if (red) { e.size = size * 1.6; const dd = p.distanceTo(S.pos), it = Math.min(1, 1.2 - dd / 300); if (it > 0.05) { const fe = $('flash'); fe.style.transition = 'none'; fe.style.background = 'radial-gradient(ellipse at center,rgba(255,215,225,.5) 0,rgba(255,60,90,.22) 30%,rgba(255,30,60,0) 58%)'; fe.style.opacity = (it * 0.8).toFixed(2); void fe.offsetWidth; fe.style.transition = 'opacity .7s ease-out'; fe.style.opacity = '0'; } }
+  else if (size > 12) { e.size = size * 1.7; blastStreaks(p, size); const dd = p.distanceTo(S.pos), it = Math.min(1, 1.2 - dd / 380); if (it > 0.05) { const fe = $('flash'); fe.style.transition = 'none'; fe.style.background = 'radial-gradient(ellipse at center,rgba(255,245,215,.55) 0,rgba(255,200,110,.18) 28%,rgba(255,140,50,0) 55%)'; fe.style.opacity = (it * (size > 20 ? 0.95 : 0.7)).toFixed(2); void fe.offsetWidth; fe.style.transition = 'opacity .8s ease-out'; fe.style.opacity = '0'; } }
 }
 function updateFx(dt) {
   updateDying(dt); updateStreaks(dt); updateShards(dt); updatePlates(dt);
@@ -975,7 +976,7 @@ function updateFx(dt) {
   for (const e of expl) {
     if (e.t > 1) { if (e.f.visible) e.f.visible = e.r.visible = e.w.visible = e.d.visible = e.y.visible = false; continue; }
     e.t += dt * e.sp; const k = e.t, dc = camera.position.distanceTo(e.f.position), pop = 1 - Math.pow(1 - k, 3), s = Math.min(e.size * (0.55 + 1.5 * pop), dc * 0.5 + 3);   // a round ball that pops out fast and then hangs, burning white -> yellow -> orange -> red
-    e.f.scale.set(s, s, 1); e.f.material.opacity = k < 0.55 ? 1 : Math.max(0, (1 - k) / 0.45); e.f.material.color.setRGB(1, Math.max(0.35, 1 - k * 0.75), Math.max(0.1, 0.9 - k * 1.3)); { const cs = s * (0.5 + 0.7 * Math.max(0, 1 - k * 4)); e.r.scale.set(cs, cs, 1); } e.r.material.opacity = Math.max(0, 1 - k * 2.4);   /* white-hot core pops big for an instant, then settles */
+    e.f.scale.set(s, s, 1); e.f.material.opacity = k < 0.55 ? 1 : Math.max(0, (1 - k) / 0.45); if (e.red) e.f.material.color.setRGB(1, Math.max(0.08, 0.75 - k * 1.4), Math.max(0.15, 0.8 - k * 1.2)); else e.f.material.color.setRGB(1, Math.max(0.35, 1 - k * 0.75), Math.max(0.1, 0.9 - k * 1.3)); { const cs = s * (0.5 + 0.7 * Math.max(0, 1 - k * 4)); e.r.scale.set(cs, cs, 1); } e.r.material.opacity = Math.max(0, 1 - k * 2.4);   /* white-hot core pops big for an instant, then settles */
     if (e.y.visible) { const ys = Math.min(e.size * (1.1 + pop * 2.6), dc * 0.9 + 3); e.y.scale.set(ys, ys, 1); e.y.material.opacity = Math.max(0, 1 - k * 1.7); e.y.material.rotation += dt * 0.6; }   /* energy rays flung outwards */
     if (e.d.visible) { const u = Math.min(1, k * 1.25), ds = Math.min(e.size * (0.6 + Math.pow(u, 0.6) * 7), dc * 1.6 + 3); e.d.scale.set(ds, ds, 1); e.d.material.opacity = Math.pow(1 - u, 1.6) * 0.9; }   /* flat shockwave races out and thins */
     if (e.w.visible) { const ws = Math.min(e.size * (1 + k * 4.5), dc * 0.75 + 3); e.w.scale.set(ws, ws, 1); e.w.material.opacity = Math.max(0, 1 - k) * 0.8; }
@@ -2074,6 +2075,47 @@ function updateGates(dt) { const flying = S.mode === 'fly';
     gt.side = sd; } }
 stations.forEach((st, k) => { const n = V3(Math.sin(k * 1.7), 1.2, Math.cos(k * 2.3)).normalize(), u = V3(1, 0, 0).cross(n).normalize(), v = n.clone().cross(u); TR_U.push(u); TR_V.push(v); });
 const _tq = new THREE.Quaternion(), _tp = V3(), _tt = V3(), _ts = V3(40, 40, 40), _tsB = V3(15, 15, 15);   // traffic ships enlarged x1.6
+// ---- MINES: small red-chrome spheres with glowing red lenses, drifting in empty space (never near stations, gates or planets). Fly into one or shoot it and it goes up in a red energy blast.
+// all of them are 2 instanced draws; they live in a loose ring 900-2400 m around you and are moved elsewhere once far behind (like the asteroids), so there is always a handful around at no extra cost
+const MINE_N = 10, MINE_R = 2.4, MINE_SYS = 2;   // small and dark: hard to spot until you are close
+const MINE_G = (() => { const col = (g, c) => { g = g.index ? g.toNonIndexed() : g; for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k); const cc = new THREE.Color(c), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = cc.r; a[i * 3 + 1] = cc.g; a[i * 3 + 2] = cc.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
+  const body = [col(new THREE.SphereGeometry(1, 22, 16), 0x8a1020)], lens = [], q = new THREE.Quaternion(), Z = new THREE.Vector3(0, 0, 1), at = (g, d, k) => { g.applyQuaternion(q.setFromUnitVectors(Z, d)); g.translate(d.x * k, d.y * k, d.z * k); return g; };
+  for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) { const d = new THREE.Vector3(x, y, z).normalize();   // 8 lens pods, one in every corner direction
+    body.push(col(at(new THREE.TorusGeometry(0.34, 0.075, 8, 20), d, 0.98), 0x5a5e66), col(at(new THREE.CylinderGeometry(0.31, 0.29, 0.18, 18).rotateX(Math.PI / 2), d, 0.92), 0x0e0e12));
+    lens.push(col(at(new THREE.CircleGeometry(0.24, 18), d, 1.012), 0xffffff)); }
+  for (const d of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) body.push(col(new THREE.SphereGeometry(0.12, 8, 6).translate(d[0] * 0.99, d[1] * 0.99, d[2] * 0.99), 0x5a5e66));   // small studs between the pods
+  return { body: mergeGeometries(body), lens: mergeGeometries(lens) }; })();
+const mineBody = new THREE.InstancedMesh(MINE_G.body, rimLit(new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 1.0, roughness: 0.12, envMap: SHIP_ENV, envMapIntensity: 3.2, emissive: 0x000000, fog: false }), 0.32, 0.05, 0.07, 0.06), MINE_N);   // polished dark red chrome: mostly reflection, little light of its own
+const mineLensMat = new THREE.MeshBasicMaterial({ color: 0xff2030, toneMapped: false, fog: false }), mineLens = new THREE.InstancedMesh(MINE_G.lens, mineLensMat, MINE_N);
+for (const m of [mineBody, mineLens]) { m.frustumCulled = false; m.count = 0; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); }
+const mines = []; for (let i = 0; i < MINE_N; i++) mines.push({ pos: V3(), q: new THREE.Quaternion(), ax: V3(0, 1, 0), sp: 0.3, on: false, t: 0 });
+let mineSys = -1; const _mq = new THREE.Quaternion(), _mS = V3(MINE_R, MINE_R, MINE_R);
+function placeMine(m, near) { fwdOf(S.q, _b);
+  for (let tr = 0; tr < 8; tr++) { _a.set(rnd(-1, 1), rnd(-0.5, 0.5), rnd(-1, 1)).normalize().addScaledVector(_b, near ? 0 : 1.1).normalize(); m.pos.copy(S.pos).addScaledVector(_a, near ? rnd(500, 2300) : rnd(1500, 2400));
+    let ok = true; for (const st of stations) if (st.sys === curSys && m.pos.distanceToSquared(st.pos) < 900 * 900) { ok = false; break; }
+    if (ok) { const g = GATES[curSys]; if (g && m.pos.distanceToSquared(g.pos) < 700 * 700) ok = false; }
+    if (ok) for (const p of planets) if (p.sys === curSys && m.pos.distanceTo(p.mesh.position) < p.r * 1.4 + 200) { ok = false; break; }
+    if (ok) break; }
+  m.ax.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize(); m.sp = rnd(0.2, 0.6); m.on = true; }
+let wasFly = false, warnSys = -1; const mineWarn = document.createElement('div'); mineWarn.id = 'minewarn'; mineWarn.className = 'hud'; mineWarn.textContent = '⚠  STAY ALERT · MINES MAY BE ANYWHERE'; document.body.appendChild(mineWarn); let mwT = 0;
+function mineWarnTick(dt) { const fly = S.mode === 'fly'; if (fly && !wasFly) { if (curSys === MINE_SYS && warnSys !== MINE_SYS) { mwT = 4.5; mineWarn.style.opacity = '1'; } warnSys = curSys; }   /* only on your first flight in SOLARA and when you arrive there from another system - not on every launch or planet jump inside it */ wasFly = fly; if (mwT > 0) { mwT -= fly ? dt : 99; if (mwT <= 0) mineWarn.style.opacity = '0'; } }   // every time you head out into space (launch or jump): a short warning
+function mineBlast(m) { m.on = false; m.t = 10; explode(m.pos, 13, true);   // the blast hurts whoever is close: you, and pirates too
+  const d = m.pos.distanceTo(S.pos); if (d < 95) { damagePlayer(70 * (1 - d / 95) + 10); S.shake = Math.max(S.shake, 1.2 * (1 - d / 140)); }
+  for (const e of enemies) if (e.active) { const de = e.pos.distanceTo(m.pos); if (de < 85) damageEnemy(e, 260 * (1 - de / 85) + 40, m.pos); } }
+function updateMines(dt) {
+  const fly = S.mode === 'fly'; if (curSys !== MINE_SYS) { if (mineSys !== -1) { mineSys = -1; for (const m of mines) m.on = false; } }   // mines exist only in SOLARA (the human system)
+  if (!fly || curSys !== MINE_SYS) { if (mineBody.count) mineBody.count = mineLens.count = 0; return; }
+  if (mineSys !== curSys) { mineSys = curSys; for (const m of mines) placeMine(m, true); }
+  let n = 0, near = 1e9;
+  for (const m of mines) {
+    if (!m.on) { m.t -= dt; if (m.t <= 0) placeMine(m, false); continue; }
+    const d = m.pos.distanceTo(S.pos); if (d > 2700) { placeMine(m, false); continue; }
+    if (d < MINE_R + 11) { mineBlast(m); continue; }   // touched it
+    near = Math.min(near, d); m.q.multiply(_mq.setFromAxisAngle(m.ax, m.sp * dt));
+    _nhM.compose(m.pos, m.q, _mS); mineBody.setMatrixAt(n, _nhM); mineLens.setMatrixAt(n, _nhM); n++; }
+  mineBody.count = mineLens.count = n; if (n) { mineBody.instanceMatrix.needsUpdate = mineLens.instanceMatrix.needsUpdate = true; }
+  const fr = 2 + 9 * clamp(1 - near / 260, 0, 1), pu = 0.55 + 0.45 * Math.sin(tAcc * fr * 2);   // the lenses pulse, faster and faster as you get close
+  const cl = clamp(1 - near / 260, 0, 1), gl = (0.25 + 0.75 * cl) * pu; mineLensMat.color.setRGB(0.25 + 1.3 * gl, 0.02 + 0.08 * gl, 0.03 + 0.1 * gl); }   // far: a dim red glint; close: bright and blinking fast
 function updateTraffic() {
   let nA = 0, nB = 0, nl = 0;
   for (let k = 0; k < stations.length; k++) { const st = stations[k]; if (!st.g.visible || st.sys !== 0) continue;   // these three ships fly only in the PIKRO system (YAPZO gets its own traffic later)
@@ -2667,6 +2709,7 @@ function frame(now) {
       } else {
         let hit = false;
         for (const e of enemies) { if (!e.active) continue; const seg = _d.copy(b.pos).sub(_a), sl = seg.lengthSq(); _c.copy(e.pos).sub(_a); const t = clamp(_c.dot(seg) / (sl || 1), 0, 1); _c.copy(_a).addScaledVector(seg, t).sub(e.pos); if (_c.lengthSq() < 42 * b.hr) { b.life = 0; damageEnemy(e, b.dmg, b.pos); hit = true; break; } }
+        if (!hit) for (const m of mines) { if (!m.on) continue; _c.copy(m.pos).sub(b.pos); if (_c.lengthSq() < 36) { b.life = 0; mineBlast(m); hit = true; break; } }   // shoot a mine and it blows
         if (!hit) for (let j = 0; j < AST_N; j++) {
           const a = asteroids[j]; if (!a.active) continue; _c.set(a.x - b.pos.x, a.y - b.pos.y, a.z - b.pos.z); const rr = a.r * 0.95;
           if (_c.lengthSq() < rr * rr) {
@@ -2842,7 +2885,7 @@ function frame(now) {
   for (const st of stations) { const ds = st.g.userData.doors; if (ds && st.g.visible) ds.forEach((dr, k) => { if (dr.open !== dr.tgt) { const o = dr.open + clamp(dr.tgt - dr.open, -dt * 0.8, dt * 0.8); setDoor(st, o, dr.tgt, k); } }); }   // hangar doors slide open / shut
   for (const st of stations) if (st.g.userData.wheel && st.g.visible) st.g.userData.wheel.rotation.z += dt * 0.04;   // the Velnorian wheel turns slowly (one number per frame)
   for (const st of stations) { const hg = st.g.userData.hg; if (hg && st.g.visible) { hg.getWorldPosition(_a); const sz = hg.scale.x * st.g.scale.x, dd = camera.position.distanceTo(_a); hg.material.opacity = 0.55 * clamp((dd - sz * 0.1) / (sz * 0.45), 0, 1); } }   // the hangar glow thins out as you close in on it
-  updateTraffic();
+  updateTraffic(); updateMines(dt); mineWarnTick(dt);
   dustMat.uniforms.uCam.value.copy(camera.position); dustMat.uniforms.uVel.value.copy(S.vel);
   dustMat.uniforms.uK.value = 0.012 + (S.boosting ? 0.05 : 0.008); dustMat.uniforms.uAlpha.value = S.mode === 'dock' ? 0 : 0.22 + clamp(S.speed / 170, 0, 1) * 0.35 + (S.boosting ? 0.2 : 0);
 
