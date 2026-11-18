@@ -2438,13 +2438,14 @@ const planets = [];
   const PNEW = { ERSO: 0, TEPZONIAX: 0.25, MIRAK: 0, TIANOG: 0, XIAQA: 0, PEXTRA: 0, YAZMIR: 0.35, VAJJA: 0, PIOPA: 0.4, KAIFMA: 0, VELNOR: 0, HAVEN: 0.4, MERIDIAN: 0, KESTREL: 0, CALDERA: 0, ATLAS: 0 };   // SOLARA: only HAVEN gets a cloud layer (its painting has none)   // the six newly painted worlds: own cloud-layer strength (the gas giants have their storms painted in, so none) and no self-glow   // painted surface maps: add one line per planet
   for (const s of stations) {
     const p = s.pl; p.pos = s.pos.clone().add(p.off); p.sys = s.sys; planets.push(p);
-    p.build = () => { const u = p.mesh.material.uniforms; u.map.value = tex(p.kind); u.aux.value = lastAux || blankAux;
-      const pi = PIMG[s.name], f = pi && pi[0]; if (f) { const im = new Image(); im.onload = () => {   // a hand-made painting replaces the generated surface (the generated one stays if the file is missing)
+    p.build = () => { const u = p.mesh.material.uniforms; const pi = PIMG[s.name], f = pi && pi[0];
+      if (!f) { u.map.value = tex(p.kind); u.aux.value = lastAux || blankAux; }   /* a world with a painting does not paint the generated surface first (that was heavy work thrown away) */
+      if (f) { const im = new Image(); im.onerror = () => { u.map.value = tex(p.kind); u.aux.value = lastAux || blankAux; }; im.onload = () => {   // a hand-made painting replaces the generated surface (the generated one stays if the file is missing)
         const t = new THREE.Texture(im); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.anisotropy = 4; t.needsUpdate = true;
         const ac = document.createElement('canvas'); ac.width = 256; ac.height = 128; const x = ac.getContext('2d'); x.drawImage(im, 0, 0, 256, 128); const d = x.getImageData(0, 0, 256, 128), q = d.data;
         for (let i = 0; i < q.length; i += 4) { const r = q[i], g = q[i + 1], bl = q[i + 2], sea = Math.max(0, Math.min(255, (bl - Math.max(r, g * 0.95) - 6) * 9)); q[i] = 0; q[i + 1] = pi[1] ? sea : 0; q[i + 2] = 0; q[i + 3] = 255; }
         x.putImageData(d, 0, 0); const at = new THREE.CanvasTexture(ac); at.wrapS = THREE.RepeatWrapping;
-        u.map.value = t; u.aux.value = at; u.rel.value = 0; if (PNEW[s.name] !== undefined) u.emis.value = Math.min(u.emis.value, 0.06); u.tx.value.set(1 / im.width, 1 / im.height); if (p.paintCb) { const cb = p.paintCb; p.paintCb = null; cb(); } }; im.src = f; } };
+        u.map.value = t; u.aux.value = at; u.rel.value = 0; if (PNEW[s.name] !== undefined) u.emis.value = Math.min(u.emis.value, 0.06); u.tx.value.set(1 / im.width, 1 / im.height); try { renderer.initTexture(t); renderer.initTexture(at); } catch (e) { }   /* sent to the graphics chip right away, not in the middle of a turn when the planet first comes into view */ if (p.paintCb) { const cb = p.paintCb; p.paintCb = null; cb(); } }; im.src = f; } };
     const pm = new THREE.Mesh(geo, planetMat(blankTex, p.atm, p.kind === 'lava' || p.kind === 'onyx' ? 0.45 : 0.0, GAS[p.kind] ? 0 : 1)); pm.scale.setScalar(p.r); pm.position.copy(p.pos); pm.rotation.z = 0.3; scene.add(pm); p.mesh = pm; if (s.name === 'MIRAK') { pm.material.uniforms.lb.value = 1.1; pm.material.uniforms.amb.value = 0.12; }   /* MIRAK: a gentler night side */
     const cop = PNEW[s.name] !== undefined ? PNEW[s.name] : CLOUDS[p.kind]; if (cop) { const cm = new THREE.Mesh(geo, cloudMat(cloudTex[planets.length & 1], cop)); cm.scale.setScalar(1.03); pm.add(cm); p.cl = cm; }
     if (MOONS[p.kind]) { const mo = new THREE.Mesh(geo, planetMat(moonTex, [0.55, 0.6, 0.7], 0)); mo.scale.setScalar(MOONS[p.kind]); pm.add(mo); p.moon = mo; p.mt = Math.random() * 6; }
@@ -3455,9 +3456,13 @@ function drawRadar() {
   c.fillStyle = '#b6f8ff'; c.beginPath(); c.moveTo(cx, cy - 9); c.lineTo(cx + 8, cy + 6); c.lineTo(cx, cy + 3); c.lineTo(cx - 8, cy + 6); c.closePath(); c.fill();
 }
 
+const DTR = new Array(9).fill(1 / 60); let DTI = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   let dt = (now - last) / 1000; last = now; if (paused || dt > 0.05) dt = paused ? 0 : 0.05; if (dt <= 0) return;
+  /* even steps: the phone hands out frame times that wobble (14, 19, 16, 21 ms...) although the screen shows a frame every ~16.7 ms; moving the ship and
+     camera by those wobbly steps makes every turn look shaky. the step used is the middle value of the last 9 frames; a real slow frame (much longer) still counts in full */
+  DTR[DTI++ % 9] = dt; { const q = DTR.slice().sort((a, b) => a - b), md = q[4]; if (md > 0 && dt < md * 1.6) dt = md; }
   tAcc += dt; ema += (dt * 1000 - ema) * 0.05; frames++;
   /* auto-quality, calmer: lowers the resolution only after 3 s of steady slowness (not after a short spike, a blast or a hitch), one small step at a time.
      3 s after each step it checks: if the game did not get faster, the screen size was not the problem (e.g. a phone locked at 30 fps), so it puts the
