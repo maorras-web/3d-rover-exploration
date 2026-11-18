@@ -678,8 +678,37 @@
 #map-rule svg{width:30px;height:30px;filter:drop-shadow(0 0 4px #6fc0ff)}
 #map-rule b{color:#e6f4ff;font-weight:700}
 #map-ov .mh{position:absolute;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom));text-align:center;color:#7fa8c8;font-size:11px;letter-spacing:2px}
+
+/* ===== flight star map: violet, the system's own nebula behind, real planet faces, routes, the stargate ===== */
+#map-ov{background:#07041a center/cover no-repeat}
+#map-ov::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 50%,rgba(20,10,48,.35),rgba(6,3,18,.86) 75%);pointer-events:none}
+#map-ov .mt{top:calc(8px + env(safe-area-inset-top));color:#c9a8ff;font:800 11px system-ui,Arial,sans-serif;letter-spacing:5px}
+#map-ov .mt b{display:block;margin-top:2px;color:#f3eaff;font-size:20px;letter-spacing:8px;text-shadow:0 0 14px rgba(170,110,255,.7)}
+#map-rule{top:calc(50px + env(safe-area-inset-top));color:#a98bd2}
+#map-rule svg{width:24px;height:24px}
+#map-ov .mx{border:1.5px solid #b48cff;background:rgba(48,20,96,.65);color:#f0e6ff;box-shadow:0 0 14px rgba(150,90,255,.35)}
+#map-fld{top:20%;bottom:16%}
+#map-rings{position:absolute;left:50%;top:50%;pointer-events:none}
+#map-rings i{position:absolute;left:0;top:0;transform:translate(-50%,-50%);border-radius:50%;border:1px solid rgba(170,130,255,.13)}
+#map-lines{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+#map-lines line{stroke:rgba(214,170,255,.38);stroke-width:1.2;stroke-dasharray:5 6;vector-effect:non-scaling-stroke}
+#map-fld .ly{position:absolute;transform:translate(-50%,-50%);padding:1px 6px;border-radius:8px;background:rgba(18,8,44,.75);color:#cdb4f2;font:600 9px system-ui,Arial,sans-serif;letter-spacing:1px;pointer-events:none;white-space:nowrap}
+#map-fld .mn{gap:3px;color:#f3eaff;font:700 11px system-ui,Arial,sans-serif;letter-spacing:3px;z-index:2}
+#map-fld .mn i{width:38px;height:38px;border:0;outline:0;background-color:var(--c);background-size:200% 100%,100% 100%;box-shadow:0 0 16px var(--c),0 0 0 1.5px rgba(255,255,255,.18);position:relative;overflow:hidden}
+#map-fld .mn i::after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.28),rgba(255,255,255,0) 40%),radial-gradient(circle at 70% 72%,rgba(0,0,0,.72),rgba(0,0,0,0) 62%)}
+#map-fld .mn span,#map-fld .mn em{white-space:nowrap}
+#map-fld .mn em{font:600 8px system-ui,Arial,sans-serif;letter-spacing:2px;color:#a98bd2;font-style:normal}
+#map-fld .mn small{order:-1;margin-bottom:2px;padding:2px 8px;border-radius:9px;background:linear-gradient(90deg,#7a3cff,#b05cff);color:#fff;font:800 8px system-ui,Arial,sans-serif;letter-spacing:2px;opacity:1}
+#map-fld .mn small:empty{display:none}
+#map-fld .mn.cur i{outline:0;box-shadow:0 0 18px var(--c),0 0 0 2px #fff,0 0 0 6px rgba(176,92,255,.45);animation:mpulse 1.6s ease-in-out infinite}
+@keyframes mpulse{50%{box-shadow:0 0 22px var(--c),0 0 0 2px #fff,0 0 0 10px rgba(176,92,255,0)}}
+#map-gate{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;padding:4px;color:#9fe6ff;font:700 9px system-ui,Arial,sans-serif;letter-spacing:2px;z-index:2}
+#map-gate i{width:20px;height:20px;border-radius:50%;border:3px solid #6fd6ff;box-shadow:0 0 12px #3fb8ff,inset 0 0 8px #3fb8ff}
+#map-me{border-bottom-color:#7dffc0;filter:drop-shadow(0 0 6px #4dffa8);z-index:3}
+#map-sys{border:1.5px solid #b48cff;background:linear-gradient(90deg,rgba(90,40,170,.85),rgba(150,70,230,.85));color:#fff;box-shadow:0 0 16px rgba(150,90,255,.4)}
+#map-ov .mh{color:#a98bd2}
 </style>
-<div id="map-ov"><div class="mt" id="map-title">STAR MAP</div><div id="map-rule"><svg viewBox="0 0 64 64"><defs><linearGradient id="vlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4fbff"/><stop offset=".35" stop-color="#8cc4ee"/><stop offset=".6" stop-color="#2c5d8f"/><stop offset="1" stop-color="#d6ecff"/></linearGradient></defs><path d="M27 4 A11.5 11.5 0 0 0 49 4 A14 14 0 0 1 27 4Z" fill="url(#vlg)"/><path d="M14 17 L23 17 L32 38 L44 17 L59 17 L32 61Z" fill="url(#vlg)" stroke="#e8f6ff" stroke-width=".8"/><path d="M3 17 L11 17 L7 24Z" fill="url(#vlg)"/><path d="M28.5 21.5 L37.5 21.5 L33 29Z" fill="none" stroke="#e8f6ff" stroke-width="1.4"/></svg><span>RULED BY <b id="map-ruler">VELNORIAN</b></span></div><button class="mx" id="map-x">&times;</button><div id="map-fld"><div id="map-me"></div></div><div class="mh">TAP A PLANET TO TRAVEL</div><button id="map-sys"></button></div>
+<div id="map-ov"><div class="mt" id="map-title">STAR MAP</div><div id="map-rule"><svg viewBox="0 0 64 64"><defs><linearGradient id="vlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4fbff"/><stop offset=".35" stop-color="#8cc4ee"/><stop offset=".6" stop-color="#2c5d8f"/><stop offset="1" stop-color="#d6ecff"/></linearGradient></defs><path d="M27 4 A11.5 11.5 0 0 0 49 4 A14 14 0 0 1 27 4Z" fill="url(#vlg)"/><path d="M14 17 L23 17 L32 38 L44 17 L59 17 L32 61Z" fill="url(#vlg)" stroke="#e8f6ff" stroke-width=".8"/><path d="M3 17 L11 17 L7 24Z" fill="url(#vlg)"/><path d="M28.5 21.5 L37.5 21.5 L33 29Z" fill="none" stroke="#e8f6ff" stroke-width="1.4"/></svg><span>RULED BY <b id="map-ruler">VELNORIAN</b></span></div><button class="mx" id="map-x">&times;</button><div id="map-fld"><div id="map-rings"><i style="width:22vmin;height:22vmin"></i><i style="width:46vmin;height:46vmin"></i><i style="width:72vmin;height:72vmin"></i><i style="width:100vmin;height:100vmin"></i></div><svg id="map-lines"></svg><button id="map-gate"><i></i><span></span></button><div id="map-me"></div></div><div class="mh">TAP A PLANET TO TRAVEL</div><button id="map-sys"></button></div>
 <div id="trv-dlg" class="edlg"><div class="dl"><div class="dt">Navigation</div><div class="dm">Travel to <b id="trv-name"></b>?</div><div class="db"><button id="trv-yes">Yes</button><button id="trv-no">No</button></div></div></div>
 <div id="ent-dlg" class="edlg"><div class="dl"><div class="dt">Docking</div><div class="dm">Enter <b id="ent-name"></b>?</div><div class="db"><button id="ent-yes">Yes</button><button id="ent-no">No</button></div></div></div>
 
@@ -701,11 +730,11 @@
 <script type="module">
 const d = document.getElementById('diag');
 const show = (t) => { d.style.display = 'block'; d.textContent += t + '\n'; };
-const need = ['main.js?v=531', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
+const need = ['main.js?v=532', 'https://unpkg.com/three@0.160.0/build/three.module.js'];
 const res = await Promise.all(need.map(u => fetch(u).then(r => r.ok ? null : u + '  ->  HTTP ' + r.status).catch(e => u + '  ->  ' + e.message)));
 const bad = res.filter(Boolean);
 if (bad.length) show('MISSING FILES:\n' + bad.join('\n'));
-else { try { await import('./main.js?v=531'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
+else { try { await import('./main.js?v=532'); } catch (e) { show('LOAD ERROR: ' + (e && e.message || e)); } }
 </script>
 </body>
 </html>

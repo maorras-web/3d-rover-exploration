@@ -1538,7 +1538,7 @@ const planets = [];
   const PIMG = { 'TIANOG': ['planet_gold.webp', 0], 'MIRAK': ['planet_magenta.webp', 0], 'TEPZONIAX': ['planet_tempest.webp', 1], 'VAJJA': ['planet_inferno.webp', 0], 'YAZMIR': ['planet_azure.webp', 1], 'XIAQA': ['planet_dust.webp', 0], 'PIOPA': ['planet_terra.webp', 1], 'ERSO': ['planet_neon.webp', 0], 'KAIFMA': ['planet_jovian.webp', 0], 'PEXTRA': ['planet_glacier.webp', 0], 'VELNOR': ['planet_jade.webp', 0], 'HAVEN': ['planet_haven.webp', 1], 'MERIDIAN': ['planet_meridian.webp', 0], 'KESTREL': ['planet_kestrel.webp', 0], 'CALDERA': ['planet_caldera.webp', 0], 'ATLAS': ['planet_atlas.webp', 0] };
   const PNEW = { ERSO: 0, TEPZONIAX: 0.25, MIRAK: 0, TIANOG: 0, XIAQA: 0, PEXTRA: 0, YAZMIR: 0.35, VAJJA: 0, PIOPA: 0.4, KAIFMA: 0, VELNOR: 0, HAVEN: 0.4, MERIDIAN: 0, KESTREL: 0, CALDERA: 0, ATLAS: 0 };   // SOLARA: only HAVEN gets a cloud layer (its painting has none)   // the six newly painted worlds: own cloud-layer strength (the gas giants have their storms painted in, so none) and no self-glow   // painted surface maps: add one line per planet
   for (const s of stations) {
-    const p = s.pl; p.pos = s.pos.clone().add(p.off); p.sys = s.sys; planets.push(p);
+    const p = s.pl; p.pos = s.pos.clone().add(p.off); p.sys = s.sys; p.img = PIMG[s.name] && PIMG[s.name][0]; planets.push(p);
     p.build = () => { const u = p.mesh.material.uniforms; const pi = PIMG[s.name], f = pi && pi[0];
       if (!f) { u.map.value = tex(p.kind); u.aux.value = lastAux || blankAux; }   /* a world with a painting does not paint the generated surface first (that was heavy work thrown away) */
       if (f) { const im = new Image(); im.onerror = () => { u.map.value = tex(p.kind); u.aux.value = lastAux || blankAux; }; im.onload = () => {   // a hand-made painting replaces the generated surface (the generated one stays if the file is missing)
@@ -2364,16 +2364,26 @@ const mapBs = SYSTEMS.map((nm, k) => { let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -
   planets.forEach((p, i) => {
     const mb = mapBs[p.sys], b = document.createElement('button'); b.className = 'mn'; b.id = 'mn' + i; b.style.setProperty('--c', stations[i].col);
     b.style.left = (50 + (p.pos.x - mb.cx) * mb.sx * 84) + '%'; b.style.top = (50 + (p.pos.z - mb.cz) * mb.sx * 84) + '%';
-    b.innerHTML = '<i></i><span>' + stations[i].name + '</span><small></small>'; mapFld.appendChild(b);
+    b.innerHTML = '<i></i><span>' + stations[i].name + '</span><em>' + (p.lbl || '') + '</em><small></small>'; mapFld.appendChild(b);
+    b.firstChild.style.backgroundImage = (p.img ? 'url(' + p.img + '),' : '') + 'radial-gradient(circle at 40% 35%,#fff6,' + stations[i].col + ' 60%)';   // the planet's own painted face (the colour behind it if the file is missing)
     b.addEventListener('click', () => { if (S.mode !== 'fly') return; closeMap(); if (nearPlanet() === i) return; initAudio(); S.tPlanet = i; sfx('lock'); trvOn = true; $('trv-name').textContent = stations[i].name; $('trv-dlg').style.display = 'flex'; });
   });
+  $('map-gate').addEventListener('click', () => $('map-sys').click());
   $('map-sys').addEventListener('click', () => { if (S.mode !== 'fly') return; closeMap(); initAudio(); S.tPlanet = -2; sfx('lock'); trvOn = true; $('trv-name').textContent = 'THE STARGATE'; $('trv-dlg').style.display = 'flex'; });   // other systems: only through the stargate
 })();
 function updateMap() {
-  updCurSys(); mapB = mapBs[curSys]; $('map-sys').textContent = '\u27A4 STARGATE \u2192 ' + SYSTEMS[(curSys + 1) % SYSTEMS.length] + ' SYSTEM'; $('map-title').textContent = 'STAR MAP \u00B7 ' + SYSTEMS[curSys] + ' SYSTEM'; $('map-ruler').textContent = SYS_RULER[curSys]; { const sv = $('map-rule').querySelector('svg'); if (!window.__velSvg) window.__velSvg = sv.outerHTML; sv.outerHTML = curSys === 2 ? HUM_EMB.replace(/style="[^"]*"/, '') : window.__velSvg; } planets.forEach((p, i) => { $('mn' + i).style.display = p.sys === curSys ? '' : 'none'; });
+  updCurSys(); mapB = mapBs[curSys]; $('map-sys').textContent = '\u27A4 STARGATE \u2192 ' + SYSTEMS[(curSys + 1) % SYSTEMS.length] + ' SYSTEM'; $('map-title').innerHTML = 'STAR MAP<b>' + SYSTEMS[curSys] + '</b>'; $('map-ruler').textContent = SYS_RULER[curSys]; { const sv = $('map-rule').querySelector('svg'); if (!window.__velSvg) window.__velSvg = sv.outerHTML; sv.outerHTML = curSys === 2 ? HUM_EMB.replace(/style="[^"]*"/, '') : window.__velSvg; } planets.forEach((p, i) => { $('mn' + i).style.display = p.sys === curSys ? '' : 'none'; });
   const sc = mapB.sx * 84; mapMe.style.left = (50 + (S.pos.x - mapB.cx) * sc) + '%'; mapMe.style.top = (50 + (S.pos.z - mapB.cz) * sc) + '%';
   const f = new THREE.Vector3(0, 0, -1).applyQuaternion(S.q); mapMe.style.transform = 'translate(-50%,-60%) rotate(' + Math.atan2(f.x, -f.z) + 'rad)';
-  const n = nearPlanet(); planets.forEach((p, i) => { const e = $('mn' + i); e.classList.toggle('cur', n === i); e.lastChild.textContent = n === i ? 'YOU ARE HERE' : ''; });
+  const n = nearPlanet(); mapMe.style.display = n >= 0 ? 'none' : '';   /* at a planet its 'YOU ARE HERE' badge says it: no arrow on top of the name */ planets.forEach((p, i) => { const e = $('mn' + i); e.classList.toggle('cur', n === i); e.lastChild.textContent = n === i ? 'YOU ARE HERE' : ''; });
+  // the system's own nebula behind the map (set once per system), routes from where you are with the distance in light years, and the stargate
+  if (mapOv.dataset.sys !== String(curSys)) { mapOv.dataset.sys = curSys; mapOv.style.backgroundImage = 'url(data:image/jpeg;base64,' + [NEB_PIKRO, NEB_YAPZO, NEB_SOLARA][curSys] + ')'; }
+  const P = (v) => [clamp(50 + (v.x - mapB.cx) * sc, 2, 98), clamp(50 + (v.z - mapB.cz) * sc, 2, 98)], from = n >= 0 ? n : homeSt, fp = P(planets[from].pos);
+  mapFld.querySelectorAll('.ly').forEach(e => e.remove()); let L = '';
+  planets.forEach((p, i) => { if (p.sys !== curSys || i === from) return; const q = P(p.pos); L += '<line x1="' + fp[0] + '" y1="' + fp[1] + '" x2="' + q[0] + '" y2="' + q[1] + '"/>';
+    const t = document.createElement('div'); t.className = 'ly'; t.style.left = (fp[0] * 0.42 + q[0] * 0.58) + '%'; t.style.top = (fp[1] * 0.42 + q[1] * 0.58) + '%'; t.textContent = (stations[from].pos.distanceTo(stations[i].pos) / 1000).toFixed(1) + ' LY'; mapFld.appendChild(t); });
+  const ml = $('map-lines'); ml.setAttribute('viewBox', '0 0 100 100'); ml.setAttribute('preserveAspectRatio', 'none'); ml.innerHTML = L;
+  { const g = $('map-gate'), gp = P(GATES[curSys].pos); g.style.left = gp[0] + '%'; g.style.top = gp[1] + '%'; g.lastChild.textContent = 'GATE \u2192 ' + SYSTEMS[(curSys + 1) % SYSTEMS.length]; }
 }
 function openMap() { if (S.mode !== 'fly') return; if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } mapOn = true; mapOv.style.display = 'block'; updateMap(); }
 function closeMap() { mapOn = false; mapOv.style.display = 'none'; }
@@ -2692,7 +2702,7 @@ function frame(now) {
     for (let i = 0; i < AST_N; i++) {
       const a = asteroids[i]; if (!a.active) continue; const dx = S.pos.x - a.x, dy = S.pos.y - a.y, dz2 = S.pos.z - a.z, rr = a.r * 0.9 + 2.4;
       if (dx * dx + dy * dy + dz2 * dz2 < rr * rr) {
-        if (S.inv <= 0) { const dmg = clamp(6 + S.speed * 0.14 + a.r * 0.4, 6, 50); damagePlayer(dmg); S.inv = 0.6; S.nb = false; S.speed *= 0.5; }
+        if (S.inv <= 0) { const dmg = clamp(6 + S.speed * 0.14 + a.r * 0.4, 6, 50); damagePlayer(dmg); S.inv = 0.6; S.nb = true; S.speed *= 0.5; }   // no blinking after a rock: the ship stays visible
         hitAsteroid(a, 1e9); S.shake = Math.max(S.shake, 0.6);   // flying into a rock smashes it to pieces, just like shooting it (the ship still takes the hit)
       }
     }
