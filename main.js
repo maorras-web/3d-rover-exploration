@@ -963,7 +963,7 @@ let explNext = 0;
 const boomQ = [], _bq = new THREE.Vector3();   // chain blasts: a big explosion is followed by 3 small ones a moment later (reuses the same pooled sprites - no new objects in the scene)
 function explode(p, size, red, quiet) {
   const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.red = !!red; e.w.material.color.setHex(red ? 0xff3a5a : 0xffb060); e.d.material.color.setHex(red ? 0xff5070 : 0xffc070); e.y.material.color.setHex(red ? 0xff6a80 : 0xffffff); e.r.material.color.setHex(red ? 0xffd0dc : 0xffffff);   /* red = a mine: a crimson energy blast */ e.sp = size > 20 ? 1.05 : size > 12 ? 1.25 : 1.6; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.y.position.copy(p); e.y.visible = size > 7; e.y.material.rotation = Math.random() * 6.28; e.w.position.copy(p); e.w.visible = size > 12 || !!red; e.d.visible = size > 12 || !!red; if (e.d.visible) { e.d.position.copy(p); e.d.rotation.set(Math.random() * 6.3, Math.random() * 6.3, 0); }
-  sparks(p, red ? 70 : size > 20 ? 95 : size > 12 ? 55 : size < 8 ? 8 : 18, size * (red ? 4.2 : size > 20 ? 3.8 : 3.2), size > 20 ? 1.6 : 1.3, red); if (!quiet) sfx('boom', Math.min(size, 20));
+  sparks(p, red ? 70 : size > 20 ? 95 : size > 12 ? 55 : size < 8 ? 8 : 18, size * (red ? 4.2 : size > 20 ? 3.8 : 3.2), size > 20 ? 1.6 : 1.3, red); if (!quiet) { const dd = p.distanceTo(S.pos); sfx('boom', Math.min(size, 20), dd < 150 ? 1 : dd > 800 ? 0.5 : 1 - 0.5 * (dd - 150) / 650); }   /* close = full level, far away = -6 dB */
   if (size > 12 && !red) { fxUntil = Math.max(fxUntil, performance.now() + 5000); const nc = size > 20 ? 6 : 3, sp = size > 20 ? 2.2 : 1.6; for (let i = 0; i < nc; i++) boomQ.push({ t: 0.08 + i * (size > 20 ? 0.11 : 0.13) + Math.random() * 0.08, x: p.x + (Math.random() - 0.5) * size * sp, y: p.y + (Math.random() - 0.5) * size * sp, z: p.z + (Math.random() - 0.5) * size * sp, s: Math.min(11.5, size * (0.3 + Math.random() * 0.25)) });   // a pirate goes up in a rolling chain of 6 blasts (each under the size that would start a chain of its own)
     for (let i = 0; i < 9; i++) { _bq.set((Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8).add(p); smokePuff(_bq); }   // a cloud of smoke that lingers where the ship was
   }
@@ -1662,11 +1662,23 @@ function initAudio() {
     try { eng.musG = actx.createGain(); eng.musG.gain.value = 0; actx.createMediaElementSource(stMus).connect(eng.musG); eng.musG.connect(actx.destination); stMus.volume = 1; } catch (e) { eng.musG = null; }
     eng.wf = LSND.map((L) => { const f = actx.createBiquadFilter(); f.type = L.ft; f.frequency.value = L.fc; f.Q.value = L.q; f.connect(master); return f; });
     try { const bs = atob(LASER_MP3), u8 = new Uint8Array(bs.length); for (let i = 0; i < bs.length; i++) u8[i] = bs.charCodeAt(i); actx.decodeAudioData(u8.buffer, b => { eng.buf.laser = b; }, () => {}); } catch (e) {}
-    try { const bs = atob(BOOM_MP3), u8 = new Uint8Array(bs.length); for (let i = 0; i < bs.length; i++) u8[i] = bs.charCodeAt(i); actx.decodeAudioData(u8.buffer, b => { eng.buf.boom = b; }, () => {}); } catch (e) {}   /* the laser sound lives INSIDE main.js (no separate file to find or block) */
+    try { const bs = atob(BOOM_MP3), u8 = new Uint8Array(bs.length); for (let i = 0; i < bs.length; i++) u8[i] = bs.charCodeAt(i); actx.decodeAudioData(u8.buffer, b => { eng.buf.boom = b; }, () => {}); } catch (e) {}
+    renderNote();   /* the laser sound lives INSIDE main.js (no separate file to find or block) */
   } catch (e) { actx = null; }
 }
+function renderNote() {   // builds the user's 'Notification · Tight' design (473 Hz sine sweeping up 80 Hz, FM 210, pulsed at 30 Hz, a low-pass closing from 20 kHz, 0.29 s) once, offline
+  const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext; if (!OAC || !actx) return;
+  try { const SR = actx.sampleRate, oc = new OAC(1, Math.ceil(SR * 0.32), SR), t = 0;
+    const D = 0.2925, A = 0.083, R = 0.161, o = oc.createOscillator(), m = oc.createOscillator(), mg = oc.createGain(), f = oc.createBiquadFilter(), g = oc.createGain(), pu = oc.createGain(), pl = oc.createOscillator(), pd = oc.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(473, t); o.frequency.linearRampToValueAtTime(553, t + D);
+    m.type = 'sine'; m.frequency.value = 210; mg.gain.value = 210; m.connect(mg); mg.connect(o.frequency);
+    f.type = 'lowpass'; f.Q.value = 0.7; f.frequency.setValueAtTime(20000, t); f.frequency.exponentialRampToValueAtTime(20, t + D);
+    pl.type = 'square'; pl.frequency.value = 30; pd.gain.value = 0.5; pu.gain.value = 0.5; pl.connect(pd); pd.connect(pu.gain);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.13, t + A); g.gain.setValueAtTime(0.13, t + D - R); g.gain.exponentialRampToValueAtTime(0.0001, t + D);
+    o.connect(f); f.connect(pu); pu.connect(g); g.connect(oc.destination); for (const x of [o, m, pl]) { x.start(0); x.stop(D + 0.02); }
+    const done = (b) => { eng.buf.note = b; }; const pr = oc.startRendering(); if (pr && pr.then) pr.then(done, () => { }); else oc.oncomplete = (e) => done(e.renderedBuffer); } catch (e) { } }
 let lastNote = -1;
-function sfx(kind, k) {
+function sfx(kind, k, vm) {
   if (!actx || !save.snd || actx.state !== 'running') return; const t = actx.currentTime;
   if (kind === 'ui' || kind === 'uiOk' || kind === 'uiNo' || kind === 'uiTab') kind = 'note';   // every menu button uses the user's one click sound
   if (kind === 'note') { if (t - lastNote < 0.08) return; lastNote = t; }   // a tap that triggers two handlers plays it once
@@ -1695,7 +1707,7 @@ function sfx(kind, k) {
   else if (kind === 'elaser') { tone('triangle', 520, 140, 0.16, 0.05); tone('sine', 1300, 300, 0.1, 0.025); }
   else if (kind === 'hit') noise(900, 0.3, 0.5);
   else if (kind === 'boom' && eng.buf.boom) { const sz = k || 10, big = sz > 12; if (!big && t - lastBoom < 0.09) return; if (big) lastBoom = t;   // the recorded blast: full and deep for a ship, quicker and quieter for the small pops of a chain / a rock
-    const s = actx.createBufferSource(), g = actx.createGain(); s.buffer = eng.buf.boom; s.playbackRate.value = big ? 0.96 + Math.random() * 0.06 : 1.25 + Math.random() * 0.2; const v = (big ? 1.5 : clamp(0.35 + sz * 0.04, 0.4, 0.8)) * 0.398;   /* -8 dB */
+    const s = actx.createBufferSource(), g = actx.createGain(); s.buffer = eng.buf.boom; s.playbackRate.value = big ? 0.96 + Math.random() * 0.06 : 1.25 + Math.random() * 0.2; const v = (big ? 1.5 : clamp(0.35 + sz * 0.04, 0.4, 0.8)) * 0.398 * (vm || 1);   /* -8 dB; vm: quieter when far */
     g.gain.setValueAtTime(v, t); if (!big) { g.gain.setValueAtTime(v, t + 0.35); g.gain.exponentialRampToValueAtTime(0.001, t + 1.0); } s.connect(g); g.connect(eng.master); s.start(t); if (!big) s.stop(t + 1.05); }
   else if (kind === 'boom') noise(500 + 200 / (k || 1), 0.55, clamp(0.25 + (k || 10) * 0.02, 0.3, 0.8));
   else if (kind === 'mega') { const play = () => { const s = actx.createBufferSource(), g = actx.createGain(); s.buffer = eng.buf.mega; g.gain.value = 1.3; s.connect(g); g.connect(eng.master); s.start(); };
@@ -1712,14 +1724,8 @@ function sfx(kind, k) {
   else if (kind === 'dock') { tone('triangle', 523, 523, 0.45, 0.22); tone('triangle', 659, 659, 0.45, 0.22, 0.12); tone('triangle', 784, 784, 0.5, 0.22, 0.24); }
   else if (kind === 'lock') tone('sine', 1200, 1200, 0.06, 0.12);
   // menu / button sounds: short soft electronic blips
-  else if (kind === 'note') {   // the user's own 'Notification · Tight' design: a 473 Hz sine sweeping up 80 Hz, FM 210, pulsed at 30 Hz, a low-pass closing from 20 kHz, 0.29 s
-    const D = 0.2925, A = 0.083, R = 0.161, o = actx.createOscillator(), m = actx.createOscillator(), mg = actx.createGain(), f = actx.createBiquadFilter(), g = actx.createGain(), pu = actx.createGain(), pl = actx.createOscillator(), pd = actx.createGain();
-    o.type = 'sine'; o.frequency.setValueAtTime(473, t); o.frequency.linearRampToValueAtTime(553, t + D);
-    m.type = 'sine'; m.frequency.value = 210; mg.gain.value = 210; m.connect(mg); mg.connect(o.frequency);
-    f.type = 'lowpass'; f.Q.value = 0.7; f.frequency.setValueAtTime(20000, t); f.frequency.exponentialRampToValueAtTime(20, t + D);
-    pl.type = 'square'; pl.frequency.value = 30; pd.gain.value = 0.5; pu.gain.value = 0.5; pl.connect(pd); pd.connect(pu.gain);   // 30 Hz pulse (tremolo depth 1)
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.13, t + A); g.gain.setValueAtTime(0.13, t + D - R);   /* soft (about 9 dB under the first version) */ g.gain.exponentialRampToValueAtTime(0.0001, t + D);
-    o.connect(f); f.connect(pu); pu.connect(g); g.connect(eng.master); for (const x of [o, m, pl]) { x.start(t); x.stop(t + D + 0.02); } }
+  else if (kind === 'note') {   // the user's click sound, played from ONE pre-rendered recording (made once in initAudio): every tap is the exact same sound at the exact same level
+    if (eng.buf.note) { const s = actx.createBufferSource(), g = actx.createGain(); s.buffer = eng.buf.note; g.gain.value = 1; s.connect(g); g.connect(eng.master); s.start(t + 0.005); } }
   else if (kind === 'ui') { tone('sine', 1900, 1500, 0.04, 0.09); tone('triangle', 950, 800, 0.05, 0.05); }
   else if (kind === 'uiTab') { tone('sine', 1500, 2100, 0.05, 0.09); tone('sine', 3000, 3000, 0.03, 0.03, 0.015); }
   else if (kind === 'uiOk') { tone('sine', 880, 880, 0.07, 0.11); tone('sine', 1320, 1320, 0.09, 0.11, 0.06); tone('triangle', 1760, 1760, 0.08, 0.05, 0.06); }
