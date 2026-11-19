@@ -1665,8 +1665,11 @@ function initAudio() {
     try { const bs = atob(BOOM_MP3), u8 = new Uint8Array(bs.length); for (let i = 0; i < bs.length; i++) u8[i] = bs.charCodeAt(i); actx.decodeAudioData(u8.buffer, b => { eng.buf.boom = b; }, () => {}); } catch (e) {}   /* the laser sound lives INSIDE main.js (no separate file to find or block) */
   } catch (e) { actx = null; }
 }
+let lastNote = -1;
 function sfx(kind, k) {
   if (!actx || !save.snd || actx.state !== 'running') return; const t = actx.currentTime;
+  if (kind === 'ui' || kind === 'uiOk' || kind === 'uiNo' || kind === 'uiTab') kind = 'note';   // every menu button uses the user's one click sound
+  if (kind === 'note') { if (t - lastNote < 0.08) return; lastNote = t; }   // a tap that triggers two handlers plays it once
   const tone = (type, f0, f1, dur, vol, delay) => { const o = actx.createOscillator(), g = actx.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t + (delay || 0)); o.frequency.exponentialRampToValueAtTime(f1, t + (delay || 0) + dur); g.gain.setValueAtTime(vol, t + (delay || 0)); g.gain.exponentialRampToValueAtTime(0.001, t + (delay || 0) + dur); o.connect(g); g.connect(eng.master); o.start(t + (delay || 0)); o.stop(t + (delay || 0) + dur + 0.02); };
   const noise = (cut, dur, vol) => { const s = actx.createBufferSource(); s.buffer = eng.nb; const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; const g = actx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); s.connect(f); f.connect(g); g.connect(eng.master); s.start(t); };
   if (kind === 'laser' && eng.buf && eng.buf.laser) { if (t - lastLaser < 0.07) return; lastLaser = t; const wi = Math.min(LSND.length - 1, k | 0), L = LSND[wi];
@@ -1714,7 +1717,7 @@ function sfx(kind, k) {
     m.type = 'sine'; m.frequency.value = 210; mg.gain.value = 210; m.connect(mg); mg.connect(o.frequency);
     f.type = 'lowpass'; f.Q.value = 0.7; f.frequency.setValueAtTime(20000, t); f.frequency.exponentialRampToValueAtTime(20, t + D);
     pl.type = 'square'; pl.frequency.value = 30; pd.gain.value = 0.5; pu.gain.value = 0.5; pl.connect(pd); pd.connect(pu.gain);   // 30 Hz pulse (tremolo depth 1)
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.23 * 1.6, t + A); g.gain.setValueAtTime(0.23 * 1.6, t + D - R); g.gain.exponentialRampToValueAtTime(0.0001, t + D);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.13, t + A); g.gain.setValueAtTime(0.13, t + D - R);   /* soft (about 9 dB under the first version) */ g.gain.exponentialRampToValueAtTime(0.0001, t + D);
     o.connect(f); f.connect(pu); pu.connect(g); g.connect(eng.master); for (const x of [o, m, pl]) { x.start(t); x.stop(t + D + 0.02); } }
   else if (kind === 'ui') { tone('sine', 1900, 1500, 0.04, 0.09); tone('triangle', 950, 800, 0.05, 0.05); }
   else if (kind === 'uiTab') { tone('sine', 1500, 2100, 0.05, 0.09); tone('sine', 3000, 3000, 0.03, 0.03, 0.015); }
