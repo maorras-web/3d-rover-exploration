@@ -2345,14 +2345,13 @@ function openShop(msg) {
     let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; ids.forEach(k => { const s = stations[k]; x0 = Math.min(x0, s.pos.x); x1 = Math.max(x1, s.pos.x); z0 = Math.min(z0, s.pos.z); z1 = Math.max(z1, s.pos.z); });
     const MW = mp.clientWidth || 620, MH = mp.clientHeight || 190, pc = {}, here = S.station, SCX = 40, SCY = 55, SRX = 33, SRY = Math.min(30, 100 * (MH * 0.5 - 64) / MH);   // the orrery sits left of the planet card, between the title and the system buttons
     mp.insertAdjacentHTML('afterbegin', orrDecor(ms, SCX, SCY, SRX, SRY, Math.round(Math.min(70, MH * 0.2))) + '<div style="position:absolute;left:10px;top:7px;font:700 10px system-ui,Arial,sans-serif;letter-spacing:3px;color:#a58ad8;z-index:5">' + SYSTEMS[ms] + ' SYSTEM</div><div style="position:absolute;left:8px;top:21px;display:flex;align-items:center;gap:5px;font:600 9px system-ui,Arial,sans-serif;letter-spacing:2px;color:#8d76b8;pointer-events:none;z-index:5">' + SYS_EMB(ms) + '<span>RULED BY <b style="color:#efe6ff;font-weight:700">' + SYS_RULER[ms] + '</b></span></div><div class="sysw">' + SYSTEMS.map((n, q) => `<button data-q="${q}" class="${q === ms ? 'on' : ''}">${n}</button>`).join('') + '</div>'); sunStart(mp);
-    { const g = GATES[ms], mb = mapBs[ms], a = Math.atan2(g.pos.z - mb.cz, g.pos.x - mb.cx), gx = clamp(SCX + Math.cos(a) * SRX * 1.13, 6, 69), gy = clamp(SCY + Math.sin(a) * SRY * 1.13, 26, 78); mp.insertAdjacentHTML('beforeend', `<div class="ogate" style="left:${gx}%;top:${gy}%"><i></i><span>STARGATE</span></div>`); }   // the stargate, out past the last orbit
+    { const a = gateAng(ms), gx = clamp(SCX + Math.cos(a) * SRX * 1.13, 6, 69), gy = clamp(SCY + Math.sin(a) * SRY * 1.13, 26, 78); mp.insertAdjacentHTML('beforeend', `<div class="ogate" style="left:${gx}%;top:${gy}%"><i></i><span>STARGATE</span></div>`); }   // the stargate, out past the last orbit
     const nodes = [];
     ids.forEach(k => { const s = stations[k], p = planets[k], d = document.createElement('div'); d.className = 'op sn2' + (k === here ? ' cur' : '') + (S.mission && S.mission.type === 'delivery' && S.mission.to === k ? ' tgt' : ''); d.style.setProperty('--c', MAPC[s.name] || s.col);
       d.innerHTML = `<small>${k === here ? 'YOU ARE HERE' : ''}</small><i></i><span>${s.name}</span><em>${(p.lbl || PKIND[p.kind] || '')}${k === here || stations[here].sys !== ms && false ? '' : '  ·  ' + (stations[here].pos.distanceTo(s.pos) / 1000 * (s.sys === stations[here].sys ? 1 : 3)).toFixed(1) + ' LY'}</em>`;
       d.firstChild.nextSibling.style.backgroundImage = (p.img ? 'url(' + p.img + '),' : '') + 'radial-gradient(circle at 40% 35%,#fff6,' + (MAPC[s.name] || s.col) + ' 60%)';
       mp.appendChild(d); d.addEventListener('click', () => pvShow(k)); nodes.push([k, d]); });
-    const step = () => { if (!mp.isConnected) return; orrPlace(nodes, orbT(), SCX, SCY, SRX, SRY, pc); requestAnimationFrame(step); };   // the planets creep round the sun while the map is open
-    step();
+    orrPlace(nodes, 0, SCX, SCY, SRX, SRY, pc);   // planets placed once on their orbits
     mp.querySelectorAll('.sysw button').forEach(b => b.addEventListener('click', () => { mapSys = +b.dataset.q; sfx('ui'); openShop($('shop-earn').textContent); }));
     const pvw = document.createElement('div'); pvw.className = 'pvw'; pvw.innerHTML = '<canvas width="120" height="120"></canvas><b></b><small></small><em>drag to spin · tap a station</em>'; mp.appendChild(pvw);
     const pvShow = (k) => { const p = stations[k].pl; pvw.querySelector('b').textContent = (p.lbl || PKIND[p.kind] || 'PLANET'); pvw.querySelector('small').textContent = stations[k].name + ' · ' + ((k * 600000 + p.r * 3000) / 1e6).toFixed(1) + 'M KM'; pvStart(pvw.querySelector('canvas'), k); };
@@ -2432,7 +2431,8 @@ const mapBs = SYSTEMS.map((nm, k) => { let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -
 // ---- the maps are an orrery: the system's sun in the middle, every planet on an orbit of its own, slowly going round it (on the map only: nothing moves in space) ----
 // orbits are ranked by how far each planet really is from the middle of its system (nearest = innermost)
 const ORB = SYSTEMS.map((nm, k) => { const mb = mapBs[k], L = []; planets.forEach((p, i) => { if (p.sys === k) L.push({ i, d: Math.hypot(p.pos.x - mb.cx, p.pos.z - mb.cz), a0: Math.atan2(p.pos.z - mb.cz, p.pos.x - mb.cx) }); });
-  L.sort((a, b) => a.d - b.d); L.forEach((o, r) => { o.r = L.length > 1 ? 0.42 + 0.58 * r / (L.length - 1) : 1; o.a0 = 0.9 + r * 2.39996; o.w = 0.018; }); return L; });   // spread round the sun by the golden angle and turning together (one turn ~6 min), so two planets never pile up on each other
+  L.sort((a, b) => a.d - b.d); L.forEach((o, r) => { o.r = L.length > 1 ? 0.42 + 0.58 * r / (L.length - 1) : 1; o.a0 = 1.75 + r * 2.39996; o.w = 0; }); return L; });   // spread round the sun by the golden angle so two planets never pile up; they stay put (only the sun is alive)
+const gateAng = (k) => { const A = ORB[k].map(o => ((o.a0 % 6.2832) + 6.2832) % 6.2832).sort((a, b) => a - b); let best = 0, at = 0; A.forEach((a, i) => { const b = i + 1 < A.length ? A[i + 1] : A[0] + 6.2832, g = b - a; if (g > best) { best = g; at = a + g / 2; } }); return at; };   // the stargate sits in the widest gap between the planets
 const ORB_OF = []; ORB.forEach(L => L.forEach(o => { ORB_OF[o.i] = o; }));
 const orbT = () => performance.now() / 1000;
 const orbXY = (i, t) => { const o = ORB_OF[i], a = o.a0 + o.w * t; return [Math.cos(a) * o.r, Math.sin(a) * o.r]; };   // -1..1 across the outermost orbit
@@ -2546,14 +2546,14 @@ function updateMap() {
   planets.forEach((p, i) => { if (p.sys !== curSys) return; const e = $('mn' + i); mapNodes.push([i, e]); e.children[2].textContent = (p.lbl || '') + (i === from ? '' : '  ·  ' + (stations[from].pos.distanceTo(stations[i].pos) / 1000).toFixed(1) + ' LY'); });   // the distance sits under each planet's name (no route lines)
   mapFrom = from;
   if (mapOrbSys !== curSys) { mapOrbSys = curSys; $('map-rings').innerHTML = orrDecor(curSys, 50, MAP_CY, MAP_RX, MAP_RY, 86); } sunStart($('map-rings'));   // the sun and the orbits, drawn once per system
-  { const g = $('map-gate'), mb = mapB, a = Math.atan2(GATES[curSys].pos.z - mb.cz, GATES[curSys].pos.x - mb.cx); g.style.left = clamp(50 + Math.cos(a) * MAP_RX * 1.16, 4, 96) + '%'; g.style.top = clamp(MAP_CY + Math.sin(a) * MAP_RY * 1.16, 6, 84) + '%';   /* out past the last orbit, in its real direction; never down on the stargate button */ g.lastChild.textContent = 'STARGATE'; }
+  { const g = $('map-gate'), a = gateAng(curSys); g.style.left = clamp(50 + Math.cos(a) * MAP_RX * 1.16, 4, 96) + '%'; g.style.top = clamp(MAP_CY + Math.sin(a) * MAP_RY * 1.16, 6, 84) + '%';   /* out past the last orbit, in its real direction; never down on the stargate button */ g.lastChild.textContent = 'STARGATE'; }
   mapAnim();
 }
 const MAP_RX = 43, MAP_RY = 34, MAP_CY = 47;   /* flat enough that the top planet stays clear of the title and the bottom one clear of the STARGATE button */ let mapNodes = [], mapFrom = 0, mapOrbSys = -1;
-function mapAnim() {   // while the map is open the planets creep round their orbits; the routes and distance tags follow them (a handful of style changes a frame)
-  if (!mapOn) return; const P = orrPlace(mapNodes, orbT(), 50, MAP_CY, MAP_RX, MAP_RY, {}), fp = P[mapFrom];
+function mapAnim() {   // places the planets on their orbits (once, when the map opens)
+  if (!mapOn) return; const P = orrPlace(mapNodes, 0, 50, MAP_CY, MAP_RX, MAP_RY, {}), fp = P[mapFrom];
   if (fp && mapMe.style.display !== 'none') { const a = homeSt; const q = P[a] || fp; mapMe.style.left = (q[0] - 5).toFixed(2) + '%'; mapMe.style.top = q[1].toFixed(2) + '%'; }   // between planets: your arrow sits by the planet you set out from
-  requestAnimationFrame(mapAnim); }
+}
 function openMap() { if (S.mode !== 'fly') return; if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } mapOn = true; mapOv.style.display = 'block'; updateMap(); }
 function closeMap() { mapOn = false; mapOv.style.display = 'none'; }
 $('b-map').addEventListener('click', () => { setPause(false); mapOn ? closeMap() : openMap(); });
