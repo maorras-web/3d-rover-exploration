@@ -2077,17 +2077,21 @@ stations.forEach((st, k) => { const n = V3(Math.sin(k * 1.7), 1.2, Math.cos(k * 
 const _tq = new THREE.Quaternion(), _tp = V3(), _tt = V3(), _ts = V3(40, 40, 40), _tsB = V3(15, 15, 15);   // traffic ships enlarged x1.6
 // ---- MINES: small red-chrome spheres with glowing red lenses, drifting in empty space (never near stations, gates or planets). Fly into one or shoot it and it goes up in a red energy blast.
 // all of them are 2 instanced draws; they live in a loose ring 900-2400 m around you and are moved elsewhere once far behind (like the asteroids), so there is always a handful around at no extra cost
-const MINE_N = 10, MINE_R = 2.4, MINE_SYS = 2;   // small and dark: hard to spot until you are close
+const MINE_N = 50, MINE_R = 2.4, MINE_SYS = 2, MINE_LOD = 240;   // small and dark: hard to spot until you are close. Past MINE_LOD metres a mine is only a few pixels, so it is drawn as a plain 140-triangle ball + one glint point (full detail ~4,500 triangles only up close)
 const MINE_G = (() => { const col = (g, c) => { g = g.index ? g.toNonIndexed() : g; for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k); const cc = new THREE.Color(c), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = cc.r; a[i * 3 + 1] = cc.g; a[i * 3 + 2] = cc.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
   const body = [col(new THREE.SphereGeometry(1, 22, 16), 0x8a1020)], lens = [], q = new THREE.Quaternion(), Z = new THREE.Vector3(0, 0, 1), at = (g, d, k) => { g.applyQuaternion(q.setFromUnitVectors(Z, d)); g.translate(d.x * k, d.y * k, d.z * k); return g; };
   for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) { const d = new THREE.Vector3(x, y, z).normalize();   // 8 lens pods, one in every corner direction
     body.push(col(at(new THREE.TorusGeometry(0.34, 0.075, 8, 20), d, 0.98), 0x5a5e66), col(at(new THREE.CylinderGeometry(0.31, 0.29, 0.18, 18).rotateX(Math.PI / 2), d, 0.92), 0x0e0e12));
     lens.push(col(at(new THREE.CircleGeometry(0.24, 18), d, 1.012), 0xffffff)); }
   for (const d of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) body.push(col(new THREE.SphereGeometry(0.12, 8, 6).translate(d[0] * 0.99, d[1] * 0.99, d[2] * 0.99), 0x5a5e66));   // small studs between the pods
-  return { body: mergeGeometries(body), lens: mergeGeometries(lens) }; })();
+  return { body: mergeGeometries(body), lens: mergeGeometries(lens), far: col(new THREE.SphereGeometry(1, 10, 7), 0x8a1020) }; })();
 const mineBody = new THREE.InstancedMesh(MINE_G.body, rimLit(new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 1.0, roughness: 0.12, envMap: SHIP_ENV, envMapIntensity: 3.2, emissive: 0x000000, fog: false }), 0.32, 0.05, 0.07, 0.06), MINE_N);   // polished dark red chrome: mostly reflection, little light of its own
 const mineLensMat = new THREE.MeshBasicMaterial({ color: 0xff2030, toneMapped: false, fog: false }), mineLens = new THREE.InstancedMesh(MINE_G.lens, mineLensMat, MINE_N);
-for (const m of [mineBody, mineLens]) { m.frustumCulled = false; m.count = 0; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); }
+const mineFar = new THREE.InstancedMesh(MINE_G.far, mineBody.material, MINE_N);   // far version: same dark red chrome, no pods
+const mgPos = new Float32Array(MINE_N * 3), mgGeo = new THREE.BufferGeometry(); mgGeo.setAttribute('position', new THREE.BufferAttribute(mgPos, 3));
+const mineGlintMat = new THREE.PointsMaterial({ color: 0xff2030, map: glowTex, size: 5, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }), mineGlint = new THREE.Points(mgGeo, mineGlintMat);   // far mines: one faint red glint each (one draw for all)
+mineGlint.frustumCulled = false; mineGlint.visible = false; scene.add(mineGlint);
+for (const m of [mineBody, mineLens, mineFar]) { m.frustumCulled = false; m.count = 0; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); }
 const mines = []; for (let i = 0; i < MINE_N; i++) mines.push({ pos: V3(), q: new THREE.Quaternion(), ax: V3(0, 1, 0), sp: 0.3, on: false, t: 0 });
 let mineSys = -1; const _mq = new THREE.Quaternion(), _mS = V3(MINE_R, MINE_R, MINE_R);
 function placeMine(m, near) { fwdOf(S.q, _b);
@@ -2104,18 +2108,19 @@ function mineBlast(m) { m.on = false; m.t = 10; explode(m.pos, 13, true);   // t
   for (const e of enemies) if (e.active) { const de = e.pos.distanceTo(m.pos); if (de < 85) damageEnemy(e, 260 * (1 - de / 85) + 40, m.pos); } }
 function updateMines(dt) {
   const fly = S.mode === 'fly'; if (curSys !== MINE_SYS) { if (mineSys !== -1) { mineSys = -1; for (const m of mines) m.on = false; } }   // mines exist only in SOLARA (the human system)
-  if (!fly || curSys !== MINE_SYS) { if (mineBody.count) mineBody.count = mineLens.count = 0; return; }
+  if (!fly || curSys !== MINE_SYS) { if (mineBody.count || mineFar.count) mineBody.count = mineLens.count = mineFar.count = 0; mineGlint.visible = false; return; }
   if (mineSys !== curSys) { mineSys = curSys; for (const m of mines) placeMine(m, true); }
-  let n = 0, near = 1e9;
+  let n = 0, nf = 0, near = 1e9;
   for (const m of mines) {
     if (!m.on) { m.t -= dt; if (m.t <= 0) placeMine(m, false); continue; }
     const d = m.pos.distanceTo(S.pos); if (d > 2700) { placeMine(m, false); continue; }
     if (d < MINE_R + 11) { mineBlast(m); continue; }   // touched it
     near = Math.min(near, d); m.q.multiply(_mq.setFromAxisAngle(m.ax, m.sp * dt));
-    _nhM.compose(m.pos, m.q, _mS); mineBody.setMatrixAt(n, _nhM); mineLens.setMatrixAt(n, _nhM); n++; }
+    _nhM.compose(m.pos, m.q, _mS); if (d < MINE_LOD) { mineBody.setMatrixAt(n, _nhM); mineLens.setMatrixAt(n, _nhM); n++; } else { mineFar.setMatrixAt(nf, _nhM); mgPos[nf * 3] = m.pos.x; mgPos[nf * 3 + 1] = m.pos.y; mgPos[nf * 3 + 2] = m.pos.z; nf++; } }
   mineBody.count = mineLens.count = n; if (n) { mineBody.instanceMatrix.needsUpdate = mineLens.instanceMatrix.needsUpdate = true; }
+  mineFar.count = nf; if (nf) { mineFar.instanceMatrix.needsUpdate = true; mgGeo.attributes.position.needsUpdate = true; } mgGeo.setDrawRange(0, nf); mineGlint.visible = nf > 0;
   const fr = 2 + 9 * clamp(1 - near / 260, 0, 1), pu = 0.55 + 0.45 * Math.sin(tAcc * fr * 2);   // the lenses pulse, faster and faster as you get close
-  const cl = clamp(1 - near / 260, 0, 1), gl = (0.25 + 0.75 * cl) * pu; mineLensMat.color.setRGB(0.25 + 1.3 * gl, 0.02 + 0.08 * gl, 0.03 + 0.1 * gl); }   // far: a dim red glint; close: bright and blinking fast
+  const cl = clamp(1 - near / 260, 0, 1), gl = (0.25 + 0.75 * cl) * pu; mineLensMat.color.setRGB(0.25 + 1.3 * gl, 0.02 + 0.08 * gl, 0.03 + 0.1 * gl); mineGlintMat.opacity = 0.35 + 0.3 * pu; }   // far: a dim red glint; close: bright and blinking fast
 function updateTraffic() {
   let nA = 0, nB = 0, nl = 0;
   for (let k = 0; k < stations.length; k++) { const st = stations[k]; if (!st.g.visible || st.sys !== 0) continue;   // these three ships fly only in the PIKRO system (YAPZO gets its own traffic later)
