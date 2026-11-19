@@ -2682,6 +2682,8 @@ const mk = stations.map((s, i) => $('mk-s' + i) || (() => { const e = $('mk-s0')
 const mkp = stations.map((s, i) => { const e = $('mk-s0').cloneNode(true); e.id = 'mk-p' + i; e.classList.add('pl'); e.style.color = s.col; $('mk-s0').parentNode.appendChild(e); return e; });
 { const r = $('radar'); if (r) r.remove(); const rf = document.getElementById('reticle'); if (rf) rf.remove(); }   // no radar and no big frame any more: a small sight on the nose + a faint edge ring (off-screen contacts ride on it)
 const ering = document.createElement('div'); ering.id = 'ering'; ering.className = 'hud'; document.body.appendChild(ering);
+const pbr = []; for (let k = 0; k < 8; k++) { const e = document.createElement('div'); e.className = 'pbr hud'; document.body.appendChild(e); pbr.push(e); }   // pirates on screen: small red brackets round them (fixed pool)
+const pwarn = document.createElement('div'); pwarn.id = 'pwarn'; pwarn.className = 'hud'; document.body.appendChild(pwarn); let pwTxt = '', pwOn = false;
 const pips = []; for (let k = 0; k < 8; k++) { const e = document.createElement('div'); e.className = 'pip hud'; document.body.appendChild(e); pips.push(e); }   // pirates off screen: small red arrows on the ring (fixed pool, no allocations)
 let ringOn = false; const _rp = [0, 0, 0];
 let ringR = 180; function sizeRing() { const W = innerWidth, H = innerHeight; ringR = Math.max(110, Math.min(H * 0.475, W * 0.33, Math.hypot(W / 2 - 246, H / 2 - 122) - 7)); ering.style.width = ering.style.height = 2 * ringR + 'px'; }   // as big as it can be while staying clear of the mission line (top-left, up to ~250 x 136 px)
@@ -2830,25 +2832,26 @@ function frame(now) {
     if (S.patrolT <= 0) {
       S.patrolT = rnd(55, 95);
       if (activeEnemies() === 0 && S.pos.distanceTo(stations[S.station].pos) > 500) {
-        const n = 1 + (Math.random() < 0.4 ? 1 : 0); for (let k = 0; k < n; k++) { _b.copy(fwd).multiplyScalar(rnd(500, 700)).add(_a.set(rnd(-1, 1), rnd(-0.5, 0.5), rnd(-1, 1)).multiplyScalar(160)).add(S.pos); spawnEnemy(_b, Math.min(5, save.kills / 8 | 0)); }
+        const n = 1 + (Math.random() < 0.4 ? 1 : 0); for (let k = 0; k < n; k++) { _b.copy(fwd).multiplyScalar(rnd(2600, 4800)).add(_a.set(rnd(-1, 1), rnd(-0.5, 0.5), rnd(-1, 1)).multiplyScalar(900)).add(S.pos);   /* patrols show up a few km out, so you see them coming */ spawnEnemy(_b, Math.min(5, save.kills / 8 | 0)); }
         toast('HOSTILES INBOUND', 1.4);
       }
     }
     for (const e of enemies) {
       if (!e.active) continue;
       _a.copy(S.pos).sub(e.pos); const dist = _a.length(); const dirTo = _b.copy(_a).divideScalar(dist || 1);
-      if (dist > 2200) { e.active = false; e.g.visible = false; if (S.target === e) S.target = null; continue; }
+      if (dist > 6500) { e.active = false; e.g.visible = false; if (S.target === e) S.target = null; continue; }
       fwdOf(e.q, _c);
       let want = dirTo;
       // predicted aim point so they actually lead you
       _d.copy(S.pos).addScaledVector(S.vel, dist / 500).sub(e.pos).normalize(); want = _d;
       e.evadeT -= dt;
       if (e.evadeT > 0) want = e.evadeDir;
-      else if (dist < 60 && Math.random() < 0.006) { e.evadeDir.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).addScaledVector(dirTo, -0.6).normalize(); e.evadeT = rnd(0.5, 0.9); }
-      _m.lookAt(_zero, want, Y); _qb.setFromRotationMatrix(_m); e.q.rotateTowards(_qb, (e.evadeT > 0 ? 1.6 : 1.0) * dt);
+      else if (dist < 170 + Math.max(0, e.speed * _c.dot(dirTo) - S.vel.dot(dirTo)) * 1.8 && _c.dot(dirTo) > 0.1) {   /* break off early enough for how fast you two are closing */ e.evadeDir.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).addScaledVector(dirTo, -1.4).normalize(); e.evadeT = rnd(1.2, 1.8); }   // too close: break off and swing away, then come round for another pass (they no longer fly through you)
+      _m.lookAt(_zero, want, Y); _qb.setFromRotationMatrix(_m); e.q.rotateTowards(_qb, (e.evadeT > 0 ? 2.6 : 1.0) * dt);
       fwdOf(e.q, _c);
-      const wantSp = e.evadeT > 0 ? 100 : dist > 400 ? 105 : dist > 160 ? 85 : 66; e.speed = damp(e.speed, wantSp, 1.4, dt);
+      const wantSp = e.evadeT > 0 ? (dist < 160 ? 60 : 115) : dist > 1200 ? 170 : dist > 400 ? 105 : dist > 220 ? 85 : 60;   /* far away they close in fast */ e.speed = damp(e.speed, wantSp, 1.4, dt);
       e.vel.copy(_c).multiplyScalar(e.speed); e.pos.addScaledVector(e.vel, dt);
+      { const dx = e.pos.x - S.pos.x, dy = e.pos.y - S.pos.y, dz = e.pos.z - S.pos.z, d2 = dx * dx + dy * dy + dz * dz; if (d2 < 45 * 45) { const d = Math.sqrt(d2) || 1, k = 45 / d; e.pos.set(S.pos.x + dx * k, S.pos.y + dy * k, S.pos.z + dz * k); } }   // a solid bubble round your ship: a pirate can never pass through it
       for (const st of stations) if (st.g.visible && stationPush(st, e.pos, 6)) e.speed *= 0.7;   /* pirates can't fly through a station either */
       e.fireT -= dt;
       if (dist < 420 && e.evadeT <= 0 && _c.dot(dirTo) > 0.965 && e.fireT <= 0) {
@@ -3024,9 +3027,14 @@ function frame(now) {
     if (wantEnt && !entOn) { entOn = true; entFor = ns; $('ent-name').textContent = stations[ns].name; $('ent-dlg').style.display = 'flex'; sfx('lock'); }
     else if (!wantEnt && entOn) { entOn = false; $('ent-dlg').style.display = 'none'; }
     if (++flip % 2 === 0) { let n = 0;   // pirates off screen -> red arrows on the ring (every 2nd frame; the locked one is white and bigger)
-      for (const e of enemies) { if (n >= pips.length) break; if (!e.active || e.pos.distanceToSquared(S.pos) > 3000 * 3000 || !ringAt(e.pos, _rp)) continue;
-        const p = pips[n++]; p.style.display = 'block'; p.style.transform = `translate(${_rp[0]}px,${_rp[1]}px) rotate(${_rp[2]}deg)`; p.classList.toggle('t', e === S.target); }
-      for (; n < pips.length; n++) if (pips[n].style.display !== 'none') pips[n].style.display = 'none'; }
+      let nb = 0, near = 1e9, cnt = 0;
+      for (const e of enemies) { if (!e.active) continue; const d2 = e.pos.distanceToSquared(S.pos); if (d2 > 6000 * 6000) continue; cnt++; near = Math.min(near, d2);   // radar reach: 6 km
+        if (ringAt(e.pos, _rp)) { if (n >= pips.length) continue; const p = pips[n++]; p.style.display = 'block'; p.style.transform = `translate(${_rp[0]}px,${_rp[1]}px) rotate(${_rp[2]}deg)`; p.classList.toggle('t', e === S.target); }
+        else if (nb < pbr.length && e !== S.target) { proj.copy(e.pos).project(camera); const b = pbr[nb++], sz = clamp(5200 / Math.sqrt(d2), 12, 30); b.style.display = 'block'; b.style.transform = `translate(${((proj.x + 1) / 2 * innerWidth).toFixed(1)}px,${((1 - proj.y) / 2 * innerHeight).toFixed(1)}px)`; b.style.width = b.style.height = sz.toFixed(0) + 'px'; b.style.margin = (-sz / 2).toFixed(0) + 'px 0 0 ' + (-sz / 2).toFixed(0) + 'px'; } }
+      for (; n < pips.length; n++) if (pips[n].style.display !== 'none') pips[n].style.display = 'none';
+      for (; nb < pbr.length; nb++) if (pbr[nb].style.display !== 'none') pbr[nb].style.display = 'none';
+      const on = cnt > 0; if (on) { const t = '⚠ ' + (cnt > 1 ? cnt + ' PIRATES' : 'PIRATE') + '  ·  ' + (Math.sqrt(near) >= 1000 ? (Math.sqrt(near) / 1000).toFixed(1) + ' km' : Math.round(Math.sqrt(near)) + ' m'); if (t !== pwTxt) { pwTxt = t; pwarn.textContent = t; } }   // top warning: how many pirates within 6 km and how far the nearest is
+      if (on !== pwOn) { pwOn = on; pwarn.classList.toggle('on', on); if (on) { sfx('lock'); buzz(30); } } }
   } else { if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } if (trvOn) { trvOn = false; $('trv-dlg').style.display = 'none'; } for (const e of mk) e.style.display = 'none'; mkGate.style.display = 'none'; for (const e of mkp) e.style.display = 'none'; mkWp.style.display = 'none'; tgtEl.style.display = 'none'; leadEl.style.display = 'none'; }
   if (!save.tips && flying) { tipT += dt; const k = Math.floor(tipT / 4.2); if (k !== tipK) { tipK = k; if (k >= TIPS.length) { tipEl.style.opacity = '0'; save.tips = 1; persist(); } else { tipEl.textContent = TIPS[k]; tipEl.style.opacity = '1'; } } if (tipK < TIPS.length && tipT - tipK * 4.2 > 3.5) tipEl.style.opacity = '0'; } else if (tipK >= 0 && !flying && tipEl.style.opacity !== '0') tipEl.style.opacity = '0';   // first flight only: short control hints, one at a time (the clock runs only while flying)
   updateAudio(); updateMusic(dt);
