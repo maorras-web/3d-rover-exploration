@@ -2135,10 +2135,18 @@ function placeMine(m, near) { fwdOf(S.q, _b);
   m.ax.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize(); m.sp = rnd(0.2, 0.6); m.on = true; }
 let wasFly = false, warnSys = -1; const mineWarn = document.createElement('div'); mineWarn.id = 'minewarn'; mineWarn.className = 'hud'; mineWarn.textContent = '⚠  STAY ALERT · MINES MAY BE ANYWHERE'; document.body.appendChild(mineWarn); let mwT = 0;
 function mineWarnTick(dt) { const fly = S.mode === 'fly'; if (fly && !wasFly) { if (curSys === MINE_SYS && warnSys !== MINE_SYS) { mwT = 4.5; mineWarn.style.opacity = '1'; } warnSys = curSys; }   /* only on your first flight in SOLARA and when you arrive there from another system - not on every launch or planet jump inside it */ wasFly = fly; if (mwT > 0) { mwT -= fly ? dt : 99; if (mwT <= 0) mineWarn.style.opacity = '0'; } }   // every time you head out into space (launch or jump): a short warning
-function mineBlast(m) { m.on = false; m.t = 10; explode(m.pos, 13, true);   // the blast hurts whoever is close: you, and pirates too
+function mineBlast(m) { m.on = false; m.t = 10; explode(m.pos, 13, true); if (S.mission && S.mission.type === 'mines') { S.mission.done++; updateMissionHud(); if (S.mission.done >= S.mission.n) completeMission(); }   // the blast hurts whoever is close: you, and pirates too
   const d = m.pos.distanceTo(S.pos); if (d < 95) { damagePlayer(70 * (1 - d / 95) + 10); S.shake = Math.max(S.shake, 1.2 * (1 - d / 140)); }
   for (const e of enemies) if (e.active) { const de = e.pos.distanceTo(m.pos); if (de < 85) damageEnemy(e, 260 * (1 - de / 85) + 40, m.pos); } }
+const mrk = []; for (let k = 0; k < 12; k++) { const e = document.createElement('div'); e.className = 'mrk hud'; document.body.appendChild(e); mrk.push(e); }   // MINE SWEEP only: a small see-through orange ring round each mine within 600 m
+let mrkFlip = 0, mrkN = 0;
+function mineMarks() { let n = 0;
+  if (S.mode === 'fly' && S.mission && S.mission.type === 'mines' && curSys === MINE_SYS && !document.body.classList.contains('docked')) {
+    for (const m of mines) { if (n >= mrk.length) break; if (!m.on) continue; const d2 = m.pos.distanceToSquared(S.pos); if (d2 > 600 * 600) continue; proj.copy(m.pos).project(camera); if (proj.z > 1 || Math.abs(proj.x) > 1 || Math.abs(proj.y) > 1) continue;
+      const e = mrk[n++], sz = clamp(2600 / Math.sqrt(d2), 14, 34); e.style.display = 'block'; e.style.width = e.style.height = sz.toFixed(0) + 'px'; e.style.transform = `translate(${((proj.x + 1) / 2 * innerWidth - sz / 2).toFixed(1)}px,${((1 - proj.y) / 2 * innerHeight - sz / 2).toFixed(1)}px)`; } }
+  for (let k = n; k < mrkN; k++) mrk[k].style.display = 'none'; mrkN = n; }
 function updateMines(dt) {
+  if (++mrkFlip % 2 === 0) mineMarks();
   const fly = S.mode === 'fly'; if (curSys !== MINE_SYS) { if (mineSys !== -1) { mineSys = -1; for (const m of mines) m.on = false; } }   // mines exist only in SOLARA (the human system)
   if (!fly || curSys !== MINE_SYS) { if (mineBody.count || mineFar.count) mineBody.count = mineLens.count = mineFar.count = 0; mineGlint.visible = false; return; }
   if (mineSys !== curSys) { mineSys = curSys; for (const m of mines) placeMine(m, true); }
@@ -2206,14 +2214,15 @@ function genMissions(from) {
     { type: 'bounty', n, done: 0, reward: 140 * n + lvl * 3, zone: stations[from].pos.clone().addScaledVector(dirv, rnd(700, 1100)), spawned: 0, title: 'BOUNTY', text: `Destroy ${n} pirates in the marked zone` },
     { type: 'delivery', to, reward: Math.round(stations[from].pos.distanceTo(stations[to].pos) / 15) + 80, title: 'DELIVERY', text: `Deliver cargo to ${stations[to].name}` },
     { type: 'mining', n: ore, done: 0, reward: 90 + ore * 14, title: 'MINING', text: `Shoot asteroids and collect ${ore} ore` },
-  ];
+  ].concat(stations[from].sys === MINE_SYS ? [   // the human system only (it is the only one with mines)
+    { type: 'mines', n: 25, done: 0, tl: 480, reward: 1200 + lvl * 10, title: 'MINE SWEEP', text: 'Blow up 25 mines within 8:00 - shoot them from a safe distance' }] : []);
 }
 let offered = [];
 function updateMissionHud() {
   const m = S.mission, el = $('mission');
   if (!m) { el.style.display = 'none'; return; }
   el.style.display = 'block';
-  el.textContent = m.type === 'bounty' ? `BOUNTY  ${m.done}/${m.n} pirates` : m.type === 'delivery' ? `DELIVERY → ${stations[m.to].name}` : `MINING  ${m.done}/${m.n} ore`;
+  el.textContent = m.type === 'mines' ? `MINE SWEEP  ${m.done}/${m.n}  ·  ${Math.floor(m.tl / 60)}:${String(Math.floor(m.tl % 60)).padStart(2, '0')}` : m.type === 'bounty' ? `BOUNTY  ${m.done}/${m.n} pirates` : m.type === 'delivery' ? `DELIVERY → ${stations[m.to].name}` : `MINING  ${m.done}/${m.n} ore`;
 }
 function completeMission() {
   const m = S.mission; if (!m) return; save.credits += m.reward; persist(); refreshHud(); toast('MISSION COMPLETE  +' + m.reward, 2.2); sfx('pick'); S.mission = null; updateMissionHud();
@@ -2716,6 +2725,7 @@ const mk = stations.map((s, i) => $('mk-s' + i) || (() => { const e = $('mk-s0')
 const mkp = stations.map((s, i) => { const e = $('mk-s0').cloneNode(true); e.id = 'mk-p' + i; e.classList.add('pl'); e.style.color = s.col; $('mk-s0').parentNode.appendChild(e); return e; });
 { const r = $('radar'); if (r) r.remove(); const rf = document.getElementById('reticle'); if (rf) rf.remove(); }   // no radar and no big frame any more: a small sight on the nose + a faint edge ring (off-screen contacts ride on it)
 const ering = document.createElement('div'); ering.id = 'ering'; ering.className = 'hud'; document.body.appendChild(ering);
+/* (the older white mine rings were removed: the orange ones replace them) */
 const pbr = []; for (let k = 0; k < 8; k++) { const e = document.createElement('div'); e.className = 'pbr hud'; document.body.appendChild(e); pbr.push(e); }   // pirates on screen: small red brackets round them (fixed pool)
 const pwarn = document.createElement('div'); pwarn.id = 'pwarn'; pwarn.className = 'hud'; document.body.appendChild(pwarn); let pwTxt = '', pwOn = false;
 const pips = []; for (let k = 0; k < 8; k++) { const e = document.createElement('div'); e.className = 'pip hud'; document.body.appendChild(e); pips.push(e); }   // pirates off screen: small red arrows on the ring (fixed pool, no allocations)
@@ -3021,6 +3031,7 @@ function frame(now) {
   for (const st of stations) if (st.g.userData.wheel && st.g.visible) st.g.userData.wheel.rotation.z += dt * 0.04;   // the Velnorian wheel turns slowly (one number per frame)
   for (const st of stations) { const hg = st.g.userData.hg; if (hg && st.g.visible) { hg.getWorldPosition(_a); const sz = hg.scale.x * st.g.scale.x, dd = camera.position.distanceTo(_a); hg.material.opacity = 0.55 * clamp((dd - sz * 0.1) / (sz * 0.45), 0, 1); } }   // the hangar glow thins out as you close in on it
   updateTraffic(); updateMines(dt); mineWarnTick(dt);
+  { const m = S.mission; if (m && m.type === 'mines') { const s0 = Math.floor(m.tl); m.tl -= dt; if (m.tl <= 0) { S.mission = null; updateMissionHud(); toast('MISSION FAILED  ·  TIME UP', 2.5); } else if (Math.floor(m.tl) !== s0) updateMissionHud(); } }   // the mine-sweep clock runs while you fly
   dustMat.uniforms.uCam.value.copy(camera.position); dustMat.uniforms.uVel.value.copy(S.vel);
   dustMat.uniforms.uK.value = 0.012 + (S.boosting ? 0.05 : 0.008); dustMat.uniforms.uAlpha.value = S.mode === 'dock' ? 0 : 0.22 + clamp(S.speed / 170, 0, 1) * 0.35 + (S.boosting ? 0.2 : 0);
 
@@ -3067,6 +3078,7 @@ function frame(now) {
         else if (nb < pbr.length && e !== S.target) { proj.copy(e.pos).project(camera); const b = pbr[nb++], sz = clamp(5200 / Math.sqrt(d2), 12, 30); b.style.display = 'block'; b.style.transform = `translate(${((proj.x + 1) / 2 * innerWidth).toFixed(1)}px,${((1 - proj.y) / 2 * innerHeight).toFixed(1)}px)`; b.style.width = b.style.height = sz.toFixed(0) + 'px'; b.style.margin = (-sz / 2).toFixed(0) + 'px 0 0 ' + (-sz / 2).toFixed(0) + 'px'; } }
       for (; n < pips.length; n++) if (pips[n].style.display !== 'none') pips[n].style.display = 'none';
       for (; nb < pbr.length; nb++) if (pbr[nb].style.display !== 'none') pbr[nb].style.display = 'none';
+
       const on = cnt > 0; if (on) { const t = '⚠ ' + (cnt > 1 ? cnt + ' PIRATES' : 'PIRATE') + '  ·  ' + (Math.sqrt(near) >= 1000 ? (Math.sqrt(near) / 1000).toFixed(1) + ' km' : Math.round(Math.sqrt(near)) + ' m'); if (t !== pwTxt) { pwTxt = t; pwarn.textContent = t; } }   // top warning: how many pirates within 6 km and how far the nearest is
       if (on !== pwOn) { pwOn = on; pwarn.classList.toggle('on', on); if (on) { sfx('lock'); buzz(30); } } }
   } else { if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } if (trvOn) { trvOn = false; $('trv-dlg').style.display = 'none'; } for (const e of mk) e.style.display = 'none'; mkGate.style.display = 'none'; for (const e of mkp) e.style.display = 'none'; mkWp.style.display = 'none'; tgtEl.style.display = 'none'; leadEl.style.display = 'none'; }
