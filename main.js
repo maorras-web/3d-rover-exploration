@@ -956,14 +956,14 @@ function updateDying(dt) {
     if (e.active || !e.g.visible) { e.dying = 0; dyingList.splice(i, 1); continue; }   // respawned or hidden by a reset: forget it
     d.t += dt; fwdOf(e.q, fwd); e.pos.addScaledVector(fwd, e.speed * 0.5 * dt); e.g.position.copy(e.pos); e.g.rotateZ(d.rz * dt); e.g.rotateX(d.rx * dt);
     d.pf -= dt; if (d.pf <= 0) { d.pf = 0.045; _a.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(5).add(e.pos); smokePuff(_a); if (Math.random() < 0.5) sparks(_a, 3, 16, 0.5); }
-    d.pop = (d.pop || 0) - dt; if (d.pop <= 0) { d.pop = 0.22 + Math.random() * 0.12; _a.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(6).add(e.pos); explode(_a, 4 + Math.random() * 3); }   // small blasts burst out of the burning hull before it goes
+    d.pop = (d.pop || 0) - dt; if (d.pop <= 0) { d.pop = 0.22 + Math.random() * 0.12; _a.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(6).add(e.pos); explode(_a, 4 + Math.random() * 3, false, true);   /* silent: only the final blast makes a sound */ }   // small blasts burst out of the burning hull before it goes
     if (d.t >= d.dur) { e.g.visible = false; e.dying = 0; dyingList.splice(i, 1); explode(e.pos, 26); breakShip(e.pos, 26); { const k = clamp(1.3 - e.pos.distanceTo(S.pos) / 420, 0, 1); S.shake = Math.max(S.shake, 0.4 + 0.9 * k); } } }
 }
 let explNext = 0;
 const boomQ = [], _bq = new THREE.Vector3();   // chain blasts: a big explosion is followed by 3 small ones a moment later (reuses the same pooled sprites - no new objects in the scene)
-function explode(p, size, red) {
+function explode(p, size, red, quiet) {
   const e = expl[explNext]; explNext = (explNext + 1) % EXP_N; e.t = 0; e.size = size; e.red = !!red; e.w.material.color.setHex(red ? 0xff3a5a : 0xffb060); e.d.material.color.setHex(red ? 0xff5070 : 0xffc070); e.y.material.color.setHex(red ? 0xff6a80 : 0xffffff); e.r.material.color.setHex(red ? 0xffd0dc : 0xffffff);   /* red = a mine: a crimson energy blast */ e.sp = size > 20 ? 1.05 : size > 12 ? 1.25 : 1.6; e.f.position.copy(p); e.r.position.copy(p); e.f.visible = e.r.visible = true; e.y.position.copy(p); e.y.visible = size > 7; e.y.material.rotation = Math.random() * 6.28; e.w.position.copy(p); e.w.visible = size > 12 || !!red; e.d.visible = size > 12 || !!red; if (e.d.visible) { e.d.position.copy(p); e.d.rotation.set(Math.random() * 6.3, Math.random() * 6.3, 0); }
-  sparks(p, red ? 70 : size > 20 ? 95 : size > 12 ? 55 : size < 8 ? 8 : 18, size * (red ? 4.2 : size > 20 ? 3.8 : 3.2), size > 20 ? 1.6 : 1.3, red); sfx('boom', Math.min(size, 20));
+  sparks(p, red ? 70 : size > 20 ? 95 : size > 12 ? 55 : size < 8 ? 8 : 18, size * (red ? 4.2 : size > 20 ? 3.8 : 3.2), size > 20 ? 1.6 : 1.3, red); if (!quiet) sfx('boom', Math.min(size, 20));
   if (size > 12 && !red) { fxUntil = Math.max(fxUntil, performance.now() + 5000); const nc = size > 20 ? 6 : 3, sp = size > 20 ? 2.2 : 1.6; for (let i = 0; i < nc; i++) boomQ.push({ t: 0.08 + i * (size > 20 ? 0.11 : 0.13) + Math.random() * 0.08, x: p.x + (Math.random() - 0.5) * size * sp, y: p.y + (Math.random() - 0.5) * size * sp, z: p.z + (Math.random() - 0.5) * size * sp, s: Math.min(11.5, size * (0.3 + Math.random() * 0.25)) });   // a pirate goes up in a rolling chain of 6 blasts (each under the size that would start a chain of its own)
     for (let i = 0; i < 9; i++) { _bq.set((Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8, (Math.random() - 0.5) * size * 1.8).add(p); smokePuff(_bq); }   // a cloud of smoke that lingers where the ship was
   }
@@ -972,7 +972,7 @@ function explode(p, size, red) {
 }
 function updateFx(dt) {
   updateDying(dt); updateStreaks(dt); updateShards(dt); updatePlates(dt);
-  for (let i = boomQ.length - 1; i >= 0; i--) { const q = boomQ[i]; q.t -= dt; if (q.t <= 0) { boomQ.splice(i, 1); explode(_bq.set(q.x, q.y, q.z), q.s); } }
+  for (let i = boomQ.length - 1; i >= 0; i--) { const q = boomQ[i]; q.t -= dt; if (q.t <= 0) { boomQ.splice(i, 1); explode(_bq.set(q.x, q.y, q.z), q.s, false, true); } }   /* the chain blasts after a big one are silent: one boom per ship */
   for (const e of expl) {
     if (e.t > 1) { if (e.f.visible) e.f.visible = e.r.visible = e.w.visible = e.d.visible = e.y.visible = false; continue; }
     e.t += dt * e.sp; const k = e.t, dc = camera.position.distanceTo(e.f.position), pop = 1 - Math.pow(1 - k, 3), s = Math.min(e.size * (0.55 + 1.5 * pop), dc * 0.5 + 3);   // a round ball that pops out fast and then hangs, burning white -> yellow -> orange -> red
@@ -1691,7 +1691,7 @@ function sfx(kind, k) {
   else if (kind === 'elaser') { tone('triangle', 520, 140, 0.16, 0.05); tone('sine', 1300, 300, 0.1, 0.025); }
   else if (kind === 'hit') noise(900, 0.3, 0.5);
   else if (kind === 'boom' && eng.buf.boom) { const sz = k || 10, big = sz > 12; if (!big && t - lastBoom < 0.09) return; if (big) lastBoom = t;   // the recorded blast: full and deep for a ship, quicker and quieter for the small pops of a chain / a rock
-    const s = actx.createBufferSource(), g = actx.createGain(); s.buffer = eng.buf.boom; s.playbackRate.value = big ? 0.96 + Math.random() * 0.06 : 1.25 + Math.random() * 0.2; const v = big ? 1.5 : clamp(0.35 + sz * 0.04, 0.4, 0.8);
+    const s = actx.createBufferSource(), g = actx.createGain(); s.buffer = eng.buf.boom; s.playbackRate.value = big ? 0.96 + Math.random() * 0.06 : 1.25 + Math.random() * 0.2; const v = (big ? 1.5 : clamp(0.35 + sz * 0.04, 0.4, 0.8)) * 0.398;   /* -8 dB */
     g.gain.setValueAtTime(v, t); if (!big) { g.gain.setValueAtTime(v, t + 0.35); g.gain.exponentialRampToValueAtTime(0.001, t + 1.0); } s.connect(g); g.connect(eng.master); s.start(t); if (!big) s.stop(t + 1.05); }
   else if (kind === 'boom') noise(500 + 200 / (k || 1), 0.55, clamp(0.25 + (k || 10) * 0.02, 0.3, 0.8));
   else if (kind === 'mega') { const play = () => { const s = actx.createBufferSource(), g = actx.createGain(); s.buffer = eng.buf.mega; g.gain.value = 1.3; s.connect(g); g.connect(eng.master); s.start(); };
@@ -1854,7 +1854,7 @@ function updateMissiles(dt) {
       if (dist < 7) { damageEnemy(t, 70 + 15 * save.up[0], m.g.position); m.active = false; m.g.visible = false; explode(m.g.position, 9); continue; }
     }
     { let hitA = false; for (let j = 0; j < AST_N; j++) { const a = asteroids[j]; if (!a.active) continue; const dx = a.x - m.g.position.x, dy = a.y - m.g.position.y, dz = a.z - m.g.position.z, rr = a.r + 2; if (dx * dx + dy * dy + dz * dz < rr * rr) { hitAsteroid(a, 9999); hitA = true; break; } }
-      if (hitA) { m.active = false; m.g.visible = false; explode(m.g.position, 9); continue; } }
+      if (hitA) { m.active = false; m.g.visible = false; explode(m.g.position, 9, false, true); continue; } }   /* a missile into a rock: silent too */
     const sp = Math.min(330, m.vel.length() + 260 * dt); m.vel.copy(_a).multiplyScalar(sp); m.g.position.addScaledVector(m.vel, dt);
     m.body.rotation.z += dt * 9; m.fc.scale.z = 2.2 + Math.random() * 0.9; smokePuff(_b.copy(m.g.position).addScaledVector(_a, -3.9));
     if (m.life <= 0) { m.active = false; m.g.visible = false; explode(m.g.position, 5); }
@@ -1872,7 +1872,7 @@ function damagePlayer(d) {
 }
 function hitAsteroid(a, d) {   // any asteroid, any size, can be destroyed
   a.hp -= d; if (a.hp > 0) return;
-  _b.set(a.x, a.y, a.z); breakRock(a); a.active = false; a.y = -99999; sparks(_b, 14, 14 + a.r, 0.7); for (let i = 0; i < 3; i++) smokePuff(_bq.set(_b.x + rnd(-1, 1) * a.r * 0.6, _b.y + rnd(-1, 1) * a.r * 0.6, _b.z + rnd(-1, 1) * a.r * 0.6)); sfx('boom', Math.max(4, a.r * 0.6)); S.shake = Math.max(S.shake, Math.min(0.25, 40 / (_b.distanceTo(S.pos) + 40) * 0.3)); dropLoot(_b, 15, true, 1 + (a.r > 7 ? 1 : 0) + (a.r > 14 ? 2 : 0));
+  _b.set(a.x, a.y, a.z); breakRock(a); a.active = false; a.y = -99999; sparks(_b, 14, 14 + a.r, 0.7); for (let i = 0; i < 3; i++) smokePuff(_bq.set(_b.x + rnd(-1, 1) * a.r * 0.6, _b.y + rnd(-1, 1) * a.r * 0.6, _b.z + rnd(-1, 1) * a.r * 0.6)); /* rocks break silently (the user's choice) */ S.shake = Math.max(S.shake, Math.min(0.25, 40 / (_b.distanceTo(S.pos) + 40) * 0.3)); dropLoot(_b, 15, true, 1 + (a.r > 7 ? 1 : 0) + (a.r > 14 ? 2 : 0));
 }
 function damageEnemy(e, d, at) {
   if (!e.active) return;
