@@ -1722,7 +1722,10 @@ function sfx(kind, k, vm) {
     const wg = actx.createGain(); wg.gain.setValueAtTime(0.0001, t); wg.gain.exponentialRampToValueAtTime(0.55, t + 0.55); wg.gain.exponentialRampToValueAtTime(0.001, t + 1.0); w.connect(bp); bp.connect(wg); wg.connect(eng.master); w.start(t); w.stop(t + 1.05);
     tone('triangle', 55, 230, 0.8, 0.22, 0.02);
   }
-  else if (kind === 'boost') tone('sawtooth', 90, 420, 0.4, 0.16);
+  else if (kind === 'boost') {   // jump start: a soft rising whoosh (filtered air + a smooth sine), no buzzy saw
+    const w = actx.createBufferSource(); w.buffer = eng.nb; w.loop = true; const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1; bp.frequency.setValueAtTime(220, t); bp.frequency.exponentialRampToValueAtTime(2600, t + 1.0);
+    const wg = actx.createGain(); wg.gain.setValueAtTime(0.0001, t); wg.gain.exponentialRampToValueAtTime(0.16, t + 0.45); wg.gain.exponentialRampToValueAtTime(0.0001, t + 1.1); w.connect(bp); bp.connect(wg); wg.connect(eng.master); w.start(t); w.stop(t + 1.15);
+    const o = actx.createOscillator(), og = actx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(700, t + 1.0); og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.05, t + 0.4); og.gain.exponentialRampToValueAtTime(0.0001, t + 1.05); o.connect(og); og.connect(eng.master); o.start(t); o.stop(t + 1.1); }
   else if (kind === 'dock') { tone('triangle', 523, 523, 0.45, 0.22); tone('triangle', 659, 659, 0.45, 0.22, 0.12); tone('triangle', 784, 784, 0.5, 0.22, 0.24); }
   else if (kind === 'lock') tone('sine', 1200, 1200, 0.06, 0.12);
   // menu / button sounds: short soft electronic blips
@@ -2179,7 +2182,7 @@ const WP = { t: 0, to: 0, done: false, far: false }, tunnelEl = document.getElem
 function startWarp(i, gate) {
   if (S.mode !== 'fly') return; if (!gate && stations[i].sys !== curSys) { toast('OTHER SYSTEMS ONLY THROUGH THE STARGATE', 2.5); warpToGate(); return; }   /* the stargate is the only way to another system */
   if (!gate && i === homeSt && S.pos.distanceTo(stations[i].pos) < STN_NEAR) return; WP.t = 0; WP.to = i; WP.done = false; WP.gate = gate || 0; WP.far = stations[i].sys !== curSys; S.mode = 'warp'; S.tPlanet = -1; S.target = null; S.boosting = false; S.sx = S.sy = 0;
-  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; sfx('boost'); if (WP.gate === 2) { const c = new THREE.Color(GATE_DESIGN.colHz || '#3fb8ff'), hx = (k) => '#' + c.clone().multiplyScalar(k).getHexString(); fadeEl.style.background = 'radial-gradient(circle at center, ' + '#' + c.clone().lerp(new THREE.Color(1, 1, 1), 0.75).getHexString() + ' 0%, ' + hx(1) + ' 30%, ' + hx(0.4) + ' 65%, ' + hx(0.08) + ' 100%)'; }   /* the dissolve takes the colour of the gate's swirl */ else if (WP.far) { tunnelEl.classList.add('on'); fadeEl.style.background = '#dfe9ff'; }   /* through a stargate: a soft blue dissolve, no flash and no rings */   // jump tunnel: pure CSS, runs on the GPU
+  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; /* jumps are silent (the user's choice) */ if (WP.gate === 2) { const c = new THREE.Color(GATE_DESIGN.colHz || '#3fb8ff'), hx = (k) => '#' + c.clone().multiplyScalar(k).getHexString(); fadeEl.style.background = 'radial-gradient(circle at center, ' + '#' + c.clone().lerp(new THREE.Color(1, 1, 1), 0.75).getHexString() + ' 0%, ' + hx(1) + ' 30%, ' + hx(0.4) + ' 65%, ' + hx(0.08) + ' 100%)'; }   /* the dissolve takes the colour of the gate's swirl */ else if (WP.far) { tunnelEl.classList.add('on'); fadeEl.style.background = '#dfe9ff'; }   /* through a stargate: a soft blue dissolve, no flash and no rings */   // jump tunnel: pure CSS, runs on the GPU
   setTimeout(() => { if (S.mode === 'warp') { fadeEl.style.transition = WP.gate === 2 ? 'opacity .85s ease-in-out' : 'opacity .65s linear'; fadeEl.style.opacity = '1'; } }, WP.gate === 2 ? 300 : WP.far ? 1250 : 450);   /* the fade is ONE css transition now, not a style write on a full-screen layer every frame */
 }
 function updateWarp(dt) {
