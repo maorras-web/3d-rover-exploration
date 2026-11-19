@@ -1670,6 +1670,7 @@ function sfx(kind, k) {
   if (!actx || !save.snd || actx.state !== 'running') return; const t = actx.currentTime;
   if (kind === 'ui' || kind === 'uiOk' || kind === 'uiNo' || kind === 'uiTab') kind = 'note';   // every menu button uses the user's one click sound
   if (kind === 'note') { if (t - lastNote < 0.08) return; lastNote = t; }   // a tap that triggers two handlers plays it once
+  else if ((kind === 'pick' || kind === 'lock') && t - lastNote < 0.3) return;   // a button's own extra blip (FLY, ACCEPT, BUY, a planet on the map...) is swallowed: one clean, even click per tap
   const tone = (type, f0, f1, dur, vol, delay) => { const o = actx.createOscillator(), g = actx.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t + (delay || 0)); o.frequency.exponentialRampToValueAtTime(f1, t + (delay || 0) + dur); g.gain.setValueAtTime(vol, t + (delay || 0)); g.gain.exponentialRampToValueAtTime(0.001, t + (delay || 0) + dur); o.connect(g); g.connect(eng.master); o.start(t + (delay || 0)); o.stop(t + (delay || 0) + dur + 0.02); };
   const noise = (cut, dur, vol) => { const s = actx.createBufferSource(); s.buffer = eng.nb; const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; const g = actx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); s.connect(f); f.connect(g); g.connect(eng.master); s.start(t); };
   if (kind === 'laser' && eng.buf && eng.buf.laser) { if (t - lastLaser < 0.07) return; lastLaser = t; const wi = Math.min(LSND.length - 1, k | 0), L = LSND[wi];
