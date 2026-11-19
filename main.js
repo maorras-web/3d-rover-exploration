@@ -2343,23 +2343,16 @@ function openShop(msg) {
     const mp = document.createElement('div'); mp.className = 'smap'; list.appendChild(mp);
     const ms = mapSys < 0 ? stations[S.station].sys : mapSys, ids = stations.map((s, k) => k).filter(k => stations[k].sys === ms);
     let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; ids.forEach(k => { const s = stations[k]; x0 = Math.min(x0, s.pos.x); x1 = Math.max(x1, s.pos.x); z0 = Math.min(z0, s.pos.z); z1 = Math.max(z1, s.pos.z); });
-    const MW = mp.clientWidth || 620, MH = mp.clientHeight || 190, pc = []; ids.forEach(k => { const s = stations[k]; pc[k] = [(44 + (MW - 44 - 210) * (s.pos.x - x0) / (x1 - x0 || 1)) / MW * 100, (56 + (MH - 56 - 66) * (s.pos.z - z0) / (z1 - z0 || 1)) / MH * 100];   /* real pixels: keep every star clear of the planet card on the right, the system buttons below and the title above */   /* spread over the whole wide map (the preview card keeps the right 17%) */ });
-    const CM = phoneMap() ? MAPLAY : null; if (CM) ids.forEach(k => { const c = CM[stations[k].name]; if (c) pc[k] = [c.x, c.y]; });   // phones: the hand-made layout
-    // network of lanes: every station linked to its two nearest neighbours, plus brighter lanes out of the station you are docked at
-    const lanes = new Set(), here = S.station; ids.forEach(k => { ids.map(j => [j, stations[k].pos.distanceTo(stations[j].pos)]).filter(q => q[0] !== k).sort((p, q) => p[1] - q[1]).slice(0, 2).forEach(q => lanes.add(Math.min(k, q[0]) + '-' + Math.max(k, q[0]))); });
-    let svg = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">';
-    lanes.forEach(l => { const [i, j] = l.split('-').map(Number); svg += `<line x1="${pc[i][0]}" y1="${pc[i][1]}" x2="${pc[j][0]}" y2="${pc[j][1]}" stroke="rgba(110,170,240,.35)" stroke-width="1" vector-effect="non-scaling-stroke"/>`; });
-    ids.forEach(k => { if (k !== here && stations[here].sys === ms) svg += `<line x1="${pc[here][0]}" y1="${pc[here][1]}" x2="${pc[k][0]}" y2="${pc[k][1]}" stroke="rgba(255,200,96,.55)" stroke-width="1.2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`; });
-    mp.insertAdjacentHTML('afterbegin', svg + '</svg><div style="position:absolute;left:10px;top:7px;font:700 10px system-ui,Arial,sans-serif;letter-spacing:3px;color:#a58ad8">' + SYSTEMS[ms] + ' SYSTEM</div><div style="position:absolute;left:8px;top:21px;display:flex;align-items:center;gap:5px;font:600 9px system-ui,Arial,sans-serif;letter-spacing:2px;color:#8d76b8;pointer-events:none">' + SYS_EMB(ms) + '<span>RULED BY <b style="color:#efe6ff;font-weight:700">' + SYS_RULER[ms] + '</b></span></div><div class="sysw">' + SYSTEMS.map((n, q) => `<button data-q="${q}" class="${q === ms ? 'on' : ''}">${n}</button>`).join('') + '</div>');
-    ids.forEach(k => { const s = stations[k], d = document.createElement('div'); d.className = 'sn' + (k === S.station ? ' here' : '') + (S.mission && S.mission.type === 'delivery' && S.mission.to === k ? ' tgt' : '') + (pc[k][0] > 30 ? ' fl' : ''); d.style.left = pc[k][0] + '%'; d.style.top = pc[k][1] + '%';
-      const cu = CM && CM[s.name]; if (cu) { d.className = d.className.replace(' fl', ''); d.innerHTML = `<i style="${k === S.station ? '' : `background:${MAPC[s.name] || s.col};box-shadow:0 0 12px ${MAPC[s.name] || s.col}`}"></i>`; mp.appendChild(d); d.addEventListener('click', () => pvShow(k));
-        const cl = (txt, x, y, an, cls) => { const e = document.createElement('div'); e.className = 'cl ' + (an === 'r' ? 'r ' : '') + (cls || ''); e.style.left = x + '%'; e.style.top = y + '%'; e.textContent = txt; mp.appendChild(e);
-          /* keep the word clear of the dot's glow ring: measure it and nudge it up/down until it no longer touches the halo */
-          const w = e.offsetWidth, h = e.offsetHeight, px = pc[k][0] * MW / 100, py = pc[k][1] * MH / 100, R = (k === S.station ? 31 : 27) + 3, ax = x * MW / 100; let ay = y * MH / 100;
-          for (let n = 0; n < 14; n++) { const cx = an === 'r' ? ax - w / 2 : ax + w / 2, dx = Math.max(Math.abs(cx - px) - w / 2, 0), dy = Math.max(Math.abs(ay - py) - h / 2, 0); if (Math.hypot(dx, dy) >= R) break; ay += (ay >= py ? 2 : -2); }
-          e.style.top = (ay / MH * 100).toFixed(2) + '%'; };
-        if (cu.n) cl(s.name, cu.n[0], cu.n[1], cu.n[2]); if (cu.d) cl((stations[S.station].pos.distanceTo(s.pos) / 1000 * (s.sys === stations[S.station].sys ? 1 : 3)).toFixed(1) + ' LY', cu.d[0], cu.d[1], cu.d[2], 'dim'); if (k === S.station && CM._you) cl('YOU ARE HERE', cu.x + CM._you[0], cu.y + CM._you[1], CM._you[2], 'you'); return; }
-      d.innerHTML = `<i style="${k === S.station ? '' : `background:${MAPC[s.name] || s.col};box-shadow:0 0 12px ${MAPC[s.name] || s.col}`}"></i><span>${s.name}<br><small>${k === S.station ? 'YOU ARE HERE' : (stations[S.station].pos.distanceTo(s.pos) / 1000 * (s.sys === stations[S.station].sys ? 1 : 3)).toFixed(1) + ' LY'}</small></span>`; mp.appendChild(d); d.addEventListener('click', () => pvShow(k)); });
+    const MW = mp.clientWidth || 620, MH = mp.clientHeight || 190, pc = {}, here = S.station, SCX = 40, SCY = 55, SRX = 33, SRY = Math.min(30, 100 * (MH * 0.5 - 64) / MH);   // the orrery sits left of the planet card, between the title and the system buttons
+    mp.insertAdjacentHTML('afterbegin', orrDecor(ms, SCX, SCY, SRX, SRY, Math.round(Math.min(70, MH * 0.2))) + '<div style="position:absolute;left:10px;top:7px;font:700 10px system-ui,Arial,sans-serif;letter-spacing:3px;color:#a58ad8;z-index:5">' + SYSTEMS[ms] + ' SYSTEM</div><div style="position:absolute;left:8px;top:21px;display:flex;align-items:center;gap:5px;font:600 9px system-ui,Arial,sans-serif;letter-spacing:2px;color:#8d76b8;pointer-events:none;z-index:5">' + SYS_EMB(ms) + '<span>RULED BY <b style="color:#efe6ff;font-weight:700">' + SYS_RULER[ms] + '</b></span></div><div class="sysw">' + SYSTEMS.map((n, q) => `<button data-q="${q}" class="${q === ms ? 'on' : ''}">${n}</button>`).join('') + '</div>'); sunStart(mp);
+    { const g = GATES[ms], mb = mapBs[ms], a = Math.atan2(g.pos.z - mb.cz, g.pos.x - mb.cx), gx = clamp(SCX + Math.cos(a) * SRX * 1.13, 6, 69), gy = clamp(SCY + Math.sin(a) * SRY * 1.13, 26, 78); mp.insertAdjacentHTML('beforeend', `<div class="ogate" style="left:${gx}%;top:${gy}%"><i></i><span>STARGATE</span></div>`); }   // the stargate, out past the last orbit
+    const nodes = [];
+    ids.forEach(k => { const s = stations[k], p = planets[k], d = document.createElement('div'); d.className = 'op sn2' + (k === here ? ' cur' : '') + (S.mission && S.mission.type === 'delivery' && S.mission.to === k ? ' tgt' : ''); d.style.setProperty('--c', MAPC[s.name] || s.col);
+      d.innerHTML = `<small>${k === here ? 'YOU ARE HERE' : ''}</small><i></i><span>${s.name}</span><em>${(p.lbl || PKIND[p.kind] || '')}${k === here || stations[here].sys !== ms && false ? '' : '  ·  ' + (stations[here].pos.distanceTo(s.pos) / 1000 * (s.sys === stations[here].sys ? 1 : 3)).toFixed(1) + ' LY'}</em>`;
+      d.firstChild.nextSibling.style.backgroundImage = (p.img ? 'url(' + p.img + '),' : '') + 'radial-gradient(circle at 40% 35%,#fff6,' + (MAPC[s.name] || s.col) + ' 60%)';
+      mp.appendChild(d); d.addEventListener('click', () => pvShow(k)); nodes.push([k, d]); });
+    const step = () => { if (!mp.isConnected) return; orrPlace(nodes, orbT(), SCX, SCY, SRX, SRY, pc); requestAnimationFrame(step); };   // the planets creep round the sun while the map is open
+    step();
     mp.querySelectorAll('.sysw button').forEach(b => b.addEventListener('click', () => { mapSys = +b.dataset.q; sfx('ui'); openShop($('shop-earn').textContent); }));
     const pvw = document.createElement('div'); pvw.className = 'pvw'; pvw.innerHTML = '<canvas width="120" height="120"></canvas><b></b><small></small><em>drag to spin · tap a station</em>'; mp.appendChild(pvw);
     const pvShow = (k) => { const p = stations[k].pl; pvw.querySelector('b').textContent = (p.lbl || PKIND[p.kind] || 'PLANET'); pvw.querySelector('small').textContent = stations[k].name + ' · ' + ((k * 600000 + p.r * 3000) / 1e6).toFixed(1) + 'M KM'; pvStart(pvw.querySelector('canvas'), k); };
@@ -2436,11 +2429,105 @@ const DK = { k: 0, M: V3(), O: V3(), A: V3(), E: V3(), C: V3(), cit: false, i: 0
 // ---- star map ----
 const mapOv = $('map-ov'), mapFld = $('map-fld'), mapMe = $('map-me'); let mapOn = false, mapB = null;
 const mapBs = SYSTEMS.map((nm, k) => { let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; for (const p of planets) if (p.sys === k) { x0 = Math.min(x0, p.pos.x); x1 = Math.max(x1, p.pos.x); z0 = Math.min(z0, p.pos.z); z1 = Math.max(z1, p.pos.z); } const sp = Math.max(x1 - x0, z1 - z0) || 1; return { x0, z0, sx: 1 / sp, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2 }; });
+// ---- the maps are an orrery: the system's sun in the middle, every planet on an orbit of its own, slowly going round it (on the map only: nothing moves in space) ----
+// orbits are ranked by how far each planet really is from the middle of its system (nearest = innermost)
+const ORB = SYSTEMS.map((nm, k) => { const mb = mapBs[k], L = []; planets.forEach((p, i) => { if (p.sys === k) L.push({ i, d: Math.hypot(p.pos.x - mb.cx, p.pos.z - mb.cz), a0: Math.atan2(p.pos.z - mb.cz, p.pos.x - mb.cx) }); });
+  L.sort((a, b) => a.d - b.d); L.forEach((o, r) => { o.r = L.length > 1 ? 0.42 + 0.58 * r / (L.length - 1) : 1; o.a0 = 0.9 + r * 2.39996; o.w = 0.018; }); return L; });   // spread round the sun by the golden angle and turning together (one turn ~6 min), so two planets never pile up on each other
+const ORB_OF = []; ORB.forEach(L => L.forEach(o => { ORB_OF[o.i] = o; }));
+const orbT = () => performance.now() / 1000;
+const orbXY = (i, t) => { const o = ORB_OF[i], a = o.a0 + o.w * t; return [Math.cos(a) * o.r, Math.sin(a) * o.r]; };   // -1..1 across the outermost orbit
+// a tilted 3-D look made of plain page elements: the far (upper) half of every orbit is drawn behind the sun and the near half in front of it, planets shrink and dim as they go round the back
+// and are lit from the sun's side; nothing here touches the 3-D scene, and it only runs while a map is open
+const orrArcs = (k, cx, cy, rx, ry, front) => '<svg class="orr ' + (front ? 'fr' : 'bk') + '" viewBox="0 0 100 100" preserveAspectRatio="none">' + ORB[k].map(o => { const a = (rx * o.r).toFixed(2), b = (ry * o.r).toFixed(2), L = (cx - rx * o.r).toFixed(2), R = (cx + rx * o.r).toFixed(2);
+  const d = front ? `M${R} ${cy}A${a} ${b} 0 0 1 ${L} ${cy}` : `M${L} ${cy}A${a} ${b} 0 0 1 ${R} ${cy}`; return `<path class="g" d="${d}"/><path d="${d}"/>`; }).join('') + '</svg>';
+// the map sun: a painted surface (boiling granules, bright patches, a few dark spots) that turns slowly like the planets, dark at its edge like a real ball of fire,
+// with a ring of flame tongues licking out of the rim - both pictures painted once per system and kept
+const SUNTX = [];
+const SUNMAP = [['255,238,170', '255,160,40', '214,70,8'], ['200,225,255', '90,140,255', '30,50,190'], ['255,244,190', '255,180,60', '226,96,14']];   // map sun colours per system: hot middle, surface, deep edge (PIKRO and SOLARA golden, YAPZO blue)
+function sunTex(k) { if (SUNTX[k]) return SUNTX[k]; const P = SUNMAP[k] || SUNMAP[0], f1 = P[0], f2 = P[1], f3 = P[2]; let sd = 11 + k * 7; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const W = 256, H = 128, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const x = cv.getContext('2d'); x.fillStyle = `rgb(${f2})`; x.fillRect(0, 0, W, H); try { x.filter = 'blur(1.2px)'; } catch (e) { }
+  const blob = (bx, by, rr, col) => { for (const o of [-W, 0, W]) { const g = x.createRadialGradient(bx + o, by, 0, bx + o, by, rr); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(bx + o - rr, by - rr, rr * 2, rr * 2); } };
+  for (let i = 0; i < 70; i++) blob(r() * W, r() * H, 14 + r() * 26, `rgba(${f3},${(0.25 + r() * 0.3).toFixed(2)})`);   // darker convection cells
+  for (let i = 0; i < 900; i++) blob(r() * W, r() * H, 2 + r() * 4, `rgba(${f1},${(0.18 + r() * 0.3).toFixed(2)})`);   // fine boiling granules
+  for (let i = 0; i < 30; i++) blob(r() * W, r() * H, 8 + r() * 18, `rgba(255,255,235,${(0.12 + r() * 0.22).toFixed(2)})`);   // bright patches
+  for (let i = 0; i < 3; i++) { const bx = r() * W, by = H * (0.35 + r() * 0.3); blob(bx, by, 4 + r() * 4, `rgba(${f3},.8)`); blob(bx, by, 1.5 + r() * 1.5, 'rgba(60,15,0,.6)'); }   // a few small sunspots
+  const cr = document.createElement('canvas'); cr.width = cr.height = 256; const y = cr.getContext('2d'); y.translate(128, 128); y.globalCompositeOperation = 'lighter'; try { y.filter = 'blur(2.5px)'; } catch (e) { }   // soft, not spiky
+  for (let i = 0; i < 46; i++) { const a = r() * 6.283, L = 6 + r() * 20, w = 0.06 + r() * 0.12, g = y.createRadialGradient(0, 0, 60, 0, 0, 64 + L); g.addColorStop(0, `rgba(${f1},.55)`); g.addColorStop(0.5, `rgba(${f2},.3)`); g.addColorStop(1, `rgba(${f2},0)`); y.fillStyle = g;
+    y.beginPath(); y.moveTo(Math.cos(a - w) * 60, Math.sin(a - w) * 60); y.quadraticCurveTo(Math.cos(a + w * 0.4) * (64 + L * 0.7), Math.sin(a + w * 0.4) * (64 + L * 0.7), Math.cos(a + w * 0.2) * (64 + L), Math.sin(a + w * 0.2) * (64 + L)); y.quadraticCurveTo(Math.cos(a + w * 0.9) * (64 + L * 0.5), Math.sin(a + w * 0.9) * (64 + L * 0.5), Math.cos(a + w) * 60, Math.sin(a + w) * 60); y.closePath(); y.fill(); }   // flame tongues round the rim
+  return (SUNTX[k] = [cv.toDataURL('image/jpeg', 0.85), cr.toDataURL()]); }
+// a real turning ball: the surface (layered noise: big convection swirls + fine boiling granules, painted once) is wrapped round a sphere pixel by pixel on a small canvas,
+// two layers drifting at different speeds so the surface churns, dark at the limb and white-hot in the middle. ~25k pixels a frame, only while a map is open
+const SUNSRF = [];
+function sunSurf(k) { if (SUNSRF[k]) return SUNSRF[k]; const P = SUNMAP[k] || SUNMAP[0], C = [P[2], P[1], P[0], '255,252,236'].map(c => c.split(',').map(Number)), W = 256, H = 128; let sd = 5 + k * 13; const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const G = 32, grid = []; for (let o = 0; o < 6; o++) { const n = 4 << o, g = new Float32Array(n * (n / 2 + 1)); for (let i = 0; i < g.length; i++) g[i] = rr(); grid.push([n, g]); }
+  const vn = (o, x, y) => { const [n, g] = grid[o], w = n, gx = x * n, gy = y * n / 2, x0 = Math.floor(gx), y0 = Math.floor(gy), fx = gx - x0, fy = gy - y0, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy), a = (xx, yy) => g[((xx % w) + w) % w + Math.min(yy, n / 2) * w];
+    return (a(x0, y0) * (1 - sx) + a(x0 + 1, y0) * sx) * (1 - sy) + (a(x0, y0 + 1) * (1 - sx) + a(x0 + 1, y0 + 1) * sx) * sy; };
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const x2 = cv.getContext('2d'), im = x2.createImageData(W, H), d = im.data;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const u = x / W, v = y / H; let f = 0, a = 0.5; for (let o = 0; o < 4; o++) { f += a * vn(o, u + o * 0.37, v + o * 0.21); a *= 0.5; } f /= 0.9375;   // big convection swirls
+    const e = Math.min(1, Math.max(0, (f - 0.3) / 0.4)), t = e * e * (3 - 2 * e) * 0.78, s = t * 3, i = Math.min(2, Math.floor(s)), m = s - i, c0 = C[i], c1 = C[i + 1], q = (y * W + x) * 4;
+    d[q] = c0[0] + (c1[0] - c0[0]) * m; d[q + 1] = c0[1] + (c1[1] - c0[1]) * m; d[q + 2] = c0[2] + (c1[2] - c0[2]) * m; d[q + 3] = 255; }
+  x2.putImageData(im, 0, 0); try { x2.filter = 'blur(0.8px)'; } catch (e) { }
+  const blob = (bx, by, r0, col) => { for (const o of [-W, 0, W]) { const g = x2.createRadialGradient(bx + o, by, 0, bx + o, by, r0); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); x2.fillStyle = g; x2.fillRect(bx + o - r0, by - r0, r0 * 2, r0 * 2); } };
+  for (let i = 0; i < 1400; i++) blob(rr() * W, rr() * H, 1.5 + rr() * 3, `rgba(${C[2]},${(0.15 + rr() * 0.25).toFixed(2)})`);   // fine boiling granules
+  for (let i = 0; i < 500; i++) blob(rr() * W, rr() * H, 1 + rr() * 2.5, `rgba(${C[0]},${(0.12 + rr() * 0.2).toFixed(2)})`);   // dark lanes between them
+  for (let i = 0; i < 25; i++) blob(rr() * W, rr() * H, 6 + rr() * 14, `rgba(${C[3]},${(0.12 + rr() * 0.2).toFixed(2)})`);   // bright faculae
+  for (let i = 0; i < 3; i++) { const bx = rr() * W, by = H * (0.35 + rr() * 0.3); blob(bx, by, 4 + rr() * 3, `rgba(${C[0]},.85)`); blob(bx, by, 1.5 + rr(), 'rgba(40,10,0,.6)'); }   // small sunspots
+  const sd2 = x2.getImageData(0, 0, W, H).data, out = new Uint8ClampedArray(W * H * 3); for (let p = 0, q = 0; p < W * H; p++, q += 4) { out[p * 3] = sd2[q]; out[p * 3 + 1] = sd2[q + 1]; out[p * 3 + 2] = sd2[q + 2]; }
+  return (SUNSRF[k] = { W, H, px: out }); }
+let sunRunId = 0;
+// the map sun is drawn by the graphics chip with a small shader of its own: a sphere of boiling plasma (3-D noise, so no seams and no smearing at the poles), darker at the limb,
+// with a ring of animated flames and a soft corona behind it. One tiny extra canvas made the first time a map opens and moved between the two maps;
+// it only draws while a map is on screen (a few thousand pixels), never during flight
+const SNOISE = `vec3 m289(vec3 x){return x-floor(x*(1./289.))*289.;}vec4 m289(vec4 x){return x-floor(x*(1./289.))*289.;}vec4 pm(vec4 x){return m289(((x*34.)+1.)*x);}vec4 tis(vec4 r){return 1.79284291400159-.85373472095314*r;}
+float snoise(vec3 v){const vec2 C=vec2(1./6.,1./3.);const vec4 D=vec4(0.,.5,1.,2.);vec3 i=floor(v+dot(v,C.yyy));vec3 x0=v-i+dot(i,C.xxx);vec3 g=step(x0.yzx,x0.xyz);vec3 l=1.-g;vec3 i1=min(g.xyz,l.zxy);vec3 i2=max(g.xyz,l.zxy);
+vec3 x1=x0-i1+C.xxx;vec3 x2=x0-i2+C.yyy;vec3 x3=x0-D.yyy;i=m289(i);vec4 p=pm(pm(pm(i.z+vec4(0.,i1.z,i2.z,1.))+i.y+vec4(0.,i1.y,i2.y,1.))+i.x+vec4(0.,i1.x,i2.x,1.));
+float n_=.142857142857;vec3 ns=n_*D.wyz-D.xzx;vec4 j=p-49.*floor(p*ns.z*ns.z);vec4 x_=floor(j*ns.z);vec4 y_=floor(j-7.*x_);vec4 x=x_*ns.x+ns.yyyy;vec4 y=y_*ns.x+ns.yyyy;vec4 h=1.-abs(x)-abs(y);
+vec4 b0=vec4(x.xy,y.xy);vec4 b1=vec4(x.zw,y.zw);vec4 s0=floor(b0)*2.+1.;vec4 s1=floor(b1)*2.+1.;vec4 sh=-step(h,vec4(0.));vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+vec3 p0=vec3(a0.xy,h.x);vec3 p1=vec3(a0.zw,h.y);vec3 p2=vec3(a1.xy,h.z);vec3 p3=vec3(a1.zw,h.w);vec4 nr=tis(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));p0*=nr.x;p1*=nr.y;p2*=nr.z;p3*=nr.w;
+vec4 m=max(.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.);m=m*m;return 42.*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));}`;
+let SGL = null;
+function sunGL() { if (SGL) return SGL;
+  const cv = document.createElement('canvas'); let r; try { r = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true, premultipliedAlpha: false, powerPreference: 'low-power' }); } catch (e) { return (SGL = { bad: true }); }
+  r.setClearColor(0x000000, 0); const sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(20, 1, 0.1, 50); cam.position.set(0, 1.9, 13.47); cam.lookAt(0, 0, 0);   /* the ball fills 1/2.4 of the canvas: the rest is room for the flames */
+  const U = { t: { value: 0 }, c0: { value: new THREE.Color() }, c1: { value: new THREE.Color() }, c2: { value: new THREE.Color() }, c3: { value: new THREE.Color() } };
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 48), new THREE.ShaderMaterial({ uniforms: U,
+    vertexShader: 'varying vec3 vP;varying vec3 vN;varying vec3 vV;void main(){vP=position;vN=normalize(normalMatrix*normal);vec4 mv=modelViewMatrix*vec4(position,1.);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
+    fragmentShader: 'uniform float t;uniform vec3 c0,c1,c2,c3;varying vec3 vP;varying vec3 vN;varying vec3 vV;' + SNOISE + `
+      float fbm(vec3 p){float f=0.,a=.5;for(int i=0;i<5;i++){f+=a*snoise(p);p=p*2.03+vec3(1.7,9.2,3.1);a*=.5;}return f;}
+      void main(){ vec3 p=vP*1.6; vec3 q=vec3(fbm(p+vec3(0.,0.,t*.05)),fbm(p+vec3(5.2,1.3,t*.04)),fbm(p+vec3(2.1,7.7,-t*.045)));   // domain-warped plasma: big slow swirls
+        float f=fbm(p*1.4+q*1.6+vec3(t*.03)); float g=1.-abs(snoise(vP*14.+vec3(0.,t*.25,0.))); g=g*g*g;   // fine boiling granules (ridged)
+        float k=clamp(f*.55+.5+g*.22,0.,1.);
+        vec3 col=mix(c0,c1,smoothstep(.15,.5,k)); col=mix(col,c2,smoothstep(.45,.78,k)); col=mix(col,c3,smoothstep(.8,1.,k));
+        float mu=clamp(dot(normalize(vN),normalize(vV)),0.,1.); col*=.38+.75*pow(mu,.55); col+=c2*pow(1.-mu,3.)*.35+c3*pow(mu,3.)*.45;   // dark limb, white-hot middle, a thin bright edge
+        gl_FragColor=vec4(col*1.15,1.);}` }));
+  const halo = new THREE.Mesh(new THREE.PlaneGeometry(4.8, 4.8), new THREE.ShaderMaterial({ uniforms: U, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: 'varying vec2 vU;void main(){vU=uv*2.-1.;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader: 'uniform float t;uniform vec3 c0,c1,c2,c3;varying vec2 vU;' + SNOISE + `
+      void main(){ float r=length(vU)*2.4, a=atan(vU.y,vU.x); vec3 d=vec3(cos(a),sin(a),0.);
+        float n=snoise(vec3(d.xy*2.2,t*.22-r*.9))*.5+.5; n+=.5*(snoise(vec3(d.xy*5.5,t*.35-r*1.6))*.5+.5);   // flame tongues streaming out of the rim
+        float e=max(r-1.,0.); float fl=pow(n*.75,2.)*exp(-e*4.2)*step(.98,r); float gl=exp(-e*2.4)*.55+exp(-e*.9)*.18;
+        vec3 col=c1*gl+mix(c2,c3,.3)*fl*1.6; float al=clamp(gl+fl,0.,1.)*smoothstep(2.35,1.4,r); gl_FragColor=vec4(col*al,al);}` }));
+  halo.lookAt(cam.position); halo.position.set(0, 0, -0.05); sc.add(halo, ball);
+  return (SGL = { cv, r, sc, cam, U, ball }); }
+function sunStart(root) { const host = root.querySelector('.osun'); if (!host) return; const S2 = sunGL(); const id = ++sunRunId;
+  if (S2.bad) { host.classList.add('flat'); return; }   // no graphics chip for it: the old painted glow stays
+  const k = +host.dataset.k, P = SUNMAP[k] || SUNMAP[0], C = (str) => new THREE.Color(...str.split(',').map(n => n / 255));
+  S2.U.c0.value.copy(C(P[2])).multiplyScalar(0.55); S2.U.c1.value.copy(C(P[2])); S2.U.c2.value.copy(C(P[1])); S2.U.c3.value.copy(C(P[0]));
+  const px = Math.round(host.offsetWidth * 2.4) || 200, dpr = Math.min(2, devicePixelRatio || 1); S2.r.setPixelRatio(dpr); S2.r.setSize(px, px, false); S2.cv.className = 'sgl'; host.appendChild(S2.cv);
+  const frame = (now) => { if (id !== sunRunId || !S2.cv.isConnected || S2.cv.offsetParent === null) return; S2.U.t.value = now / 1000; S2.ball.rotation.y = now / 1000 * 0.05; S2.r.render(S2.sc, S2.cam); requestAnimationFrame(frame); };
+  requestAnimationFrame(frame); }
+const orrDecor = (k, cx, cy, rx, ry, sun) => { const P = SUNMAP[k] || SUNMAP[0], c = { fl: P[0], fl2: P[1] }; return orrArcs(k, cx, cy, rx, ry, false) + `<div class="osun" data-k="${k}" style="left:${cx}%;top:${cy}%;width:${sun}px;height:${sun}px;margin:${-sun / 2}px 0 0 ${-sun / 2}px;--s1:${c.fl};--s2:${c.fl2}"></div>` + orrArcs(k, cx, cy, rx, ry, true); };
+function orrPlace(nodes, t, cx, cy, rx, ry, out) {   // nodes: [[planet index, element]]; returns positions in % (out[i])
+  for (const [i, el] of nodes) { const o = ORB_OF[i], a = o.a0 + o.w * t, ca = Math.cos(a), sa = Math.sin(a), x = cx + ca * o.r * rx, y = cy + sa * o.r * ry, dp = (sa * o.r + 1) / 2;   // dp: 0 = far side, 1 = near side
+    out[i] = [x, y]; el.style.left = x.toFixed(2) + '%'; el.style.top = y.toFixed(2) + '%'; el.style.zIndex = sa < 0 ? 1 : 4;
+    el.style.setProperty('--d', (0.74 + 0.36 * dp).toFixed(3)); el.style.opacity = (0.84 + 0.16 * dp).toFixed(2);
+    el.style.setProperty('--lx', (50 - ca * 30).toFixed(1) + '%'); el.style.setProperty('--ly', (50 - sa * 22).toFixed(1) + '%'); }   // lit from the sun's side
+  return out; }
 (function () {
   planets.forEach((p, i) => {
     const mb = mapBs[p.sys], b = document.createElement('button'); b.className = 'mn'; b.id = 'mn' + i; b.style.setProperty('--c', stations[i].col);
     b.style.left = (50 + (p.pos.x - mb.cx) * mb.sx * 84) + '%'; b.style.top = (50 + (p.pos.z - mb.cz) * mb.sx * 84) + '%';
-    b.innerHTML = '<i></i><span>' + stations[i].name + '</span><em>' + (p.lbl || '') + '</em><small></small>'; mapFld.appendChild(b);
+    b.innerHTML = '<i></i><span>' + stations[i].name + '</span><em>' + (p.lbl || '') + '</em><small></small>'; b.classList.add('op'); mapFld.appendChild(b);
     b.firstChild.style.backgroundImage = (p.img ? 'url(' + p.img + '),' : '') + 'radial-gradient(circle at 40% 35%,#fff6,' + stations[i].col + ' 60%)';   // the planet's own painted face (the colour behind it if the file is missing)
     b.addEventListener('click', () => { if (S.mode !== 'fly') return; closeMap(); if (nearPlanet() === i) return; initAudio(); S.tPlanet = i; sfx('lock'); trvOn = true; $('trv-name').textContent = stations[i].name; $('trv-dlg').style.display = 'flex'; });
   });
@@ -2449,18 +2536,24 @@ const mapBs = SYSTEMS.map((nm, k) => { let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -
 })();
 function updateMap() {
   updCurSys(); mapB = mapBs[curSys]; $('map-sys').textContent = '\u27A4 STARGATE'; $('map-title').innerHTML = 'STAR MAP<b>' + SYSTEMS[curSys] + '</b>'; $('map-ruler').textContent = SYS_RULER[curSys]; { const sv = $('map-rule').querySelector('svg'); if (!window.__velSvg) window.__velSvg = sv.outerHTML; sv.outerHTML = curSys === 2 ? HUM_EMB.replace(/style="[^"]*"/, '') : window.__velSvg; } planets.forEach((p, i) => { $('mn' + i).style.display = p.sys === curSys ? '' : 'none'; });
-  const sc = mapB.sx * 84; mapMe.style.left = (50 + (S.pos.x - mapB.cx) * sc) + '%'; mapMe.style.top = (50 + (S.pos.z - mapB.cz) * sc) + '%';
+  
   const f = new THREE.Vector3(0, 0, -1).applyQuaternion(S.q); mapMe.style.transform = 'translate(-50%,-60%) rotate(' + Math.atan2(f.x, -f.z) + 'rad)';
   const n = nearPlanet(); mapMe.style.display = n >= 0 ? 'none' : '';   /* at a planet its 'YOU ARE HERE' badge says it: no arrow on top of the name */ planets.forEach((p, i) => { const e = $('mn' + i); e.classList.toggle('cur', n === i); e.lastChild.textContent = n === i ? 'YOU ARE HERE' : ''; });
   // the system's own nebula behind the map (set once per system), routes from where you are with the distance in light years, and the stargate
   if (mapOv.dataset.sys !== String(curSys)) { mapOv.dataset.sys = curSys; mapOv.style.backgroundImage = 'url(data:image/jpeg;base64,' + [NEB_PIKRO, NEB_YAPZO, NEB_SOLARA][curSys] + ')'; }
-  const P = (v) => [clamp(50 + (v.x - mapB.cx) * sc, 2, 98), clamp(50 + (v.z - mapB.cz) * sc, 2, 98)], from = n >= 0 ? n : homeSt, fp = P(planets[from].pos);
-  mapFld.querySelectorAll('.ly').forEach(e => e.remove()); let L = '';
-  planets.forEach((p, i) => { if (p.sys !== curSys || i === from) return; const q = P(p.pos); L += '<line x1="' + fp[0] + '" y1="' + fp[1] + '" x2="' + q[0] + '" y2="' + q[1] + '"/>';
-    const t = document.createElement('div'); t.className = 'ly'; t.style.left = (fp[0] * 0.42 + q[0] * 0.58) + '%'; t.style.top = (fp[1] * 0.42 + q[1] * 0.58) + '%'; t.textContent = (stations[from].pos.distanceTo(stations[i].pos) / 1000).toFixed(1) + ' LY'; mapFld.appendChild(t); });
-  const ml = $('map-lines'); ml.setAttribute('viewBox', '0 0 100 100'); ml.setAttribute('preserveAspectRatio', 'none'); ml.innerHTML = L;
-  { const g = $('map-gate'), gp = P(GATES[curSys].pos); g.style.left = gp[0] + '%'; g.style.top = Math.min(gp[1], 84) + '%';   /* never down on the stargate button */ g.lastChild.textContent = 'STARGATE'; }
+  const from = n >= 0 ? n : homeSt;
+  mapFld.querySelectorAll('.ly').forEach(e => e.remove()); $('map-lines').innerHTML = ''; mapNodes = [];
+  planets.forEach((p, i) => { if (p.sys !== curSys) return; const e = $('mn' + i); mapNodes.push([i, e]); e.children[2].textContent = (p.lbl || '') + (i === from ? '' : '  ·  ' + (stations[from].pos.distanceTo(stations[i].pos) / 1000).toFixed(1) + ' LY'); });   // the distance sits under each planet's name (no route lines)
+  mapFrom = from;
+  if (mapOrbSys !== curSys) { mapOrbSys = curSys; $('map-rings').innerHTML = orrDecor(curSys, 50, MAP_CY, MAP_RX, MAP_RY, 86); } sunStart($('map-rings'));   // the sun and the orbits, drawn once per system
+  { const g = $('map-gate'), mb = mapB, a = Math.atan2(GATES[curSys].pos.z - mb.cz, GATES[curSys].pos.x - mb.cx); g.style.left = clamp(50 + Math.cos(a) * MAP_RX * 1.16, 4, 96) + '%'; g.style.top = clamp(MAP_CY + Math.sin(a) * MAP_RY * 1.16, 6, 84) + '%';   /* out past the last orbit, in its real direction; never down on the stargate button */ g.lastChild.textContent = 'STARGATE'; }
+  mapAnim();
 }
+const MAP_RX = 43, MAP_RY = 34, MAP_CY = 47;   /* flat enough that the top planet stays clear of the title and the bottom one clear of the STARGATE button */ let mapNodes = [], mapFrom = 0, mapOrbSys = -1;
+function mapAnim() {   // while the map is open the planets creep round their orbits; the routes and distance tags follow them (a handful of style changes a frame)
+  if (!mapOn) return; const P = orrPlace(mapNodes, orbT(), 50, MAP_CY, MAP_RX, MAP_RY, {}), fp = P[mapFrom];
+  if (fp && mapMe.style.display !== 'none') { const a = homeSt; const q = P[a] || fp; mapMe.style.left = (q[0] - 5).toFixed(2) + '%'; mapMe.style.top = q[1].toFixed(2) + '%'; }   // between planets: your arrow sits by the planet you set out from
+  requestAnimationFrame(mapAnim); }
 function openMap() { if (S.mode !== 'fly') return; if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } mapOn = true; mapOv.style.display = 'block'; updateMap(); }
 function closeMap() { mapOn = false; mapOv.style.display = 'none'; }
 $('b-map').addEventListener('click', () => { setPause(false); mapOn ? closeMap() : openMap(); });
