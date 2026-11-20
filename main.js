@@ -3068,7 +3068,7 @@ function frame(now) {
     const cx = Math.round((_xd.x * 0.5 + 0.5) * innerWidth * 4) / 4, cy = Math.round((0.5 - _xd.y * 0.5) * innerHeight * 4) / 4; if (cx !== crossX || cy !== crossY) {   /* quarter-pixel steps: a smooth glide instead of 1-px hops */ crossX = cx; crossY = cy; crossEl.style.left = cx + 'px'; crossEl.style.top = cy + 'px'; } }
   if (showHud) { let hot = false; fwdOf(S.q, _xf);   // is a pirate right under the sight? (a few dot products over 6 enemies)
     for (const e of enemies) { if (!e.active) continue; _xd.copy(e.pos).sub(S.pos); const along = _xd.dot(_xf); if (along < 20 || along > 1100) continue; if (_xd.lengthSq() - along * along < 14 * 14) { hot = true; break; } }
-    { const tg = S.target && S.target.active ? S.target : null, st = tg ? (tg.pos.distanceToSquared(S.pos) < (curW().spd * 1.55) ** 2 ? 'lock inr' : 'lock') : '';   // in range = the bolts reach it before they fade (speed x 1.7 s life, a little margin)
+    { const tg = S.target && S.target.active && !S.target.isAst ? S.target : null, st = tg ? (tg.pos.distanceToSquared(S.pos) < (curW().spd * 1.55) ** 2 ? 'lock inr' : 'lock') : '';   // in range = the bolts reach it before they fade (speed x 1.7 s life, a little margin)
       if (st !== retSt) { retSt = st; crossEl.classList.toggle('lock', !!st); crossEl.classList.toggle('inr', st === 'lock inr'); } }   // entering range adds 'inr' once: a single ring flash (CSS), nothing per frame   // locked on: the sight tightens, four ticks close in and it pulses
     { const v = Math.round(Math.max(chgP, plChg) * 40) / 40; if (v !== chgShown) { chgShown = v; crossEl.style.setProperty('--p', v); crossEl.classList.toggle('chg', v > 0); } }   // the charge ring (written only when it changes)
     if (lockFlash > 0) { lockFlash -= dt; crossEl.classList.toggle('lkd', lockFlash > 0); }
@@ -3086,7 +3086,7 @@ function frame(now) {
       const e = S.target; const d = S.pos.distanceTo(e.pos);
       const on = place(tgtEl, e.pos, undefined, false); $('t-txt').textContent = e.name + ' · ' + Math.round(d) + ' m';
       tgtEl.classList.toggle('ast', !!e.isAst); $('t-sh').style.transform = `scaleX(${clamp(e.shield / e.shieldMax, 0, 1)})`; $('t-hu').style.transform = `scaleX(${clamp(e.hull / e.hullMax, 0, 1)})`;
-      if (on && !crossCls.includes('hot')) { place(leadEl, S.lead, undefined, false); } else leadEl.style.display = 'none';   // the lead mark hides once the target is already under the sight (one sight at a time)
+      if (on && !e.isAst && !crossCls.includes('hot')) { place(leadEl, S.lead, undefined, false); } else leadEl.style.display = 'none';   /* a rock does not move: no aim-ahead mark */   // the lead mark hides once the target is already under the sight (one sight at a time)
     } else { tgtEl.style.display = 'none'; leadEl.style.display = 'none'; }
     const ns = nearStation();
     if (entDismissed >= 0) { const sd = stations[entDismissed]; let dd = S.pos.distanceTo(sd.pos) / (sd.v.big || 1); if (sd.g.userData.mouths) dd = Math.min(dd, nearArm(sd)[1] / 1.1); if (dd > 300) entDismissed = -1; }   /* measured like nearStation() (from the docking mouth too): leaving a station by its gate no longer pops 'Enter?' at once */   /* same scale as nearStation(): the big citadel used to re-pop the dialog at once after 'No' */
