@@ -954,7 +954,7 @@ function updateStreaks(dt) {
 const dyingList = [];
 function updateDying(dt) {
   for (let i = dyingList.length - 1; i >= 0; i--) { const d = dyingList[i], e = d.e;
-    if (e.active || !e.g.visible) { e.dying = 0; dyingList.splice(i, 1); continue; }   // respawned or hidden by a reset: forget it
+    if (!e || !e.g || e.active || !e.g.visible) { if (e) e.dying = 0; dyingList.splice(i, 1); continue; }   // respawned or hidden by a reset: forget it
     d.t += dt; fwdOf(e.q, fwd); e.pos.addScaledVector(fwd, e.speed * 0.5 * dt); e.g.position.copy(e.pos); e.g.rotateZ(d.rz * dt); e.g.rotateX(d.rx * dt);
     d.pf -= dt; if (d.pf <= 0) { d.pf = 0.045; _a.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(5).add(e.pos); smokePuff(_a); if (Math.random() < 0.5) sparks(_a, 3, 16, 0.5); }
     d.pop = (d.pop || 0) - dt; if (d.pop <= 0) { d.pop = 0.22 + Math.random() * 0.12; _a.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(6).add(e.pos); explode(_a, 4 + Math.random() * 3, false, true);   /* silent: only the final blast makes a sound */ }   // small blasts burst out of the burning hull before it goes
@@ -1884,7 +1884,7 @@ function updateMissiles(dt) {
     if (t) {
       _b.copy(t.pos).sub(m.g.position); const dist = _b.length(); _b.divideScalar(dist || 1);
       _m.lookAt(_zero, _b, Y); _qa.setFromRotationMatrix(_m); m.g.quaternion.rotateTowards(_qa, 3.2 * dt); fwdOf(m.g.quaternion, _a);
-      if (dist < 7) { damageEnemy(t, 70 + 15 * save.up[0], m.g.position); m.active = false; m.g.visible = false; explode(m.g.position, 9); continue; }
+      if (dist < (t.isAst ? 7 + (t.a ? t.a.r : 0) : 7)) { damageEnemy(t, 70 + 15 * save.up[0], m.g.position); m.active = false; m.g.visible = false; explode(m.g.position, 9, false, !!t.isAst); continue; }
     }
     { let hitA = false; for (let j = 0; j < AST_N; j++) { const a = asteroids[j]; if (!a.active) continue; const dx = a.x - m.g.position.x, dy = a.y - m.g.position.y, dz = a.z - m.g.position.z, rr = a.r + 2; if (dx * dx + dy * dy + dz * dz < rr * rr) { hitAsteroid(a, 9999); hitA = true; break; } }
       if (hitA) { m.active = false; m.g.visible = false; explode(m.g.position, 9, false, true); continue; } }   /* a missile into a rock: silent too */
@@ -1908,6 +1908,7 @@ function hitAsteroid(a, d) {   // any asteroid, any size, can be destroyed
   _b.set(a.x, a.y, a.z); breakRock(a); a.active = false; a.y = -99999; sparks(_b, 14, 14 + a.r, 0.7); for (let i = 0; i < 3; i++) smokePuff(_bq.set(_b.x + rnd(-1, 1) * a.r * 0.6, _b.y + rnd(-1, 1) * a.r * 0.6, _b.z + rnd(-1, 1) * a.r * 0.6)); /* rocks break silently (the user's choice) */ S.shake = Math.max(S.shake, Math.min(0.25, 40 / (_b.distanceTo(S.pos) + 40) * 0.3)); dropLoot(_b, 15, true, 1 + (a.r > 7 ? 1 : 0) + (a.r > 14 ? 2 : 0));
 }
 function damageEnemy(e, d, at) {
+  if (!e || !e.g) { if (e && e.isAst && e.a && e.a.active) hitAsteroid(e.a, d); return; }   // a locked ROCK is not a pirate: hit the asteroid itself (this crashed the game when a missile reached a locked asteroid)
   if (!e.active) return;
   crossHitT = 0.16;   // hit marker on the aim sight
   if (e.shield > 0) { e.shield -= d; if (e.shield < 0) { e.hull += e.shield; e.shield = 0; } } else e.hull -= d;
