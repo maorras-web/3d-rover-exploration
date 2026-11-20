@@ -168,13 +168,14 @@ composer.addPass(bloomPass);
       vec3 tx(vec2 uv){ return texture2D(tDiffuse, uv).rgb; }
       float hh(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       void main(){
-        vec3 base = tx(vUv);
+        vec3 raw = tx(vUv), base = raw;
         if (uFx > 0.5) {   // edge smoothing (FXAA-lite): only switched on when the phone has no multisampling or the resolution was lowered
           const vec3 L = vec3(0.299, 0.587, 0.114);
           vec3 nw = tx(vUv + vec2(-1.0, -1.0) * uTexel), ne = tx(vUv + vec2(1.0, -1.0) * uTexel), sw = tx(vUv + vec2(-1.0, 1.0) * uTexel), se = tx(vUv + vec2(1.0, 1.0) * uTexel);
           float lM = dot(base, L), lNW = dot(nw, L), lNE = dot(ne, L), lSW = dot(sw, L), lSE = dot(se, L);
           float lMin = min(lM, min(min(lNW, lNE), min(lSW, lSE))), lMax = max(lM, max(max(lNW, lNE), max(lSW, lSE)));
-          if (lMax - lMin > 0.04) {
+          bool dot1 = lM > max(max(lNW, lNE), max(lSW, lSE)) + 0.06;   // a lone bright point (a star, a far light): left untouched so it stays sharp and white
+          if (lMax - lMin > 0.04 && !dot1) {
             vec2 dir = vec2(-((lNW + lNE) - (lSW + lSE)), (lNW + lSW) - (lNE + lSE));
             float dr = max((lNW + lNE + lSW + lSE) * 0.03125, 1.0 / 128.0), rc = 1.0 / (min(abs(dir.x), abs(dir.y)) + dr);
             dir = clamp(dir * rc, -8.0, 8.0) * uTexel;
@@ -184,7 +185,7 @@ composer.addPass(bloomPass);
           }
         }
         { vec2 o = vUv - 0.5; float r2 = dot(o, o);
-          float ca = r2 * uCA; base = vec3(tx(vUv + o * ca).r, base.g, tx(vUv - o * ca).b);   // lens colour fringing, stronger toward the corners
+          float ca = r2 * uCA; base += vec3(tx(vUv + o * ca).r - raw.r, 0.0, tx(vUv - o * ca).b - raw.b);   // lens colour fringing, stronger toward the corners (added as a shift on top of the smoothed picture, so red/blue never separate from green: no pink stars)
           if (uBl > 0.01) { float w = uBl * r2; base = (base + tx(vUv - o * w * 0.6) + tx(vUv - o * w * 1.2) + tx(vUv - o * w * 1.8)) * 0.25; } }   // boost: the edges of the screen streak outward
         vec3 c = base + texture2D(tGlow, vUv).rgb * uGlow.x + texture2D(tGlow2, vUv).rgb * uGlow.y;
         c = pow(max(c, vec3(0.0)), vec3(0.92));
@@ -1755,6 +1756,12 @@ function updateAudio() {
   eng.hg.gain.setTargetAtTime(on ? 0.025 + k * 0.03 : 0.0, t, 0.2);
 }
 
+// ---------- iPhone: Safari has no full-screen mode for pages; added to the Home Screen the game opens full screen (no address bar). Tell the player how, on the start screen only ----------
+{ const ua = navigator.userAgent, iPhone = /iPhone|iPod/.test(ua), standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+  if (iPhone && !standalone) { const t = document.createElement('div'); t.id = 'ios-tip';
+    t.innerHTML = '<svg viewBox="0 0 18 22"><path d="M9 1v13M5 5l4-4 4 4M3 9H2v12h14V9h-1" fill="none" stroke="#9fd8ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>For <b>full screen</b>: tap <b>Share</b>, then <b>Add to Home Screen</b>, and open the game from its icon</span><button aria-label="close">×</button>';
+    document.body.appendChild(t); let closed = false; t.querySelector('button').addEventListener('click', (e) => { e.stopPropagation(); closed = true; t.style.display = 'none'; });
+    const tick = () => { const show = !closed && $('start').classList.contains('show'); t.style.display = show ? 'flex' : 'none'; if (!closed) setTimeout(tick, 700); }; tick(); } }
 // ---------- fullscreen (needs a tap; tries again on every tap until it works) ----------
 {
   const fsBtn = $('b-fs'); let fsOk = false, userExited = false, tries = 0;
