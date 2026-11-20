@@ -2790,7 +2790,7 @@ function frame(now) {
   if (AUTO_Q && frames > 60) {   // a phone that cannot keep up gives up the extras, never the resolution (it always stays at the screen's full sharpness): first the edge smoothing (MSAA), then the glow
     if (now < fxUntil) { slow = 0; wasFx = 1; } else if (wasFx) { wasFx = 0; ema = 16; slow = 0; } else if (ema > 26) slow += dt; else slow = 0;
     const rt1 = composer.renderTarget1, msaa = rt1 ? rt1.samples : 0;   /* guarded: never throws if the composer is built differently */
-    if (slow > 4 && msaa > 0) { for (const rt of [composer.renderTarget1, composer.renderTarget2]) if (rt) { rt.samples = 0; rt.dispose(); } slow = 0; }
+    if (slow > 4 && msaa > 0) { for (const rt of [composer.renderTarget1, composer.renderTarget2]) if (rt) { rt.samples = 0; rt.dispose(); } gradePass.uniforms.uFx.value = 1; slow = 0; }   /* MSAA off -> the nearly free FXAA in the colour pass takes over, so edges stay smooth */
     else if (slow > 6 && msaa === 0 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; } }
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = '0'; }
   const flying = S.mode === 'fly';
