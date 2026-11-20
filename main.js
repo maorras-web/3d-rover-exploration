@@ -139,7 +139,7 @@ const curW = () => WPN[save.wpn.cur] || WPN[0];
 // ---------- renderer / scene ----------
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-const AUTO_Q = true;   // auto-quality (lowering the resolution when the game runs slow) is OFF: the resolution always stays full. set to true to bring it back
+const AUTO_Q = true;   // auto-quality: on a slow phone it drops MSAA, then the glow - the resolution itself is never lowered (the user wants full sharpness on every phone)
 let PR_MAX = Math.min(window.devicePixelRatio || 1, 2), pr = PR_MAX; const PR_MIN = 0.75; let fxUntil = 0, lastDrop = 0;   // fxUntil: a big blast is a short, one-off load - the auto-quality ignores it
 renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15; renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1610,13 +1610,23 @@ const S = {
   mode: 'menu', target: null, tPlanet: -1, station: 0, camQ: new THREE.Quaternion(), mission: null, patrolT: 40, missT: 0, hitFlash: 0,
 };
 const fwd = V3(0, 0, -1);
+let chgObj = null, chgT = 0, chgP = 0, chgShown = -1, lockFlash = 0; const astTgt = { pos: V3(), vel: V3(), active: false, isAst: true, name: 'ASTEROID', shield: 0, shieldMax: 1, hull: 1, hullMax: 1, a: null };
+let kmhV = -1; const kmhEl = document.getElementById('kmh');
 const enemies = []; const ENEMY_N = 6;
 for (let i = 0; i < ENEMY_N; i++) {
-  const g = new THREE.Group(); const mesh = new THREE.Mesh(enemyGeo, enemyMat); mesh.scale.setScalar(1.8); g.add(mesh);
-  const glow = glowSprite(0xff6a3a, 6.5, 0.95); glow.position.set(0, 0, 3.4); g.add(glow);
+  const g = new THREE.Group();   // transform only: the pirates are drawn together below (2 draws for all of them instead of 2 each)
   g.visible = false; scene.add(g);
   enemies.push({ g, pos: g.position, q: g.quaternion, vel: V3(), speed: 90, shield: 0, shieldMax: 0, hull: 0, hullMax: 0, active: false, fireT: 0, evadeT: 0, evadeDir: V3(), burst: 0, name: 'PIRATE' });
 }
+const enemyInst = new THREE.InstancedMesh(enemyGeo, enemyMat, ENEMY_N); enemyInst.frustumCulled = false; enemyInst.count = 0; enemyInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(enemyInst);
+const egPos = new Float32Array(ENEMY_N * 3), egGeo = new THREE.BufferGeometry(); egGeo.setAttribute('position', new THREE.BufferAttribute(egPos, 3));
+const egMat = new THREE.PointsMaterial({ color: 0xff6a3a, map: glowTex, size: 7.7, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false });
+const enemyGlow = new THREE.Points(egGeo, egMat); enemyGlow.frustumCulled = false; scene.add(enemyGlow);
+const _eS = new THREE.Matrix4().makeScale(1.8, 1.8, 1.8), _eM = new THREE.Matrix4(), _eG = V3();
+function drawEnemies() { let n = 0;   // every frame: copy each visible pirate (flying or tumbling while it burns) into the shared instance + glow lists
+  for (const e of enemies) { if (!e.g.visible) continue; e.g.updateMatrix(); _eM.multiplyMatrices(e.g.matrix, _eS); enemyInst.setMatrixAt(n, _eM); _eG.set(0, 0, 3.4).applyMatrix4(e.g.matrix); egPos[n * 3] = _eG.x; egPos[n * 3 + 1] = _eG.y; egPos[n * 3 + 2] = _eG.z; n++; }
+  enemyInst.count = n; if (n) { enemyInst.instanceMatrix.needsUpdate = true; egGeo.attributes.position.needsUpdate = true; } egGeo.setDrawRange(0, n); enemyGlow.visible = n > 0;
+  egMat.size = 7.7 * (1 + Math.sin(tAcc * 40) * 0.12); }
 function spawnEnemy(pos, level) {
   const e = enemies.find(x => !x.active && !x.dying); if (!e) return null;
   e.active = true; e.dying = 0; e.g.visible = true; e.pos.copy(pos); e.q.identity(); e.speed = 90; e.evadeT = 0; e.fireT = rnd(1, 2.5); e.burst = 0;
@@ -2181,7 +2191,10 @@ function updateTraffic() {
   trMesh.count = nA; trMeshB.count = nB; trLights.visible = nl > 0;
   if (nl) { trMesh.instanceMatrix.needsUpdate = true; trMeshB.instanceMatrix.needsUpdate = true; if (trMesh.instanceColor) trMesh.instanceColor.needsUpdate = true; if (trMeshB.instanceColor) trMeshB.instanceColor.needsUpdate = true; trLGeo.attributes.position.needsUpdate = true; trLGeo.setDrawRange(0, nl * 4); }
 }
-let trvOn = false, aimCool = 0, noPl = -1;   // noPl: the planet you just answered No to; it is not offered again until you turn away from it
+let trvOn = false, aimCool = 0, noPl = -1;
+const plGo = document.createElement('button'); plGo.id = 'pl-go'; plGo.className = 'hud'; document.body.appendChild(plGo); let plGoK = -9;
+plGo.addEventListener('click', () => { if (S.mode !== 'fly' || S.tPlanet < 0) return; initAudio(); sfx('note'); const k = S.tPlanet; plGoK = -9; plGo.style.display = 'none'; startWarp(k); });
+function plGoTick() { const k = S.mode === 'fly' && !trvOn && !mapOn && S.tPlanet >= 0 && S.tPlanet !== homeSt ? S.tPlanet : -1; if (k !== plGoK) { plGoK = k; if (k < 0) plGo.style.display = 'none'; else { plGo.innerHTML = '<i></i>TRAVEL  ·  ' + stations[k].name; plGo.style.display = 'flex'; } } }   // noPl: the planet you just answered No to; it is not offered again until you turn away from it
 const spdEl = $('spd'), flareEl = $('flare'), flGh = [...flareEl.children], FLT = [0, 0.3, 0.62, 1.1, 1.5], FLS = [260, 46, 80, 38, 110], _fl = V3(); let spdOn = false, flOn = false;
 flGh.forEach((g, q) => { g.style.width = g.style.height = FLS[q] + 'px'; });
 const nearPlanet = () => (S.pos.distanceTo(stations[homeSt].pos) < 3500 ? homeSt : -1);   // you are only ever 'at' the planet of your own station
@@ -2288,7 +2301,7 @@ function makePics() {
 }
 const TIPS = ['LEFT STICK  ·  STEER', 'DRAG UP / DOWN ON THE RIGHT  ·  SPEED', 'FIRE  ·  LASERS     TARGET  ·  NEXT ENEMY', 'MISSILE  ·  LOCKED TARGET     BOOST  ·  OUTRUN', 'FLY CLOSE TO A STATION TO DOCK'];
 let tipT = 0, tipK = -1; const tipEl = document.createElement('div'); tipEl.id = 'tip'; tipEl.className = 'hud'; document.body.appendChild(tipEl);
-let retSt = ''; document.getElementById('cross').appendChild(document.createElement('b'));   // the in-range flash ring
+let retSt = '', plChg = 0; document.getElementById('cross').appendChild(document.createElement('b')); document.getElementById('cross').appendChild(document.createElement('u'));   // u: the lock-on charge ring   // the in-range flash ring
 let crossHitT = 0, crossCls = '', crossX = -1, crossY = -1; const _xf = V3(), _xd = V3();
 let shopTab = 'm', lgSt = -1, shopSub = 'u', mapSys = -1;
 const VEL_EMB = '<svg style="width:22px;height:22px;filter:drop-shadow(0 0 3px #6fc0ff)" viewBox="0 0 64 64"><defs><linearGradient id="vlg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4fbff"/><stop offset=".35" stop-color="#8cc4ee"/><stop offset=".6" stop-color="#2c5d8f"/><stop offset="1" stop-color="#d6ecff"/></linearGradient></defs><path d="M27 4 A11.5 11.5 0 0 0 49 4 A14 14 0 0 1 27 4Z" fill="url(#vlg2)"/><path d="M14 17 L23 17 L32 38 L44 17 L59 17 L32 61Z" fill="url(#vlg2)" stroke="#e8f6ff" stroke-width=".8"/><path d="M3 17 L11 17 L7 24Z" fill="url(#vlg2)"/><path d="M28.5 21.5 L37.5 21.5 L33 29Z" fill="none" stroke="#e8f6ff" stroke-width="1.4"/></svg>';   // the ruling race's emblem (same drawing as on the star map; own gradient id)
@@ -2774,11 +2787,11 @@ function frame(now) {
   /* auto-quality, calmer: lowers the resolution only after 3 s of steady slowness (not after a short spike, a blast or a hitch), one small step at a time.
      3 s after each step it checks: if the game did not get faster, the screen size was not the problem (e.g. a phone locked at 30 fps), so it puts the
      resolution straight back and stops trying for a minute. it climbs back up as soon as there is room. */
-  if (AUTO_Q && frames > 60) { if (now < fxUntil) { slow = 0; fast = 0; wasFx = 1; } else if (wasFx) { wasFx = 0; ema = 16; slow = 0; fast = 0; } else if (ema > 26) { slow += dt; fast = 0; } else if (ema < 20) { fast += dt; slow = 0; } else { slow = fast = 0; }
-    if (!prChecked && now - lastDrop > 3000 && now >= fxUntil) { prChecked = true; if (ema > emaAtDrop * 0.9) { pr = prPrev; applyPR(); prLock = now + 60000; slow = 0; } }
-    if (slow > 3 && pr > PR_MIN && prChecked && now > prLock) { prPrev = pr; emaAtDrop = ema; prChecked = false; pr = Math.max(PR_MIN, pr * 0.9); applyPR(); slow = 0; lastDrop = now; }
-    else if (slow > 5 && pr <= PR_MIN + 0.01 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; }
-    if (fast > 2 && pr < PR_MAX && prChecked && now - lastDrop > 4000) { pr = Math.min(PR_MAX, pr * 1.15); applyPR(); fast = 0; } }
+  if (AUTO_Q && frames > 60) {   // a phone that cannot keep up gives up the extras, never the resolution (it always stays at the screen's full sharpness): first the edge smoothing (MSAA), then the glow
+    if (now < fxUntil) { slow = 0; wasFx = 1; } else if (wasFx) { wasFx = 0; ema = 16; slow = 0; } else if (ema > 26) slow += dt; else slow = 0;
+    const rt1 = composer.renderTarget1, msaa = rt1 ? rt1.samples : 0;   /* guarded: never throws if the composer is built differently */
+    if (slow > 4 && msaa > 0) { for (const rt of [composer.renderTarget1, composer.renderTarget2]) if (rt) { rt.samples = 0; rt.dispose(); } slow = 0; }
+    else if (slow > 6 && msaa === 0 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; } }
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = '0'; }
   const flying = S.mode === 'fly';
   starT.value = tAcc; fxBlur += (((S.boosting && flying) ? 1 : 0) - fxBlur) * Math.min(1, dt * 4); { const gu = gradePass.uniforms; gu.uBl.value = fxBlur * 0.6;   /* was 1.1: at boost the edge streaking smeared planets into comet shapes */ gu.uCA.value = 0.02 + 0.05 * fxBlur; }
@@ -2823,7 +2836,14 @@ function frame(now) {
     S.fireT -= dt;
     // target & aim assist
     if (S.target && !S.target.active) S.target = null;
-    if (!S.target) { for (const e of enemies) if (e.active) { _a.copy(e.pos).sub(S.pos); const d = _a.length(); if (d < 900 && fwd.dot(_a) / d > 0.6) { S.target = e; sfx('tgt'); break; } } }
+    { // LOCK-ON CHARGE: hold the sight on a pirate or an asteroid and a white ring fills round it; when it closes the thing is locked. A pirate always wins over a rock.
+      let best = null, bk = 0, bd = 1e9;
+      for (const e of enemies) { if (!e.active || e === S.target) continue; _a.copy(e.pos).sub(S.pos); const d = _a.length(); if (d > 3000) continue; const c = fwd.dot(_a) / d; if (c > Math.cos(Math.max(0.06, 14 / d)) && d < bd) { best = e; bk = 1; bd = d; } }
+      if (!best && !(S.target && S.target.active && !S.target.isAst)) for (const a of asteroids) { if (!a.active || (S.target === astTgt && astTgt.a === a)) continue; _a.set(a.x - S.pos.x, a.y - S.pos.y, a.z - S.pos.z); const d = _a.length(); if (d > 1500) continue; const c = fwd.dot(_a) / d; if (c > Math.cos(Math.max(0.04, a.r * 1.3 / d)) && d < bd) { best = a; bk = 2; bd = d; } }
+      if (best !== chgObj) { chgObj = best; chgT = 0; } else if (best) chgT += dt;
+      if (best && chgT >= 0.6) { if (bk === 1) S.target = best; else { astTgt.a = best; astTgt.active = true; astTgt.hull = astTgt.hullMax = best.hp; astTgt.pos.set(best.x, best.y, best.z); S.target = astTgt; } sfx('tgt'); chgObj = null; chgT = 0; lockFlash = 0.35; }
+      chgP = best ? Math.min(1, chgT / 0.6) : 0; }
+    if (astTgt.a) { const a = astTgt.a; if (!a.active || S.target !== astTgt) { astTgt.a = null; astTgt.active = false; if (S.target === astTgt) S.target = null; } else { astTgt.pos.set(a.x, a.y, a.z); astTgt.hull = Math.max(0, a.hp); } }   // a locked rock follows its asteroid (missiles home on it too)
     let leadOk = false;
     if (S.target) {
       const e = S.target; _a.copy(e.pos).sub(S.pos); const d = _a.length(); const tt = d / curW().spd;
@@ -2946,7 +2966,7 @@ function frame(now) {
   if (save.ship === 1) { const bi = S.boosting ? 1 : 0; altFl.forEach(f => { f.scale.setScalar((f.userData.core ? 0.7 : 1.9) * fl * flick * f.userData.sc); f.material.color.setHex(f.userData.core ? MF_CORE[bi] : MF_GLOW[bi]); });
     mantaFlameMats.forEach((m, k) => m.color.setHex(MF_COL[k][bi])); mantaNozMat.color.setHex(bi ? 0x1a3cff : 0x8a3cff);
     for (const c of altCones) { const u = c.userData; if (!u.L) continue; const L = u.L, fk = 0.86 + 0.1 * Math.sin(tAcc * (36 + L.k * 19) + u.ph) + 0.05 * Math.sin(tAcc * 97 + u.ph * 3), len = u.nr * (L.len * (0.4 + 0.6 * fl) * fk + 0.3), r = u.nr * L.r * (0.9 + 0.1 * fl); c.scale.set(r, len, r); c.position.z = u.z0 + len / 2; } }   // MANTA flames flicker and stretch with speed / boost
-  for (const e of enemies) if (e.active) { e.g.children[1].scale.setScalar(5 + Math.sin(tAcc * 40 + e.pos.x) * 0.6); }
+  drawEnemies();
   S.camQ.slerp(S.q, 1 - Math.exp(-(flying ? 3.5 : 7) * dt));
   const cd = 17 + S.speed * 0.014;
   if (!FLK.on && (FLK.yaw || FLK.pitch)) { FLK.yaw = damp(FLK.yaw, 0, 5, dt); FLK.pitch = damp(FLK.pitch, 0, 5, dt); if (Math.abs(FLK.yaw) + Math.abs(FLK.pitch) < 0.002) FLK.yaw = FLK.pitch = 0; }
@@ -2993,7 +3013,7 @@ function frame(now) {
   updCurSys();
   let pBuilt = false; const PSIZE = 2, PSEE = 0.5, PFAR = 8;   // every planet is drawn twice as big
   fwdOf(S.q, fwd); const here0 = nearPlanet(); if (stations[homeSt].sys !== curSys) { let bd = 1e18; stations.forEach((q, i) => { if (q.sys === curSys) { const dd = S.pos.distanceToSquared(q.pos); if (dd < bd) { bd = dd; homeSt = anchorSt = i; } } }); }
-  const vpI = S.mode === 'dock' ? S.station : homeSt; let pi = -1; aimCool = Math.max(0, aimCool - dt); const aimOk = S.mode === 'fly' && !trvOn && !entOn && !mapOn && !S.target && aimCool <= 0 && !enemies.some(e => e.active);
+  plChg = 0; const vpI = S.mode === 'dock' ? S.station : homeSt; let pi = -1; aimCool = Math.max(0, aimCool - dt); const aimOk = S.mode === 'fly' && !trvOn && !entOn && !mapOn && !(S.target && !S.target.isAst) && aimCool <= 0 && !enemies.some(e => e.active);
   for (const p of planets) { pi++;   // planets are unreachable scenery: drawn along the true direction but at an apparent distance that barely shrinks, with the size you would see from the real distance
     if (p.sys !== curSys) { p.mesh.visible = false; p.fd = null; if (p.rg) p.rg.visible = false; continue; } p.mesh.visible = true; if (p.rg) p.rg.visible = true;
     const own = pi === vpI, tFar = own ? 0 : 1; if (own) _pv.copy(stations[pi].pos); else _pv.copy(PCENS[p.sys]).add(VOFF); _a.copy(p.pos).sub(_pv);   // the planet of the station you are at is seen from the station itself while you are near it (it never grows or shrinks, so you can never reach it); beyond ~2 km it moves to its TRUE place beside the station, so from 5-10 km you see the station AND its planet together
@@ -3012,7 +3032,7 @@ function frame(now) {
     let vfT = 1; if (pi !== vpI) { vfT = PFAR; for (let q = 0; q < planets.length; q++) { const o = planets[q]; if (q === pi || q === vpI || o.sys !== p.sys || !o.fd) continue; const sep = Math.acos(clamp(p.fd.dot(o.fd), -1, 1)), rp = Math.max(1e-4, af * (p.rg ? 1.7 : 1)); vfT = Math.min(vfT, 0.42 * sep / rp); } vfT = Math.max(1, vfT); }   // neighbours that sit close together in the sky are only enlarged as far as they stay apart (no overlapping discs or rings)
     p.vf = (p.vf && pi !== vpI) ? p.vf + (vfT - p.vf) * Math.min(1, dt * 3) : vfT; const vf = p.vf;   // purely visual: planets of other stations are drawn PFAR times bigger (the aiming/lock logic keeps using the real size)
     { const lo = af * vf < 0.085; if (lo !== p.lo) { p.lo = lo; p.mesh.geometry = lo ? p.g1 : p.g0; if (p.hm) p.hm.geometry = p.mesh.geometry; if (p.cl) p.cl.visible = !lo; if (p.moon) p.moon.visible = !lo; } }   // LOD: far planets (small discs) drop clouds, moon and sphere detail
-    if (aimOk && pi !== here0 && pi !== vpI && pi !== noPl && fwd.dot(_pd) > Math.cos(Math.max(0.07, af * 1.3))) { p.aim = (p.aim || 0) + dt; if (p.aim > 0.9) { p.aim = 0; S.tPlanet = pi; sfx('note'); trvOn = true; $('trv-name').textContent = stations[pi].name; $('trv-dlg').style.display = 'flex'; } } else { p.aim = 0; if (pi === noPl && fwd.dot(_pd) < Math.cos(Math.max(0.07, af * 1.3) * 2.5)) noPl = -1; }   // hold the crosshair on a planet for ~1 s and the game asks if you want to go there
+    if (aimOk && pi !== here0 && pi !== vpI && pi !== noPl && fwd.dot(_pd) > Math.cos(Math.max(0.07, af * 1.3))) { p.aim = (p.aim || 0) + dt; plChg = Math.max(plChg, Math.min(1, p.aim / 0.9)); if (p.aim > 0.9) { p.aim = 0; S.tPlanet = pi; noPl = pi; sfx('tgt'); lockFlash = 0.35; } }   // the ring closes: the planet is LOCKED (no question pops up); a small TRAVEL button appears and you tap it if you want to go else { p.aim = 0; if (pi === noPl && fwd.dot(_pd) < Math.cos(Math.max(0.07, af * 1.3) * 2.5)) noPl = -1; }   // hold the crosshair on a planet for ~1 s and the game asks if you want to go there
     { let tg = 1; const op = planets[vpI]; if (pi !== vpI && op && op.fd && p.fd) { const sep = Math.acos(clamp(op.fd.dot(p.fd), -1, 1)); if (sep < op.fr * (op.vf || 1) * (op.rg ? 1.7 : 1) + af * vf * (p.rg ? 1.7 : 1) + 0.06) tg = 0; }   // no small planet right beside the planet you are at: it fades out while it would sit next to (or over) it
       p.hk = (p.hk === undefined ? 1 : p.hk) + (tg - (p.hk === undefined ? 1 : p.hk)) * Math.min(1, dt * 3); if (p.hk < 0.03) { p.mesh.visible = false; if (p.rg) p.rg.visible = false; } }
     p.mesh.scale.setScalar(af * dA2 * vf * (p.hk === undefined ? 1 : p.hk)); if (p.rg) { p.rg.position.copy(p.mesh.position); p.rg.scale.setScalar(af * dA2 * vf * (p.hk === undefined ? 1 : p.hk) / p.r); }
@@ -3030,7 +3050,7 @@ function frame(now) {
   for (const st of stations) { const ds = st.g.userData.doors; if (ds && st.g.visible) ds.forEach((dr, k) => { if (dr.open !== dr.tgt) { const o = dr.open + clamp(dr.tgt - dr.open, -dt * 0.8, dt * 0.8); setDoor(st, o, dr.tgt, k); } }); }   // hangar doors slide open / shut
   for (const st of stations) if (st.g.userData.wheel && st.g.visible) st.g.userData.wheel.rotation.z += dt * 0.04;   // the Velnorian wheel turns slowly (one number per frame)
   for (const st of stations) { const hg = st.g.userData.hg; if (hg && st.g.visible) { hg.getWorldPosition(_a); const sz = hg.scale.x * st.g.scale.x, dd = camera.position.distanceTo(_a); hg.material.opacity = 0.55 * clamp((dd - sz * 0.1) / (sz * 0.45), 0, 1); } }   // the hangar glow thins out as you close in on it
-  updateTraffic(); updateMines(dt); mineWarnTick(dt);
+  updateTraffic(); updateMines(dt); mineWarnTick(dt); plGoTick();
   { const m = S.mission; if (m && m.type === 'mines') { const s0 = Math.floor(m.tl); m.tl -= dt; if (m.tl <= 0) { S.mission = null; updateMissionHud(); toast('MISSION FAILED  ·  TIME UP', 2.5); } else if (Math.floor(m.tl) !== s0) updateMissionHud(); } }   // the mine-sweep clock runs while you fly
   dustMat.uniforms.uCam.value.copy(camera.position); dustMat.uniforms.uVel.value.copy(S.vel);
   dustMat.uniforms.uK.value = 0.012 + (S.boosting ? 0.05 : 0.008); dustMat.uniforms.uAlpha.value = S.mode === 'dock' ? 0 : 0.22 + clamp(S.speed / 170, 0, 1) * 0.35 + (S.boosting ? 0.2 : 0);
@@ -3040,7 +3060,7 @@ function frame(now) {
   $('b-sh').style.transform = `scaleX(${clamp(S.shield / ST.shieldMax, 0, 1).toFixed(3)})`;
   $('b-hu').style.transform = `scaleX(${clamp(S.hull / ST.hullMax, 0, 1).toFixed(3)})`;
   $('b-bo').style.transform = `scaleX(${clamp(S.boost / 100, 0, 1).toFixed(3)})`;
-  $('kmh').textContent = Math.round(S.speed);
+  { const v = Math.round(S.speed); if (v !== kmhV) { kmhV = v; kmhEl.textContent = v; } }
   const showHud = flying;
   crossEl.style.display = showHud ? 'block' : 'none'; if (ringOn !== showHud) { ringOn = showHud; ering.style.display = showHud ? 'block' : 'none'; if (!showHud) for (const p of pips) p.style.display = 'none'; }
   if (crossHitT > 0) crossHitT -= dt;
@@ -3050,6 +3070,8 @@ function frame(now) {
     for (const e of enemies) { if (!e.active) continue; _xd.copy(e.pos).sub(S.pos); const along = _xd.dot(_xf); if (along < 20 || along > 1100) continue; if (_xd.lengthSq() - along * along < 14 * 14) { hot = true; break; } }
     { const tg = S.target && S.target.active ? S.target : null, st = tg ? (tg.pos.distanceToSquared(S.pos) < (curW().spd * 1.55) ** 2 ? 'lock inr' : 'lock') : '';   // in range = the bolts reach it before they fade (speed x 1.7 s life, a little margin)
       if (st !== retSt) { retSt = st; crossEl.classList.toggle('lock', !!st); crossEl.classList.toggle('inr', st === 'lock inr'); } }   // entering range adds 'inr' once: a single ring flash (CSS), nothing per frame   // locked on: the sight tightens, four ticks close in and it pulses
+    { const v = Math.round(Math.max(chgP, plChg) * 40) / 40; if (v !== chgShown) { chgShown = v; crossEl.style.setProperty('--p', v); crossEl.classList.toggle('chg', v > 0); } }   // the charge ring (written only when it changes)
+    if (lockFlash > 0) { lockFlash -= dt; crossEl.classList.toggle('lkd', lockFlash > 0); }
     const cs = (hot ? 'hot' : '') + (crossHitT > 0 ? ' hit' : ''); if (cs !== crossCls) { crossCls = cs; crossEl.classList.toggle('hot', hot); crossEl.classList.toggle('hit', crossHitT > 0); } }   // the DOM is touched only when the state changes
   if (flying) {
     for (let i = 0; i < stations.length; i++) {
@@ -3063,7 +3085,7 @@ function frame(now) {
     if (S.target && S.target.active) {
       const e = S.target; const d = S.pos.distanceTo(e.pos);
       const on = place(tgtEl, e.pos, undefined, false); $('t-txt').textContent = e.name + ' · ' + Math.round(d) + ' m';
-      $('t-sh').style.transform = `scaleX(${clamp(e.shield / e.shieldMax, 0, 1)})`; $('t-hu').style.transform = `scaleX(${clamp(e.hull / e.hullMax, 0, 1)})`;
+      tgtEl.classList.toggle('ast', !!e.isAst); $('t-sh').style.transform = `scaleX(${clamp(e.shield / e.shieldMax, 0, 1)})`; $('t-hu').style.transform = `scaleX(${clamp(e.hull / e.hullMax, 0, 1)})`;
       if (on && !crossCls.includes('hot')) { place(leadEl, S.lead, undefined, false); } else leadEl.style.display = 'none';   // the lead mark hides once the target is already under the sight (one sight at a time)
     } else { tgtEl.style.display = 'none'; leadEl.style.display = 'none'; }
     const ns = nearStation();
