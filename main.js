@@ -2060,11 +2060,13 @@ const trLights = new THREE.Points(trLGeo, new THREE.PointsMaterial({ vertexColor
 const _tc = new THREE.Color(), TR_U = [], TR_V = [];
 // how far each station reaches from its centre (measured once from its real geometry), so the traffic circles OUTSIDE it and never flies through the hull
 const TR_R = stations.map((st) => { let mx = 0; const v = V3(); st.g.updateMatrixWorld(true); st.g.traverse((o) => { if (!o.isMesh || o.isInstancedMesh || !o.geometry || !o.geometry.attributes.position) return; const pa = o.geometry.attributes.position; for (let i = 0; i < pa.count; i += 2) { v.fromBufferAttribute(pa, i).applyMatrix4(o.matrixWorld); const d = v.distanceToSquared(st.pos); if (d > mx) mx = d; } }); return Math.sqrt(mx); });
-// ---- the stargate asks where to jump: every other system is offered (name + who rules it); choosing one starts the jump right away
+// ---- the stargate asks where to jump: every other system is offered (name + who rules it). choosing one arms the gate: the jump starts when the ship flies THROUGH the ring
 let gateOn = false, gateAsked = -1;
 function openGateDlg(gt) { if (gateOn || S.mode !== 'fly') return; gateOn = true; gateAsked = gt.k; const box = $('gate-btns'); box.innerHTML = '';
   SYSTEMS.forEach((nm, k) => { if (k === gt.k) return; const b = document.createElement('button'); b.textContent = nm + ' SYSTEM';
-    b.addEventListener('click', () => { gateOn = false; $('gate-dlg').style.display = 'none'; initAudio(); if (S.mode !== 'fly') return; gt.dest = -1; startWarp(GATES[k].si, 2); }); box.appendChild(b); });
+    b.addEventListener('click', () => { gateOn = false; $('gate-dlg').style.display = 'none'; initAudio(); if (S.mode !== 'fly') return;
+      if (S.pos.distanceTo(gt.pos) < GATE_R * 1.3) { gt.dest = -1; startWarp(GATES[k].si, 2); return; }   // the choice was asked while already passing through the ring: go now
+      gt.dest = k; gateAsked = gt.k; toast('FLY THROUGH THE STARGATE', 3); }); box.appendChild(b); });
   $('gate-dlg').style.display = 'flex'; sfx('note'); }
 $('gate-no').addEventListener('click', () => { gateOn = false; $('gate-dlg').style.display = 'none'; });
 // ---- STARGATES: the ONLY way between solar systems. one ring per system, a little way out from the system's first station
@@ -2133,7 +2135,7 @@ function updateGates(dt) { const flying = S.mode === 'fly';
     if (vis) { gt.hz.visible = d < 6000; gt.hz.material.uniforms.t.value = tAcc; if (gt.lights) gt.lights.material.opacity = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(tAcc * 3)); }
     const sd = _a.copy(S.pos).sub(gt.pos).dot(gt.n);
     if (here && flying && d < GATE_R * 3) { const rad = Math.sqrt(Math.max(0, d * d - sd * sd)); if (gt.side * sd < 0 && Math.abs(gt.side - sd) < 60 && rad < GATE_R * 0.92) { gt.side = 0; if (gt.dest >= 0) { const k = gt.dest; gt.dest = -1; startWarp(GATES[k].si, 2); continue; } openGateDlg(gt); } }   // crossed the glowing middle: jump to the system you chose (no choice yet: the choice opens)
-    if (here && flying && !gateOn && !trvOn && !mapOn && d < 1500 && gateAsked !== gt.k) openGateDlg(gt); if (d > 2600 && gateAsked === gt.k) gateAsked = -1;   // arriving at the gate: choose where to jump
+    if (here && flying && !gateOn && !trvOn && !mapOn && d < 1500 && gateAsked !== gt.k) openGateDlg(gt); if (d > 2600 && gateAsked === gt.k) { gateAsked = -1; gt.dest = -1; }   // arriving at the gate: choose where to jump
     gt.side = sd; } }
 stations.forEach((st, k) => { const n = V3(Math.sin(k * 1.7), 1.2, Math.cos(k * 2.3)).normalize(), u = V3(1, 0, 0).cross(n).normalize(), v = n.clone().cross(u); TR_U.push(u); TR_V.push(v); });
 const _tq = new THREE.Quaternion(), _tp = V3(), _tt = V3(), _ts = V3(40, 40, 40), _tsB = V3(15, 15, 15);   // traffic ships enlarged x1.6
@@ -2245,18 +2247,19 @@ const WFX = (() => {
   const sc = new THREE.Scene(), m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat); m.frustumCulled = false; sc.add(m);
   return { mat, sc, cam: new THREE.Camera(), on: false, lab: 0 };
 })();
+const SHIP_L = 1; for (const l of [sun, fill]) l.layers.enable(SHIP_L); scene.traverse((o) => { if (o.isHemisphereLight) o.layers.enable(SHIP_L); });
 const SYS_JUMP = ['#5fb8ff', '#ffb054', '#62f0a8'];   // tunnel colour of the system you jump TO: PIKRO cold blue, YAPZO amber, SOLARA green
 const WP = { t: 0, to: 0, done: false, far: false }, tunnelEl = document.getElementById('tunnel');
 function startWarp(i, gate) {
   if (S.mode !== 'fly') return; if (!gate && stations[i].sys !== curSys) { toast('OTHER SYSTEMS ONLY THROUGH THE STARGATE', 2.5); warpToGate(); return; }   /* the stargate is the only way to another system */
   if (!gate && i === homeSt && S.pos.distanceTo(stations[i].pos) < STN_NEAR) return; WP.t = 0; WP.to = i; WP.done = false; WP.gate = gate || 0; WP.far = stations[i].sys !== curSys; S.mode = 'warp'; S.tPlanet = -1; S.target = null; S.boosting = false; S.sx = S.sy = 0;
-  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; /* jumps are silent (the user's choice) */ if (WP.gate === 2) { const c = new THREE.Color(SYS_JUMP[stations[i].sys] || '#5fb8ff'); WFX.mat.uniforms.C.value.copy(c); WFX.mat.uniforms.CA.value = msaaNow === 0 ? 0 : 1; WFX.on = true; WFX.lab = 0; fadeEl.style.background = '#' + new THREE.Color(1, 1, 1).lerp(c, 0.2).getHexString(); }   /* the dissolve takes the colour of the gate's swirl */ else if (WP.far) { tunnelEl.classList.add('on'); fadeEl.style.background = '#dfe9ff'; }   /* through a stargate: a soft blue dissolve, no flash and no rings */   // jump tunnel: pure CSS, runs on the GPU
+  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; /* jumps are silent (the user's choice) */ if (WP.gate === 2) { const c = new THREE.Color(SYS_JUMP[stations[i].sys] || '#5fb8ff'); WFX.mat.uniforms.C.value.copy(c); WFX.mat.uniforms.CA.value = msaaNow === 0 ? 0 : 1; WFX.on = true; WFX.lab = 0; ship.traverse((o) => o.layers.enable(SHIP_L)); fadeEl.style.background = '#' + new THREE.Color(1, 1, 1).lerp(c, 0.2).getHexString(); }   /* the dissolve takes the colour of the gate's swirl */ else if (WP.far) { tunnelEl.classList.add('on'); fadeEl.style.background = '#dfe9ff'; }   /* through a stargate: a soft blue dissolve, no flash and no rings */   // jump tunnel: pure CSS, runs on the GPU
   setTimeout(() => { if (S.mode === 'warp' && WP.gate !== 2) { fadeEl.style.transition = WP.gate === 2 ? 'opacity .85s ease-in-out' : 'opacity .65s linear'; fadeEl.style.opacity = '1'; } }, WP.gate === 2 ? 300 : WP.far ? 1250 : 450);   /* the fade is ONE css transition now, not a style write on a full-screen layer every frame */
 }
 function updateWarp(dt) {
   WP.t += dt; fwdOf(S.q, fwd); S.speed = WP.gate === 2 ? 110 + WP.t * 90 : 160 + WP.t * 420;   // through a gate: glide in, no rocket-launch S.pos.addScaledVector(fwd, S.speed * dt); S.vel.copy(fwd).multiplyScalar(S.speed);
-  if (WP.gate === 2) WFX.lab = WP.t + 0.15;   // the vortex starts once the ship is in the gate's mouth
-  if (!WP.done && WP.t >= (WP.gate === 2 ? 2.47 : WP.far ? 1.9 : 1.25)) {
+  if (WP.gate === 2) WFX.lab = WP.t + 0.45;   // the vortex starts once the ship is in the gate's mouth
+  if (!WP.done && WP.t >= (WP.gate === 2 ? 2.17 : WP.far ? 1.9 : 1.25)) {
     WP.done = true; homeSt = anchorSt = WP.to; for (const q of planets) { q.fd = null; q.vf = 0; q.sm = 1; }   /* the sky layout of the new home snaps into place while the screen is white (before, the other planets slid and resized for a second after arriving) */ tunnelEl.classList.remove('on'); const st = stations[WP.to];
     { const od = st.pl.off.clone().normalize(); S.pos.copy(st.pos).addScaledVector(od, -Math.max(1100, TR_R[WP.to] * 1.6)); }
     const gA = WP.gate ? GATES[st.sys] : null; if (gA && WP.gate === 2) gateAsked = gA.k; /* just came out of this gate: don't ask again until you fly away from it */ if (gA) { if (WP.gate === 1) S.pos.copy(gA.pos).addScaledVector(gA.n, 520); else S.pos.copy(gA.pos).addScaledVector(gA.n, 170); gA.side = 0; }   /* by gate: arrive in front of your own system's gate, or come out of the other one heading toward its station */   /* a giant station: arrive far enough out to see all of it */   // arrive on the line planet -> station -> you: the station stands directly in front of its own planet (the planet is drawn behind the station from this side)
@@ -2858,7 +2861,7 @@ function frame(now) {
   { const k = Math.min(1, dt * 0.8), tg = SYS_SKY[curSys] || SYS_SKY[0];   // slow blend of sky + fog to the system's tint
     scene.background.lerp(tg, k); scene.fog.color.copy(scene.background);
     let bw = 0, bp = null; if (flying) for (const p of planets) { if (p.sys !== curSys) continue; const w = 1 - (S.pos.distanceTo(p.pos) - p.r) / (p.r * 7); if (w > bw) { bw = w; bp = p; } }   // nearest planet lights the ship's rim in its own colour
-    rimT.copy(RIM_BASE); if (bp) { rimP.setRGB(bp.atm[0], bp.atm[1], bp.atm[2]); rimT.lerp(rimP, Math.min(0.85, bw)); } shipRim.value.lerp(rimT, k * 2); }
+    rimT.copy(RIM_BASE); if (WFX.on) rimT.copy(WFX.mat.uniforms.C.value); else if (bp) { rimP.setRGB(bp.atm[0], bp.atm[1], bp.atm[2]); rimT.lerp(rimP, Math.min(0.85, bw)); } shipRim.value.lerp(rimT, k * 2); }
   fwdOf(S.q, fwd);
 
   if (flying) {
@@ -3167,7 +3170,9 @@ function frame(now) {
   if (WFX.on && S.mode !== 'warp') WFX.on = false;
   if (WFX.on && WFX.lab > 0.45) { const u = WFX.mat.uniforms; u.T.value = WFX.lab; u.R.value.set(innerWidth, innerHeight);
     if (WFX.lab < 1.0) composer.render();   // the world shows only until the flash has covered it
-    const ac = renderer.autoClear; renderer.autoClear = WFX.lab < 1.0 ? false : true; renderer.setRenderTarget(null); renderer.render(WFX.sc, WFX.cam); renderer.autoClear = ac; }
+    const ac = renderer.autoClear; renderer.autoClear = WFX.lab < 1.0 ? false : true; renderer.setRenderTarget(null); renderer.render(WFX.sc, WFX.cam);
+    /* the ship flies inside the tunnel: only layer 1 (ship + its lights) is drawn over it, no sky, no world */
+    renderer.autoClear = false; renderer.clearDepth(); const bg = scene.background; scene.background = null; camera.layers.set(SHIP_L); renderer.render(scene, camera); camera.layers.set(0); scene.background = bg; renderer.autoClear = ac; }
   else composer.render();
 }
 
