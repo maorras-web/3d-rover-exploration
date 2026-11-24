@@ -2224,9 +2224,9 @@ const nearPlanet = () => (S.pos.distanceTo(stations[homeSt].pos) < 3500 ? homeSt
 /* ---- stargate jump: "energy vortex" (direction B from the jump lab). one full-screen drawing, no particles, no blur. while it covers the screen the
    world is not drawn at all, so the jump costs LESS than normal flight. lab time: flash in 0.6-1.0, tunnel, flash out 2.45-2.62 (white) */
 const WFX = (() => {
-  const mat = new THREE.ShaderMaterial({ uniforms: { T: { value: 0 }, C: { value: new THREE.Color() }, R: { value: new THREE.Vector2(1, 1) }, CA: { value: 1 } },
+  const mat = new THREE.ShaderMaterial({ uniforms: { T: { value: 0 }, C: { value: new THREE.Color() }, R: { value: new THREE.Vector2(1, 1) }, CA: { value: 1 }, FO: { value: 0 } },
     vertexShader: 'varying vec2 v; void main(){ v = uv; gl_Position = vec4(position.xy, 0., 1.); }',
-    fragmentShader: `precision highp float; varying vec2 v; uniform float T; uniform vec3 C; uniform vec2 R; uniform float CA;
+    fragmentShader: `precision highp float; varying vec2 v; uniform float T; uniform vec3 C; uniform vec2 R; uniform float CA; uniform float FO;
       #define PI 3.14159265
       vec3 tun(vec2 q, float t){ float r = max(length(q), .02), a = atan(q.y, q.x); float d = .35 / r;
         float u = a / PI + d * .18 + t * .35, z = d + t * 6.;
@@ -2237,7 +2237,7 @@ const WFX = (() => {
         c += vec3(1.) * smoothstep(.09, 0., r) * 1.1 + C * smoothstep(.3, 0., r) * .6;
         c *= 1. - .45 * smoothstep(.9, 1.7, r); return c; }
       void main(){ vec2 q = (v * 2. - 1.) * vec2(R.x / R.y, 1.); float t = T;
-        float inT = smoothstep(.65, 1.0, t), outT = smoothstep(2.55, 2.8, t), inside = inT * (1. - outT);
+        float inT = smoothstep(.65, 1.0, t), outT = smoothstep(2.55, 2.8, t), inside = inT * (1. - outT) * (1. - FO);
         q += inside * .012 * vec2(sin(t * 53.), cos(t * 47.));                          // the ship shakes in the tunnel
         vec3 tn; if (CA > .5) { vec2 dq = q * (.012 + .03 * inT); tn = vec3(tun(q + dq, t).r, tun(q, t).g, tun(q - dq, t).b); } else tn = tun(q, t);   // colour fringes (skipped on weak phones)
         float fl = clamp(smoothstep(.6, .8, t) * (1. - smoothstep(.8, 1.1, t)) + smoothstep(2.45, 2.62, t), 0., 1.);
@@ -2245,9 +2245,35 @@ const WFX = (() => {
         gl_FragColor = vec4(tn * inside * (1. - fl) + fc * fl, inside * (1. - fl) + fl); }`,
     transparent: true, depthTest: false, depthWrite: false, toneMapped: false, blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor });
   const sc = new THREE.Scene(), m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat); m.frustumCulled = false; sc.add(m);
-  return { mat, sc, cam: new THREE.Camera(), on: false, lab: 0 };
+  /* inside the jump the ship flies down a REAL tube (an open cylinder round its path, seen from inside), so the tunnel has true perspective: its bands
+     rush past the ship, the far end glows, and it rolls with the camera. one mesh, one simple drawing; the world itself is not drawn meanwhile */
+  const TL = 3200, TR = 46;
+  const tubeMat = new THREE.ShaderMaterial({ uniforms: { T: mat.uniforms.T, C: mat.uniforms.C },
+    vertexShader: 'varying vec2 vU; varying float vD; void main(){ vU = uv; vec4 mv = modelViewMatrix * vec4(position, 1.); vD = -mv.z; gl_Position = projectionMatrix * mv; }',
+    fragmentShader: `precision highp float; varying vec2 vU; varying float vD; uniform float T; uniform vec3 C;
+      #define PI 3.14159265
+      void main(){ float along = vU.y * ${TL}.;                  // metres along the tube (back end 0 -> far end)
+        float z = along * .018 + T * 34.;                          // bands stream toward the ship
+        float u = vU.x + along * .00045 + T * .06;                 // the whole tube twists
+        float b1 = .5 + .5 * sin(u * PI * 12. + z * 1.3), b2 = .5 + .5 * sin(u * PI * 28. - z * 2.1 + 1.7), b3 = pow(.5 + .5 * sin(z * .9 + u * PI * 4.), 6.);
+        float b4 = pow(.5 + .5 * sin(u * PI * 80.), 14.) * (.5 + .5 * sin(z * .35));   // thin speed lines along the tube
+        float e = b1 * .5 + b2 * .3; e = pow(e, 3.) + b3 * .55 + b4 * .6;
+        vec3 c = mix(C * .04, C * .95, e) + vec3(1.) * pow(e, 5.) * .35;
+        float far = smoothstep(250., 2600., vD);                   // the far end melts into a bright core
+        c = mix(c, mix(C, vec3(1.), .55) * 1.4, far * far);
+        c *= .55 + .45 * smoothstep(0., 60., vD);                  // the walls right next to the camera stay darker
+        gl_FragColor = vec4(c, 1.); }`,
+    side: THREE.BackSide, depthWrite: false, toneMapped: false, fog: false });
+  const tubeG = new THREE.CylinderGeometry(TR, TR, TL, 40, 1, false); tubeG.translate(0, TL / 2 - 260, 0);   // starts a little behind the camera
+  const bg = new THREE.Mesh(tubeG, tubeMat); bg.frustumCulled = false; bg.renderOrder = -1000; bg.visible = false;
+  return { mat, sc, bg, cam: new THREE.Camera(), on: false, lab: 0, lit: null };
 })();
-const SHIP_L = 1; for (const l of [sun, fill]) l.layers.enable(SHIP_L); scene.traverse((o) => { if (o.isHemisphereLight) o.layers.enable(SHIP_L); });
+const SHIP_L = 1; let hemiL = null; for (const l of [sun, fill]) l.layers.enable(SHIP_L); scene.traverse((o) => { if (o.isHemisphereLight) { o.layers.enable(SHIP_L); hemiL = hemiL || o; } });
+WFX.bg.layers.set(SHIP_L); scene.add(WFX.bg);
+/* the tunnel lights the ship: the fill light (behind the camera) and the sky half of the ambient take the tunnel colour while inside, then go back */
+function wfxLight(on) { if (on && !WFX.lit) { WFX.lit = { fc: fill.color.clone(), fi: fill.intensity, hs: hemiL ? hemiL.color.clone() : null, hi: hemiL ? hemiL.intensity : 0 };
+    const c = WFX.mat.uniforms.C.value; fill.color.copy(c).lerp(new THREE.Color(1, 1, 1), 0.35); fill.intensity = WFX.lit.fi * 1.9; if (hemiL) { hemiL.color.copy(c).lerp(new THREE.Color(1, 1, 1), 0.3); hemiL.intensity = WFX.lit.hi * 1.4; } }
+  else if (!on && WFX.lit) { fill.color.copy(WFX.lit.fc); fill.intensity = WFX.lit.fi; if (hemiL && WFX.lit.hs) { hemiL.color.copy(WFX.lit.hs); hemiL.intensity = WFX.lit.hi; } WFX.lit = null; } }
 const SYS_JUMP = ['#5fb8ff', '#ffb054', '#62f0a8'];   // tunnel colour of the system you jump TO: PIKRO cold blue, YAPZO amber, SOLARA green
 const WP = { t: 0, to: 0, done: false, far: false }, tunnelEl = document.getElementById('tunnel');
 function startWarp(i, gate) {
@@ -3027,16 +3053,19 @@ function frame(now) {
     for (const c of altCones) { const u = c.userData; if (!u.L) continue; const L = u.L, fk = 0.86 + 0.1 * Math.sin(tAcc * (36 + L.k * 19) + u.ph) + 0.05 * Math.sin(tAcc * 97 + u.ph * 3), len = u.nr * (L.len * (0.4 + 0.6 * fl) * fk + 0.3), r = u.nr * L.r * (0.9 + 0.1 * fl); c.scale.set(r, len, r); c.position.z = u.z0 + len / 2; } }   // MANTA flames flicker and stretch with speed / boost
   drawEnemies();
   S.camQ.slerp(S.q, 1 - Math.exp(-(flying ? 3.5 : 7) * dt));
-  const cd = 17 + S.speed * 0.014;
+  const inTun = WFX.on && WFX.lab >= 0.8;   // inside the jump tunnel: a close chase view, the ship sits low so the bright core stays visible above it
+  const cd = inTun ? 18 : 17 + S.speed * 0.014;
   if (!FLK.on && (FLK.yaw || FLK.pitch)) { FLK.yaw = damp(FLK.yaw, 0, 5, dt); FLK.pitch = damp(FLK.pitch, 0, 5, dt); if (Math.abs(FLK.yaw) + Math.abs(FLK.pitch) < 0.002) FLK.yaw = FLK.pitch = 0; }
   if (S.mode !== 'fly' && S.mode !== 'warp' && FLK.on) setLook(false);
   _eLk.set(FLK.pitch, FLK.yaw, 0); _qLk.setFromEuler(_eLk).premultiply(S.camQ);   // free look: the whole camera rig swings round the ship
   _a.set(0, 4.6, cd).applyQuaternion(_qLk); camera.position.copy(S.pos).add(_a);
   _qa.setFromAxisAngle(X, -0.07); camera.quaternion.copy(_qLk).multiply(_qa);
+  if (inTun) { _qa.setFromAxisAngle(Z, Math.sin(WFX.lab * 1.9) * 0.12); camera.quaternion.multiply(_qa); }   // a slow roll with the tunnel's twist
   if (S.shake > 0) { const a = S.shake * 0.35; camera.position.x += Math.sin(tAcc * 71) * a; camera.position.y += Math.sin(tAcc * 83) * a; }
   _qa.setFromAxisAngle(Z, -S.sx * 0.05); camera.quaternion.multiply(_qa);
   const wantFov = 64 + clamp(S.speed / 150, 0, 1.4) * 12 + (S.boosting ? 13 : 0) + (S.mode === 'warp' && WP.far ? (WP.gate === 2 ? Math.min(10, WP.t * 9) : Math.min(34, WP.t * 24)) : 0);   // jump: the view stretches wide, then springs back on arrival
-  if (Math.abs(camera.fov - wantFov) > 0.05) { camera.fov = damp(camera.fov, wantFov, S.boosting ? 6 : 3.5, dt); camera.updateProjectionMatrix(); }
+  if (inTun) { if (camera.fov !== 64) { camera.fov = 64; camera.updateProjectionMatrix(); } }
+  else if (Math.abs(camera.fov - wantFov) > 0.05) { camera.fov = damp(camera.fov, wantFov, S.boosting ? 6 : 3.5, dt); camera.updateProjectionMatrix(); }
   if (S.mode === 'dock') {
     // hangar view: the ship sits on its platform, the camera swings slowly round it (like Galaxy on Fire 2)
     hangar.visible = true; ship.quaternion.setFromAxisAngle(Y, 0.5); shipBody.rotation.z = 0;
@@ -3168,7 +3197,12 @@ function frame(now) {
   { camera.updateMatrixWorld(); stnSunV.value.copy(sun.position).normalize().transformDirection(camera.matrixWorldInverse);   // sun shading and engine glows use THIS frame's camera (no one-frame lag in turns)
     if (save.ship >= 2 && QH[save.ship] && S.mode !== 'dock') qFlames(QH[save.ship], Math.min(1, S.speed / 90), S.boosting ? 1 : 0, 0.9 + Math.sin(tAcc * 50) * 0.1); }
   if (WFX.on && S.mode !== 'warp') WFX.on = false;
-  if (WFX.on && WFX.lab > 0.45) { const u = WFX.mat.uniforms; u.T.value = WFX.lab; u.R.value.set(innerWidth, innerHeight);
+  wfxLight(WFX.on && WFX.lab > 0.6);
+  if (WFX.on && WFX.lab >= 0.8) {   // inside: the 3D tube + the ship only, through the normal pipeline (glow, grade); the world is not drawn. the flashes go on top
+    const u = WFX.mat.uniforms; u.T.value = WFX.lab; u.R.value.set(innerWidth, innerHeight); fwdOf(S.q, _a); WFX.bg.position.copy(S.pos); WFX.bg.quaternion.setFromUnitVectors(Y, _a);
+    WFX.bg.visible = true; camera.layers.set(SHIP_L); composer.render(); camera.layers.set(0); WFX.bg.visible = false;
+    u.FO.value = 1; const ac = renderer.autoClear; renderer.autoClear = false; renderer.setRenderTarget(null); renderer.render(WFX.sc, WFX.cam); renderer.autoClear = ac; u.FO.value = 0; }
+  else if (WFX.on && WFX.lab > 0.45) { const u = WFX.mat.uniforms; u.T.value = WFX.lab; u.R.value.set(innerWidth, innerHeight);
     if (WFX.lab < 1.0) composer.render();   // the world shows only until the flash has covered it
     const ac = renderer.autoClear; renderer.autoClear = WFX.lab < 1.0 ? false : true; renderer.setRenderTarget(null); renderer.render(WFX.sc, WFX.cam);
     /* the ship flies inside the tunnel: only layer 1 (ship + its lights) is drawn over it, no sky, no world */
