@@ -152,10 +152,22 @@ const starT = { value: 0 }; let navPts = null, fxBlur = 0;   // star twinkle clo
 const camera = new THREE.PerspectiveCamera(66, innerWidth / innerHeight, 1, 200000);   /* far enough for the planet behind the giant XIAQA */
 scene.add(camera);
 // render pipeline: 4x MSAA 8-bit target, cheap glow (bloom), colour grade
-const MSAA_SAMPLES = (() => {
+/* weak phone, known before the first frame: it was marked slow on an earlier visit, its graphics chip is an entry-level one, or it has little memory.
+   such a phone starts straight away with the nearly free FXAA instead of MSAA, so it never pays the MSAA cost in the hangar or on launch */
+const WEAK_DEV = (() => {
+  try { if (localStorage.getItem('scQ') === 'fx') return 'remembered'; } catch (e) { }
+  try { const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'), r = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
+    if (/Mali-(4\d\d|T[678]\d\d|G(31|51|52|57|68|71|72)\b)|Adreno[^0-9]*([2345]\d\d|6[01]\d)\b|PowerVR|SGX|Apple A(8|9|10|11)\b/i.test(r)) return 'gpu ' + r; } catch (e) { }
+  const mob = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+  if (mob && navigator.deviceMemory && navigator.deviceMemory <= 3) return 'memory ' + navigator.deviceMemory;
+  if (mob && navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) return 'cores ' + navigator.hardwareConcurrency;
+  return '';
+})();
+const MSAA_SAMPLES = WEAK_DEV ? 0 : (() => {
   try { const gl = renderer.getContext(); if (!renderer.capabilities.isWebGL2 || !gl.getInternalformatParameter) return 0; const list = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA8, gl.SAMPLES); for (let i = 0; i < list.length; i++) if (list[i] <= 4 && list[i] >= 2) return list[i]; } catch (e) { }
   return 0;
 })();
+let msaaNow = MSAA_SAMPLES;   // what the render targets really use now (auto-quality can drop it to 0 later)
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.UnsignedByteType, samples: MSAA_SAMPLES }));
 composer.addPass(new RenderPass(scene, camera));
 const bloomPass = new CheapGlow(innerWidth / 2, innerHeight / 2);
@@ -209,7 +221,7 @@ composer.addPass(bloomPass);
   });
 composer.addPass(gradePass);
 bloomPass.attach(gradePass.uniforms);
-function applyPR() { renderer.setPixelRatio(pr); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); renderer.setSize(innerWidth, innerHeight, false); gradePass.uniforms.uTexel.value.set(1 / (innerWidth * pr), 1 / (innerHeight * pr)); gradePass.uniforms.uFx.value = (MSAA_SAMPLES === 0 || pr < 1.35) ? 1 : 0; }
+function applyPR() { renderer.setPixelRatio(pr); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); renderer.setSize(innerWidth, innerHeight, false); gradePass.uniforms.uTexel.value.set(1 / (innerWidth * pr), 1 / (innerHeight * pr)); gradePass.uniforms.uFx.value = (msaaNow === 0 || pr < 1.35) ? 1 : 0; }
 applyPR();
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); applyPR(); });
 const sun = new THREE.DirectionalLight(0xfff0d8, 2.6); sun.position.set(0.72, 0.677, -0.148); scene.add(sun);
@@ -2758,7 +2770,7 @@ function ringAt(worldPos, out) { proj.copy(worldPos).project(camera); const behi
   if (!behind && Math.abs(nx) < 0.92 && Math.abs(ny) < 0.84) return null;
   if (behind) { nx = -nx; ny = -ny; } const W = innerWidth, H = innerHeight, R = ringR; let dx = nx * W, dy = -ny * H; const m = Math.hypot(dx, dy) || 1; dx /= m; dy /= m;
   out[0] = W / 2 + dx * R; out[1] = H / 2 + dy * R; out[2] = Math.atan2(dx, -dy) * 180 / Math.PI; return out; }
-let last = performance.now(), tAcc = 0, slow = 0, fast = 0, frames = 0, ema = 16, flip = 0, wasFx = 0, prPrev = 0, emaAtDrop = 0, prChecked = true, prLock = 0;
+const RAWF = new Array(40).fill(16); let RAWI = 0, earlySlow = 0, launchedOnce = false, last = performance.now(), tAcc = 0, slow = 0, fast = 0, frames = 0, ema = 16, flip = 0, wasFx = 0, prPrev = 0, emaAtDrop = 0, prChecked = true, prLock = 0;
 const proj = V3(), qInv = new THREE.Quaternion();
 // labels that land on top of each other are moved down one line at a time (estimated sizes: no layout reads, so no cost); the mission marker keeps its place first
 const _dcl = [];
@@ -2787,7 +2799,7 @@ function place(el, worldPos, label, edge, hideIfBehind) {
 const DTR = new Array(9).fill(1 / 60); let DTI = 0;
 function frame(now) {
   requestAnimationFrame(frame);
-  let dt = (now - last) / 1000; last = now; if (paused || dt > 0.05) dt = paused ? 0 : 0.05; if (dt <= 0) return;
+  let dt = (now - last) / 1000; const rawMs = Math.min(dt * 1000, 100); last = now; if (paused || dt > 0.05) dt = paused ? 0 : 0.05; if (dt <= 0) return;
   /* even steps: the phone hands out frame times that wobble (14, 19, 16, 21 ms...) although the screen shows a frame every ~16.7 ms; moving the ship and
      camera by those wobbly steps makes every turn look shaky. the step used is the middle value of the last 9 frames; a real slow frame (much longer) still counts in full */
   DTR[DTI++ % 9] = dt; { const q = DTR.slice().sort((a, b) => a - b), md = q[4]; if (md > 0 && dt < md * 1.6) dt = md; }
@@ -2795,11 +2807,19 @@ function frame(now) {
   /* auto-quality, calmer: lowers the resolution only after 3 s of steady slowness (not after a short spike, a blast or a hitch), one small step at a time.
      3 s after each step it checks: if the game did not get faster, the screen size was not the problem (e.g. a phone locked at 30 fps), so it puts the
      resolution straight back and stops trying for a minute. it climbs back up as soon as there is room. */
-  if (AUTO_Q && frames > 60) {   // a phone that cannot keep up gives up the extras, never the resolution (it always stays at the screen's full sharpness): first the edge smoothing (MSAA), then the glow
+  /* before the first launch: the middle value of the last 40 frames (it ignores the short hitches of the quiet pre-building in the hangar) judges the phone
+     within ~2 s of the menu. a phone that cannot hold ~48 fps even there will surely struggle in space, so it switches to FXAA before it ever leaves the station */
+  if (AUTO_Q && !launchedOnce && frames > 10 && !earlySlow) { RAWF[RAWI++ % 40] = rawMs; if (RAWI >= 40 && RAWI % 10 === 0) { const q = RAWF.slice().sort((a, b) => a - b); if (q[20] > 21) earlySlow = 1; } }
+  if (AUTO_Q && (frames > 60 || earlySlow)) {   // a phone that cannot keep up gives up the extras, never the resolution (it always stays at the screen's full sharpness): first the edge smoothing (MSAA), then the glow
+    /* before the first launch (menu, hangar, station) the bar is stricter: the hangar scene is lighter than flight, so a phone that cannot hold ~48 fps
+       there will surely struggle outside - it switches to FXAA after 1.5 s instead of waiting for trouble in space */
+    if (S.mode === 'fly') launchedOnce = true; const early = !launchedOnce, hold = 4;
     if (now < fxUntil) { slow = 0; wasFx = 1; } else if (wasFx) { wasFx = 0; ema = 16; slow = 0; } else if (ema > 26) slow += dt; else slow = 0;
+    /* the middle value of the last 60 frames ignores the short hitches of the quiet pre-building in the hangar, so it can judge the phone right away */
+    if (early && earlySlow) slow = hold + 1;
     const rt1 = composer.renderTarget1, msaa = rt1 ? rt1.samples : 0;   /* guarded: never throws if the composer is built differently */
-    if (slow > 4 && msaa > 0) { for (const rt of [composer.renderTarget1, composer.renderTarget2]) if (rt) { rt.samples = 0; rt.dispose(); } gradePass.uniforms.uFx.value = 1; slow = 0; }   /* MSAA off -> the nearly free FXAA in the colour pass takes over, so edges stay smooth */
-    else if (slow > 6 && msaa === 0 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; } }
+    if (slow > hold && msaa > 0) { for (const rt of [composer.renderTarget1, composer.renderTarget2]) if (rt) { rt.samples = 0; rt.dispose(); } msaaNow = 0; gradePass.uniforms.uFx.value = 1; slow = 0; try { localStorage.setItem('scQ', 'fx'); } catch (e) { } }   /* MSAA off -> the nearly free FXAA in the colour pass takes over, so edges stay smooth */
+    else if (!early && slow > 6 && msaa === 0 && bloomPass.enabled) { bloomPass.enabled = false; slow = 0; } }
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = '0'; }
   const flying = S.mode === 'fly';
   starT.value = tAcc; fxBlur += (((S.boosting && flying) ? 1 : 0) - fxBlur) * Math.min(1, dt * 4); { const gu = gradePass.uniforms; gu.uBl.value = fxBlur * 0.6;   /* was 1.1: at boost the edge streaking smeared planets into comet shapes */ gu.uCA.value = 0.02 + 0.05 * fxBlur; }
