@@ -2219,21 +2219,49 @@ const spdEl = $('spd'), flareEl = $('flare'), flGh = [...flareEl.children], FLT 
 flGh.forEach((g, q) => { g.style.width = g.style.height = FLS[q] + 'px'; });
 const nearPlanet = () => (S.pos.distanceTo(stations[homeSt].pos) < 3500 ? homeSt : -1);   // you are only ever 'at' the planet of your own station
 // warp to another planet: short fade, then you arrive in front of that planet's station
+/* ---- stargate jump: "energy vortex" (direction B from the jump lab). one full-screen drawing, no particles, no blur. while it covers the screen the
+   world is not drawn at all, so the jump costs LESS than normal flight. lab time: flash in 0.6-1.0, tunnel, flash out 2.45-2.62 (white) */
+const WFX = (() => {
+  const mat = new THREE.ShaderMaterial({ uniforms: { T: { value: 0 }, C: { value: new THREE.Color() }, R: { value: new THREE.Vector2(1, 1) }, CA: { value: 1 } },
+    vertexShader: 'varying vec2 v; void main(){ v = uv; gl_Position = vec4(position.xy, 0., 1.); }',
+    fragmentShader: `precision highp float; varying vec2 v; uniform float T; uniform vec3 C; uniform vec2 R; uniform float CA;
+      #define PI 3.14159265
+      vec3 tun(vec2 q, float t){ float r = max(length(q), .02), a = atan(q.y, q.x); float d = .35 / r;
+        float u = a / PI + d * .18 + t * .35, z = d + t * 6.;
+        float b1 = .5 + .5 * sin(u * PI * 6. + z * 1.3), b2 = .5 + .5 * sin(u * PI * 14. - z * 2.1 + 1.7), b3 = pow(.5 + .5 * sin(z * .9 + u * PI * 2.), 6.), b4 = pow(.5 + .5 * sin(u * PI * 40. + z * 3.7), 12.);
+        float e = b1 * .5 + b2 * .3; e = pow(e, 3.) + b3 * .55 + b4 * .35;
+        vec3 c = mix(C * .05, C * .95, e) + vec3(1.) * pow(e, 5.) * .35;
+        c *= .25 + .75 * smoothstep(.05, .6, r);
+        c += vec3(1.) * smoothstep(.09, 0., r) * 1.1 + C * smoothstep(.3, 0., r) * .6;
+        c *= 1. - .45 * smoothstep(.9, 1.7, r); return c; }
+      void main(){ vec2 q = (v * 2. - 1.) * vec2(R.x / R.y, 1.); float t = T;
+        float inT = smoothstep(.65, 1.0, t), outT = smoothstep(2.55, 2.8, t), inside = inT * (1. - outT);
+        q += inside * .012 * vec2(sin(t * 53.), cos(t * 47.));                          // the ship shakes in the tunnel
+        vec3 tn; if (CA > .5) { vec2 dq = q * (.012 + .03 * inT); tn = vec3(tun(q + dq, t).r, tun(q, t).g, tun(q - dq, t).b); } else tn = tun(q, t);   // colour fringes (skipped on weak phones)
+        float fl = clamp(smoothstep(.6, .8, t) * (1. - smoothstep(.8, 1.1, t)) + smoothstep(2.45, 2.62, t), 0., 1.);
+        vec3 fc = mix(vec3(1.), C, .2);
+        gl_FragColor = vec4(tn * inside * (1. - fl) + fc * fl, inside * (1. - fl) + fl); }`,
+    transparent: true, depthTest: false, depthWrite: false, toneMapped: false, blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor });
+  const sc = new THREE.Scene(), m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat); m.frustumCulled = false; sc.add(m);
+  return { mat, sc, cam: new THREE.Camera(), on: false, lab: 0 };
+})();
+const SYS_JUMP = ['#5fb8ff', '#ffb054', '#62f0a8'];   // tunnel colour of the system you jump TO: PIKRO cold blue, YAPZO amber, SOLARA green
 const WP = { t: 0, to: 0, done: false, far: false }, tunnelEl = document.getElementById('tunnel');
 function startWarp(i, gate) {
   if (S.mode !== 'fly') return; if (!gate && stations[i].sys !== curSys) { toast('OTHER SYSTEMS ONLY THROUGH THE STARGATE', 2.5); warpToGate(); return; }   /* the stargate is the only way to another system */
   if (!gate && i === homeSt && S.pos.distanceTo(stations[i].pos) < STN_NEAR) return; WP.t = 0; WP.to = i; WP.done = false; WP.gate = gate || 0; WP.far = stations[i].sys !== curSys; S.mode = 'warp'; S.tPlanet = -1; S.target = null; S.boosting = false; S.sx = S.sy = 0;
-  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; /* jumps are silent (the user's choice) */ if (WP.gate === 2) { const c = new THREE.Color(GATE_DESIGN.colHz || '#3fb8ff'), hx = (k) => '#' + c.clone().multiplyScalar(k).getHexString(); fadeEl.style.background = 'radial-gradient(circle at center, ' + '#' + c.clone().lerp(new THREE.Color(1, 1, 1), 0.75).getHexString() + ' 0%, ' + hx(1) + ' 30%, ' + hx(0.4) + ' 65%, ' + hx(0.08) + ' 100%)'; }   /* the dissolve takes the colour of the gate's swirl */ else if (WP.far) { tunnelEl.classList.add('on'); fadeEl.style.background = '#dfe9ff'; }   /* through a stargate: a soft blue dissolve, no flash and no rings */   // jump tunnel: pure CSS, runs on the GPU
-  setTimeout(() => { if (S.mode === 'warp') { fadeEl.style.transition = WP.gate === 2 ? 'opacity .85s ease-in-out' : 'opacity .65s linear'; fadeEl.style.opacity = '1'; } }, WP.gate === 2 ? 300 : WP.far ? 1250 : 450);   /* the fade is ONE css transition now, not a style write on a full-screen layer every frame */
+  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; /* jumps are silent (the user's choice) */ if (WP.gate === 2) { const c = new THREE.Color(SYS_JUMP[stations[i].sys] || '#5fb8ff'); WFX.mat.uniforms.C.value.copy(c); WFX.mat.uniforms.CA.value = msaaNow === 0 ? 0 : 1; WFX.on = true; WFX.lab = 0; fadeEl.style.background = '#' + new THREE.Color(1, 1, 1).lerp(c, 0.2).getHexString(); }   /* the dissolve takes the colour of the gate's swirl */ else if (WP.far) { tunnelEl.classList.add('on'); fadeEl.style.background = '#dfe9ff'; }   /* through a stargate: a soft blue dissolve, no flash and no rings */   // jump tunnel: pure CSS, runs on the GPU
+  setTimeout(() => { if (S.mode === 'warp' && WP.gate !== 2) { fadeEl.style.transition = WP.gate === 2 ? 'opacity .85s ease-in-out' : 'opacity .65s linear'; fadeEl.style.opacity = '1'; } }, WP.gate === 2 ? 300 : WP.far ? 1250 : 450);   /* the fade is ONE css transition now, not a style write on a full-screen layer every frame */
 }
 function updateWarp(dt) {
   WP.t += dt; fwdOf(S.q, fwd); S.speed = WP.gate === 2 ? 110 + WP.t * 90 : 160 + WP.t * 420;   // through a gate: glide in, no rocket-launch S.pos.addScaledVector(fwd, S.speed * dt); S.vel.copy(fwd).multiplyScalar(S.speed);
-  if (!WP.done && WP.t >= (WP.gate === 2 ? 1.3 : WP.far ? 1.9 : 1.25)) {
+  if (WP.gate === 2) WFX.lab = WP.t + 0.15;   // the vortex starts once the ship is in the gate's mouth
+  if (!WP.done && WP.t >= (WP.gate === 2 ? 2.47 : WP.far ? 1.9 : 1.25)) {
     WP.done = true; homeSt = anchorSt = WP.to; for (const q of planets) { q.fd = null; q.vf = 0; q.sm = 1; }   /* the sky layout of the new home snaps into place while the screen is white (before, the other planets slid and resized for a second after arriving) */ tunnelEl.classList.remove('on'); const st = stations[WP.to];
     { const od = st.pl.off.clone().normalize(); S.pos.copy(st.pos).addScaledVector(od, -Math.max(1100, TR_R[WP.to] * 1.6)); }
     const gA = WP.gate ? GATES[st.sys] : null; if (gA && WP.gate === 2) gateAsked = gA.k; /* just came out of this gate: don't ask again until you fly away from it */ if (gA) { if (WP.gate === 1) S.pos.copy(gA.pos).addScaledVector(gA.n, 520); else S.pos.copy(gA.pos).addScaledVector(gA.n, 170); gA.side = 0; }   /* by gate: arrive in front of your own system's gate, or come out of the other one heading toward its station */   /* a giant station: arrive far enough out to see all of it */   // arrive on the line planet -> station -> you: the station stands directly in front of its own planet (the planet is drawn behind the station from this side)
     _m.lookAt(_zero, gA ? (WP.gate === 1 ? _a.copy(gA.n).negate() : _a.copy(gA.n)) : _a.copy(st.pos).sub(S.pos).normalize(), Y); S.q.setFromRotationMatrix(_m); S.camQ.copy(S.q);
-    fxUntil = performance.now() + 4000; S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); wpnChip(); fadeOut(); if (WP.far) { fadeEl.style.transition = WP.gate === 2 ? 'opacity 1.5s ease-out' : 'opacity 1.1s ease-out'; setTimeout(() => { fadeEl.style.background = ''; }, 1700); }
+    fxUntil = performance.now() + 4000; S.speed = 50; S.inv = 2; S.nb = true; S.mode = 'fly'; entDismissed = WP.to; document.body.classList.remove('docked'); wpnChip(); fadeOut(); if (WP.gate === 2) { WFX.on = false; fadeEl.style.transition = 'none'; fadeEl.style.opacity = '1'; void fadeEl.offsetWidth; fadeEl.style.transition = 'opacity 1.1s ease-out'; fadeEl.style.opacity = '0'; setTimeout(() => { fadeEl.style.background = ''; }, 1300); } else if (WP.far) { fadeEl.style.transition = 'opacity 1.1s ease-out'; setTimeout(() => { fadeEl.style.background = ''; }, 1700); }
   }
 }
 
@@ -3136,7 +3164,11 @@ function frame(now) {
   updateAudio(); updateMusic(dt);
   { camera.updateMatrixWorld(); stnSunV.value.copy(sun.position).normalize().transformDirection(camera.matrixWorldInverse);   // sun shading and engine glows use THIS frame's camera (no one-frame lag in turns)
     if (save.ship >= 2 && QH[save.ship] && S.mode !== 'dock') qFlames(QH[save.ship], Math.min(1, S.speed / 90), S.boosting ? 1 : 0, 0.9 + Math.sin(tAcc * 50) * 0.1); }
-  composer.render();
+  if (WFX.on && S.mode !== 'warp') WFX.on = false;
+  if (WFX.on && WFX.lab > 0.45) { const u = WFX.mat.uniforms; u.T.value = WFX.lab; u.R.value.set(innerWidth, innerHeight);
+    if (WFX.lab < 1.0) composer.render();   // the world shows only until the flash has covered it
+    const ac = renderer.autoClear; renderer.autoClear = WFX.lab < 1.0 ? false : true; renderer.setRenderTarget(null); renderer.render(WFX.sc, WFX.cam); renderer.autoClear = ac; }
+  else composer.render();
 }
 
 // menu backdrop: the ship idling next to XIAQA
