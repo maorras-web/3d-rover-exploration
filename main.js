@@ -2270,10 +2270,51 @@ const WFX = (() => {
 })();
 const SHIP_L = 1; let hemiL = null; for (const l of [sun, fill]) l.layers.enable(SHIP_L); scene.traverse((o) => { if (o.isHemisphereLight) { o.layers.enable(SHIP_L); hemiL = hemiL || o; } });
 WFX.bg.layers.set(SHIP_L); scene.add(WFX.bg);
-/* the tunnel lights the ship: the fill light (behind the camera) and the sky half of the ambient take the tunnel colour while inside, then go back */
-function wfxLight(on) { if (on && !WFX.lit) { WFX.lit = { fc: fill.color.clone(), fi: fill.intensity, hs: hemiL ? hemiL.color.clone() : null, hi: hemiL ? hemiL.intensity : 0 };
-    const c = WFX.mat.uniforms.C.value; fill.color.copy(c).lerp(new THREE.Color(1, 1, 1), 0.35); fill.intensity = WFX.lit.fi * 1.9; if (hemiL) { hemiL.color.copy(c).lerp(new THREE.Color(1, 1, 1), 0.3); hemiL.intensity = WFX.lit.hi * 1.4; } }
-  else if (!on && WFX.lit) { fill.color.copy(WFX.lit.fc); fill.intensity = WFX.lit.fi; if (hemiL && WFX.lit.hs) { hemiL.color.copy(WFX.lit.hs); hemiL.intensity = WFX.lit.hi; } WFX.lit = null; } }
+/* inside the jump the ship gets "showroom" graphics, with no new lights and no new shaders (so no stall on the first jump):
+   - its metal reflects a tunnel picture instead of the space one: glowing streaks in the tunnel colour and white-hot lines (one small cube picture per destination colour)
+   - the sun circles round the ship with the tunnel's twist, in the tunnel colour, so bright highlights sweep across the hull
+   - the fill light (behind the camera) and the sky half of the ambient take the tunnel colour
+   everything goes back the moment the ship leaves the tunnel */
+const TUN_ENV = {};
+function tunEnv(hex) { if (TUN_ENV[hex]) return TUN_ENV[hex]; const col = new THREE.Color(hex), css = (k, a) => { const c = k >= 0 ? col.clone().lerp(new THREE.Color(1, 1, 1), k) : col.clone().multiplyScalar(1 + k); return 'rgba(' + (c.r * 255 | 0) + ',' + (c.g * 255 | 0) + ',' + (c.b * 255 | 0) + ',' + a + ')'; };
+  const face = (k) => { const R = 128, c = document.createElement('canvas'); c.width = c.height = R; const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, R, R); g.addColorStop(0, css(-0.85, 1)); g.addColorStop(0.5, css(-0.6, 1)); g.addColorStop(1, css(-0.9, 1)); x.fillStyle = g; x.fillRect(0, 0, R, R);
+    let sd = 7 + k * 13; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    x.save(); x.translate(64, 64); x.rotate(k * 0.7 + 0.4); x.translate(-96, -96);
+    for (let i = 0; i < 14; i++) { const y = rnd() * 192, w = 1 + rnd() * 4; x.fillStyle = css(rnd() * 0.5, 0.35 + rnd() * 0.5); x.fillRect(0, y, 192, w); }   // glowing streaks
+    for (let i = 0; i < 4; i++) { const y = rnd() * 192; x.fillStyle = 'rgba(255,255,255,0.95)'; x.fillRect(0, y, 192, 1.5); }                                  // white-hot lines
+    x.restore();
+    if (k === 4) { const g2 = x.createRadialGradient(64, 64, 0, 64, 64, 46); g2.addColorStop(0, 'rgba(255,255,255,1)'); g2.addColorStop(0.35, css(0.3, 0.9)); g2.addColorStop(1, css(0, 0)); x.fillStyle = g2; x.fillRect(0, 0, R, R); }   // the bright core
+    return c; };
+  const t = new THREE.CubeTexture([face(0), face(1), face(2), face(3), face(4), face(5)]); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; return (TUN_ENV[hex] = t); }
+/* the STAR COURIER's hull is shaded from a small "matcap" picture (a painted chrome ball), not from lights. inside the tunnel it gets a tunnel chrome ball instead:
+   glowing bands of the tunnel colour above and below a dark horizon, white-hot streaks, a bright coloured rim. the picture turns with the tunnel's twist, so the
+   reflections stream round the hull. 128 px, redrawn while in the tunnel only (~2 s) */
+const TMC = { base: {}, cv: null, tex: null };
+function tunMatcapBase(hex) { if (TMC.base[hex]) return TMC.base[hex]; const col = new THREE.Color(hex), rgb = (k, a) => { const c = k >= 0 ? col.clone().lerp(new THREE.Color(1, 1, 1), k) : col.clone().multiplyScalar(1 + k); return 'rgba(' + (c.r * 255 | 0) + ',' + (c.g * 255 | 0) + ',' + (c.b * 255 | 0) + ',' + (a === undefined ? 1 : a) + ')'; };
+  const N = 128, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'), m = N / 2;
+  x.fillStyle = '#000'; x.fillRect(0, 0, N, N); x.save(); x.beginPath(); x.arc(m, m, m, 0, Math.PI * 2); x.clip();
+  let g = x.createLinearGradient(0, 0, 0, N); g.addColorStop(0, rgb(0.75)); g.addColorStop(0.22, rgb(0.25)); g.addColorStop(0.46, rgb(-0.35)); g.addColorStop(0.56, '#05060c'); g.addColorStop(0.72, rgb(-0.7)); g.addColorStop(1, rgb(-0.1)); x.fillStyle = g; x.fillRect(0, 0, N, N);
+  x.globalCompositeOperation = 'lighter';
+  for (const [y, h, k, a] of [[18, 3, 1, 0.9], [31, 2, 0.6, 0.7], [44, 4, 0.3, 0.55], [86, 2, 0.4, 0.5], [104, 3, 0.15, 0.6]]) { g = x.createLinearGradient(0, y - h, 0, y + h); g.addColorStop(0, rgb(k, 0)); g.addColorStop(0.5, rgb(k, a)); g.addColorStop(1, rgb(k, 0)); x.fillStyle = g; x.fillRect(0, y - h, N, h * 2); }   // glowing bands / white-hot streaks
+  g = x.createRadialGradient(40, 34, 0, 40, 34, 22); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, rgb(0.5, 0.7)); g.addColorStop(1, rgb(0, 0)); x.fillStyle = g; x.fillRect(0, 0, N, N);   // hot spot
+  x.globalCompositeOperation = 'source-over'; g = x.createRadialGradient(m, m, m * 0.62, m, m, m); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.75, 'rgba(0,0,0,0.3)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, N, N);
+  x.globalCompositeOperation = 'lighter'; g = x.createRadialGradient(m, m, m * 0.82, m, m, m); g.addColorStop(0, rgb(0, 0)); g.addColorStop(1, rgb(0.35, 0.95)); x.fillStyle = g; x.fillRect(0, 0, N, N);   // bright coloured rim
+  x.restore(); return (TMC.base[hex] = c); }
+function tunMatcapDraw(hex, ang) { if (!TMC.cv) { TMC.cv = document.createElement('canvas'); TMC.cv.width = TMC.cv.height = 128; TMC.tex = new THREE.CanvasTexture(TMC.cv); TMC.tex.colorSpace = THREE.SRGBColorSpace; }
+  const x = TMC.cv.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, 128, 128); x.save(); x.translate(64, 64); x.rotate(ang); x.drawImage(tunMatcapBase(hex), -64, -64); x.restore(); TMC.tex.needsUpdate = true; }
+function wfxLight(on) { if (on && !WFX.lit) { WFX.lit = { fc: fill.color.clone(), fi: fill.intensity, hs: hemiL ? hemiL.color.clone() : null, hi: hemiL ? hemiL.intensity : 0, sp: sun.position.clone(), sc: sun.color.clone(), si: sun.intensity, env: [] };
+    const c = WFX.mat.uniforms.C.value; fill.color.copy(c).lerp(new THREE.Color(1, 1, 1), 0.35); fill.intensity = WFX.lit.fi * 1.9; if (hemiL) { hemiL.color.copy(c).lerp(new THREE.Color(1, 1, 1), 0.3); hemiL.intensity = WFX.lit.hi * 1.4; }
+    sun.color.copy(c).lerp(new THREE.Color(1, 1, 1), 0.55); sun.intensity = 3.4;
+    const env = tunEnv('#' + c.getHexString()), seen = new Set();
+    ship.traverse((o) => { if (!o.isMesh) return; (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { if (!m || seen.has(m) || !m.isMeshStandardMaterial || !m.envMap) return; seen.add(m); WFX.lit.env.push([m, m.envMap, m.envMapIntensity]); m.envMap = env; m.envMapIntensity *= 1.15; }); });
+    WFX.lit.hex = '#' + c.getHexString(); WFX.lit.rim = sunRim.value.clone(); sunRim.value.copy(c).lerp(new THREE.Color(1, 1, 1), 0.25).multiplyScalar(1.3); tunMatcapDraw(WFX.lit.hex, 0); WFX.lit.mc = [];
+    ship.traverse((o) => { if (!o.isMesh) return; (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { if (!m || !m.isMeshMatcapMaterial || !m.matcap || WFX.lit.mc.some((e) => e[0] === m)) return; WFX.lit.mc.push([m, m.matcap]); m.matcap = TMC.tex; }); }); }
+  else if (!on && WFX.lit) { const L = WFX.lit; fill.color.copy(L.fc); fill.intensity = L.fi; if (hemiL && L.hs) { hemiL.color.copy(L.hs); hemiL.intensity = L.hi; }
+    sun.position.copy(L.sp); sun.color.copy(L.sc); sun.intensity = L.si; for (const [m, e, k] of L.env) { m.envMap = e; m.envMapIntensity = k; } for (const [m, t] of L.mc) m.matcap = t; sunRim.value.copy(L.rim); WFX.lit = null; }
+  if (WFX.lit) { const a = WFX.lab * 2.6; fwdOf(S.q, _b); _c.set(1, 0, 0).applyQuaternion(S.q); _d.set(0, 1, 0).applyQuaternion(S.q);   // the sun circles the ship, a little from behind so the lit side faces the camera
+    sun.position.copy(_d).multiplyScalar(Math.cos(a)).addScaledVector(_c, Math.sin(a)).addScaledVector(_b, -0.55).normalize();
+    if (WFX.lit.mc.length) tunMatcapDraw(WFX.lit.hex, -a * 0.6); } }
 const SYS_JUMP = ['#5fb8ff', '#ffb054', '#62f0a8'];   // tunnel colour of the system you jump TO: PIKRO cold blue, YAPZO amber, SOLARA green
 const WP = { t: 0, to: 0, done: false, far: false }, tunnelEl = document.getElementById('tunnel');
 function startWarp(i, gate) {
@@ -2286,6 +2327,7 @@ function updateWarp(dt) {
   WP.t += dt; fwdOf(S.q, fwd); S.speed = WP.gate === 2 ? 110 + WP.t * 90 : 160 + WP.t * 420;   // through a gate: glide in, no rocket-launch S.pos.addScaledVector(fwd, S.speed * dt); S.vel.copy(fwd).multiplyScalar(S.speed);
   if (WP.gate === 2) WFX.lab = WP.t + 0.45;   // the vortex starts once the ship is in the gate's mouth
   if (!WP.done && WP.t >= (WP.gate === 2 ? 2.17 : WP.far ? 1.9 : 1.25)) {
+    wfxLight(false);   // hand the lights back BEFORE the new system sets its own sun colour
     WP.done = true; homeSt = anchorSt = WP.to; for (const q of planets) { q.fd = null; q.vf = 0; q.sm = 1; }   /* the sky layout of the new home snaps into place while the screen is white (before, the other planets slid and resized for a second after arriving) */ tunnelEl.classList.remove('on'); const st = stations[WP.to];
     { const od = st.pl.off.clone().normalize(); S.pos.copy(st.pos).addScaledVector(od, -Math.max(1100, TR_R[WP.to] * 1.6)); }
     const gA = WP.gate ? GATES[st.sys] : null; if (gA && WP.gate === 2) gateAsked = gA.k; /* just came out of this gate: don't ask again until you fly away from it */ if (gA) { if (WP.gate === 1) S.pos.copy(gA.pos).addScaledVector(gA.n, 520); else S.pos.copy(gA.pos).addScaledVector(gA.n, 170); gA.side = 0; }   /* by gate: arrive in front of your own system's gate, or come out of the other one heading toward its station */   /* a giant station: arrive far enough out to see all of it */   // arrive on the line planet -> station -> you: the station stands directly in front of its own planet (the planet is drawn behind the station from this side)
@@ -3197,7 +3239,7 @@ function frame(now) {
   { camera.updateMatrixWorld(); stnSunV.value.copy(sun.position).normalize().transformDirection(camera.matrixWorldInverse);   // sun shading and engine glows use THIS frame's camera (no one-frame lag in turns)
     if (save.ship >= 2 && QH[save.ship] && S.mode !== 'dock') qFlames(QH[save.ship], Math.min(1, S.speed / 90), S.boosting ? 1 : 0, 0.9 + Math.sin(tAcc * 50) * 0.1); }
   if (WFX.on && S.mode !== 'warp') WFX.on = false;
-  wfxLight(WFX.on && WFX.lab > 0.6);
+  wfxLight(WFX.on && WFX.lab > 0.78);
   if (WFX.on && WFX.lab >= 0.8) {   // inside: the 3D tube + the ship only, through the normal pipeline (glow, grade); the world is not drawn. the flashes go on top
     const u = WFX.mat.uniforms; u.T.value = WFX.lab; u.R.value.set(innerWidth, innerHeight); fwdOf(S.q, _a); WFX.bg.position.copy(S.pos); WFX.bg.quaternion.setFromUnitVectors(Y, _a);
     WFX.bg.visible = true; camera.layers.set(SHIP_L); composer.render(); camera.layers.set(0); WFX.bg.visible = false;
