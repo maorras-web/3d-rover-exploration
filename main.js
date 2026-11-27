@@ -173,10 +173,10 @@ composer.addPass(new RenderPass(scene, camera));
 const bloomPass = new CheapGlow(innerWidth / 2, innerHeight / 2);
 composer.addPass(bloomPass);
   const gradePass = new ShaderPass({
-    uniforms: { tDiffuse: { value: null }, tGlow: { value: null }, tGlow2: { value: null }, uGlow: { value: new THREE.Vector2(0, 0) }, uTexel: { value: new THREE.Vector2(0.001, 0.001) }, uFx: { value: 0 }, uCA: { value: 0.02 }, uBl: { value: 0 }, uSh: { value: 1.0 } },
+    uniforms: { tDiffuse: { value: null }, tGlow: { value: null }, tGlow2: { value: null }, uGlow: { value: new THREE.Vector2(0, 0) }, uTexel: { value: new THREE.Vector2(0.001, 0.001) }, uFx: { value: 0 }, uCA: { value: 0.02 }, uBl: { value: 0 }, uSh: { value: 1.0 }, uQ: { value: 1 } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: `
-      uniform sampler2D tDiffuse; uniform sampler2D tGlow; uniform sampler2D tGlow2; uniform vec2 uGlow; uniform vec2 uTexel; uniform float uFx; uniform float uCA; uniform float uBl; uniform float uSh; varying vec2 vUv;
+      uniform sampler2D tDiffuse; uniform sampler2D tGlow; uniform sampler2D tGlow2; uniform vec2 uGlow; uniform vec2 uTexel; uniform float uFx; uniform float uCA; uniform float uBl; uniform float uSh; uniform float uQ; varying vec2 vUv;
       vec3 tx(vec2 uv){ return texture2D(tDiffuse, uv).rgb; }
       float hh(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       void main(){
@@ -196,7 +196,14 @@ composer.addPass(bloomPass);
           if (!edged && !dot1 && uSh > 0.0) {   // sharpening: brightness only (no colour shift), strongest on fine low-contrast detail (panel lines, planet surface), fading out on hard edges so nothing gets halos; lone stars are left alone
             float avg = (lNW + lNE + lSW + lSE) * 0.25, amt = uSh * (1.0 - smoothstep(0.08, 0.35, max(lM, max(max(lNW, lNE), max(lSW, lSE))) - min(lM, min(min(lNW, lNE), min(lSW, lSE)))));
             base += vec3(clamp((lM - avg) * amt, -0.07, 0.07)); }
-          if (edged) {   /* FXAA 3.11 "quality": find which way the edge runs, walk along it both ways to where it ends, and blend by where this pixel sits on that step.
+          if (edged && uQ < 0.5) {   // TEMP A/B: the v612 smoothing (short blend across the edge, no search along it)
+            vec2 dir = vec2(-((pNW + pNE) - (pSW + pSE)), (pNW + pSW) - (pNE + pSE));
+            float dr = max((pNW + pNE + pSW + pSE) * 0.03125, 1.0 / 128.0), rc = 1.0 / (min(abs(dir.x), abs(dir.y)) + dr);
+            dir = clamp(dir * rc, -8.0, 8.0) * uTexel;
+            vec3 a = 0.5 * (tx(vUv + dir * (1.0 / 3.0 - 0.5)) + tx(vUv + dir * (2.0 / 3.0 - 0.5)));
+            vec3 b = a * 0.5 + 0.25 * (tx(vUv + dir * -0.5) + tx(vUv + dir * 0.5));
+            float lB = sqrt(dot(b, L)); base = (lB < pMin || lB > pMax) ? a : b; }
+          else if (edged) {   /* FXAA 3.11 "quality": find which way the edge runs, walk along it both ways to where it ends, and blend by where this pixel sits on that step.
                             long, nearly flat edges (most hull outlines) come out as smooth ramps instead of stairs. the extra reads happen ONLY on edge pixels */
             // uv space: +y is up. the 4 corners read above are (-1,-1) (1,-1) (-1,1) (1,1)
             float cSW = pNW, cSE = pNE, cNW = pSW, cNE = pSE;
@@ -256,6 +263,19 @@ composer.addPass(bloomPass);
   });
 composer.addPass(gradePass);
 bloomPass.attach(gradePass.uniforms);
+/* ---- TEMPORARY A/B button: switches the edge smoothing between v613 (search along the edge) and v612, and shows the frame rate. remove after choosing ----
+   the first tap also turns MSAA off (until reload) so the FXAA being compared is really on screen, like on a weak phone */
+const AB = (() => { const b = document.createElement('button'); b.id = 'ab-aa';
+  b.style.cssText = 'position:fixed;left:calc(10px + env(safe-area-inset-left,0px));top:42%;z-index:60;font:600 13px system-ui,sans-serif;color:#fff;background:rgba(20,16,50,.78);border:1px solid #7c6cff;border-radius:10px;padding:8px 10px;min-width:118px;text-align:left;touch-action:manipulation';
+  document.body.appendChild(b); let n = 0, t0 = performance.now(), fps = 0;
+  const lbl = () => { b.textContent = 'AA ' + (gradePass.uniforms.uQ.value > 0.5 ? '613' : '612') + (msaaNow > 0 ? ' (MSAA)' : '') + ' · ' + fps + ' fps'; };
+  const tick = (now) => { n++; if (now - t0 >= 500) { fps = Math.round(n * 1000 / (now - t0)); n = 0; t0 = now; lbl();} requestAnimationFrame(tick); }; requestAnimationFrame(tick);
+  b.addEventListener('pointerdown', (e) => e.stopPropagation());
+  b.addEventListener('click', (e) => { e.stopPropagation();
+    if (msaaNow > 0) { for (const rt of [composer.renderTarget1, composer.renderTarget2]) if (rt) { rt.samples = 0; rt.dispose(); } msaaNow = 0; gradePass.uniforms.uFx.value = 1; }
+    else gradePass.uniforms.uQ.value = gradePass.uniforms.uQ.value > 0.5 ? 0 : 1; lbl(); });
+  const st = document.createElement('style'); st.textContent = 'body.menu #ab-aa{display:none!important}'; document.head.appendChild(st);   // hidden on the start screen
+  lbl(); return b; })();
 function applyPR() { renderer.setPixelRatio(pr); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); renderer.setSize(innerWidth, innerHeight, false); gradePass.uniforms.uTexel.value.set(1 / (innerWidth * pr), 1 / (innerHeight * pr)); gradePass.uniforms.uFx.value = (msaaNow === 0 || pr < 1.35) ? 1 : 0; }
 applyPR();
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); applyPR(); });
