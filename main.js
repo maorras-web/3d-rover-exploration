@@ -173,27 +173,62 @@ composer.addPass(new RenderPass(scene, camera));
 const bloomPass = new CheapGlow(innerWidth / 2, innerHeight / 2);
 composer.addPass(bloomPass);
   const gradePass = new ShaderPass({
-    uniforms: { tDiffuse: { value: null }, tGlow: { value: null }, tGlow2: { value: null }, uGlow: { value: new THREE.Vector2(0, 0) }, uTexel: { value: new THREE.Vector2(0.001, 0.001) }, uFx: { value: 0 }, uCA: { value: 0.02 }, uBl: { value: 0 } },
+    uniforms: { tDiffuse: { value: null }, tGlow: { value: null }, tGlow2: { value: null }, uGlow: { value: new THREE.Vector2(0, 0) }, uTexel: { value: new THREE.Vector2(0.001, 0.001) }, uFx: { value: 0 }, uCA: { value: 0.02 }, uBl: { value: 0 }, uSh: { value: 1.0 } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: `
-      uniform sampler2D tDiffuse; uniform sampler2D tGlow; uniform sampler2D tGlow2; uniform vec2 uGlow; uniform vec2 uTexel; uniform float uFx; uniform float uCA; uniform float uBl; varying vec2 vUv;
+      uniform sampler2D tDiffuse; uniform sampler2D tGlow; uniform sampler2D tGlow2; uniform vec2 uGlow; uniform vec2 uTexel; uniform float uFx; uniform float uCA; uniform float uBl; uniform float uSh; varying vec2 vUv;
       vec3 tx(vec2 uv){ return texture2D(tDiffuse, uv).rgb; }
       float hh(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       void main(){
         vec3 raw = tx(vUv), base = raw;
-        if (uFx > 0.5) {   // edge smoothing (FXAA-lite): only switched on when the phone has no multisampling or the resolution was lowered
+        if (uFx > 0.5 || uSh > 0.0) {   // edge smoothing (FXAA-lite, only when the phone has no multisampling) and a light sharpening share the same 4 neighbour reads
           const vec3 L = vec3(0.299, 0.587, 0.114);
           vec3 nw = tx(vUv + vec2(-1.0, -1.0) * uTexel), ne = tx(vUv + vec2(1.0, -1.0) * uTexel), sw = tx(vUv + vec2(-1.0, 1.0) * uTexel), se = tx(vUv + vec2(1.0, 1.0) * uTexel);
-          float lM = dot(base, L), lNW = dot(nw, L), lNE = dot(ne, L), lSW = dot(sw, L), lSE = dot(se, L);
-          float lMin = min(lM, min(min(lNW, lNE), min(lSW, lSE))), lMax = max(lM, max(max(lNW, lNE), max(lSW, lSE)));
-          bool dot1 = lM > max(max(lNW, lNE), max(lSW, lSE)) + 0.06;   // a lone bright point (a star, a far light): left untouched so it stays sharp and white
-          if (lMax - lMin > 0.04 && !dot1) {
-            vec2 dir = vec2(-((lNW + lNE) - (lSW + lSE)), (lNW + lSW) - (lNE + lSE));
-            float dr = max((lNW + lNE + lSW + lSE) * 0.03125, 1.0 / 128.0), rc = 1.0 / (min(abs(dir.x), abs(dir.y)) + dr);
-            dir = clamp(dir * rc, -8.0, 8.0) * uTexel;
-            vec3 a = 0.5 * (tx(vUv + dir * (1.0 / 3.0 - 0.5)) + tx(vUv + dir * (2.0 / 3.0 - 0.5)));
-            vec3 b = a * 0.5 + 0.25 * (tx(vUv + dir * -0.5) + tx(vUv + dir * 0.5));
-            float lB = dot(b, L); base = (lB < lMin || lB > lMax) ? a : b;
+          float lM = dot(base, L), lNW = dot(nw, L), lNE = dot(ne, L), lSW = dot(sw, L), lSE = dot(se, L);   // linear brightness (used by the sharpening)
+          /* edge finding works on PERCEIVED brightness (square root): the picture is linear here, where a dark hull against black space differs by only ~0.02, so the old test missed most ship outlines */
+          float pM = sqrt(lM), pNW = sqrt(lNW), pNE = sqrt(lNE), pSW = sqrt(lSW), pSE = sqrt(lSE);
+          float pMin = min(pM, min(min(pNW, pNE), min(pSW, pSE))), pMax = max(pM, max(max(pNW, pNE), max(pSW, pSE)));
+          bool dot1 = pM > max(max(pNW, pNE), max(pSW, pSE)) + 0.12;
+          if (dot1) {   /* brighter than all 4 diagonals: a lone star - or a thin lit edge line on a hull (those were wrongly left jagged). only a point is also brighter than its 4 straight neighbours. extra reads only for these rare pixels */
+            float pN = sqrt(dot(tx(vUv + vec2(0.0, -1.0) * uTexel), L)), pS = sqrt(dot(tx(vUv + vec2(0.0, 1.0) * uTexel), L)), pW = sqrt(dot(tx(vUv + vec2(-1.0, 0.0) * uTexel), L)), pE = sqrt(dot(tx(vUv + vec2(1.0, 0.0) * uTexel), L));
+            dot1 = pM > max(max(pN, pS), max(pW, pE)) + 0.06; }
+          bool edged = uFx > 0.5 && pMax - pMin > max(0.045, pMax * 0.12) && !dot1;   // threshold relative to the local brightness (as in real FXAA), so dark outlines are caught too
+          if (!edged && !dot1 && uSh > 0.0) {   // sharpening: brightness only (no colour shift), strongest on fine low-contrast detail (panel lines, planet surface), fading out on hard edges so nothing gets halos; lone stars are left alone
+            float avg = (lNW + lNE + lSW + lSE) * 0.25, amt = uSh * (1.0 - smoothstep(0.08, 0.35, max(lM, max(max(lNW, lNE), max(lSW, lSE))) - min(lM, min(min(lNW, lNE), min(lSW, lSE)))));
+            base += vec3(clamp((lM - avg) * amt, -0.07, 0.07)); }
+          if (edged) {   /* FXAA 3.11 "quality": find which way the edge runs, walk along it both ways to where it ends, and blend by where this pixel sits on that step.
+                            long, nearly flat edges (most hull outlines) come out as smooth ramps instead of stairs. the extra reads happen ONLY on edge pixels */
+            // uv space: +y is up. the 4 corners read above are (-1,-1) (1,-1) (-1,1) (1,1)
+            float cSW = pNW, cSE = pNE, cNW = pSW, cNE = pSE;
+            float pN = sqrt(dot(tx(vUv + vec2(0.0, uTexel.y)), L)), pS = sqrt(dot(tx(vUv - vec2(0.0, uTexel.y)), L)), pE = sqrt(dot(tx(vUv + vec2(uTexel.x, 0.0)), L)), pW = sqrt(dot(tx(vUv - vec2(uTexel.x, 0.0)), L));
+            float rng = max(pMax, max(max(pN, pS), max(pE, pW))) - min(pMin, min(min(pN, pS), min(pE, pW)));
+            float eH = abs(cNW + cSW - 2.0 * pW) + 2.0 * abs(pN + pS - 2.0 * pM) + abs(cNE + cSE - 2.0 * pE);
+            float eV = abs(cNW + cNE - 2.0 * pN) + 2.0 * abs(pW + pE - 2.0 * pM) + abs(cSW + cSE - 2.0 * pS);
+            bool hz = eH >= eV;                                                   // the edge runs left-right (its neighbours differ up/down)
+            float l1 = hz ? pS : pW, l2 = hz ? pN : pE, g1 = l1 - pM, g2 = l2 - pM;
+            bool st1 = abs(g1) >= abs(g2);
+            float gS = 0.25 * max(abs(g1), abs(g2)), sl = hz ? uTexel.y : uTexel.x, la;
+            if (st1) { sl = -sl; la = 0.5 * (l1 + pM); } else la = 0.5 * (l2 + pM);
+            vec2 uv = vUv; if (hz) uv.y += sl * 0.5; else uv.x += sl * 0.5;   // sit exactly on the edge
+            vec2 off = hz ? vec2(uTexel.x, 0.0) : vec2(0.0, uTexel.y);
+            vec2 u1 = uv - off, u2 = uv + off;
+            float e1 = sqrt(dot(tx(u1), L)) - la, e2 = sqrt(dot(tx(u2), L)) - la;
+            bool r1 = abs(e1) >= gS, r2 = abs(e2) >= gS;
+            for (int i = 0; i < 6; i++) {                                         // walk both ways, longer strides the further out (1,1.5,2,2,4,8 px)
+              if (r1 && r2) break;
+              float q = i < 1 ? 1.5 : i < 4 ? 2.0 : i < 5 ? 4.0 : 8.0;
+              if (!r1) { u1 -= off * q; e1 = sqrt(dot(tx(u1), L)) - la; r1 = abs(e1) >= gS; }
+              if (!r2) { u2 += off * q; e2 = sqrt(dot(tx(u2), L)) - la; r2 = abs(e2) >= gS; } }
+            float d1 = hz ? vUv.x - u1.x : vUv.y - u1.y, d2 = hz ? u2.x - vUv.x : u2.y - vUv.y;
+            bool near1 = d1 < d2; float dF = min(d1, d2), th = d1 + d2;
+            float po = 0.5 - dF / th;
+            bool ok = ((near1 ? e1 : e2) < 0.0) != (pM < la);
+            float fo = ok ? po : 0.0;
+            float av = (2.0 * (pN + pS + pE + pW) + cNW + cNE + cSW + cSE) / 12.0;   // sub-pixel part: tiny bits thinner than a pixel get a gentle blend too
+            float sp = clamp(abs(av - pM) / max(rng, 1e-4), 0.0, 1.0); sp = (-2.0 * sp + 3.0) * sp * sp;
+            fo = max(fo, sp * sp * 0.6);
+            vec2 fu = vUv; if (hz) fu.y += fo * sl; else fu.x += fo * sl;
+            base = tx(fu);
           }
         }
         { vec2 o = vUv - 0.5; float r2 = dot(o, o);
