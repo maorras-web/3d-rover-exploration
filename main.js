@@ -1800,7 +1800,7 @@ function sfx(kind, k, vm) {
   else if (kind === 'uiNo') { tone('sine', 620, 380, 0.12, 0.11); tone('triangle', 310, 240, 0.12, 0.05); }
 }
 function updateAudio() {
-  if (!eng || actx.state !== 'running') return; const t = actx.currentTime, k = clamp(S.speed / 170, 0, 1), on = S.mode === 'fly';
+  if (!eng || actx.state !== 'running') return; const t = actx.currentTime, k = clamp(S.speed / 170, 0, 1), on = S.mode === 'fly' && !mapOn;
   eng.lp.frequency.setTargetAtTime(160 + k * 380 + (S.boosting ? 380 : 0), t, 0.12);
   eng.g.gain.setTargetAtTime(on ? 0.16 + k * 0.20 + (S.boosting ? 0.16 : 0) : 0.0, t, 0.2);
   eng.o1.frequency.setTargetAtTime(58 + k * 30 + (S.boosting ? 22 : 0), t, 0.2);
@@ -2174,7 +2174,7 @@ function updateGates(dt) { const flying = S.mode === 'fly';
     if (vis) { gt.hz.visible = d < 6000; gt.hz.material.uniforms.t.value = tAcc; if (gt.lights) gt.lights.material.opacity = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(tAcc * 3)); }
     const sd = _a.copy(S.pos).sub(gt.pos).dot(gt.n);
     if (here && flying && d < GATE_R * 3) { const rad = Math.sqrt(Math.max(0, d * d - sd * sd)); if (gt.side * sd < 0 && Math.abs(gt.side - sd) < 60 && rad < GATE_R * 0.92) { gt.side = 0; if (gt.dest >= 0) { const k = gt.dest; gt.dest = -1; startWarp(GATES[k].si, 2); continue; } openGateDlg(gt); } }   // crossed the glowing middle: jump to the system you chose (no choice yet: the choice opens)
-    if (here && flying && !gateOn && !trvOn && !mapOn && d < 1500 && gateAsked !== gt.k) openGateDlg(gt); if (d > 2600 && gateAsked === gt.k) { gateAsked = -1; gt.dest = -1; }   // arriving at the gate: choose where to jump
+    if (here && flying && !gateOn && !trvOn && !mapOn && d < 1500 && gateAsked !== gt.k && !galArm(gt)) openGateDlg(gt); if (d > 2600 && gateAsked === gt.k) { gateAsked = -1; gt.dest = -1; }   // arriving at the gate: choose where to jump
     gt.side = sd; } }
 stations.forEach((st, k) => { const n = V3(Math.sin(k * 1.7), 1.2, Math.cos(k * 2.3)).normalize(), u = V3(1, 0, 0).cross(n).normalize(), v = n.clone().cross(u); TR_U.push(u); TR_V.push(v); });
 const _tq = new THREE.Quaternion(), _tp = V3(), _tt = V3(), _ts = V3(40, 40, 40), _tsB = V3(15, 15, 15);   // traffic ships enlarged x1.6
@@ -2362,7 +2362,7 @@ const WP = { t: 0, to: 0, done: false, far: false }, tunnelEl = document.getElem
 function startWarp(i, gate) {
   if (S.mode !== 'fly') return; if (!gate && stations[i].sys !== curSys) { toast('OTHER SYSTEMS ONLY THROUGH THE STARGATE', 2.5); warpToGate(); return; }   /* the stargate is the only way to another system */
   if (!gate && i === homeSt && S.pos.distanceTo(stations[i].pos) < STN_NEAR) return; WP.t = 0; WP.to = i; WP.done = false; WP.gate = gate || 0; WP.far = stations[i].sys !== curSys; S.mode = 'warp'; S.tPlanet = -1; S.target = null; S.boosting = false; S.sx = S.sy = 0;
-  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; /* planet jumps are silent (the user's choice); the stargate tunnel has its own rising hum */ if (WP.gate === 2) { const c = new THREE.Color(SYS_JUMP[stations[i].sys] || '#5fb8ff'); WFX.c0.copy(c); WFX.c1.set(SYS_JUMP2[stations[i].sys] || '#a46bff'); WFX.mat.uniforms.C.value.copy(c); sfx('gatejump', GATE_OUT - 0.45); WFX.mat.uniforms.CA.value = msaaNow === 0 ? 0 : 1; WFX.on = true; WFX.lab = 0; ship.traverse((o) => o.layers.enable(SHIP_L)); fadeEl.style.background = '#' + new THREE.Color(1, 1, 1).lerp(c, 0.2).getHexString(); }   /* the dissolve takes the colour of the gate's swirl */ else if (WP.far) { tunnelEl.classList.add('on'); fadeEl.style.background = '#dfe9ff'; }   /* through a stargate: a soft blue dissolve, no flash and no rings */   // jump tunnel: pure CSS, runs on the GPU
+  document.body.classList.add('docked'); fadeEl.style.transition = 'none'; fadeEl.style.opacity = '0'; /* planet jumps are silent (the user's choice); the stargate tunnel has its own rising hum */ if (WP.gate === 2) { galDest = -1; const c = new THREE.Color(SYS_JUMP[stations[i].sys] || '#5fb8ff'); WFX.c0.copy(c); WFX.c1.set(SYS_JUMP2[stations[i].sys] || '#a46bff'); WFX.mat.uniforms.C.value.copy(c); sfx('gatejump', GATE_OUT - 0.45); WFX.mat.uniforms.CA.value = msaaNow === 0 ? 0 : 1; WFX.on = true; WFX.lab = 0; ship.traverse((o) => o.layers.enable(SHIP_L)); fadeEl.style.background = '#' + new THREE.Color(1, 1, 1).lerp(c, 0.2).getHexString(); }   /* the dissolve takes the colour of the gate's swirl */ else if (WP.far) { tunnelEl.classList.add('on'); fadeEl.style.background = '#dfe9ff'; }   /* through a stargate: a soft blue dissolve, no flash and no rings */   // jump tunnel: pure CSS, runs on the GPU
   setTimeout(() => { if (S.mode === 'warp' && WP.gate !== 2) { fadeEl.style.transition = WP.gate === 2 ? 'opacity .85s ease-in-out' : 'opacity .65s linear'; fadeEl.style.opacity = '1'; } }, WP.gate === 2 ? 300 : WP.far ? 1250 : 450);   /* the fade is ONE css transition now, not a style write on a full-screen layer every frame */
 }
 function updateWarp(dt) {
@@ -2653,8 +2653,10 @@ const orbT = () => performance.now() / 1000;
 const orbXY = (i, t) => { const o = ORB_OF[i], a = o.a0 + o.w * t; return [Math.cos(a) * o.r, Math.sin(a) * o.r]; };   // -1..1 across the outermost orbit
 // a tilted 3-D look made of plain page elements: the far (upper) half of every orbit is drawn behind the sun and the near half in front of it, planets shrink and dim as they go round the back
 // and are lit from the sun's side; nothing here touches the 3-D scene, and it only runs while a map is open
-const orrArcs = (k, cx, cy, rx, ry, front) => '<svg class="orr ' + (front ? 'fr' : 'bk') + '" viewBox="0 0 100 100" preserveAspectRatio="none">' + ORB[k].map(o => { const a = (rx * o.r).toFixed(2), b = (ry * o.r).toFixed(2), L = (cx - rx * o.r).toFixed(2), R = (cx + rx * o.r).toFixed(2);
-  const d = front ? `M${R} ${cy}A${a} ${b} 0 0 1 ${L} ${cy}` : `M${L} ${cy}A${a} ${b} 0 0 1 ${R} ${cy}`; return `<path class="g" d="${d}"/><path d="${d}"/>`; }).join('') + '</svg>';
+const orrArcs = (k, cx, cy, rx, ry, front, fancy) => '<svg class="orr ' + (front ? 'fr' : 'bk') + '" viewBox="0 0 100 100" preserveAspectRatio="none">' + ORB[k].map(o => {
+  const arc = (m, cls) => { const r = o.r * m, a = (rx * r).toFixed(2), b = (ry * r).toFixed(2), L = (cx - rx * r).toFixed(2), R = (cx + rx * r).toFixed(2);
+    const d = front ? `M${R} ${cy}A${a} ${b} 0 0 1 ${L} ${cy}` : `M${L} ${cy}A${a} ${b} 0 0 1 ${R} ${cy}`; return `<path${cls ? ' class="' + cls + '"' : ''} d="${d}"/>`; };
+  return arc(1, 'g') + arc(1, '') + (fancy ? arc(1.028, 't') + arc(1.07, 'k') : ''); }).join('') + '</svg>';   // fancy (flight map): each orbit is a bright glowing line, a thin twin line and a faint ring of marks
 // the map sun: a painted surface (boiling granules, bright patches, a few dark spots) that turns slowly like the planets, dark at its edge like a real ball of fire,
 // with a ring of flame tongues licking out of the rim - both pictures painted once per system and kept
 const SUNTX = [];
@@ -2742,8 +2744,8 @@ function orrPlace(nodes, t, cx, cy, rx, ry, out) {   // nodes: [[planet index, e
   planets.forEach((p, i) => {
     const mb = mapBs[p.sys], b = document.createElement('button'); b.className = 'mn'; b.id = 'mn' + i; b.style.setProperty('--c', stations[i].col);
     b.style.left = (50 + (p.pos.x - mb.cx) * mb.sx * 84) + '%'; b.style.top = (50 + (p.pos.z - mb.cz) * mb.sx * 84) + '%';
-    b.innerHTML = '<i></i><span>' + stations[i].name + '</span><em>' + (p.lbl || '') + '</em><small></small>'; b.classList.add('op'); mapFld.appendChild(b);
-    b.firstChild.style.backgroundImage = (p.img ? 'url(' + p.img + '),' : '') + 'radial-gradient(circle at 40% 35%,#fff6,' + stations[i].col + ' 60%)';   // the planet's own painted face (the colour behind it if the file is missing)
+    b.innerHTML = '<b class="pf"><i></i></b><span>' + stations[i].name.charAt(0) + stations[i].name.slice(1).toLowerCase() + '</span><em>' + (p.lbl || '') + '</em><small></small>'; b.classList.add('op'); mapFld.appendChild(b);
+    b.querySelector('i').style.backgroundImage = (p.img ? 'url(' + p.img + '),' : '') + 'radial-gradient(circle at 40% 35%,#fff6,' + stations[i].col + ' 60%)';   // the planet's own painted face (the colour behind it if the file is missing)
     b.addEventListener('click', () => { if (S.mode !== 'fly') return; closeMap(); if (nearPlanet() === i) return; initAudio(); S.tPlanet = i; sfx('note'); trvOn = true; $('trv-name').textContent = stations[i].name; $('trv-dlg').style.display = 'flex'; });
   });
   $('map-gate').addEventListener('click', () => $('map-sys').click());
@@ -2760,19 +2762,231 @@ function updateMap() {
   mapFld.querySelectorAll('.ly').forEach(e => e.remove()); $('map-lines').innerHTML = ''; mapNodes = [];
   planets.forEach((p, i) => { if (p.sys !== curSys) return; const e = $('mn' + i); mapNodes.push([i, e]); e.children[2].textContent = (p.lbl || '') + (i === from ? '' : '  ·  ' + (stations[from].pos.distanceTo(stations[i].pos) / 1000).toFixed(1) + ' LY'); });   // the distance sits under each planet's name (no route lines)
   mapFrom = from;
-  if (mapOrbSys !== curSys) { mapOrbSys = curSys; $('map-rings').innerHTML = orrDecor(curSys, 50, MAP_CY, MAP_RX, MAP_RY, 86); } sunStart($('map-rings'));   // the sun and the orbits, drawn once per system
-  { const g = $('map-gate'), a = gateAng(curSys); g.style.left = clamp(50 + Math.cos(a) * MAP_RX * 1.16, 4, 96) + '%'; g.style.top = clamp(MAP_CY + Math.sin(a) * MAP_RY * 1.16, 6, 84) + '%';   /* out past the last orbit, in its real direction; never down on the stargate button */ g.lastChild.textContent = 'STARGATE'; }
+  { const W = mapFld.clientWidth || 700, H = mapFld.clientHeight || 300; MAP_CY = 50; MAP_RY = 41; MAP_RX = Math.min(46, MAP_RY * H / W / 0.54);   /* seen from above at a slant: every orbit is about 0.6 as tall as it is wide, on any screen */
+    const key = curSys + ':' + W + 'x' + H; if (mapOrbSys !== key) { mapOrbSys = key; const P = SUNMAP[curSys] || SUNMAP[0], sd = Math.round(W * MAP_RX / 100 * 1.3);
+      $('map-rings').innerHTML = orrArcs(curSys, 50, MAP_CY, MAP_RX, MAP_RY, false, true) + `<div class="msun" style="left:50%;top:${MAP_CY}%;width:${sd}px;height:${sd}px;--s0:${P[0]};--s1:${P[1]};--s2:${P[2]}"></div>` + orrArcs(curSys, 50, MAP_CY, MAP_RX, MAP_RY, true, true); } }   // the sun: one big soft light in its own colours, drawn once per system   // the sun and the orbits, drawn once per system
+  { const g = $('map-gate'), a = gateAng(curSys); g.style.left = clamp(50 + Math.cos(a) * MAP_RX * 1.16, 4, 96) + '%'; g.style.top = clamp(MAP_CY + Math.sin(a) * MAP_RY * 1.16, 6, 84) + '%';   /* out past the last orbit, in its real direction; never down on the stargate button */ g.lastChild.textContent = galDest >= 0 && galDest !== curSys ? 'STARGATE  ›  ' + SYSTEMS[galDest] : 'STARGATE'; }
   mapAnim();
 }
-const MAP_RX = 43, MAP_RY = 34, MAP_CY = 47;   /* flat enough that the top planet stays clear of the title and the bottom one clear of the STARGATE button */ let mapNodes = [], mapFrom = 0, mapOrbSys = -1;
+let MAP_RX = 43, MAP_RY = 34, MAP_CY = 47;   /* flat enough that the top planet stays clear of the title and the bottom one clear of the STARGATE button */ let mapNodes = [], mapFrom = 0, mapOrbSys = '';
 function mapAnim() {   // places the planets on their orbits (once, when the map opens)
   if (!mapOn) return; const P = orrPlace(mapNodes, 0, 50, MAP_CY, MAP_RX, MAP_RY, {}), fp = P[mapFrom];
   if (fp && mapMe.style.display !== 'none') { const a = homeSt; const q = P[a] || fp; mapMe.style.left = (q[0] - 5).toFixed(2) + '%'; mapMe.style.top = q[1].toFixed(2) + '%'; }   // between planets: your arrow sits by the planet you set out from
 }
-function openMap() { if (S.mode !== 'fly') return; if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } mapOn = true; mapOv.style.display = 'block'; updateMap(); }
-function closeMap() { mapOn = false; mapOv.style.display = 'none'; }
+function openMapOld() { if (S.mode !== 'fly') return; if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } mapOn = true; mapOv.style.display = 'block'; updateMap(); if (galOn) { galSel = -1; galShow(true); } }
+function closeMapOld() { mapOn = false; mapOv.style.display = 'none'; }
+/* ==== STAR MAP (v618): ONE 3-D map, like flying a camera over the galaxy. drag to look around, tap a system to select it, tap again to fly down into it;
+   inside a system the whole orrery turns and tilts under your finger; tap a planet, tap again to travel. BACK flies out again.
+   - the game is PAUSED while the map is open: the world is not updated or drawn at all, only this small scene (a few points, lines, a sun and 5-6 small planets)
+   - it is drawn only when something changes (a drag, a zoom, a tap): a map that sits still costs nothing
+   - no distances and no arrows anywhere on it */
+const M3 = { built: false, view: 'sys', k: 0, sel: -1, selP: -1, an: null, dirty: true, yaw: 0.55, pit: 0.78, gx: 0, gz: 0, drag: null, orr: null, orrK: -1, tex: {}, lbl: {} };
+const M3POS = [[-300, 110], [30, -180], [330, 150]];   // galaxy positions of PIKRO, YAPZO, SOLARA (map units, seen from above)
+const M3H = 980, M3D = 175, M3OR = 60;   // galaxy camera height, system camera distance, outermost orbit radius
+const m3$ = (id) => document.getElementById(id);
+function m3Glow(rgb0, rgb1) { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.08, 'rgba(255,255,255,1)'); g.addColorStop(0.18, `rgba(${rgb0},0.95)`); g.addColorStop(0.36, `rgba(${rgb1},0.5)`); g.addColorStop(0.62, `rgba(${rgb1},0.14)`); g.addColorStop(1, `rgba(${rgb1},0)`);
+  x.fillStyle = g; x.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
+function m3Build() { if (M3.built) return; M3.built = true;
+  const cv = m3$('m3c'); let r; try { r = new THREE.WebGLRenderer({ canvas: cv, antialias: !WEAK_DEV, powerPreference: 'low-power' }); } catch (e) { M3.bad = true; return; }
+  r.outputColorSpace = THREE.SRGBColorSpace; r.setClearColor(0x020206, 1); M3.r = r;
+  const sc = new THREE.Scene(); M3.sc = sc; M3.cam = new THREE.PerspectiveCamera(45, 1, 2, 9000);
+  // the painted nebula far below the stars: it moves slower than they do when you drag, so the map has depth
+  const nt = new THREE.TextureLoader().load('nebula_map.webp', () => { M3.dirty = true; });   // raw colours: the shader writes them straight to the screen
+  const neb = new THREE.Mesh(new THREE.PlaneGeometry(9000, 5000), new THREE.ShaderMaterial({ uniforms: { map: { value: nt } }, vertexShader: 'varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
+    fragmentShader: 'precision mediump float; uniform sampler2D map; varying vec2 vU; void main(){ vec2 q = (vU - .5) * 2.; float f = smoothstep(1., .55, max(abs(q.x), abs(q.y))); gl_FragColor = vec4(texture2D(map, vU).rgb * .42 * f, 1.); }',
+    blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false }));   // its edges fade away, so no border ever shows
+  neb.rotation.x = -Math.PI / 2; neb.position.y = -900; neb.renderOrder = -10; sc.add(neb);
+  // stars: our 3 systems (big), plus faint stars with no name all round them (decoration only - nothing to fly to) and a fine dust of tiny ones at several depths
+  let sd = 4242; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const PAL = [[1, 0.55, 0.42], [1, 0.82, 0.55], [0.7, 0.85, 1], [0.55, 1, 0.75], [1, 0.45, 0.5], [0.85, 0.6, 1], [1, 1, 0.9], [0.6, 0.95, 1]];
+  const P = [], C = [], Z = [], deco = [];
+  M3POS.forEach(([x, z], k) => { const s = SUNMAP[k] || SUNMAP[0], c = s[0].split(',').map((n) => n / 255); P.push(x, 0, z); C.push(...c.map((v, j) => Math.min(1, v * 0.55 + (s[1].split(',')[j] / 255) * 0.45))); Z.push(92); });   // our systems: bigger, in their sun's own colours
+  for (let i = 0; i < 70; i++) { let x, z, ok, t = 0; do { x = (rnd() * 2 - 1) * 1500; z = (rnd() * 2 - 1) * 850; ok = M3POS.every(([a, b]) => Math.hypot(a - x, b - z) > 150) && deco.every(([a, b]) => Math.hypot(a - x, b - z) > 95); } while (!ok && ++t < 30);
+    if (!ok) continue; deco.push([x, z]); const c = PAL[(rnd() * PAL.length) | 0], big = rnd() < 0.12; P.push(x, 0, z); C.push(...c); Z.push(big ? 34 + rnd() * 26 : 12 + rnd() * 16); }
+  for (let i = 0; i < 420; i++) { P.push((rnd() * 2 - 1) * 2600, -60 - rnd() * 700, (rnd() * 2 - 1) * 1500); const w = 0.5 + rnd() * 0.5; C.push(w, w, w * (0.9 + rnd() * 0.2)); Z.push(3 + rnd() * 5); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); g.setAttribute('size', new THREE.Float32BufferAttribute(Z, 1));
+  M3.su = { value: 900 };
+  const stars = new THREE.Points(g, new THREE.ShaderMaterial({ uniforms: { uS: M3.su },
+    vertexShader: 'attribute float size; attribute vec3 color; varying vec3 vC; uniform float uS; void main(){ vC = color; vec4 mv = modelViewMatrix * vec4(position, 1.); gl_PointSize = max(1.5, size * uS / -mv.z); gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'precision mediump float; varying vec3 vC; void main(){ float r = length(gl_PointCoord - .5) * 2.; if (r > 1.) discard; float core = exp(-r * r * 22.), halo = exp(-r * r * 4.) * .6; gl_FragColor = vec4((vC * halo + mix(vC, vec3(1.), .75) * core) * (1. - r * r), 1.); }',
+    blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false }));
+  stars.frustumCulled = false; sc.add(stars); M3.stars = stars;
+  // the network: faint lines from each nameless star to its nearest neighbours, and the stargate links between our systems a little brighter
+  const L = [], LC = [], all = deco.concat(M3POS), seen = new Set();
+  deco.forEach(([x, z], i) => { all.map((q, j) => [Math.hypot(q[0] - x, q[1] - z), j]).sort((a, b) => a[0] - b[0]).slice(1, 3).forEach(([d, j]) => { if (j >= deco.length) return; const key = Math.min(i, j) + '-' + Math.max(i, j); if (seen.has(key) || d > 420) return; seen.add(key); L.push(x, 0, z, all[j][0], 0, all[j][1]); LC.push(0.16, 0.17, 0.22, 0.16, 0.17, 0.22); }); });
+  M3.linkAt = L.length / 3;
+  for (let a = 0; a < 3; a++) for (let b = a + 1; b < 3; b++) { L.push(M3POS[a][0], 0, M3POS[a][1], M3POS[b][0], 0, M3POS[b][1]); LC.push(0.5, 0.55, 0.65, 0.5, 0.55, 0.65); }
+  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(L, 3)); lg.setAttribute('color', new THREE.Float32BufferAttribute(LC, 3));
+  M3.lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, toneMapped: false })); sc.add(M3.lines);
+  addEventListener('resize', () => { if (mapOn) m3Size(); });
+  const el = m3$('m3');
+  el.addEventListener('pointerdown', (e) => { if (e.target.closest('button,#m3dlg')) return; M3.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, moved: false }; try { el.setPointerCapture(e.pointerId); } catch (er) { } });
+  el.addEventListener('pointermove', (e) => { const d = M3.drag; if (!d || d.id !== e.pointerId) return; const dx = e.clientX - d.x, dy = e.clientY - d.y; d.x = e.clientX; d.y = e.clientY;
+    if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) > 7) d.moved = true; if (!d.moved || M3.an) return;
+    if (M3.view === 'gal') { const k = M3H * 0.83 / innerHeight * 2; M3.gx = clamp(M3.gx - dx * k * 0.5, -1100, 1100); M3.gz = clamp(M3.gz - dy * k * 0.5, -600, 600); }   // drag the galaxy under your finger
+    else { M3.yaw -= dx * 0.0075; M3.pit = clamp(M3.pit + dy * 0.006, 0.1, 1.45); }   // turn and tilt the system
+    M3.dirty = true; });
+  const up = (e) => { const d = M3.drag; if (!d || d.id !== e.pointerId) return; M3.drag = null; if (!d.moved) m3Tap(e.clientX, e.clientY); };
+  el.addEventListener('pointerup', up); el.addEventListener('pointercancel', () => { M3.drag = null; });
+  m3$('m3x').addEventListener('click', closeMap);
+  m3$('m3back').addEventListener('click', () => { if (M3.an) return; if (M3.view === 'sys') m3Zoom('gal'); else closeMap(); });
+  m3$('m3act').addEventListener('click', () => { const k = M3.view === 'sys' ? M3.k : M3.sel; if (k < 0 || k === curSys) return; if (galDest === k) { galCourse(-1); m3Ui(); } else galCourse(k); });
+  m3$('m3dlg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; const a = M3.ask; m3$('m3dlg').style.display = 'none'; M3.ask = null;
+    if (b.dataset.a !== 'y' || !a) return; closeMap(); initAudio(); if (a.gate) warpToGate(); else { S.tPlanet = a.i; startWarp(a.i); } });
+  m3Size(); }
+function m3Size() { if (!M3.r) return; const pr = Math.min(devicePixelRatio || 1, WEAK_DEV ? 1.5 : 2); M3.r.setPixelRatio(pr); M3.r.setSize(innerWidth, innerHeight, false);
+  M3.cam.aspect = innerWidth / innerHeight; M3.cam.updateProjectionMatrix(); M3.su.value = innerHeight * pr * 0.5 / Math.tan(THREE.MathUtils.degToRad(22.5)); M3.dirty = true; }
+// the orrery of one system: a sun (white core + a big soft light in its own colours), glowing orbits, its planets as small lit globes and its stargate
+function m3Orrery(k) { if (M3.orrK === k) return; if (M3.orr) { M3.sc.remove(M3.orr); M3.orr.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material && !o.material.userData.keep) o.material.dispose(); }); }
+  for (const id in M3.lbl) if (id.charAt(0) === 'p') M3.lbl[id].style.display = 'none';
+  M3.orrK = k; const G = new THREE.Group(), [ox, oz] = M3POS[k]; G.position.set(ox, 0, oz); const S0 = SUNMAP[k] || SUNMAP[0];
+  const glow = m3Glow(S0[0], S0[1]);
+  const sp = (s, o) => { const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: o, toneMapped: false })); m.scale.set(s, s, 1); G.add(m); return m; };
+  sp(150, 0.85); sp(46, 1);
+  const core = new THREE.Mesh(new THREE.SphereGeometry(5, 20, 14), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false })); G.add(core);   // hides what passes behind the sun
+  // orbits: a soft glowing band (one mesh for all of them) and a crisp twin line (one line set for all of them)
+  const orbs = ORB[k], RP = [], RA = [], LP = [];
+  orbs.forEach((o) => { const R = M3OR * o.r, w = 2.4, N = 96;
+    for (let i = 0; i < N; i++) { const a0 = i / N * 6.2832, a1 = (i + 1) / N * 6.2832, c0 = Math.cos(a0), s0 = Math.sin(a0), c1 = Math.cos(a1), s1 = Math.sin(a1);
+      const q = [[c0 * (R - w), s0 * (R - w)], [c0 * (R + w), s0 * (R + w)], [c1 * (R + w), s1 * (R + w)], [c1 * (R - w), s1 * (R - w)]];
+      for (const j of [0, 1, 2, 0, 2, 3]) { RP.push(q[j][0], 0, q[j][1]); RA.push(R); }
+      for (const m of [1, 1.025]) LP.push(c0 * R * m, 0, s0 * R * m, c1 * R * m, 0, s1 * R * m); } });
+  const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(RP, 3)); bg.setAttribute('aR', new THREE.Float32BufferAttribute(RA, 1));
+  G.add(new THREE.Mesh(bg, new THREE.ShaderMaterial({ vertexShader: 'attribute float aR; varying float vR; varying vec2 vP; void main(){ vR = aR; vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
+    fragmentShader: 'precision mediump float; varying float vR; varying vec2 vP; void main(){ float d = (length(vP) - vR) / 2.4; gl_FragColor = vec4(vec3(.32, .78, 1.) * exp(-d * d * 3.) * .55, 1.); }',
+    blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })));
+  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(LP, 3));
+  G.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0xbff0ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })));
+  // planets: their own painted surfaces on small globes, lit from the sun (a plain lit-from-one-side shader, no scene lights)
+  const pm = (tex) => new THREE.ShaderMaterial({ uniforms: { map: { value: tex } }, vertexShader: 'varying vec2 vU; varying vec3 vN; varying vec3 vW; void main(){ vU = uv; vN = normalize(mat3(modelMatrix) * normal); vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+    fragmentShader: 'precision mediump float; uniform sampler2D map; uniform vec3 sunP; varying vec2 vU; varying vec3 vN; varying vec3 vW; void main(){ vec3 L = normalize(sunP - vW); float d = max(dot(normalize(vN), L), 0.); vec3 c = texture2D(map, vU).rgb; gl_FragColor = vec4(c * (.34 + .9 * d), 1.); }' });
+  M3.pl = [];
+  orbs.forEach((o) => { const i = o.i, p = planets[i], R = M3OR * o.r, a = o.a0, src = p.img;
+    let tex = src ? M3.tex[src] : null; if (src && !tex) { tex = M3.tex[src] = new THREE.TextureLoader().load(src, () => { M3.dirty = true; }); }   // raw colours (the planet shader writes them straight to the screen, so no colour conversion: they keep their real brightness)
+    let mat; if (tex) { mat = pm(tex); mat.uniforms.sunP = { value: G.position.clone() }; mat.fragmentShader = mat.fragmentShader; }
+    else mat = new THREE.MeshBasicMaterial({ color: MAPC[stations[i].name] || stations[i].col });
+    const m = new THREE.Mesh(new THREE.SphereGeometry(3.2, 20, 14), mat); m.position.set(Math.cos(a) * R, 0, Math.sin(a) * R); m.rotation.y = a; G.add(m); M3.pl.push({ i, m }); });
+  // the stargate: a small glowing ring out past the last orbit, in the widest gap between planets
+  { const a = gateAng(k), R = M3OR * 1.16, t = new THREE.Mesh(new THREE.TorusGeometry(4.2, 0.55, 6, 28), new THREE.MeshBasicMaterial({ color: 0x8fe0ff, toneMapped: false })); t.position.set(Math.cos(a) * R, 0, Math.sin(a) * R); t.rotation.x = Math.PI / 2 - 0.3; G.add(t); M3.gate = t; }
+  M3.sc.add(G); M3.orr = G; M3.dirty = true; }
+// camera: one rig for both views (target point, distance, tilt, turn); the galaxy is the same thing seen from high above
+function m3Cam(tx, tz, dist, pit, yaw) { const c = M3.cam, cp = Math.cos(pit); c.position.set(tx + Math.sin(yaw) * cp * dist, Math.sin(pit) * dist, tz + Math.cos(yaw) * cp * dist); c.lookAt(tx, 0, tz); }
+const m3Yaw0 = (k) => -gateAng(k) - 0.35;   // the first view of a system shows its stargate off to one side (not hidden under the bottom bar)
+const m3Ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+function m3Zoom(to, k) {   // fly down into system k, or back up to the galaxy
+  const [sx, sz] = M3POS[to === 'sys' ? k : M3.k];
+  const A = M3.view === 'gal' ? { x: M3.gx, z: M3.gz, d: M3H, p: 1.5, y: 0 } : { x: M3POS[M3.k][0], z: M3POS[M3.k][1], d: M3D, p: M3.pit, y: M3.yaw };
+  if (to === 'sys') { M3.k = k; m3Orrery(k); M3.selP = -1; M3.pit = 0.78; M3.yaw = m3Yaw0(k); }
+  else { M3.gx = clamp(sx, -1100, 1100); M3.gz = clamp(sz, -600, 600); M3.sel = M3.k; }
+  const B = to === 'sys' ? { x: sx, z: sz, d: M3D, p: M3.pit, y: M3.yaw } : { x: M3.gx, z: M3.gz, d: M3H, p: 1.5, y: 0 };
+  M3.an = { t: 0, dur: 0.95, A, B, to }; M3.view = to; m3$('m3dlg').style.display = 'none'; m3Ui(); M3.dirty = true; }
+function m3Frame(now) { if (!M3.r) return; const dtm = M3.lastT ? Math.min(0.05, (now - M3.lastT) / 1000) : 0.016; M3.lastT = now;
+  let zoomK = M3.view === 'sys' ? 1 : 0;
+  if (M3.an) { const a = M3.an; a.t = Math.min(1, a.t + dtm / a.dur); const e = m3Ease(a.t), lp = (u, v) => u + (v - u) * e;
+    const ld = Math.exp(lp(Math.log(a.A.d), Math.log(a.B.d)));   // the distance changes evenly in scale, so the dive feels steady
+    m3Cam(lp(a.A.x, a.B.x), lp(a.A.z, a.B.z), ld, lp(a.A.p, a.B.p), lp(a.A.y, a.B.y)); zoomK = a.to === 'sys' ? e : 1 - e; if (a.t >= 1) M3.an = null; M3.dirty = true; }
+  else if (!M3.dirty) return;
+  else if (M3.view === 'gal') m3Cam(M3.gx, M3.gz, M3H, 1.5, 0); else m3Cam(M3POS[M3.k][0], M3POS[M3.k][1], M3D, M3.pit, M3.yaw);
+  if (M3.orr) { const s = Math.max(0.001, zoomK); M3.orr.scale.setScalar(s); M3.orr.visible = zoomK > 0.02; }   // the system grows out of its star as you dive in
+  M3.lines.material.opacity = 1 - zoomK; M3.lines.visible = zoomK < 0.98; M3.dirty = false; M3.r.render(M3.sc, M3.cam); m3Labels(zoomK); }
+const _m3v = new THREE.Vector3();
+function m3Scr(x, y, z) { _m3v.set(x, y, z).project(M3.cam); return [(_m3v.x + 1) / 2 * innerWidth, (1 - _m3v.y) / 2 * innerHeight, _m3v.z < 1]; }
+function m3Lbl(id, cls, html) { let e = M3.lbl[id]; if (!e) { e = M3.lbl[id] = document.createElement('div'); e.className = cls; m3$('m3l').appendChild(e); } if (html !== undefined && e._h !== html) { e._h = html; e.innerHTML = html; } return e; }
+function m3Labels(zk) { const galA = clamp(1 - zk / 0.15, 0, 1), sysA = clamp((zk - 0.85) / 0.15, 0, 1);   // during a dive only one set of names shows: the galaxy's at the top, the planets' at the bottom
+  // systems (galaxy): a glass square round each of our stars, the ruler's emblem and the name; the selected one in orange with who rules it
+  M3POS.forEach(([x, z], k) => { const [sx, sy, vis] = m3Scr(x, 0, z), e = m3Lbl('s' + k, 'm3s');
+    const sel = M3.sel === k, html = `<i></i><b>${galEmb(k, 'm3' + k)}<span>${galEsc(SYSTEMS[k].charAt(0) + SYSTEMS[k].slice(1).toLowerCase())}</span></b>` + (sel ? `<em>${galEsc(SYS_RULER[k])}</em>` + (k === MINE_SYS ? '<u class="w">MINEFIELDS</u>' : '') : '') + (k === curSys ? '<small>YOU ARE HERE</small>' : k === galDest ? '<small class="c">COURSE SET</small>' : '');
+    m3Lbl('s' + k, 'm3s', html); e.classList.toggle('sel', sel); e.style.transform = `translate(${sx.toFixed(1)}px,${sy.toFixed(1)}px)`; e.style.opacity = vis ? galA.toFixed(2) : 0; e.style.display = galA < 0.02 ? 'none' : ''; });
+  // planets (inside a system): a glass square round each globe and its name; the selected one in orange with what kind of world it is
+  const inSys = M3.orr && sysA > 0.02; (M3.pl || []).forEach(({ i, m }) => { const e = m3Lbl('p' + i, 'm3p'); if (!inSys || M3.orrK !== stations[i].sys) { e.style.display = 'none'; return; }
+    m.getWorldPosition(_m3v); const wp = _m3v.clone(), [sx, sy, vis] = m3Scr(wp.x, wp.y, wp.z), [cx, cy] = m3Scr(M3.orr.position.x, 0, M3.orr.position.z);
+    const behind = wp.distanceTo(M3.cam.position) > M3.orr.position.distanceTo(M3.cam.position) && Math.hypot(sx - cx, sy - cy) < 18;   // hidden behind the sun
+    const sel = M3.selP === i, here = stations[i].sys === curSys && nearPlanet() === i, p = planets[i];
+    m3Lbl('p' + i, 'm3p', `<i></i><span>${galEsc(stations[i].name.charAt(0) + stations[i].name.slice(1).toLowerCase())}</span>` + (sel ? `<em>${galEsc(p.lbl || PKIND[p.kind] || '')}</em>` : '') + (here ? '<small>YOU ARE HERE</small>' : ''));
+    e.classList.toggle('sel', sel); e.style.display = vis && !behind ? '' : 'none'; e.style.transform = `translate(${sx.toFixed(1)}px,${sy.toFixed(1)}px)`; e.style.opacity = sysA.toFixed(2); });
+  { const e = m3Lbl('gt', 'm3p m3g'); if (!inSys) e.style.display = 'none'; else { M3.gate.getWorldPosition(_m3v); const [sx, sy, vis] = m3Scr(_m3v.x, _m3v.y, _m3v.z);
+    m3Lbl('gt', 'm3p m3g', '<i></i><span>Stargate</span>' + (M3.k === curSys && galDest >= 0 && galDest !== curSys ? `<em>COURSE ${galEsc(SYSTEMS[galDest])}</em>` : ''));
+    e.classList.toggle('sel', M3.selP === -2); e.style.display = vis ? '' : 'none'; e.style.transform = `translate(${sx.toFixed(1)}px,${sy.toFixed(1)}px)`; e.style.opacity = sysA.toFixed(2); } } }
+function m3Tap(x, y) { if (M3.an) return; m3$('m3dlg').style.display = 'none';
+  if (M3.view === 'gal') { let best = -1, bd = 46; M3POS.forEach(([sx, sz], k) => { const [px, py] = m3Scr(sx, 0, sz), d = Math.hypot(px - x, py - y); if (d < bd) { bd = d; best = k; } });
+    if (best < 0) { M3.sel = -1; } else if (best === M3.sel) { m3Zoom('sys', best); sfx('note'); return; } else M3.sel = best; sfx('note'); m3Ui(); M3.dirty = true; return; }
+  let best = null, bd = 40; (M3.pl || []).forEach(({ i, m }) => { m.getWorldPosition(_m3v); const [px, py] = m3Scr(_m3v.x, _m3v.y, _m3v.z), d = Math.hypot(px - x, py - y); if (d < bd) { bd = d; best = i; } });
+  { M3.gate.getWorldPosition(_m3v); const [px, py] = m3Scr(_m3v.x, _m3v.y, _m3v.z), d = Math.hypot(px - x, py - y); if (d < bd) { bd = d; best = -2; } }
+  if (best === null) { M3.selP = -1; m3Ui(); M3.dirty = true; return; }
+  sfx('note'); const here = M3.k === curSys;
+  if (best === M3.selP && here) {   // second tap on what is already selected: ask before travelling (only inside your own system - other systems are reached through the stargate)
+    if (best === -2) m3Ask({ gate: true }, 'Travel to the stargate?'); else if (nearPlanet() !== best) m3Ask({ i: best }, 'Travel to ' + stations[best].name.charAt(0) + stations[best].name.slice(1).toLowerCase() + '?'); }
+  M3.selP = best; m3Ui(); M3.dirty = true; }
+function m3Ask(a, t) { M3.ask = a; m3$('m3dlg').querySelector('.t').textContent = t; m3$('m3dlg').style.display = 'block'; }
+function m3Ui() {   // the corner card, the line at the bottom and the action button
+  const k = M3.view === 'sys' ? M3.k : M3.sel, info = m3$('m3info');
+  info.innerHTML = k < 0 || M3.view === 'gal' ? '' : `${galEmb(k, 'm3i')}<div><b>${galEsc(SYSTEMS[k])}</b><span>${galEsc(SYS_RULER[k])}</span>${k === MINE_SYS ? '<u>MINEFIELDS REPORTED</u>' : ''}</div>`;
+  const msg = M3.view === 'gal' ? (M3.sel < 0 ? 'TAP A SYSTEM' : 'TAP AGAIN TO ENTER ' + SYSTEMS[M3.sel]) : (M3.k === curSys ? (M3.selP === -1 ? 'TAP A PLANET  ·  DRAG TO TURN' : 'TAP AGAIN TO TRAVEL') : 'OTHER SYSTEMS ARE REACHED THROUGH YOUR STARGATE');
+  m3$('m3msg').textContent = msg; const act = m3$('m3act'), ok = k >= 0 && k !== curSys; act.style.display = ok ? '' : 'none'; if (ok) act.textContent = galDest === k ? 'CANCEL COURSE' : 'SET COURSE';
+  m3$('m3back').textContent = M3.view === 'sys' ? 'GALAXY' : 'CLOSE';
+  // the stargate links: the course you set is drawn brighter
+  if (M3.lines) { const c = M3.lines.geometry.getAttribute('color'); let n = M3.linkAt; for (let a = 0; a < 3; a++) for (let b = a + 1; b < 3; b++) { const on = galDest >= 0 && ((a === curSys && b === galDest) || (b === curSys && a === galDest)), v = on ? [0.85, 0.7, 1] : [0.5, 0.55, 0.65]; c.setXYZ(n, ...v); c.setXYZ(n + 1, ...v); n += 2; } c.needsUpdate = true; }
+  M3.dirty = true; }
+function openMap() { if (S.mode !== 'fly') return; if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } if (trvOn) { trvOn = false; $('trv-dlg').style.display = 'none'; }
+  updCurSys(); m3$('m3').style.display = 'block'; m3Build(); if (M3.bad) { m3$('m3').style.display = 'none'; return; }
+  mapOn = true; firing = false; boostHeld = false; stickId = null; touchX = touchY = 0; setKnob(0, 0); updateAudio();   // the game stops: no firing, no stick, the engine goes quiet
+  m3Size(); M3.view = 'sys'; M3.k = curSys; M3.sel = curSys; M3.selP = -1; M3.an = null; M3.pit = 0.78; M3.yaw = m3Yaw0(curSys); m3Orrery(curSys); M3.lastT = 0; m3$('m3dlg').style.display = 'none'; m3Ui(); M3.dirty = true; }
+function closeMap() { mapOn = false; m3$('m3').style.display = 'none'; m3$('m3dlg').style.display = 'none'; M3.drag = null; last = performance.now(); }
+
 $('b-map').addEventListener('click', () => { setPause(false); mapOn ? closeMap() : openMap(); });
 $('map-x').addEventListener('click', closeMap);
+/* ---- GALAXY MAP: the three systems, who rules them and the stargate lanes between them. pure page elements (no 3D, nothing per frame), built once.
+   tap a system for its card; SET COURSE arms your own stargate for that system, so flying through the ring takes you there */
+const GAL = { pos: [[17, 60], [44, 30], [80, 70]], star: ['AMBER STAR', 'BLUE STAR', 'GOLDEN STAR'], vel: 'rgba(96,156,255,', hum: 'rgba(255,200,110,' };
+let galOn = false, galSel = -1, galDest = -1, galBuilt = false;
+const galEmb = (k, tag) => SYS_EMB(k).replace(/id="([^"]+)"/g, 'id="$1-' + tag + '"').replace(/url\(#([^)]+)\)/g, 'url(#$1-' + tag + ')');   // its own gradient names: a copy hidden with the other view never blanks the emblem on screen
+const galEsc = (t) => String(t).replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';');
+function galBuild() { if (galBuilt) return; galBuilt = true; const pl = $('gx-plane');
+  /* look: dark open space, every system a small glowing star inside a soft glass square, thin straight lines between systems that a stargate links,
+     the ruler's emblem in front of the name. nothing moves except the plotted course */
+  let ln = '';
+  for (let a = 0; a < SYSTEMS.length; a++) for (let b = a + 1; b < SYSTEMS.length; b++) { const [x1, y1] = GAL.pos[a], [x2, y2] = GAL.pos[b];
+    ln += `<line class="gl-core" data-a="${a}" data-b="${b}"/>`; }
+  let h = `<svg id="gx-lanes">${ln}</svg>`;
+  SYSTEMS.forEach((nm, k) => { const [x, y] = GAL.pos[k], P = SUNMAP[k] || SUNMAP[0], n = stations.filter((q) => q.sys === k).length;
+    h += `<button class="gx" id="gx${k}" style="left:${x}%;top:${y}%;--s0:${P[0]};--s1:${P[1]};--s2:${P[2]}"><span class="gx-f"><i class="gx-s"></i></span><span class="gx-l">${galEmb(k, 'gn' + k)}<span class="gx-n">${galEsc(nm.charAt(0) + nm.slice(1).toLowerCase())}</span></span><small></small></button>`; });
+  pl.innerHTML = h; galLines(); addEventListener('resize', galLines); pl.addEventListener('transitionend', galLines);
+  SYSTEMS.forEach((nm, k) => $('gx' + k).addEventListener('click', () => { galSel = galSel === k ? -1 : k; galUpdate(); }));
+  $('gx-plane').addEventListener('click', (e) => { if (e.target.closest('.gx')) return; if (galSel >= 0) { galSel = -1; galUpdate(); } });   // tap empty space: the card closes
+  $('gx-card').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; const k = galSel;
+    if (b.dataset.a === 'x') { galSel = -1; galUpdate(); }
+    else if (b.dataset.a === 'view') { galShow(false); }
+    else if (b.dataset.a === 'cancel') { galCourse(-1); galUpdate(); }
+    else if (b.dataset.a === 'go') galCourse(k); }); }
+function galLines() {   // lines in real pixels, so each one stops exactly at the edge of the two squares it joins (it never runs in over the star)
+  const pl = $('gx-plane'), W = pl.clientWidth, H = pl.clientHeight; if (!W || !H) return; const hw = 24;
+  $('gx-lanes').querySelectorAll('line').forEach((ln) => { const [ax, ay] = GAL.pos[+ln.dataset.a], [bx, by] = GAL.pos[+ln.dataset.b];
+    const x1 = ax / 100 * W, y1 = ay / 100 * H, x2 = bx / 100 * W, y2 = by / 100 * H, dx = x2 - x1, dy = y2 - y1, l = Math.hypot(dx, dy) || 1, ux = dx / l, uy = dy / l, t = hw / Math.max(Math.abs(ux), Math.abs(uy));
+    ln.setAttribute('x1', (x1 + ux * t).toFixed(1)); ln.setAttribute('y1', (y1 + uy * t).toFixed(1)); ln.setAttribute('x2', (x2 - ux * t).toFixed(1)); ln.setAttribute('y2', (y2 - uy * t).toFixed(1)); }); }
+function galCourse(k) {   // k < 0: clear the course
+  const gt = GATES[curSys]; galDest = k;
+  if (k < 0) { if (gt && gt.dest >= 0) { gt.dest = -1; gateAsked = -1; } toast('COURSE CLEARED', 1.6); return; }
+  if (S.mode !== 'fly') return; closeMap(); initAudio();
+  if (gt && S.pos.distanceTo(gt.pos) < 2600) { gt.dest = k; gateAsked = gt.k; toast('COURSE SET: ' + SYSTEMS[k] + '  ·  FLY THROUGH THE STARGATE', 3); return; }   // already by the gate: just arm it
+  S.tPlanet = -2; trvOn = true; $('trv-name').textContent = 'THE STARGATE  ›  ' + SYSTEMS[k]; $('trv-dlg').style.display = 'flex'; }   // far from it: offer the quick trip to your stargate first (the course stays set either way)
+function galArm(gt) { if (galDest < 0 || galDest === gt.k) return false; gt.dest = galDest; gateAsked = gt.k; toast('COURSE: ' + SYSTEMS[galDest] + '  ·  FLY THROUGH THE STARGATE', 3); return true; }   // arriving at your gate with a course set: no question, it is armed
+function galUpdate() { if (!galBuilt) return; const here = curSys;
+  SYSTEMS.forEach((nm, k) => { const e = $('gx' + k); e.classList.toggle('cur', k === here); e.classList.toggle('sel', k === galSel); e.classList.toggle('dst', k === galDest); e.lastChild.textContent = k === here ? 'YOU ARE HERE' : k === galDest ? 'COURSE SET' : ''; });
+  $('gx-lanes').querySelectorAll('line').forEach((p) => { const a = +p.dataset.a, b = +p.dataset.b; p.classList.toggle('on', galDest >= 0 && ((a === here && b === galDest) || (b === here && a === galDest))); });
+  $('map-galx').classList.toggle('sel', galSel >= 0); const c = $('gx-card');
+  if (galSel < 0) { c.innerHTML = ''; return; }
+  const k = galSel, ids = stations.map((q, i) => i).filter((i) => stations[i].sys === k), gs = stations[GATES[k].si];
+  let w = ''; ids.forEach((i) => { const p = planets[i], col = MAPC[stations[i].name] || stations[i].col; w += `<li><i style="--c:${col};background-image:${p.img ? 'url(' + p.img + '),' : ''}radial-gradient(circle at 40% 35%,#fff6,${col} 60%)"></i><span>${galEsc(stations[i].name)}</span><em>${galEsc(p.lbl || PKIND[p.kind] || '')}</em></li>`; });
+  const notes = [`<li>STARGATE NEAR <b>${galEsc(gs.name)}</b></li>`].concat(k === MINE_SYS ? ['<li class="warn">MINEFIELDS REPORTED</li>'] : []);
+  const act = k === here ? `<button class="gx-b alt" data-a="view">VIEW SYSTEM</button>` : k === galDest ? `<div class="gx-set">COURSE SET</div><button class="gx-b" data-a="go">GO TO STARGATE</button><button class="gx-b alt" data-a="cancel">CANCEL COURSE</button>` : `<button class="gx-b" data-a="go">SET COURSE</button>`;
+  c.innerHTML = `<button class="gx-x" data-a="x">&times;</button><div class="gx-h">${galEmb(k, 'gc')}<div><b>${galEsc(SYSTEMS[k])}</b><small>RULED BY ${galEsc(SYS_RULER[k])}</small></div></div>
+    <div class="gx-st" style="--s0:${(SUNMAP[k] || SUNMAP[0])[0]};--s1:${(SUNMAP[k] || SUNMAP[0])[1]}"><i></i>${GAL.star[k]}  ·  ${ids.length} WORLDS</div><ul class="gx-w">${w}</ul><ul class="gx-nt">${notes.join('')}</ul>${act}`; }
+function galShow(on) { galOn = on; mapOv.classList.toggle('gal', on); $('map-tsys').classList.toggle('on', !on); $('map-gal').classList.toggle('on', on);
+  if (on) { galBuild(); requestAnimationFrame(galLines); updCurSys(); mapOv.dataset.sys = 'gal'; mapOv.style.backgroundImage = 'url(nebula_map.webp)'; $('map-title').innerHTML = 'STAR MAP<b>KNOWN SPACE</b>'; mapOv.querySelector('.mh').textContent = 'TAP A SYSTEM FOR DETAILS'; galUpdate(); }
+  else { galSel = -1; mapOv.querySelector('.mh').textContent = 'TAP A PLANET TO TRAVEL'; if (mapOn) updateMap(); } }
+$('map-tsys').addEventListener('click', () => { if (galOn) galShow(false); });
+$('map-gal').addEventListener('click', () => { if (!galOn) galShow(true); });
 $('trv-yes').addEventListener('click', () => { trvOn = false; $('trv-dlg').style.display = 'none'; initAudio(); if (S.tPlanet === -2) { S.tPlanet = -1; warpToGate(); } else if (S.tPlanet >= 0) startWarp(S.tPlanet); });
 $('trv-no').addEventListener('click', () => { aimCool = 2; noPl = S.tPlanet; trvOn = false; S.tPlanet = -1; $('trv-dlg').style.display = 'none'; });
 $('ent-yes').addEventListener('click', () => { entOn = false; $('ent-dlg').style.display = 'none'; initAudio(); tryDock(); });
@@ -2823,7 +3037,7 @@ $('go-start').textContent = 'LAUNCH';
 $('go-launch').addEventListener('click', () => { unlockMusic(); $('sh-dlg').style.display = 'flex'; });
 document.addEventListener('click', (e) => {   // one place gives every menu button its sound
   const b = e.target.closest('button, .go, .smap .op'); if (!b) return; const id = b.id || '';
-  if (id === 'b-pause' || id === 'tab-p' || b.closest('#map-ov, #pause-ov, .smap')) { initAudio(); sfx('note'); return; }   // the map and the pause window: the user's own click sound
+  if (id === 'b-pause' || id === 'tab-p' || b.closest('#map-ov, #m3, #pause-ov, .smap')) { initAudio(); sfx('note'); return; }   // the map and the pause window: the user's own click sound
   if (!b.closest('#shop, .edlg, #sh-dlg, #start')) return;
   initAudio(); sfx(['ent-yes', 'trv-yes', 'dlg-yes', 'go-start'].includes(id) ? 'uiOk' : ['ent-no', 'trv-no', 'dlg-no', 'map-x'].includes(id) ? 'uiNo' : id.startsWith('tab-') ? 'uiTab' : 'ui');
 }, true);
@@ -2940,6 +3154,7 @@ function place(el, worldPos, label, edge, hideIfBehind) {
 const DTR = new Array(9).fill(1 / 60); let DTI = 0;
 function frame(now) {
   requestAnimationFrame(frame);
+  if (mapOn) { last = now; m3Frame(now); return; }   // the star map is open: the game is paused, only the map is drawn (and only when it changes)
   let dt = (now - last) / 1000; const rawMs = Math.min(dt * 1000, 100); last = now; if (paused || dt > 0.05) dt = paused ? 0 : 0.05; if (dt <= 0) return;
   /* even steps: the phone hands out frame times that wobble (14, 19, 16, 21 ms...) although the screen shows a frame every ~16.7 ms; moving the ship and
      camera by those wobbly steps makes every turn look shaky. the step used is the middle value of the last 9 frames; a real slow frame (much longer) still counts in full */
