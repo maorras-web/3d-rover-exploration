@@ -1740,7 +1740,8 @@ function renderNote() {   // builds the user's 'Notification · Tight' design (4
 let lastNote = -1;
 function sfx(kind, k, vm) {
   if (!actx || !save.snd || actx.state !== 'running') return; const t = actx.currentTime;
-  if (kind === 'ui' || kind === 'uiOk' || kind === 'uiNo' || kind === 'uiTab') kind = 'note';   // every menu button uses the user's one click sound
+  if (kind === 'ui' || kind === 'uiOk' || kind === 'uiNo' || kind === 'uiTab') kind = 'note';
+  if (mapOn && kind !== 'note') return;   // the star map is open: the game is paused, so no game sound at all (only the map's own button clicks)   // every menu button uses the user's one click sound
   if (kind === 'note') { if (t - lastNote < 0.08) return; lastNote = t; }   // a tap that triggers two handlers plays it once
   else if ((kind === 'pick' || kind === 'lock') && t - lastNote < 0.3) return;   // a button's own extra blip (FLY, ACCEPT, BUY, a planet on the map...) is swallowed: one clean, even click per tap
   const tone = (type, f0, f1, dur, vol, delay) => { const o = actx.createOscillator(), g = actx.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t + (delay || 0)); o.frequency.exponentialRampToValueAtTime(f1, t + (delay || 0) + dur); g.gain.setValueAtTime(vol, t + (delay || 0)); g.gain.exponentialRampToValueAtTime(0.001, t + (delay || 0) + dur); o.connect(g); g.connect(eng.master); o.start(t + (delay || 0)); o.stop(t + (delay || 0) + dur + 0.02); };
@@ -2930,7 +2931,7 @@ function m3Ui() {   // the corner card, the line at the bottom and the action bu
   M3.dirty = true; }
 function openMap() { if (S.mode !== 'fly') return; if (entOn) { entOn = false; $('ent-dlg').style.display = 'none'; } if (trvOn) { trvOn = false; $('trv-dlg').style.display = 'none'; }
   updCurSys(); m3$('m3').style.display = 'block'; m3Build(); if (M3.bad) { m3$('m3').style.display = 'none'; return; }
-  mapOn = true; firing = false; boostHeld = false; stickId = null; touchX = touchY = 0; setKnob(0, 0); updateAudio();   // the game stops: no firing, no stick, the engine goes quiet
+  mapOn = true; firing = false; boostHeld = false; stickId = null; touchX = touchY = 0; setKnob(0, 0); updateAudio(); if (eng && actx) { const t = actx.currentTime; for (const g of [eng.g, eng.hg]) { g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(0, t); } }   // the engine goes quiet at once   // the game stops: no firing, no stick, the engine goes quiet
   m3Size(); M3.view = 'sys'; M3.k = curSys; M3.sel = curSys; M3.selP = -1; M3.an = null; M3.pit = 0.78; M3.yaw = m3Yaw0(curSys); m3Orrery(curSys); M3.lastT = 0; m3$('m3dlg').style.display = 'none'; m3Ui(); M3.dirty = true; }
 function closeMap() { mapOn = false; m3$('m3').style.display = 'none'; m3$('m3dlg').style.display = 'none'; M3.drag = null; last = performance.now(); }
 
